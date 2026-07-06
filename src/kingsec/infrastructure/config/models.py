@@ -1,0 +1,190 @@
+"""Typed configuration value objects, grouped by concern.
+
+Design summary
+    Each logical area (app, server, security, ai, logging, storage) is a small
+    frozen ``BaseModel``. Grouping does three things:
+
+      1. Keeps the flat env namespace organised. ``KINGSEC_SERVER__PORT`` reads
+         better than ``KINGSEC_PORT`` once there are 20+ settings, and it groups
+         related values so nobody has to guess which subsystem a key belongs to.
+      2. Lets each subsystem own its own validation rules next to its data.
+      3. Lets Module 2.2+ depend on a *narrow* slice (e.g. accept a
+         ``LoggingSettings``) instead of the whole ``Settings`` object — smaller
+         surface, easier tests, cleaner hexagonal boundaries.
+
+    These are plain ``BaseModel`` value objects, NOT ``BaseSettings``. Only the
+    root aggregate (``settings.Settings``) knows how to read the environment;
+    the groups are dumb, validated data. That separation keeps "where do values
+    come from" in exactly one place.
+
+Immutability (Requirement 7)
+    Every model sets ``frozen=True`` via the shared ``_FROZEN`` config. Once the
+    tree is built at startup it cannot be mutated, so no code path can quietly
+    reconfigure the running app. ``extra="forbid"`` additionally rejects unknown
+    keys, turning a typo in a ``.env`` nested value into an immediate error
+    instead of a silently ignored setting.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SecretStr,
+    field_validator,
+    model_validator,
+)
+
+from .enums import Environment, LogLevel
+
+# Shared model config: immutable + reject unknown keys. Defined once so every
+# group is guaranteed to have identical, non-negotiable safety properties.
+_FROZEN = ConfigDict(frozen=True, extra="forbid")
+
+# Binding to any of these means "listen on every network interface", which
+# exposes the service beyond the local machine. KingSec's frozen trust posture
+# is loopback-by-default, so these require an explicit, deliberate opt-in.
+_WILDCARD_HOSTS = frozenset({"0.0.0.0", "::", "*"})  # noqa: S104 - referenced to REJECT, not to bind
+
+
+class AppSettings(BaseModel):
+    """Identity and mode of the running application."""
+
+    model_config = _FROZEN
+
+    name: str = "KingSec"
+    version: str = "0.1.0"
+    environment: Environment = Environment.DEVELOPMENT
+    # ``debug`` toggles verbose behaviour. It is intentionally False by default
+    # and forbidden in production (see validator) so a leftover debug flag can
+    # never ship to a real deployment.
+    debug: bool = False
+
+    @model_validator(mode="after")
+    def _forbid_debug_in_production(self) -> "AppSettings":
+        # Cross-field rule: debug + production is almost always an accident and
+        # can leak internals. Catch it at startup rather than in the field.
+        if self.environment is Environment.PRODUCTION and self.debug:
+            raise ValueError(
+                "debug mode must be disabled when environment is 'production'"
+            )
+        return self
+
+
+class ServerSettings(BaseModel):
+    """How the local API server binds.
+
+    This is where the frozen security guardrail lives: KingSec binds to
+    loopback (127.0.0.1) by default, and refuses to bind to a wildcard address
+    unless an operator explicitly opts in. The guardrail is a *default in code*,
+    not a line in a runbook — so the safe path is the path of least resistance.
+    """
+
+    model_config = _FROZEN
+
+    host: str = "127.0.0.1"
+    # ge/le make the port range a validation rule; anything outside 1–65535 is
+    # rejected at load time with a precise message.
+    port: int = Field(default=8765, ge=1, le=65535)
+    # The explicit escape hatch. Defaulting to False means "external exposure is
+    # never accidental" — it has to be typed out on purpose.
+    allow_external_bind: bool = False
+
+    @field_validator("host")
+    @classmethod
+    def _host_not_empty(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("server host must not be empty")
+        return stripped
+
+    @model_validator(mode="after")
+    def _guard_wildcard_bind(self) -> "ServerSettings":
+        if self.host in _WILDCARD_HOSTS and not self.allow_external_bind:
+            raise ValueError(
+                f"refusing to bind to {self.host!r}, which exposes KingSec on all "
+                "network interfaces. KingSec defaults to loopback for safety. Only "
+                "set server.allow_external_bind=true inside a trusted, authorized "
+                "network segment."
+            )
+        return self
+
+
+class SecuritySettings(BaseModel):
+    """Product-level trust guardrails expressed as configuration."""
+
+    model_config = _FROZEN
+
+    # The authorization gate defaults to ENABLED. Disabling it is a conscious,
+    # logged choice for the operator — never the accidental default state.
+    require_authorization: bool = True
+
+
+class AISettings(BaseModel):
+    """Bring-Your-Own-Key AI provider settings.
+
+    KingSec's business model is BYO-key, so the API key is *optional at
+    startup*: a user may run the app and configure their key later through the
+    UI. Config's job here is only to (a) carry the values and (b) validate their
+    shape if present — never to require a key or talk to a provider.
+
+    The key is a ``SecretStr`` so it is masked in every ``repr()``/log line by
+    construction. That single type choice satisfies "API keys must never appear
+    in logs" without relying on anyone remembering to redact.
+    """
+
+    model_config = _FROZEN
+
+    provider: str = "anthropic"
+    base_url: str | None = None
+    api_key: SecretStr | None = None
+    # A neutral default; the real model is user-selectable and the AI module
+    # (out of scope here) owns model-capability concerns.
+    model: str = "claude-sonnet-4-5"
+    request_timeout_seconds: float = Field(default=30.0, gt=0)
+
+    @field_validator("base_url")
+    @classmethod
+    def _validate_base_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not value.startswith(("http://", "https://")):
+            raise ValueError("ai base_url must start with http:// or https://")
+        # Normalise so downstream URL joins are predictable.
+        return value.rstrip("/")
+
+
+class LoggingSettings(BaseModel):
+    """Desired logging behaviour — the seam for Module 2.2.
+
+    Important boundary: this class holds *what the operator wants*; it does NOT
+    configure any logging library. Module 2.2 (structlog) will read these values
+    and set up handlers/processors. Keeping the values here means the log level
+    is validated at startup and Module 2.2 receives an already-valid object.
+    """
+
+    model_config = _FROZEN
+
+    level: LogLevel = LogLevel.INFO
+    # False -> human-friendly console output for development.
+    # True  -> structured JSON, appropriate for production log ingestion.
+    json_format: bool = False
+
+
+class StorageSettings(BaseModel):
+    """Where KingSec keeps its local data.
+
+    Only the *location* is configuration. Creating directories, opening the
+    database, or running migrations belongs to the persistence module (out of
+    scope for 2.1). We expose the path so later modules have a single, validated
+    source of truth for it.
+    """
+
+    model_config = _FROZEN
+
+    # default_factory (not a bare default) because the value depends on the
+    # current user's home directory, resolved at load time.
+    data_dir: Path = Field(default_factory=lambda: Path.home() / ".kingsec")

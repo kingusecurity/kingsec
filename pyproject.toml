@@ -1,0 +1,172 @@
+# =============================================================================
+# KingSec - Project Definition & Tooling Configuration
+# Single source of truth for metadata, dependencies, and dev-tool settings.
+# Standards-based (PEP 621 + PEP 735) so the dependency manager stays swappable.
+# =============================================================================
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "kingsec"
+version = "0.1.0"
+description = "Local-first, AI-augmented Attack Surface & Vulnerability Management for SMEs."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary - All Rights Reserved" }
+authors = [{ name = "Huzaifa" }]
+keywords = ["security", "asm", "vulnerability-management", "defensive-security"]
+classifiers = [
+  "Private :: Do Not Upload",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+
+# --- Runtime stack (declared for the modules ahead; foundation ships no logic) ---
+dependencies = [
+  "fastapi>=0.115",           # Inbound web adapter (local web app)
+  "uvicorn[standard]>=0.30",  # ASGI server to run the local app
+  "pydantic>=2.7",            # Boundary DTOs + validation (edges only, never domain)
+  "pydantic-settings>=2.3",   # Typed, layered configuration loading
+  "httpx>=0.27",              # Async HTTP client (AI provider + HTTP probing)
+  "structlog>=24.1",          # Structured, redaction-friendly logging
+]
+
+[project.urls]
+Homepage = "https://kingsec.local"  # placeholder
+
+# --- Development toolchain (PEP 735 dependency group; not shipped, not an extra) ---
+[dependency-groups]
+dev = [
+  "ruff>=0.6",             # Lint + format (one fast tool)
+  "mypy>=1.11",            # Strict static typing
+  "pytest>=8.2",           # Test runner
+  "pytest-cov>=5.0",       # Coverage measurement
+  "pytest-asyncio>=0.23",  # Async test support
+  "import-linter>=2.0",    # Enforce hexagonal boundaries in CI
+  "bandit>=1.7",           # Deeper Python SAST (defense-in-depth vs Ruff S)
+  "pip-audit>=2.7",        # Dependency vulnerability scanning
+  "pre-commit>=3.7",       # Local enforcement of the above before commit
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/kingsec"]
+
+# =============================================================================
+# Ruff - linting + formatting
+# =============================================================================
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "E", "W",  # pycodestyle
+  "F",       # pyflakes
+  "I",       # isort (import ordering)
+  "N",       # pep8-naming
+  "D",       # pydocstyle (docstrings)
+  "UP",      # pyupgrade
+  "B",       # flake8-bugbear
+  "C4",      # comprehensions
+  "SIM",     # simplify
+  "TID",     # tidy-imports
+  "PTH",     # prefer pathlib
+  "PT",      # pytest style
+  "ASYNC",   # async correctness
+  "S",       # flake8-bandit (security)
+  "ARG",     # unused arguments
+  "RUF",     # Ruff-specific
+]
+ignore = [
+  "D203",   # conflicts with D211 (choose one blank-line-before-class rule)
+  "D213",   # conflicts with D212 (choose multi-line summary position)
+  "COM812", # handled by the formatter
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.isort]
+known-first-party = ["kingsec"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests may assert freely and need no docstrings.
+"tests/**" = ["S101", "D100", "D101", "D102", "D103", "ARG"]
+
+# =============================================================================
+# mypy - strict static typing
+# =============================================================================
+[tool.mypy]
+python_version = "3.11"
+mypy_path = "src"
+packages = ["kingsec"]
+strict = true
+warn_unreachable = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+plugins = ["pydantic.mypy"]
+
+# =============================================================================
+# pytest
+# =============================================================================
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers --strict-config"
+asyncio_mode = "auto"
+markers = [
+  "unit: pure logic, no I/O",
+  "integration: exercises a real local dependency",
+  "contract: verifies an adapter satisfies its port",
+  "e2e: drives the Service API end-to-end",
+  "slow: excluded from the fast feedback loop",
+]
+
+# =============================================================================
+# coverage
+# =============================================================================
+[tool.coverage.run]
+source = ["kingsec"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]
+
+# =============================================================================
+# import-linter - physical enforcement of the frozen hexagonal architecture
+# =============================================================================
+[tool.importlinter]
+root_package = "kingsec"
+
+[[tool.importlinter.contracts]]
+name = "Hexagonal layering (dependencies point inward only)"
+type = "layers"
+layers = [
+  "kingsec.adapters | kingsec.infrastructure",
+  "kingsec.application",
+  "kingsec.domain",
+]
+
+[[tool.importlinter.contracts]]
+name = "Domain is pure (no frameworks, no outer layers)"
+type = "forbidden"
+source_modules = ["kingsec.domain"]
+forbidden_modules = [
+  "fastapi", "uvicorn", "httpx", "pydantic", "sqlite3",
+  "kingsec.application", "kingsec.adapters", "kingsec.infrastructure",
+]
+
+[[tool.importlinter.contracts]]
+name = "Application knows domain only (defines ports, imports no adapters)"
+type = "forbidden"
+source_modules = ["kingsec.application"]
+forbidden_modules = [
+  "fastapi", "uvicorn", "httpx", "sqlite3",
+  "kingsec.adapters", "kingsec.infrastructure",
+]

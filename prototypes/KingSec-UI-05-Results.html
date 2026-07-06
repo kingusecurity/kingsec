@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KingSec — Results</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink:#2A3F73; --ink-hover:#22335F; --accent:#3B82F6;
+    --bg:#F7F8FA; --surface:#FFFFFF; --text:#1A2233; --text-muted:#5B6472; --border:#E3E7EE;
+    --success:#256B49; --success-bg:#E7F3EC; --success-bd:#C7E4D2;
+    --high:#B45309; --high-bg:#FEF3E4; --high-bd:#F6DEB8;
+    --med:#8A6314;  --med-bg:#FBF3DF;  --med-bd:#F0E2B8;
+    --low:#3E6591;  --low-bg:#EAF1F9;  --low-bd:#D3E1F0;
+    --radius:14px; --radius-sm:9px;
+    --shadow-soft:0 1px 2px rgba(26,34,51,.05);
+    --shadow-card:0 1px 3px rgba(26,34,51,.06), 0 1px 2px rgba(26,34,51,.04);
+    --shadow-cta:0 1px 2px rgba(26,34,51,.08), 0 4px 14px rgba(42,63,115,.14);
+    --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { height:100%; }
+  body { font-family:var(--font); background:var(--bg); color:var(--text); -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; display:flex; flex-direction:column; min-height:100vh; line-height:1.5; }
+
+  .topbar { height:60px; display:flex; align-items:center; justify-content:space-between; padding:0 28px; border-bottom:1px solid var(--border); background:rgba(247,248,250,.9); backdrop-filter:saturate(180%) blur(6px); position:sticky; top:0; z-index:10; }
+  .brand { display:flex; align-items:center; gap:9px; font-weight:600; font-size:15px; letter-spacing:-0.01em; }
+  .nav { display:flex; align-items:center; gap:2px; }
+  .nav a { font-size:14px; font-weight:500; color:var(--text-muted); text-decoration:none; padding:8px 13px; border-radius:var(--radius-sm); transition:color .15s, background .15s; }
+  .nav a:hover { color:var(--text); background:#EEF1F6; }
+
+  main { flex:1; width:100%; }
+  .wrap { max-width:720px; margin:0 auto; padding:32px 28px 48px; }
+
+  .rhead { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:22px; flex-wrap:wrap; }
+  .rhead .ctx { font-size:13.5px; color:var(--text-muted); }
+  .rhead .ctx b { color:var(--text); font-weight:600; }
+
+  .btn { font-family:var(--font); font-size:14.5px; font-weight:600; letter-spacing:-0.01em; border-radius:var(--radius-sm); cursor:pointer; border:1px solid transparent; padding:11px 18px; transition:background .15s, border-color .15s, transform .04s; display:inline-flex; align-items:center; justify-content:center; gap:8px; white-space:nowrap; }
+  .btn:active { transform:translateY(1px); }
+  .btn-primary { background:var(--ink); color:#fff; box-shadow:var(--shadow-cta); }
+  .btn-primary:hover { background:var(--ink-hover); }
+  .btn-ghost { background:var(--surface); color:var(--text); border-color:var(--border); box-shadow:var(--shadow-soft); }
+  .btn-ghost:hover { border-color:#CDD5E1; background:#FCFDFE; }
+
+  /* 1. Overall Security Status */
+  .verdict { background:var(--surface); border:1px solid var(--border); border-left:4px solid var(--high); border-radius:var(--radius); box-shadow:var(--shadow-card); padding:20px 26px 22px; margin-bottom:32px; }
+  /* refinement 1 + 2: timeline + confidence meta row */
+  .vmeta { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+  .timeline { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600; color:var(--success); }
+  .timeline svg { flex:none; }
+  .timeline .ago { color:var(--text-muted); font-weight:500; }
+  .confidence { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:var(--ink); background:#EAF0FB; border:1px solid #DCE6F5; padding:3px 10px; border-radius:999px; }
+  .confidence svg { flex:none; }
+
+  .verdict-top { display:flex; align-items:flex-start; gap:15px; }
+  .vicon { width:44px; height:44px; border-radius:11px; flex:none; display:flex; align-items:center; justify-content:center; background:var(--high-bg); border:1px solid var(--high-bd); }
+  .status-word { font-size:24px; font-weight:700; letter-spacing:-0.02em; color:var(--high); }
+  .status-sentence { font-size:15px; color:var(--text); margin-top:3px; line-height:1.5; }
+  .breakdown { display:flex; flex-wrap:wrap; gap:9px; margin-top:20px; }
+  .bd { display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:600; padding:5px 11px; border-radius:8px; }
+  .bd svg { flex:none; }
+  .bd-high { color:var(--high); background:var(--high-bg); border:1px solid var(--high-bd); }
+  .bd-med  { color:var(--med);  background:var(--med-bg);  border:1px solid var(--med-bd); }
+  .bd-low  { color:var(--low);  background:var(--low-bg);  border:1px solid var(--low-bd); }
+  /* honest AI labeling */
+  .ai-note { margin-top:16px; padding-top:15px; border-top:1px solid var(--border); font-size:12.5px; color:var(--text-muted); display:flex; align-items:flex-start; gap:8px; line-height:1.5; }
+  .ai-note svg { flex:none; margin-top:1px; }
+
+  .sec-title { font-size:16px; font-weight:700; letter-spacing:-0.01em; margin-bottom:4px; }
+  .sec-sub { font-size:13.5px; color:var(--text-muted); }
+  /* refinement 3: why these three? */
+  details.why { margin:8px 0 16px; }
+  details.why summary { list-style:none; cursor:pointer; font-size:13px; font-weight:600; color:var(--ink); display:inline-flex; align-items:center; gap:6px; user-select:none; }
+  details.why summary::-webkit-details-marker { display:none; }
+  details.why summary .chev { transition:transform .15s ease; }
+  details.why[open] summary .chev { transform:rotate(90deg); }
+  details.why .why-body { margin-top:10px; padding:14px 16px; background:#F4F7FB; border:1px solid #E4EBF4; border-radius:10px; font-size:13.5px; color:var(--text); line-height:1.55; }
+
+  .prio { background:var(--surface); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow-soft); margin-bottom:12px; overflow:hidden; }
+  .prio-head { display:flex; align-items:flex-start; gap:14px; padding:18px 20px; }
+  .rank { width:26px; height:26px; border-radius:7px; flex:none; background:#EEF2F8; color:var(--ink); font-size:14px; font-weight:700; display:flex; align-items:center; justify-content:center; margin-top:1px; }
+  .prio-body { flex:1; min-width:0; }
+  .prio-title { font-size:15.5px; font-weight:600; letter-spacing:-0.01em; }
+  .prio-why { font-size:14px; color:var(--text-muted); margin-top:4px; line-height:1.5; }
+  /* refinement 4: time-based effort */
+  .effort { flex:none; display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600; padding:5px 10px; border-radius:8px; white-space:nowrap; }
+  .effort svg { flex:none; }
+  .effort small { font-weight:500; opacity:.85; }
+  .effort-easy   { color:var(--success); background:var(--success-bg); border:1px solid var(--success-bd); }
+  .effort-mod    { color:var(--med);     background:var(--med-bg);     border:1px solid var(--med-bd); }
+  .effort-expert { color:var(--ink);     background:#EAF0FB;           border:1px solid #DCE6F5; }
+
+  .prio details.fixd { border-top:1px solid var(--border); }
+  .prio summary.fixs { list-style:none; cursor:pointer; padding:12px 20px 12px 60px; font-size:13.5px; font-weight:600; color:var(--ink); display:inline-flex; align-items:center; gap:6px; user-select:none; }
+  .prio summary.fixs::-webkit-details-marker { display:none; }
+  .prio summary.fixs .chev { transition:transform .15s ease; }
+  .prio details.fixd[open] summary.fixs .chev { transform:rotate(90deg); }
+  .prio .fix { padding:0 20px 18px 60px; font-size:14px; color:var(--text); line-height:1.55; }
+  .prio .fix .tip { color:var(--text-muted); }
+
+  .more-note { font-size:13px; color:var(--text-muted); margin:14px 2px 0; display:flex; align-items:center; gap:7px; }
+
+  /* 4. Consulting on-ramp — educational, quiet confidence (refinement 6) */
+  .help { margin-top:30px; background:#F4F7FB; border:1px solid #E4EBF4; border-radius:12px; padding:20px 22px; display:flex; align-items:center; justify-content:space-between; gap:18px; flex-wrap:wrap; }
+  .help-text { font-size:14px; color:var(--text); line-height:1.55; max-width:440px; }
+  .help-text b { font-weight:600; }
+  .help a.hlink { font-size:13.5px; font-weight:600; color:var(--ink); text-decoration:none; display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+  .help a.hlink:hover { text-decoration:underline; }
+
+  .actions { margin-top:32px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .btn-tertiary { background:transparent; color:var(--text-muted); border-color:transparent; }
+  .btn-tertiary:hover { color:var(--text); background:#EEF1F6; }
+
+  .tech { display:none; margin-top:20px; background:#0F1B2D; border-radius:12px; padding:18px 20px; }
+  .tech.show { display:block; }
+  .tech h3 { color:#C6D3EC; font-size:12px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; margin-bottom:12px; }
+  .tech pre { font-family:var(--mono); font-size:12.5px; color:#AEC4E6; line-height:1.7; white-space:pre-wrap; word-break:break-word; }
+  .tech .muted { color:#6C82A6; }
+
+  .footer { border-top:1px solid var(--border); padding:18px 28px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; font-size:12.5px; color:var(--text-muted); }
+  .footer .made { display:inline-flex; align-items:center; gap:7px; }
+  .footer a { color:var(--text-muted); text-decoration:none; } .footer a:hover { color:var(--text); }
+  .footer-right { display:flex; align-items:center; gap:20px; }
+  .version { font-size:12px; color:#9AA6BC; }
+
+  a:focus-visible, .btn:focus-visible, summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  @media (prefers-reduced-motion: reduce) { .btn, .chev { transition:none; } }
+  @media (max-width:600px) {
+    .nav a { display:none; }
+    .prio-head { flex-wrap:wrap; } .effort { margin-left:40px; }
+    .prio summary.fixs, .prio .fix { padding-left:20px; }
+    .actions .btn { flex:1; min-width:150px; }
+    .footer { justify-content:center; text-align:center; } .footer-right { flex-direction:column; gap:10px; }
+  }
+</style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2.5 26.5 6.4V15c0 6.8-4.6 11.8-10.5 13.9C10.1 26.8 5.5 21.8 5.5 15V6.4L16 2.5Z" fill="#2A3F73"/><path d="M11.4 16.1l3.1 3.1 6.1-6.4" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      KingSec
+    </div>
+    <nav class="nav"><a href="#">Home</a><a href="#">Reports</a><a href="#">Settings</a></nav>
+  </header>
+
+  <main>
+    <div class="wrap">
+
+      <div class="rhead">
+        <div class="ctx">Assessment of <b>acme.com</b> · Today, 5 Jul 2026</div>
+        <button class="btn btn-primary"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Download PDF report</button>
+      </div>
+
+      <!-- 1. OVERALL SECURITY STATUS -->
+      <section class="verdict" aria-label="Overall security status">
+        <div class="vmeta">
+          <span class="timeline">
+            <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5l7 9H5l7-9Z" fill="currentColor"/></svg>
+            Improved since your last assessment <span class="ago">· 2 weeks ago</span>
+          </span>
+          <span class="confidence">
+            <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="#2A3F73" stroke-width="1.8"/><path d="M8 12.3l2.6 2.6 5-5.2" fill="none" stroke="#2A3F73" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            AI confidence: High
+          </span>
+        </div>
+
+        <div class="verdict-top">
+          <span class="vicon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 3 22 20H2L12 3Z" fill="none" stroke="#B45309" stroke-width="1.9" stroke-linejoin="round"/><path d="M12 10v4" stroke="#B45309" stroke-width="1.9" stroke-linecap="round"/><circle cx="12" cy="16.6" r="1.05" fill="#B45309"/></svg></span>
+          <div>
+            <div class="status-word">Needs attention</div>
+            <div class="status-sentence">We found a few things worth fixing. <b>None are critical</b> — but one is worth handling this week.</div>
+          </div>
+        </div>
+
+        <div class="breakdown">
+          <span class="bd bd-high"><svg width="11" height="11" viewBox="0 0 24 24"><path d="M12 3 22 20H2L12 3Z" fill="currentColor"/></svg>1 to do this week</span>
+          <span class="bd bd-med"><svg width="11" height="11" viewBox="0 0 24 24"><path d="M12 3 21 12 12 21 3 12 12 3Z" fill="currentColor"/></svg>2 when you can</span>
+          <span class="bd bd-low"><svg width="9" height="9" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="currentColor"/></svg>4 minor</span>
+        </div>
+
+        <div class="ai-note">
+          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="#9AA6BC" stroke-width="1.6"/><path d="M12 11v5.5" stroke="#9AA6BC" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="7.8" r="1.05" fill="#9AA6BC"/></svg>
+          <span>This summary is <b>based on verified scanner evidence</b> — findings are summarized from real results, not generated. As with any assessment, confirm changes before applying them.</span>
+        </div>
+      </section>
+
+      <!-- 2 + 3. TOP 3 PRIORITIES -->
+      <h2 class="sec-title">Fix these first</h2>
+      <p class="sec-sub">The three issues that matter most, in order.</p>
+      <details class="why">
+        <summary><span class="chev" aria-hidden="true">›</span> Why these three?</summary>
+        <div class="why-body">These recommendations are prioritized by <b>potential business impact</b>, <b>likelihood of exploitation</b>, and <b>ease of remediation</b> — so the shortest path to meaningfully safer comes first.</div>
+      </details>
+
+      <div class="prio">
+        <div class="prio-head">
+          <span class="rank">1</span>
+          <div class="prio-body">
+            <div class="prio-title">Missing security headers</div>
+            <div class="prio-why">Your site is missing a few protective settings that help browsers block common attacks.</div>
+          </div>
+          <span class="effort effort-easy"><svg width="12" height="12" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>≈ 15 minutes</span>
+        </div>
+        <details class="fixd"><summary class="fixs"><span class="chev" aria-hidden="true">›</span> How to fix</summary>
+          <div class="fix">These are small settings your developer or web host can add (for example, a Content-Security-Policy). <span class="tip">The exact settings to apply are included in your PDF report.</span></div>
+        </details>
+      </div>
+
+      <div class="prio">
+        <div class="prio-head">
+          <span class="rank">2</span>
+          <div class="prio-body">
+            <div class="prio-title">Outdated encryption is still allowed</div>
+            <div class="prio-why">Your site accepts an older, less-secure encryption method that modern browsers are phasing out.</div>
+          </div>
+          <span class="effort effort-mod"><svg width="12" height="12" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>≈ 1 hour</span>
+        </div>
+        <details class="fixd"><summary class="fixs"><span class="chev" aria-hidden="true">›</span> How to fix</summary>
+          <div class="fix">Your hosting provider can turn off the outdated protocol and keep only the modern, secure ones. <span class="tip">Usually a few minutes on their side — details are in your report.</span></div>
+        </details>
+      </div>
+
+      <div class="prio">
+        <div class="prio-head">
+          <span class="rank">3</span>
+          <div class="prio-body">
+            <div class="prio-title">An old software version is publicly visible</div>
+            <div class="prio-why">Attackers can see which version your site runs and look up its known weaknesses. Updating removes that easy target. <b>Best handled by a professional.</b></div>
+          </div>
+          <span class="effort effort-expert"><svg width="12" height="12" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>≈ Half day</span>
+        </div>
+        <details class="fixd"><summary class="fixs"><span class="chev" aria-hidden="true">›</span> How to fix</summary>
+          <div class="fix">Update the software to the current version. <span class="tip">If you're not sure how to do this safely without breaking your site, this is a good one to hand to a professional.</span></div>
+        </details>
+      </div>
+
+      <p class="more-note"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="#9AA6BC" stroke-width="1.7"/><path d="M12 11v5" stroke="#9AA6BC" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="7.6" r="1.05" fill="#9AA6BC"/></svg>4 minor items are listed in your full report — none are urgent.</p>
+
+      <!-- 4. WHERE TO GET HELP (educational, quiet confidence) -->
+      <div class="help">
+        <div class="help-text">If you'd like expert assistance implementing these recommendations — or a deeper manual review — <b>KingSec Consulting is available.</b></div>
+        <a href="#" class="hlink">About KingSec Consulting →</a>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Download PDF report</button>
+        <button class="btn btn-ghost" id="techBtn" aria-expanded="false">View technical details</button>
+        <button class="btn btn-tertiary">Start new assessment</button>
+      </div>
+
+      <section class="tech" id="tech" aria-label="Technical evidence">
+        <h3>Technical details — for your IT team</h3>
+        <pre>Missing headers:   Content-Security-Policy, X-Frame-Options,
+                   Strict-Transport-Security
+TLS protocols:     TLS 1.0 <span class="muted">(deprecated, enabled)</span>, TLS 1.2, TLS 1.3
+Server banner:     nginx/1.18.0 <span class="muted">(version disclosed)</span>
+Mixed content:     2 assets loaded over http://
+DNS:               SPF present · DMARC not found
+Scope:             acme.com (authorized) · scanned 5 Jul 2026, 14:20</pre>
+      </section>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <span class="made"><svg width="13" height="13" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2.5 26.5 6.4V15c0 6.8-4.6 11.8-10.5 13.9C10.1 26.8 5.5 21.8 5.5 15V6.4L16 2.5Z" fill="#9AA6BC"/></svg>Built by security practitioners</span>
+    <div class="footer-right"><nav style="display:flex;gap:20px;"><a href="#">About</a><a href="#">Learn</a><a href="#">Contact</a></nav><span class="version">Community Edition v1.0</span></div>
+  </footer>
+
+  <script>
+    (function(){
+      var btn=document.getElementById('techBtn'), tech=document.getElementById('tech');
+      btn.addEventListener('click', function(){
+        var open=tech.classList.toggle('show');
+        btn.setAttribute('aria-expanded', open?'true':'false');
+        btn.textContent = open?'Hide technical details':'View technical details';
+        if(open) tech.scrollIntoView({behavior:'smooth', block:'nearest'});
+      });
+    })();
+  </script>
+
+</body>
+</html>
