@@ -26,12 +26,13 @@ classifiers = [
 
 # --- Runtime stack (declared for the modules ahead; foundation ships no logic) ---
 dependencies = [
-  "fastapi>=0.115",           # Inbound web adapter (local web app)
-  "uvicorn[standard]>=0.30",  # ASGI server to run the local app
-  "pydantic>=2.7",            # Boundary DTOs + validation (edges only, never domain)
-  "pydantic-settings>=2.3",   # Typed, layered configuration loading
-  "httpx>=0.27",              # Async HTTP client (AI provider + HTTP probing)
-  "structlog>=24.1",          # Structured, redaction-friendly logging
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "pydantic>=2.7",
+  "pydantic-settings>=2.3",
+  "httpx>=0.27",
+  "structlog>=24.1",
+  "sqlalchemy>=2,<3",
 ]
 
 [project.urls]
