@@ -60,3 +60,39 @@ repo = app.resolve(AssessmentRepository)
 `assessments` 1─* `findings` 1─* `evidence` / `recommendations` (all
 `ON DELETE CASCADE`); `reports` keyed by `assessment_id` with JSON entries. Schema
 is created via `create_all`; versioned Alembic migrations are a future module.
+
+## Unit of Work & transactions (Module 4.2)
+
+Two transaction-ownership styles share one core (`_operations.py`):
+
+- **Autocommit repositories** (`repositories.py`) — one transaction per call.
+  What Module 3.2's single-write use cases resolve today.
+- **Unit of Work** (`unit_of_work.py`) — one transaction spanning many
+  operations, for atomic multi-aggregate writes.
+
+```python
+from kingsec.application import UnitOfWorkFactory
+
+uow_factory = app.resolve(UnitOfWorkFactory)   # after register_unit_of_work(...)
+with uow_factory() as uow:
+    assessment = uow.assessments.get(assessment_id)
+    assessment.complete()
+    uow.assessments.save(assessment)
+    uow.reports.save(report)
+    uow.commit()          # both writes commit together, or neither does
+```
+
+**Safe-by-default semantics:** changes persist only if `commit()` is called. On
+an exception, or a clean exit without commit, the Unit of Work rolls back — so a
+forgotten commit loses the work loudly rather than persisting half of it.
+
+**DI:** `register_unit_of_work(container, session_factory)` binds a
+`UnitOfWorkFactory` (a *factory*, not a singleton, so each transaction gets a
+fresh session — thread-safe for the future web layer).
+
+Wire both at the composition root:
+
+```python
+engine = register_persistence(app.container, app.settings)
+register_unit_of_work(app.container, create_session_factory(engine))
+```

@@ -1,66 +1,32 @@
-"""SQLAlchemy implementations of the application repository ports.
+"""SQLAlchemy implementations of the application repository ports (autocommit).
 
 These adapters SUBCLASS the abstract ports from the application layer — the
-inward dependency the hexagonal architecture requires. They translate the
-domain <-> ORM boundary via ``mappers`` and translate the persistence-error
-boundary via ``PersistenceError`` so the application never sees a raw
-``SQLAlchemyError``.
+inward dependency the hexagonal architecture requires — and own their
+transaction per call (session-per-operation). They are what Module 3.2's
+single-write use cases resolve today.
 
-Transaction strategy: session-per-operation. Each method opens a short-lived
-session/transaction. Aggregates are saved by DELETE-then-INSERT (full replace)
-because ``Evidence`` and ``Recommendation`` are identity-less value objects in
-child collections, which a merge-by-primary-key cannot reliably match. A future
-Unit of Work can compose multiple repository writes into one transaction; it is
-intentionally out of scope here so Module 3.2's use cases run unchanged.
+The correctness-critical persist/load logic (delete-then-insert, merge-upsert,
+not-found, error translation) lives in ``_operations`` and is shared with the
+session-bound repositories used by the Unit of Work, so the behaviour can never
+diverge between the two transaction-ownership styles. These classes add only the
+per-call transaction boundary and debug logging around those primitives.
 """
 
 from __future__ import annotations
-
-from typing import NoReturn
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from kingsec.application import (
-    AssessmentNotFoundError,
     AssessmentRepository,
-    ReportNotFoundError,
     ReportRepository,
 )
 from kingsec.domain import Assessment, AssessmentId, Report
 from kingsec.infrastructure.logging import get_logger
-from kingsec.shared.errors import PersistenceError, log_exception
 
-from .mappers import (
-    assessment_to_domain,
-    assessment_to_orm,
-    report_to_domain,
-    report_to_orm,
-)
-from .models import AssessmentORM, ReportORM
+from . import _operations as ops
 
 _logger = get_logger("kingsec.infrastructure.persistence")
-
-
-def _raise_persistence_error(message: str, cause: SQLAlchemyError, reference: str) -> NoReturn:
-    """Translate a SQLAlchemy error into a PersistenceError and log it.
-
-    Keeping the SQLAlchemy exception out of the application layer prevents a
-    leaky abstraction: callers depend only on the stable ``PersistenceError``
-    contract, never on the persistence technology.
-
-    Args:
-        message: Human-readable description of the failed operation.
-        cause: The underlying SQLAlchemy exception (preserved as the cause).
-        reference: The id involved, for structured log context.
-
-    Raises:
-        PersistenceError: Always.
-    """
-
-    error = PersistenceError(message, context={"reference": reference}, cause=cause)
-    log_exception(_logger, error)
-    raise error
 
 
 class SqlAlchemyAssessmentRepository(AssessmentRepository):
@@ -76,7 +42,7 @@ class SqlAlchemyAssessmentRepository(AssessmentRepository):
         self._session_factory = session_factory
 
     def save(self, assessment: Assessment) -> None:
-        """Insert or update an assessment aggregate (full replace).
+        """Insert or update an assessment aggregate in its own transaction.
 
         Args:
             assessment: The aggregate to persist.
@@ -88,17 +54,10 @@ class SqlAlchemyAssessmentRepository(AssessmentRepository):
         try:
             # begin() opens a transaction, commits on success, rolls back on error.
             with self._session_factory.begin() as session:
-                existing = session.get(AssessmentORM, str(assessment.id))
-                if existing is not None:
-                    # Delete-then-insert: removes stale children (findings,
-                    # evidence, recommendations) via ON DELETE CASCADE before we
-                    # re-insert the current aggregate state.
-                    session.delete(existing)
-                    session.flush()
-                session.add(assessment_to_orm(assessment))
+                ops.persist_assessment(session, assessment)
             _logger.debug("assessment saved", assessment_id=str(assessment.id))
         except SQLAlchemyError as exc:
-            _raise_persistence_error(
+            ops.raise_persistence_error(
                 "failed to save assessment", exc, str(assessment.id)
             )
 
@@ -118,13 +77,9 @@ class SqlAlchemyAssessmentRepository(AssessmentRepository):
 
         try:
             with self._session_factory() as session:
-                orm = session.get(AssessmentORM, assessment_id.value)
-                if orm is None:
-                    raise AssessmentNotFoundError(assessment_id.value)
-                # Map while the session is open so lazy children load correctly.
-                return assessment_to_domain(orm)
+                return ops.load_assessment(session, assessment_id)
         except SQLAlchemyError as exc:
-            _raise_persistence_error(
+            ops.raise_persistence_error(
                 "failed to load assessment", exc, assessment_id.value
             )
 
@@ -142,7 +97,7 @@ class SqlAlchemyReportRepository(ReportRepository):
         self._session_factory = session_factory
 
     def save(self, report: Report) -> None:
-        """Insert or update a report snapshot (keyed by assessment id).
+        """Insert or update a report snapshot in its own transaction.
 
         Args:
             report: The report snapshot to persist.
@@ -153,12 +108,10 @@ class SqlAlchemyReportRepository(ReportRepository):
 
         try:
             with self._session_factory.begin() as session:
-                # A report has no value-object child collections (entries are
-                # JSON), so a merge-by-PK upsert is safe and simplest here.
-                session.merge(report_to_orm(report))
+                ops.persist_report(session, report)
             _logger.debug("report saved", assessment_id=report.assessment_id)
         except SQLAlchemyError as exc:
-            _raise_persistence_error(
+            ops.raise_persistence_error(
                 "failed to save report", exc, report.assessment_id
             )
 
@@ -178,11 +131,8 @@ class SqlAlchemyReportRepository(ReportRepository):
 
         try:
             with self._session_factory() as session:
-                orm = session.get(ReportORM, assessment_id.value)
-                if orm is None:
-                    raise ReportNotFoundError(assessment_id.value)
-                return report_to_domain(orm)
+                return ops.load_report(session, assessment_id)
         except SQLAlchemyError as exc:
-            _raise_persistence_error(
+            ops.raise_persistence_error(
                 "failed to load report", exc, assessment_id.value
             )
