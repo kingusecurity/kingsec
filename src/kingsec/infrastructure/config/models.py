@@ -146,6 +146,18 @@ class AISettings(BaseModel):
     model: str = "claude-sonnet-4-5"
     request_timeout_seconds: float = Field(default=30.0, gt=0)
 
+    # --- Module 5.2 additions (AI enrichment adapter) -----------------------
+    # Low temperature by default: security guidance should be deterministic and
+    # conservative rather than creative.
+    temperature: float = Field(default=0.2, ge=0.0, le=2.0)
+    # Upper bound on generated tokens per enrichment (cost/latency guard).
+    max_tokens: int = Field(default=1024, gt=0)
+    # Transient-failure retries (0 = no retry) and the base back-off delay.
+    retry_count: int = Field(default=2, ge=0)
+    retry_delay: float = Field(default=0.5, ge=0.0)
+    # TLS verification. Secure by default; only an explicit False disables it.
+    verify_ssl: bool = True
+
     @field_validator("base_url")
     @classmethod
     def _validate_base_url(cls, value: str | None) -> str | None:
@@ -189,5 +201,30 @@ class StorageSettings(BaseModel):
     # current user's home directory, resolved at load time.
     data_dir: Path = Field(default_factory=lambda: Path.home() / ".kingsec")
 
+
 class ScannerSettings(BaseModel):
-    ...
+    """Settings for the external scanner engine (Module 5.1, Nuclei).
+
+    Only *how to invoke* the scanner is configuration; running it is the
+    infrastructure adapter's job. The binary path and templates directory are
+    operator-controlled (trusted config): pointing them at untrusted paths is a
+    supply-chain risk, so they are treated like any other privileged setting.
+    """
+
+    model_config = _FROZEN
+
+    # Path or name of the scanner binary. Default resolves "nuclei" from PATH.
+    binary_path: str = "nuclei"
+    # Directory of templates. None -> let the scanner use its own default set.
+    templates_dir: Path | None = None
+    # Hard wall-clock timeout for a single scan, in seconds (must be positive).
+    timeout_seconds: float = Field(default=300.0, gt=0)
+    # Requests-per-second cap: a politeness/safety control (must be positive).
+    rate_limit: int = Field(default=150, gt=0)
+
+    @field_validator("binary_path")
+    @classmethod
+    def _binary_path_not_empty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("scanner binary_path must not be empty")
+        return value
