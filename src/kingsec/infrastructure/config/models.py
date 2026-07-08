@@ -188,3 +188,6 @@ class StorageSettings(BaseModel):
     # default_factory (not a bare default) because the value depends on the
     # current user's home directory, resolved at load time.
     data_dir: Path = Field(default_factory=lambda: Path.home() / ".kingsec")
+
+class ScannerSettings(BaseModel):
+    ...

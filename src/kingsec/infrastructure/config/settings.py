@@ -30,6 +30,7 @@ from .models import (
     AISettings,
     AppSettings,
     LoggingSettings,
+    ScannerSettings,
     SecuritySettings,
     ServerSettings,
     StorageSettings,
@@ -68,3 +69,4 @@ class Settings(BaseSettings):
     ai: AISettings = Field(default_factory=AISettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     storage: StorageSettings = Field(default_factory=StorageSettings)
+    scanner: ScannerSettings = Field(default_factory=ScannerSettings)
