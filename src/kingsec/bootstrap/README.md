@@ -64,3 +64,39 @@ their services here; today it holds the `Settings` singleton.
 - **Async:** the sync lifecycle maps cleanly onto an async `lifespan`; add an
   asyncio exception handler alongside the existing excepthooks when the event
   loop is introduced.
+
+## Full composition root (Module 5.4)
+
+`create_application()` above builds the *core* (config, logging, DI container,
+exception handlers). `create_wired_application()` in `composition.py` layers the
+*adapters* on top — it is the single place that names concrete implementations.
+
+```python
+from kingsec.bootstrap.composition import create_wired_application
+
+with create_wired_application() as app:          # start() on enter, stop() on exit
+    use_case = app.resolve(StartAssessment)       # fully constructed from DI
+    use_case.execute(request)
+```
+
+It registers, in order:
+
+1. **Persistence** (`register_persistence`) — builds the SQLite engine + schema,
+   binds `AssessmentRepository` / `ReportRepository`, adds `engine.dispose` as a
+   shutdown hook.
+2. **Unit of Work** (`register_unit_of_work`) — binds `UnitOfWorkFactory` to the
+   same engine's session factory.
+3. **Scanner** (`register_scanner`) — binds `ScannerPort` (Nuclei).
+4. **AI** (`register_ai`) — binds `AIPort`, adds the http-client `close` hook.
+5. **Reporting** (`register_reporting`) — binds `ReportGeneratorPort` (WeasyPrint).
+6. **Use cases** — `CreateAssessment`, `StartAssessment`, `GetAssessment`,
+   `GenerateReport` are registered as DI factories that resolve their ports from
+   the container, so `app.resolve(UseCase)` needs no manual construction.
+
+Resource lifecycle: the database engine and HTTP client are disposed on
+`stop()` (LIFO). The scanner (per-scan subprocess) and reporting (stateless
+render) hold no long-lived resources.
+
+Dependency direction: this module imports application + infrastructure; **no
+adapter imports it** (enforced by an integration test). `create_application()`
+(2.4) is unchanged, so the lightweight core remains available on its own.
