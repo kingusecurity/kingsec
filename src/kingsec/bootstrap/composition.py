@@ -28,7 +28,9 @@ from kingsec.application import (
     ReportGeneratorPort,
     ReportRepository,
     ScannerPort,
+    ServiceAPI,
     StartAssessment,
+    UseCaseServiceAPI,
 )
 from kingsec.infrastructure.ai import register_ai
 from kingsec.infrastructure.persistence import (
@@ -108,7 +110,8 @@ def _register_use_cases(container: Container) -> None:
 
     Each resolves its port dependencies from the container, so callers do
     ``app.resolve(StartAssessment)`` and get a fully constructed interactor with
-    no manual wiring.
+    no manual wiring. The UseCaseServiceAPI facade is also registered here,
+    wiring the four use cases into the ServiceAPI port.
     """
 
     container.register_factory(
@@ -133,5 +136,14 @@ def _register_use_cases(container: Container) -> None:
             c.resolve(AssessmentRepository),
             c.resolve(ReportRepository),
             c.resolve(ReportGeneratorPort),
+        ),
+    )
+    container.register_factory(
+        ServiceAPI,
+        lambda c: UseCaseServiceAPI(
+            c.resolve(CreateAssessment),
+            c.resolve(StartAssessment),
+            c.resolve(GetAssessment),
+            c.resolve(GenerateReport),
         ),
     )
