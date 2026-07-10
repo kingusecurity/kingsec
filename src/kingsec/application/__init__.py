@@ -12,6 +12,8 @@ from .dto import (
     SeverityCount,
     StartAssessmentRequest,
     StartAssessmentResponse,
+    SubmitAssessmentRequest,
+    SubmitAssessmentResponse,
 )
 from .errors import (
     ApplicationError,
@@ -19,9 +21,11 @@ from .errors import (
     InputValidationError,
     ReportNotFoundError,
 )
+from .job import JobId
 from .ports import (
     AIPort,
     AssessmentRepository,
+    JobRunner,
     ReportGeneratorPort,
     ReportRepository,
     ScannerPort,
@@ -30,6 +34,7 @@ from .ports import (
     UnitOfWorkFactory,
 )
 from .service_api import UseCaseServiceAPI
+from .submit_assessment import SubmitAssessment
 from .use_cases.create_assessment import CreateAssessment
 from .use_cases.generate_report import GenerateReport
 from .use_cases.get_assessment import GetAssessment
@@ -51,6 +56,8 @@ __all__ = [
     "GetAssessment",
     "GetAssessmentRequest",
     "InputValidationError",
+    "JobId",
+    "JobRunner",
     "RenderedReport",
     "ReportGeneratorPort",
     "ReportNotFoundError",
@@ -61,6 +68,9 @@ __all__ = [
     "StartAssessment",
     "StartAssessmentRequest",
     "StartAssessmentResponse",
+    "SubmitAssessment",
+    "SubmitAssessmentRequest",
+    "SubmitAssessmentResponse",
     "UnitOfWork",
     "UnitOfWorkFactory",
     "UseCaseServiceAPI",

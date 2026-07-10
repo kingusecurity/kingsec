@@ -136,3 +136,18 @@ class GenerateReportResponse:
     artifact_media_type: str
     artifact_filename: str
     artifact_bytes: int
+
+
+# --- SubmitAssessment (async) ------------------------------------------------
+
+
+@dataclass(frozen=True)
+class SubmitAssessmentRequest:
+    assessment_id: str
+
+
+@dataclass(frozen=True)
+class SubmitAssessmentResponse:
+    assessment_id: str
+    status: str
+    job_id: str

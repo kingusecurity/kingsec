@@ -139,8 +139,7 @@ class StartAssessmentResponse(BaseModel):
 
     assessment_id: str
     status: str
-    findings_count: int
-    highest_severity: str | None = None
+    job_id: str | None = None
 
 
 class SeverityCountResponse(BaseModel):

@@ -25,14 +25,17 @@ from kingsec.application import (
     CreateAssessment,
     GenerateReport,
     GetAssessment,
+    JobRunner,
     ReportGeneratorPort,
     ReportRepository,
     ScannerPort,
     ServiceAPI,
     StartAssessment,
+    SubmitAssessment,
     UseCaseServiceAPI,
 )
 from kingsec.infrastructure.ai import register_ai
+from kingsec.infrastructure.jobs import register_jobs
 from kingsec.infrastructure.persistence import (
     create_session_factory,
     register_persistence,
@@ -103,15 +106,16 @@ def _register_adapters(
     register_scanner(container, settings)
     register_ai(container, settings)
     register_reporting(container, output_format=report_format, brand_name=brand_name)
+    register_jobs(container)
 
 
 def _register_use_cases(container: Container) -> None:
-    """Register the four use cases as DI factories.
+    """Register use cases as DI factories.
 
     Each resolves its port dependencies from the container, so callers do
     ``app.resolve(StartAssessment)`` and get a fully constructed interactor with
     no manual wiring. The UseCaseServiceAPI facade is also registered here,
-    wiring the four use cases into the ServiceAPI port.
+    wiring the use cases into the ServiceAPI port.
     """
 
     container.register_factory(
@@ -123,6 +127,15 @@ def _register_use_cases(container: Container) -> None:
         lambda c: StartAssessment(
             c.resolve(AssessmentRepository),
             c.resolve(ScannerPort),
+            c.resolve(AIPort),
+        ),
+    )
+    container.register_factory(
+        SubmitAssessment,
+        lambda c: SubmitAssessment(
+            c.resolve(AssessmentRepository),
+            c.resolve(ScannerPort),
+            c.resolve(JobRunner),
             c.resolve(AIPort),
         ),
     )
@@ -143,6 +156,7 @@ def _register_use_cases(container: Container) -> None:
         lambda c: UseCaseServiceAPI(
             c.resolve(CreateAssessment),
             c.resolve(StartAssessment),
+            c.resolve(SubmitAssessment),
             c.resolve(GetAssessment),
             c.resolve(GenerateReport),
         ),

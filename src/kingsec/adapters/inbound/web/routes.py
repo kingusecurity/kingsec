@@ -71,12 +71,13 @@ async def create_assessment(
     )
 
 
-# ── Start Assessment ─────────────────────────────────────────────────────────
+# ── Start Assessment (submits for background execution) ───────────────────────
 
 
 @router.post(
     "/assessments/{assessment_id}/start",
     response_model=schemas.StartAssessmentResponse,
+    status_code=status.HTTP_202_ACCEPTED,
     tags=["assessments"],
 )
 async def start_assessment(
@@ -84,15 +85,14 @@ async def start_assessment(
     _body: schemas.StartAssessmentBody | None = None,
     service: ServiceAPI = Depends(get_service),
 ) -> schemas.StartAssessmentResponse:
-    from kingsec.application.dto import StartAssessmentRequest
+    from kingsec.application.dto import SubmitAssessmentRequest
 
-    request = StartAssessmentRequest(assessment_id=assessment_id)
-    result = service.start_assessment(request)
+    request = SubmitAssessmentRequest(assessment_id=assessment_id)
+    result = service.submit_assessment(request)
     return schemas.StartAssessmentResponse(
         assessment_id=result.assessment_id,
         status=result.status,
-        findings_count=result.findings_count,
-        highest_severity=result.highest_severity,
+        job_id=result.job_id,
     )
 
 
