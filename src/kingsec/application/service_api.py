@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from kingsec.application.dto import (
     AssessmentView,
+    CancelAssessmentRequest,
+    CancelAssessmentResponse,
     CreateAssessmentRequest,
     CreateAssessmentResponse,
     GenerateReportRequest,
@@ -22,6 +24,7 @@ from kingsec.application.dto import (
 )
 from kingsec.application.ports.inbound.service_api import ServiceAPI
 from kingsec.application.submit_assessment import SubmitAssessment
+from kingsec.application.use_cases.cancel_assessment import CancelAssessment
 from kingsec.application.use_cases.create_assessment import CreateAssessment
 from kingsec.application.use_cases.generate_report import GenerateReport
 from kingsec.application.use_cases.get_assessment import GetAssessment
@@ -36,12 +39,14 @@ class UseCaseServiceAPI(ServiceAPI):
         create_assessment: CreateAssessment,
         start_assessment: StartAssessment,
         submit_assessment: SubmitAssessment,
+        cancel_assessment: CancelAssessment,
         get_assessment: GetAssessment,
         generate_report: GenerateReport,
     ) -> None:
         self._create = create_assessment
         self._start = start_assessment
         self._submit = submit_assessment
+        self._cancel = cancel_assessment
         self._get = get_assessment
         self._generate = generate_report
 
@@ -59,6 +64,11 @@ class UseCaseServiceAPI(ServiceAPI):
         self, request: SubmitAssessmentRequest
     ) -> SubmitAssessmentResponse:
         return self._submit.execute(request)
+
+    def cancel_assessment(
+        self, request: CancelAssessmentRequest
+    ) -> CancelAssessmentResponse:
+        return self._cancel.execute(request)
 
     def get_assessment(self, request: GetAssessmentRequest) -> AssessmentView:
         return self._get.execute(request)

@@ -163,3 +163,27 @@ async def generate_report(
         artifact_filename=result.artifact_filename,
         artifact_bytes=result.artifact_bytes,
     )
+
+
+# ── Cancel Assessment ────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/assessments/{assessment_id}/cancel",
+    response_model=schemas.CancelAssessmentResponse,
+    status_code=status.HTTP_200_OK,
+    tags=["assessments"],
+)
+async def cancel_assessment(
+    assessment_id: str,
+    _body: schemas.CancelAssessmentBody | None = None,
+    service: ServiceAPI = Depends(get_service),
+) -> schemas.CancelAssessmentResponse:
+    from kingsec.application.dto import CancelAssessmentRequest
+
+    request = CancelAssessmentRequest(assessment_id=assessment_id)
+    result = service.cancel_assessment(request)
+    return schemas.CancelAssessmentResponse(
+        assessment_id=result.assessment_id,
+        status=result.status,
+    )

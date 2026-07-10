@@ -151,3 +151,17 @@ class SubmitAssessmentResponse:
     assessment_id: str
     status: str
     job_id: str
+
+
+# --- CancelAssessment --------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CancelAssessmentRequest:
+    assessment_id: str
+
+
+@dataclass(frozen=True)
+class CancelAssessmentResponse:
+    assessment_id: str
+    status: str

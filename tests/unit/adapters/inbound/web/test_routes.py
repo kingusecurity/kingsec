@@ -13,6 +13,8 @@ from kingsec.adapters.inbound.web.app import create_fastapi_app
 from kingsec.adapters.inbound.web.dependencies import get_service
 from kingsec.application.dto import (
     AssessmentView,
+    CancelAssessmentRequest,
+    CancelAssessmentResponse,
     CreateAssessmentRequest,
     CreateAssessmentResponse,
     FindingView,
@@ -40,6 +42,7 @@ class StubServiceAPI(ServiceAPI):
         self.create_called = False
         self.start_called = False
         self.submit_called = False
+        self.cancel_called = False
         self.get_called = False
         self.report_called = False
 
@@ -72,6 +75,15 @@ class StubServiceAPI(ServiceAPI):
             assessment_id=request.assessment_id,
             status="running",
             job_id=request.assessment_id,
+        )
+
+    def cancel_assessment(
+        self, request: CancelAssessmentRequest
+    ) -> CancelAssessmentResponse:
+        self.cancel_called = True
+        return CancelAssessmentResponse(
+            assessment_id=request.assessment_id,
+            status="cancelled",
         )
 
     def get_assessment(self, request: GetAssessmentRequest) -> AssessmentView:
@@ -195,6 +207,16 @@ class TestStartAssessmentEndpoint:
         assert stub_service.submit_called
 
 
+class TestCancelAssessmentEndpoint:
+    def test_returns_200(self, client: TestClient, stub_service: StubServiceAPI) -> None:
+        resp = client.post("/api/v1/assessments/asmt-001/cancel")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["assessment_id"] == "asmt-001"
+        assert body["status"] == "cancelled"
+        assert stub_service.cancel_called
+
+
 class TestGetAssessmentEndpoint:
     def test_returns_200(self, client: TestClient, stub_service: StubServiceAPI) -> None:
         resp = client.get("/api/v1/assessments/asmt-001")
@@ -235,6 +257,9 @@ class TestErrorHandling:
                 pass
 
             def submit_assessment(self, r):  # type: ignore[override]
+                pass
+
+            def cancel_assessment(self, r):  # type: ignore[override]
                 pass
 
             def get_assessment(self, r):
@@ -287,6 +312,13 @@ class TestErrorHandling:
                     "not authorized", current="draft", attempted="start"
                 )
 
+            def cancel_assessment(self, r):
+                from kingsec.domain.errors import IllegalStateTransition
+
+                raise IllegalStateTransition(
+                    "already completed", current="completed", attempted="cancelled"
+                )
+
             def get_assessment(self, r):  # type: ignore[override]
                 pass
 
@@ -325,6 +357,9 @@ class TestErrorHandling:
                 pass
 
             def submit_assessment(self, r):  # type: ignore[override]
+                pass
+
+            def cancel_assessment(self, r):  # type: ignore[override]
                 pass
 
             def get_assessment(self, r):

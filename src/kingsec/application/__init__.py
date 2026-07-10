@@ -2,6 +2,8 @@
 
 from .dto import (
     AssessmentView,
+    CancelAssessmentRequest,
+    CancelAssessmentResponse,
     CreateAssessmentRequest,
     CreateAssessmentResponse,
     FindingView,
@@ -35,6 +37,7 @@ from .ports import (
 )
 from .service_api import UseCaseServiceAPI
 from .submit_assessment import SubmitAssessment
+from .use_cases.cancel_assessment import CancelAssessment
 from .use_cases.create_assessment import CreateAssessment
 from .use_cases.generate_report import GenerateReport
 from .use_cases.get_assessment import GetAssessment
@@ -46,6 +49,9 @@ __all__ = [
     "AssessmentNotFoundError",
     "AssessmentRepository",
     "AssessmentView",
+    "CancelAssessment",
+    "CancelAssessmentRequest",
+    "CancelAssessmentResponse",
     "CreateAssessment",
     "CreateAssessmentRequest",
     "CreateAssessmentResponse",

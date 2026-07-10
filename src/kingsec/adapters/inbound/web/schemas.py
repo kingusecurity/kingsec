@@ -65,6 +65,12 @@ class GenerateReportBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class CancelAssessmentBody(BaseModel):
+    """POST /api/v1/assessments/{id}/cancel request body (empty)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
 # ── Response schemas ─────────────────────────────────────────────────────────
 
 
@@ -165,3 +171,12 @@ class GenerateReportResponse(BaseModel):
     artifact_media_type: str
     artifact_filename: str
     artifact_bytes: int
+
+
+class CancelAssessmentResponse(BaseModel):
+    """POST /api/v1/assessments/{id}/cancel response body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    assessment_id: str
+    status: str

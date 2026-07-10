@@ -22,6 +22,7 @@ from typing import Any
 from kingsec.application import (
     AIPort,
     AssessmentRepository,
+    CancelAssessment,
     CreateAssessment,
     GenerateReport,
     GetAssessment,
@@ -140,6 +141,10 @@ def _register_use_cases(container: Container) -> None:
         ),
     )
     container.register_factory(
+        CancelAssessment,
+        lambda c: CancelAssessment(c.resolve(AssessmentRepository)),
+    )
+    container.register_factory(
         GetAssessment,
         lambda c: GetAssessment(c.resolve(AssessmentRepository)),
     )
@@ -157,6 +162,7 @@ def _register_use_cases(container: Container) -> None:
             c.resolve(CreateAssessment),
             c.resolve(StartAssessment),
             c.resolve(SubmitAssessment),
+            c.resolve(CancelAssessment),
             c.resolve(GetAssessment),
             c.resolve(GenerateReport),
         ),

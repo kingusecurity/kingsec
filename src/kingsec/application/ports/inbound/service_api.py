@@ -15,6 +15,8 @@ from abc import ABC, abstractmethod
 
 from kingsec.application.dto import (
     AssessmentView,
+    CancelAssessmentRequest,
+    CancelAssessmentResponse,
     CreateAssessmentRequest,
     CreateAssessmentResponse,
     GenerateReportRequest,
@@ -46,6 +48,12 @@ class ServiceAPI(ABC):
     def submit_assessment(
         self, request: SubmitAssessmentRequest
     ) -> SubmitAssessmentResponse:
+        ...
+
+    @abstractmethod
+    def cancel_assessment(
+        self, request: CancelAssessmentRequest
+    ) -> CancelAssessmentResponse:
         ...
 
     @abstractmethod
