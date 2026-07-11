@@ -10,4 +10,5 @@ Modules:
     schemas      Pydantic request/response models
     dependencies FastAPI DI (resolve ServiceAPI from the container)
     error_handlers Exception → HTTP status mapping
+    sse          Server-Sent Events for live assessment progress
 """

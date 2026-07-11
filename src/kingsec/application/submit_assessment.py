@@ -24,7 +24,13 @@ from kingsec.domain import AssessmentId, Finding
 
 from .._support import to_assessment_id
 from ..dto import SubmitAssessmentRequest, SubmitAssessmentResponse
-from ..ports import AIPort, AssessmentRepository, JobRunner, ScannerPort
+from ..events import (
+    AssessmentEvent,
+    EVENT_ASSESSMENT_COMPLETED,
+    EVENT_ASSESSMENT_FAILED,
+    EVENT_ASSESSMENT_RUNNING,
+)
+from ..ports import AIPort, AssessmentRepository, EventPublisher, JobRunner, ScannerPort
 
 
 class SubmitAssessment:
@@ -36,11 +42,13 @@ class SubmitAssessment:
         scanner: ScannerPort,
         job_runner: JobRunner,
         ai: AIPort | None = None,
+        events: EventPublisher | None = None,
     ) -> None:
         self._assessments = assessments
         self._scanner = scanner
         self._job_runner = job_runner
         self._ai = ai
+        self._events = events
 
     def execute(self, request: SubmitAssessmentRequest) -> SubmitAssessmentResponse:
         assessment_id = to_assessment_id(request.assessment_id)
@@ -51,6 +59,15 @@ class SubmitAssessment:
         assessment.start()
         self._assessments.save(assessment)
 
+        self._publish(
+            AssessmentEvent(
+                event_type=EVENT_ASSESSMENT_RUNNING,
+                assessment_id=str(assessment.id),
+                state=assessment.status.value,
+                message="Background scan started",
+            )
+        )
+
         # Submit background work. The closure captures the ports it needs.
         job_id = str(assessment.id)
         background_fn = self._make_background_fn(
@@ -58,6 +75,7 @@ class SubmitAssessment:
             assessments=self._assessments,
             scanner=self._scanner,
             ai=self._ai,
+            events=self._events,
         )
         self._job_runner.submit(job_id, background_fn)
 
@@ -67,6 +85,15 @@ class SubmitAssessment:
             job_id=job_id,
         )
 
+    def _publish(self, event: AssessmentEvent) -> None:
+        """Publish an event if a publisher is configured (best-effort)."""
+        if self._events is None:
+            return
+        try:
+            self._events.publish(event)
+        except Exception:  # noqa: BLE001 - event publishing is best-effort
+            pass
+
     @staticmethod
     def _make_background_fn(
         *,
@@ -74,6 +101,7 @@ class SubmitAssessment:
         assessments: AssessmentRepository,
         scanner: ScannerPort,
         ai: AIPort | None,
+        events: EventPublisher | None,
     ) -> Callable[[], None]:
         """Build a closure that runs the scan in the background."""
 
@@ -83,6 +111,7 @@ class SubmitAssessment:
                 assessments=assessments,
                 scanner=scanner,
                 ai=ai,
+                events=events,
             )
 
         return _run_scan
@@ -94,6 +123,7 @@ def _execute_scan(
     assessments: AssessmentRepository,
     scanner: ScannerPort,
     ai: AIPort | None,
+    events: EventPublisher | None = None,
 ) -> None:
     """Run the scan and complete the assessment. Called from a background thread.
 
@@ -110,10 +140,31 @@ def _execute_scan(
         assessment.complete()
         assessments.save(assessment)
 
+        _publish_event(
+            events,
+            AssessmentEvent(
+                event_type=EVENT_ASSESSMENT_COMPLETED,
+                assessment_id=str(assessment.id),
+                state=assessment.status.value,
+                message=f"Scan completed with {len(assessment.findings)} findings",
+                severity_counts=_severity_counts(assessment),
+            ),
+        )
+
     except Exception as exc:  # noqa: BLE001 - catch all to mark as failed
         try:
             assessment.fail(str(exc))
             assessments.save(assessment)
+
+            _publish_event(
+                events,
+                AssessmentEvent(
+                    event_type=EVENT_ASSESSMENT_FAILED,
+                    assessment_id=str(assessment.id),
+                    state=assessment.status.value,
+                    message=f"Scan failed: {exc}",
+                ),
+            )
         except Exception:  # noqa: BLE001 - best-effort failure recording
             pass
 
@@ -128,3 +179,26 @@ def _enrich(finding: Finding, ai: AIPort | None) -> None:
         finding.add_recommendation(recommendation)
     except Exception:  # noqa: BLE001 - enrichment is optional, never fatal
         return
+
+
+def _publish_event(events: EventPublisher | None, event: AssessmentEvent) -> None:
+    """Publish an event if a publisher is configured (best-effort)."""
+    if events is None:
+        return
+    try:
+        events.publish(event)
+    except Exception:  # noqa: BLE001 - event publishing is best-effort
+        pass
+
+
+def _severity_counts(assessment: object) -> dict[str, int] | None:
+    """Build a severity count dict from the assessment's findings."""
+    from kingsec.domain import Assessment as AssessmentType
+
+    if not isinstance(assessment, AssessmentType):
+        return None
+    counts: dict[str, int] = {}
+    for finding in assessment.findings:
+        label = finding.severity.label
+        counts[label] = counts.get(label, 0) + 1
+    return counts if counts else None

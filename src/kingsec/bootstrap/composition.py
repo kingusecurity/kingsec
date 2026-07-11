@@ -25,6 +25,7 @@ from kingsec.application import (
     CancelAssessment,
     CreateAssessment,
     DeleteAssessment,
+    EventPublisher,
     GenerateReport,
     GetAssessment,
     JobRunner,
@@ -38,6 +39,7 @@ from kingsec.application import (
     UseCaseServiceAPI,
 )
 from kingsec.infrastructure.ai import register_ai
+from kingsec.infrastructure.events.provisioning import register_events
 from kingsec.infrastructure.jobs import register_jobs
 from kingsec.infrastructure.persistence import (
     create_session_factory,
@@ -110,6 +112,7 @@ def _register_adapters(
     register_ai(container, settings)
     register_reporting(container, output_format=report_format, brand_name=brand_name)
     register_jobs(container)
+    register_events(container)
 
 
 def _register_use_cases(container: Container) -> None:
@@ -123,7 +126,10 @@ def _register_use_cases(container: Container) -> None:
 
     container.register_factory(
         CreateAssessment,
-        lambda c: CreateAssessment(c.resolve(AssessmentRepository)),
+        lambda c: CreateAssessment(
+            c.resolve(AssessmentRepository),
+            c.resolve(EventPublisher),
+        ),
     )
     container.register_factory(
         StartAssessment,
@@ -131,6 +137,7 @@ def _register_use_cases(container: Container) -> None:
             c.resolve(AssessmentRepository),
             c.resolve(ScannerPort),
             c.resolve(AIPort),
+            c.resolve(EventPublisher),
         ),
     )
     container.register_factory(
@@ -140,11 +147,15 @@ def _register_use_cases(container: Container) -> None:
             c.resolve(ScannerPort),
             c.resolve(JobRunner),
             c.resolve(AIPort),
+            c.resolve(EventPublisher),
         ),
     )
     container.register_factory(
         CancelAssessment,
-        lambda c: CancelAssessment(c.resolve(AssessmentRepository)),
+        lambda c: CancelAssessment(
+            c.resolve(AssessmentRepository),
+            c.resolve(EventPublisher),
+        ),
     )
     container.register_factory(
         ListAssessments,
@@ -160,11 +171,15 @@ def _register_use_cases(container: Container) -> None:
             c.resolve(AssessmentRepository),
             c.resolve(ReportRepository),
             c.resolve(ReportGeneratorPort),
+            c.resolve(EventPublisher),
         ),
     )
     container.register_factory(
         DeleteAssessment,
-        lambda c: DeleteAssessment(c.resolve(AssessmentRepository)),
+        lambda c: DeleteAssessment(
+            c.resolve(AssessmentRepository),
+            c.resolve(EventPublisher),
+        ),
     )
     container.register_factory(
         ServiceAPI,

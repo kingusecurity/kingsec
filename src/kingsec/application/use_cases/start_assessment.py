@@ -20,7 +20,13 @@ from kingsec.domain import Finding
 
 from .._support import to_assessment_id
 from ..dto import StartAssessmentRequest, StartAssessmentResponse
-from ..ports import AIPort, AssessmentRepository, ScannerPort
+from ..events import (
+    AssessmentEvent,
+    EVENT_ASSESSMENT_COMPLETED,
+    EVENT_ASSESSMENT_FAILED,
+    EVENT_ASSESSMENT_RUNNING,
+)
+from ..ports import AIPort, AssessmentRepository, EventPublisher, ScannerPort
 
 
 class StartAssessment:
@@ -31,10 +37,12 @@ class StartAssessment:
         assessments: AssessmentRepository,
         scanner: ScannerPort,
         ai: AIPort | None = None,
+        events: EventPublisher | None = None,
     ) -> None:
         self._assessments = assessments
         self._scanner = scanner
         self._ai = ai  # optional: AI enrichment is not required to run a scan
+        self._events = events
 
     def execute(self, request: StartAssessmentRequest) -> StartAssessmentResponse:
         assessment = self._assessments.get(to_assessment_id(request.assessment_id))
@@ -43,21 +51,60 @@ class StartAssessment:
         # IllegalStateTransition if the assessment was never authorized. We let
         # that domain error propagate — it is a precise, meaningful signal.
         assessment.start()
-
-        for finding in self._scanner.scan(assessment.target):
-            self._enrich(finding)
-            assessment.record_finding(finding)
-
-        assessment.complete()
         self._assessments.save(assessment)
 
-        highest = assessment.highest_severity
-        return StartAssessmentResponse(
-            assessment_id=str(assessment.id),
-            status=assessment.status.value,
-            findings_count=len(assessment.findings),
-            highest_severity=highest.label if highest is not None else None,
+        self._publish(
+            AssessmentEvent(
+                event_type=EVENT_ASSESSMENT_RUNNING,
+                assessment_id=str(assessment.id),
+                state=assessment.status.value,
+                message="Scan started",
+            )
         )
+
+        try:
+            for finding in self._scanner.scan(assessment.target):
+                self._enrich(finding)
+                assessment.record_finding(finding)
+
+            assessment.complete()
+            self._assessments.save(assessment)
+
+            self._publish(
+                AssessmentEvent(
+                    event_type=EVENT_ASSESSMENT_COMPLETED,
+                    assessment_id=str(assessment.id),
+                    state=assessment.status.value,
+                    message=f"Scan completed with {len(assessment.findings)} findings",
+                    severity_counts=self._severity_counts(assessment),
+                )
+            )
+
+            highest = assessment.highest_severity
+            return StartAssessmentResponse(
+                assessment_id=str(assessment.id),
+                status=assessment.status.value,
+                findings_count=len(assessment.findings),
+                highest_severity=highest.label if highest is not None else None,
+            )
+
+        except Exception as exc:
+            # Best-effort failure recording.
+            try:
+                assessment.fail(str(exc))
+                self._assessments.save(assessment)
+
+                self._publish(
+                    AssessmentEvent(
+                        event_type=EVENT_ASSESSMENT_FAILED,
+                        assessment_id=str(assessment.id),
+                        state=assessment.status.value,
+                        message=f"Scan failed: {exc}",
+                    )
+                )
+            except Exception:  # noqa: BLE001 - best-effort
+                pass
+            raise
 
     def _enrich(self, finding: Finding) -> None:
         """Attach an AI recommendation if an AI port is configured (best-effort)."""
@@ -71,3 +118,25 @@ class StartAssessment:
             # Intentionally swallowed: an AI outage must not fail an authorized
             # scan. The adapter is responsible for logging the underlying error.
             return
+
+    def _publish(self, event: AssessmentEvent) -> None:
+        """Publish an event if a publisher is configured (best-effort)."""
+        if self._events is None:
+            return
+        try:
+            self._events.publish(event)
+        except Exception:  # noqa: BLE001 - event publishing is best-effort
+            pass
+
+    @staticmethod
+    def _severity_counts(assessment: object) -> dict[str, int] | None:
+        """Build a severity count dict from the assessment's findings."""
+        from kingsec.domain import Assessment as AssessmentType
+
+        if not isinstance(assessment, AssessmentType):
+            return None
+        counts: dict[str, int] = {}
+        for finding in assessment.findings:
+            label = finding.severity.label
+            counts[label] = counts.get(label, 0) + 1
+        return counts if counts else None

@@ -12,7 +12,13 @@ from kingsec.domain import Report
 
 from .._support import to_assessment_id
 from ..dto import GenerateReportRequest, GenerateReportResponse, SeverityCount
-from ..ports import AssessmentRepository, ReportGeneratorPort, ReportRepository
+from ..events import AssessmentEvent, EVENT_REPORT_READY
+from ..ports import (
+    AssessmentRepository,
+    EventPublisher,
+    ReportGeneratorPort,
+    ReportRepository,
+)
 
 
 class GenerateReport:
@@ -23,10 +29,12 @@ class GenerateReport:
         assessments: AssessmentRepository,
         reports: ReportRepository,
         generator: ReportGeneratorPort,
+        events: EventPublisher | None = None,
     ) -> None:
         self._assessments = assessments
         self._reports = reports
         self._generator = generator
+        self._events = events
 
     def execute(self, request: GenerateReportRequest) -> GenerateReportResponse:
         assessment = self._assessments.get(to_assessment_id(request.assessment_id))
@@ -37,6 +45,15 @@ class GenerateReport:
 
         self._reports.save(report)
         rendered = self._generator.render(report)
+
+        self._publish(
+            AssessmentEvent(
+                event_type=EVENT_REPORT_READY,
+                assessment_id=report.assessment_id,
+                state="report_ready",
+                message=f"Report generated: {rendered.filename}",
+            )
+        )
 
         highest = report.verdict.highest_severity
         return GenerateReportResponse(
@@ -53,3 +70,12 @@ class GenerateReport:
             artifact_filename=rendered.filename,
             artifact_bytes=len(rendered.content),
         )
+
+    def _publish(self, event: AssessmentEvent) -> None:
+        """Publish an event if a publisher is configured (best-effort)."""
+        if self._events is None:
+            return
+        try:
+            self._events.publish(event)
+        except Exception:  # noqa: BLE001 - event publishing is best-effort
+            pass

@@ -17,6 +17,7 @@ from fastapi import FastAPI
 
 from .error_handlers import register_error_handlers
 from .routes import router
+from .sse import router as sse_router
 
 if TYPE_CHECKING:
     from kingsec.bootstrap.application import Application
@@ -53,5 +54,6 @@ def create_fastapi_app(kingsec_app: Application) -> FastAPI:
 
     # Routes.
     app.include_router(router)
+    app.include_router(sse_router)
 
     return app

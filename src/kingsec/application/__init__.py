@@ -28,10 +28,21 @@ from .errors import (
     InputValidationError,
     ReportNotFoundError,
 )
+from .events import (
+    AssessmentEvent,
+    EVENT_ASSESSMENT_CANCELLED,
+    EVENT_ASSESSMENT_COMPLETED,
+    EVENT_ASSESSMENT_CREATED,
+    EVENT_ASSESSMENT_DELETED,
+    EVENT_ASSESSMENT_FAILED,
+    EVENT_ASSESSMENT_RUNNING,
+    EVENT_REPORT_READY,
+)
 from .job import JobId
 from .ports import (
     AIPort,
     AssessmentRepository,
+    EventPublisher,
     JobRunner,
     ReportGeneratorPort,
     ReportRepository,
@@ -53,6 +64,7 @@ from .use_cases.start_assessment import StartAssessment
 __all__ = [
     "AIPort",
     "ApplicationError",
+    "AssessmentEvent",
     "AssessmentNotFoundError",
     "AssessmentRepository",
     "AssessmentSummary",
@@ -66,6 +78,14 @@ __all__ = [
     "DeleteAssessment",
     "DeleteAssessmentRequest",
     "DeleteAssessmentResponse",
+    "EVENT_ASSESSMENT_CANCELLED",
+    "EVENT_ASSESSMENT_COMPLETED",
+    "EVENT_ASSESSMENT_CREATED",
+    "EVENT_ASSESSMENT_DELETED",
+    "EVENT_ASSESSMENT_FAILED",
+    "EVENT_ASSESSMENT_RUNNING",
+    "EVENT_REPORT_READY",
+    "EventPublisher",
     "FindingView",
     "GenerateReport",
     "GenerateReportRequest",
