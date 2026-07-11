@@ -54,6 +54,19 @@ class _SessionBoundAssessmentRepository(AssessmentRepository):
                 "failed to load assessment", exc, assessment_id.value
             )
 
+    def list(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[Assessment]:
+        try:
+            return ops.list_assessments(
+                self._session, limit=min(max(limit, 1), 200), offset=max(offset, 0)
+            )
+        except SQLAlchemyError as exc:
+            ops.raise_persistence_error("failed to list assessments", exc, "-")
+
 
 class _SessionBoundReportRepository(ReportRepository):
     """Report repository that operates on a caller-owned session (no commit)."""

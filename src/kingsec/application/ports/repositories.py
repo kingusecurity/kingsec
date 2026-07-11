@@ -29,6 +29,23 @@ class AssessmentRepository(ABC):
     def get(self, assessment_id: AssessmentId) -> Assessment:
         """Return the assessment for the id, or raise AssessmentNotFoundError."""
 
+    @abstractmethod
+    def list(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[Assessment]:
+        """Return assessments ordered by created_at DESC with pagination.
+
+        Args:
+            limit: Maximum number of results (default 50, max 200).
+            offset: Number of results to skip (default 0).
+
+        Returns:
+            A list of assessments, most recent first. May be empty.
+        """
+
 
 class ReportRepository(ABC):
     """Persists and retrieves generated :class:`Report` snapshots."""

@@ -83,6 +83,31 @@ class SqlAlchemyAssessmentRepository(AssessmentRepository):
                 "failed to load assessment", exc, assessment_id.value
             )
 
+    def list(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[Assessment]:
+        """Return assessments ordered by created_at DESC with pagination.
+
+        Args:
+            limit: Maximum number of results (clamped to 200).
+            offset: Number of results to skip.
+
+        Returns:
+            A list of assessments, most recent first. May be empty.
+        """
+
+        clamped_limit = min(max(limit, 1), 200)
+        try:
+            with self._session_factory() as session:
+                return ops.list_assessments(
+                    session, limit=clamped_limit, offset=max(offset, 0)
+                )
+        except SQLAlchemyError as exc:
+            ops.raise_persistence_error("failed to list assessments", exc, "-")
+
 
 class SqlAlchemyReportRepository(ReportRepository):
     """Persists :class:`~kingsec.domain.Report` snapshots in SQLite."""

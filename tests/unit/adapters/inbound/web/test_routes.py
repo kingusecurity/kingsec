@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from kingsec.adapters.inbound.web.app import create_fastapi_app
 from kingsec.adapters.inbound.web.dependencies import get_service
 from kingsec.application.dto import (
+    AssessmentSummary,
     AssessmentView,
     CancelAssessmentRequest,
     CancelAssessmentResponse,
@@ -21,6 +22,8 @@ from kingsec.application.dto import (
     GenerateReportRequest,
     GenerateReportResponse,
     GetAssessmentRequest,
+    ListAssessmentsRequest,
+    ListAssessmentsResponse,
     SeverityCount,
     StartAssessmentRequest,
     StartAssessmentResponse,
@@ -43,6 +46,7 @@ class StubServiceAPI(ServiceAPI):
         self.start_called = False
         self.submit_called = False
         self.cancel_called = False
+        self.list_called = False
         self.get_called = False
         self.report_called = False
 
@@ -84,6 +88,26 @@ class StubServiceAPI(ServiceAPI):
         return CancelAssessmentResponse(
             assessment_id=request.assessment_id,
             status="cancelled",
+        )
+
+    def list_assessments(
+        self, request: ListAssessmentsRequest
+    ) -> ListAssessmentsResponse:
+        self.list_called = True
+        return ListAssessmentsResponse(
+            items=(
+                AssessmentSummary(
+                    assessment_id="asmt-test-001",
+                    target="10.0.0.5 (ip_address)",
+                    status="authorized",
+                    is_authorized=True,
+                    created_at="2026-01-01T00:00:00+00:00",
+                    findings_count=2,
+                ),
+            ),
+            total=1,
+            limit=request.limit,
+            offset=request.offset,
         )
 
     def get_assessment(self, request: GetAssessmentRequest) -> AssessmentView:
@@ -217,6 +241,26 @@ class TestCancelAssessmentEndpoint:
         assert stub_service.cancel_called
 
 
+class TestListAssessmentsEndpoint:
+    def test_returns_200(self, client: TestClient, stub_service: StubServiceAPI) -> None:
+        resp = client.get("/api/v1/assessments")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] == 1
+        assert len(body["items"]) == 1
+        assert body["items"][0]["assessment_id"] == "asmt-test-001"
+        assert body["items"][0]["target"] == "10.0.0.5 (ip_address)"
+        assert body["items"][0]["findings_count"] == 2
+        assert stub_service.list_called
+
+    def test_with_pagination_params(self, client: TestClient, stub_service: StubServiceAPI) -> None:
+        resp = client.get("/api/v1/assessments?limit=10&offset=5")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["limit"] == 10
+        assert body["offset"] == 5
+
+
 class TestGetAssessmentEndpoint:
     def test_returns_200(self, client: TestClient, stub_service: StubServiceAPI) -> None:
         resp = client.get("/api/v1/assessments/asmt-001")
@@ -260,6 +304,9 @@ class TestErrorHandling:
                 pass
 
             def cancel_assessment(self, r):  # type: ignore[override]
+                pass
+
+            def list_assessments(self, r):  # type: ignore[override]
                 pass
 
             def get_assessment(self, r):
@@ -319,6 +366,9 @@ class TestErrorHandling:
                     "already completed", current="completed", attempted="cancelled"
                 )
 
+            def list_assessments(self, r):  # type: ignore[override]
+                pass
+
             def get_assessment(self, r):  # type: ignore[override]
                 pass
 
@@ -360,6 +410,9 @@ class TestErrorHandling:
                 pass
 
             def cancel_assessment(self, r):  # type: ignore[override]
+                pass
+
+            def list_assessments(self, r):  # type: ignore[override]
                 pass
 
             def get_assessment(self, r):

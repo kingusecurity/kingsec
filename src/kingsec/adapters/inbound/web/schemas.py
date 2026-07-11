@@ -180,3 +180,27 @@ class CancelAssessmentResponse(BaseModel):
 
     assessment_id: str
     status: str
+
+
+class AssessmentSummaryResponse(BaseModel):
+    """Lightweight assessment view inside a list response."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    assessment_id: str
+    target: str
+    status: str
+    is_authorized: bool
+    created_at: str
+    findings_count: int
+
+
+class ListAssessmentsResponse(BaseModel):
+    """GET /api/v1/assessments response body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[AssessmentSummaryResponse]
+    total: int
+    limit: int
+    offset: int

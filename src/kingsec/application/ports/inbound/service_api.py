@@ -22,6 +22,8 @@ from kingsec.application.dto import (
     GenerateReportRequest,
     GenerateReportResponse,
     GetAssessmentRequest,
+    ListAssessmentsRequest,
+    ListAssessmentsResponse,
     StartAssessmentRequest,
     StartAssessmentResponse,
     SubmitAssessmentRequest,
@@ -54,6 +56,12 @@ class ServiceAPI(ABC):
     def cancel_assessment(
         self, request: CancelAssessmentRequest
     ) -> CancelAssessmentResponse:
+        ...
+
+    @abstractmethod
+    def list_assessments(
+        self, request: ListAssessmentsRequest
+    ) -> ListAssessmentsResponse:
         ...
 
     @abstractmethod

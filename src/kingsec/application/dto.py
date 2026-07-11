@@ -165,3 +165,43 @@ class CancelAssessmentRequest:
 class CancelAssessmentResponse:
     assessment_id: str
     status: str
+
+
+# --- ListAssessments ---------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class AssessmentSummary:
+    """Lightweight view of an assessment (no findings) for list endpoints."""
+
+    assessment_id: str
+    target: str
+    status: str
+    is_authorized: bool
+    created_at: str
+    findings_count: int
+
+    @classmethod
+    def from_domain(cls, assessment: Assessment) -> "AssessmentSummary":
+        return cls(
+            assessment_id=str(assessment.id),
+            target=str(assessment.target),
+            status=assessment.status.value,
+            is_authorized=assessment.is_authorized,
+            created_at=assessment.created_at.isoformat(),
+            findings_count=len(assessment.findings),
+        )
+
+
+@dataclass(frozen=True)
+class ListAssessmentsRequest:
+    limit: int = 50
+    offset: int = 0
+
+
+@dataclass(frozen=True)
+class ListAssessmentsResponse:
+    items: tuple[AssessmentSummary, ...]
+    total: int
+    limit: int
+    offset: int

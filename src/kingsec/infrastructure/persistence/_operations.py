@@ -134,3 +134,30 @@ def load_report(session: Session, assessment_id: AssessmentId) -> Report:
     if orm is None:
         raise ReportNotFoundError(assessment_id.value)
     return report_to_domain(orm)
+
+
+def list_assessments(
+    session: Session,
+    *,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[Assessment]:
+    """Load assessments ordered by created_at DESC with pagination.
+
+    Args:
+        session: The active session.
+        limit: Maximum number of results.
+        offset: Number of results to skip.
+
+    Returns:
+        A list of assessments, most recent first. May be empty.
+    """
+
+    orms = (
+        session.query(AssessmentORM)
+        .order_by(AssessmentORM.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    return [assessment_to_domain(orm) for orm in orms]

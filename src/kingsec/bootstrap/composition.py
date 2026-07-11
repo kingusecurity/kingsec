@@ -27,6 +27,7 @@ from kingsec.application import (
     GenerateReport,
     GetAssessment,
     JobRunner,
+    ListAssessments,
     ReportGeneratorPort,
     ReportRepository,
     ScannerPort,
@@ -145,6 +146,10 @@ def _register_use_cases(container: Container) -> None:
         lambda c: CancelAssessment(c.resolve(AssessmentRepository)),
     )
     container.register_factory(
+        ListAssessments,
+        lambda c: ListAssessments(c.resolve(AssessmentRepository)),
+    )
+    container.register_factory(
         GetAssessment,
         lambda c: GetAssessment(c.resolve(AssessmentRepository)),
     )
@@ -163,6 +168,7 @@ def _register_use_cases(container: Container) -> None:
             c.resolve(StartAssessment),
             c.resolve(SubmitAssessment),
             c.resolve(CancelAssessment),
+            c.resolve(ListAssessments),
             c.resolve(GetAssessment),
             c.resolve(GenerateReport),
         ),

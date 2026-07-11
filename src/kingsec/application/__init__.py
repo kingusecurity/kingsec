@@ -1,6 +1,7 @@
 """Application layer: use cases plus the port contracts the core owns."""
 
 from .dto import (
+    AssessmentSummary,
     AssessmentView,
     CancelAssessmentRequest,
     CancelAssessmentResponse,
@@ -10,6 +11,8 @@ from .dto import (
     GenerateReportRequest,
     GenerateReportResponse,
     GetAssessmentRequest,
+    ListAssessmentsRequest,
+    ListAssessmentsResponse,
     RenderedReport,
     SeverityCount,
     StartAssessmentRequest,
@@ -41,6 +44,7 @@ from .use_cases.cancel_assessment import CancelAssessment
 from .use_cases.create_assessment import CreateAssessment
 from .use_cases.generate_report import GenerateReport
 from .use_cases.get_assessment import GetAssessment
+from .use_cases.list_assessments import ListAssessments
 from .use_cases.start_assessment import StartAssessment
 
 __all__ = [
@@ -48,6 +52,7 @@ __all__ = [
     "ApplicationError",
     "AssessmentNotFoundError",
     "AssessmentRepository",
+    "AssessmentSummary",
     "AssessmentView",
     "CancelAssessment",
     "CancelAssessmentRequest",
@@ -64,6 +69,9 @@ __all__ = [
     "InputValidationError",
     "JobId",
     "JobRunner",
+    "ListAssessments",
+    "ListAssessmentsRequest",
+    "ListAssessmentsResponse",
     "RenderedReport",
     "ReportGeneratorPort",
     "ReportNotFoundError",

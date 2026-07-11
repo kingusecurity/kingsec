@@ -42,6 +42,41 @@ async def health_check() -> schemas.HealthResponse:
     return schemas.HealthResponse(status="ok")
 
 
+# ── List Assessments ─────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/assessments",
+    response_model=schemas.ListAssessmentsResponse,
+    tags=["assessments"],
+)
+async def list_assessments(
+    limit: int = 50,
+    offset: int = 0,
+    service: ServiceAPI = Depends(get_service),
+) -> schemas.ListAssessmentsResponse:
+    from kingsec.application.dto import ListAssessmentsRequest
+
+    request = ListAssessmentsRequest(limit=limit, offset=offset)
+    result = service.list_assessments(request)
+    return schemas.ListAssessmentsResponse(
+        items=[
+            schemas.AssessmentSummaryResponse(
+                assessment_id=item.assessment_id,
+                target=item.target,
+                status=item.status,
+                is_authorized=item.is_authorized,
+                created_at=item.created_at,
+                findings_count=item.findings_count,
+            )
+            for item in result.items
+        ],
+        total=result.total,
+        limit=result.limit,
+        offset=result.offset,
+    )
+
+
 # ── Create Assessment ────────────────────────────────────────────────────────
 
 
