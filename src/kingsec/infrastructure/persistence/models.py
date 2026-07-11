@@ -132,3 +132,22 @@ class ReportORM(Base):
     # entries: list of dicts; severity_counts: list of [severity_name, count].
     entries: Mapped[list] = mapped_column(JSON, nullable=False)
     severity_counts: Mapped[list] = mapped_column(JSON, nullable=False)
+
+
+class UserORM(Base):
+    """Row representation of a :class:`~kingsec.domain.User` entity.
+
+    Passwords are stored as hashes only. Timestamps are ISO-8601 strings
+    for SQLite compatibility.
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    username: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
+    email: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
+    password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    role: Mapped[str] = mapped_column(String, nullable=False, default="VIEWER")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)  # ISO-8601
+    last_login_at: Mapped[str | None] = mapped_column(String, nullable=True)  # ISO-8601

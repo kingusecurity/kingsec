@@ -1,220 +1,99 @@
-"""Data Transfer Objects for the application boundary.
+"""Authentication-related DTOs for the application layer.
 
-Why DTOs at all?
-    Use cases must not accept or return *domain* objects across the boundary.
-    If a web controller could hand a use case a half-built ``Assessment``, or
-    receive one back and poke at it, the domain's encapsulation would leak out to
-    the edges of the system. DTOs are flat, immutable bags of primitives: the
-    caller speaks in strings and ints, and the use case owns the translation to
-    and from domain types. All DTOs are frozen dataclasses.
-
-Naming: ``*Request`` = input to a use case, ``*Response``/``*View`` = output.
-``from_domain`` classmethods centralise the domain->DTO mapping.
+Design decisions:
+    - Request DTOs are plain dataclasses (not Pydantic) to keep the
+      application layer framework-free.
+    - Response DTOs include only the information the caller needs.
+    - Sensitive data (passwords, tokens) are never stored in DTOs after use.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from kingsec.domain import Assessment, Finding
 
-# --- CreateAssessment --------------------------------------------------------
+@dataclass(frozen=True)
+class LoginRequest:
+    """Request to authenticate a user."""
+
+    username: str
+    password: str
 
 
 @dataclass(frozen=True)
-class CreateAssessmentRequest:
-    target_value: str
-    target_type: str          # e.g. "ip_address", "url" (mapped to TargetType)
-    authorized_by: str        # who authorizes this assessment
-    scope: str                # what is authorized (audit trail)
+class LoginResponse:
+    """Response from successful authentication."""
+
+    user_id: str
+    username: str
+    role: str
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int = 1800  # 30 minutes in seconds
 
 
 @dataclass(frozen=True)
-class CreateAssessmentResponse:
-    assessment_id: str
-    status: str
-    target: str
+class RefreshTokenRequest:
+    """Request to refresh an access token."""
 
-
-# --- StartAssessment ---------------------------------------------------------
+    refresh_token: str
 
 
 @dataclass(frozen=True)
-class StartAssessmentRequest:
-    assessment_id: str
+class RefreshTokenResponse:
+    """Response from successful token refresh."""
+
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int = 1800  # 30 minutes in seconds
 
 
 @dataclass(frozen=True)
-class StartAssessmentResponse:
-    assessment_id: str
-    status: str
-    findings_count: int
-    highest_severity: str | None
+class RegisterUserRequest:
+    """Request to register a new user."""
 
-
-# --- GetAssessment -----------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class GetAssessmentRequest:
-    assessment_id: str
+    username: str
+    email: str
+    password: str
+    role: str = "viewer"  # default to least-privileged
 
 
 @dataclass(frozen=True)
-class FindingView:
-    finding_id: str
-    title: str
-    severity: str
-    status: str
-    evidence_count: int
-    recommendation_count: int
+class RegisterUserResponse:
+    """Response from successful user registration."""
 
-    @classmethod
-    def from_domain(cls, finding: Finding) -> "FindingView":
-        return cls(
-            finding_id=str(finding.id),
-            title=finding.title,
-            severity=finding.severity.label,
-            status=finding.status.value,
-            evidence_count=len(finding.evidence),
-            recommendation_count=len(finding.recommendations),
-        )
+    user_id: str
+    username: str
+    email: str
+    role: str
 
 
 @dataclass(frozen=True)
-class AssessmentView:
-    assessment_id: str
-    target: str
-    status: str
-    is_authorized: bool
-    created_at: str                       # ISO-8601 string, not a datetime
-    findings: tuple[FindingView, ...]
+class UserView:
+    """User information view (no sensitive data)."""
 
-    @classmethod
-    def from_domain(cls, assessment: Assessment) -> "AssessmentView":
-        return cls(
-            assessment_id=str(assessment.id),
-            target=str(assessment.target),
-            status=assessment.status.value,
-            is_authorized=assessment.is_authorized,
-            created_at=assessment.created_at.isoformat(),
-            findings=tuple(FindingView.from_domain(f) for f in assessment.findings),
-        )
-
-
-# --- GenerateReport ----------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class GenerateReportRequest:
-    assessment_id: str
-
-
-@dataclass(frozen=True)
-class SeverityCount:
-    severity: str
-    count: int
-
-
-@dataclass(frozen=True)
-class RenderedReport:
-    """The output of a ReportGeneratorPort: a rendered deliverable artifact."""
-
-    content: bytes
-    media_type: str
-    filename: str
-
-
-@dataclass(frozen=True)
-class GenerateReportResponse:
-    assessment_id: str
-    verdict: str
-    action_required: bool
-    highest_severity: str | None
-    total_findings: int
-    severity_counts: tuple[SeverityCount, ...]
-    artifact_media_type: str
-    artifact_filename: str
-    artifact_bytes: int
-
-
-# --- SubmitAssessment (async) ------------------------------------------------
-
-
-@dataclass(frozen=True)
-class SubmitAssessmentRequest:
-    assessment_id: str
-
-
-@dataclass(frozen=True)
-class SubmitAssessmentResponse:
-    assessment_id: str
-    status: str
-    job_id: str
-
-
-# --- CancelAssessment --------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class CancelAssessmentRequest:
-    assessment_id: str
-
-
-@dataclass(frozen=True)
-class CancelAssessmentResponse:
-    assessment_id: str
-    status: str
-
-
-# --- ListAssessments ---------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class AssessmentSummary:
-    """Lightweight view of an assessment (no findings) for list endpoints."""
-
-    assessment_id: str
-    target: str
-    status: str
-    is_authorized: bool
+    user_id: str
+    username: str
+    email: str
+    role: str
+    is_active: bool
     created_at: str
-    findings_count: int
-
-    @classmethod
-    def from_domain(cls, assessment: Assessment) -> "AssessmentSummary":
-        return cls(
-            assessment_id=str(assessment.id),
-            target=str(assessment.target),
-            status=assessment.status.value,
-            is_authorized=assessment.is_authorized,
-            created_at=assessment.created_at.isoformat(),
-            findings_count=len(assessment.findings),
-        )
+    last_login_at: str | None
 
 
 @dataclass(frozen=True)
-class ListAssessmentsRequest:
-    limit: int = 50
-    offset: int = 0
+class ChangePasswordRequest:
+    """Request to change a user's password."""
+
+    user_id: str
+    current_password: str
+    new_password: str
 
 
 @dataclass(frozen=True)
-class ListAssessmentsResponse:
-    items: tuple[AssessmentSummary, ...]
-    total: int
-    limit: int
-    offset: int
+class AdminChangePasswordRequest:
+    """Request for admin to change a user's password."""
 
-
-# --- DeleteAssessment --------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class DeleteAssessmentRequest:
-    assessment_id: str
-
-
-@dataclass(frozen=True)
-class DeleteAssessmentResponse:
-    assessment_id: str
+    user_id: str
+    new_password: str

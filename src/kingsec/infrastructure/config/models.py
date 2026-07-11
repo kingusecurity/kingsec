@@ -123,6 +123,34 @@ class SecuritySettings(BaseModel):
     require_authorization: bool = True
 
 
+class JWTSettings(BaseModel):
+    """JWT authentication configuration.
+
+    All secrets are ``SecretStr`` so they are masked in logs and repr().
+    The secret_key MUST be overridden in production via env var or .env file.
+    """
+
+    model_config = _FROZEN
+
+    # HMAC signing secret. Default is INSECURE — production MUST override.
+    secret_key: SecretStr = SecretStr("CHANGE-ME-IN-PRODUCTION-DO-NOT-USE-DEFAULT")
+    # Algorithm: HS256 is sufficient for HMAC-signed local-first tokens.
+    algorithm: str = "HS256"
+    # Access token lifetime in minutes.
+    access_token_expire_minutes: int = Field(default=30, ge=1, le=1440)
+    # Refresh token lifetime in days.
+    refresh_token_expire_days: int = Field(default=7, ge=1, le=90)
+    # Issuer claim for token validation.
+    issuer: str = "kingsec"
+
+    @field_validator("algorithm")
+    @classmethod
+    def _algorithm_not_empty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("jwt algorithm must not be empty")
+        return value.strip()
+
+
 class AISettings(BaseModel):
     """Bring-Your-Own-Key AI provider settings.
 

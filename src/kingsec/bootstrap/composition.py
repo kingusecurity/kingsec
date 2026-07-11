@@ -23,6 +23,7 @@ from kingsec.application import (
     AIPort,
     AssessmentRepository,
     CancelAssessment,
+    ChangePassword,
     CreateAssessment,
     DeleteAssessment,
     EventPublisher,
@@ -30,15 +31,22 @@ from kingsec.application import (
     GetAssessment,
     JobRunner,
     ListAssessments,
+    Login,
+    PasswordHasher,
+    RefreshToken,
+    RegisterUser,
     ReportGeneratorPort,
     ReportRepository,
     ScannerPort,
     ServiceAPI,
     StartAssessment,
     SubmitAssessment,
+    TokenService,
     UseCaseServiceAPI,
+    UserRepository,
 )
 from kingsec.infrastructure.ai import register_ai
+from kingsec.infrastructure.auth.provisioning import register_auth, register_user_repository
 from kingsec.infrastructure.events.provisioning import register_events
 from kingsec.infrastructure.jobs import register_jobs
 from kingsec.infrastructure.persistence import (
@@ -105,7 +113,12 @@ def _register_adapters(
     # Persistence first: it builds the engine + schema and adds the
     # engine.dispose shutdown hook. The Unit of Work shares that engine.
     engine = register_persistence(container, settings)
-    register_unit_of_work(container, create_session_factory(engine))
+    session_factory = create_session_factory(engine)
+    register_unit_of_work(container, session_factory)
+
+    # Auth: password hasher + JWT token service + user repository.
+    register_auth(container, settings)
+    register_user_repository(container, session_factory)
 
     # Capability adapters. AI adds its own http-client.close shutdown hook.
     register_scanner(container, settings)
@@ -192,5 +205,36 @@ def _register_use_cases(container: Container) -> None:
             c.resolve(GetAssessment),
             c.resolve(GenerateReport),
             c.resolve(DeleteAssessment),
+        ),
+    )
+
+    # Auth use cases.
+    container.register_factory(
+        Login,
+        lambda c: Login(
+            c.resolve(UserRepository),
+            c.resolve(PasswordHasher),
+            c.resolve(TokenService),
+        ),
+    )
+    container.register_factory(
+        RefreshToken,
+        lambda c: RefreshToken(
+            c.resolve(UserRepository),
+            c.resolve(TokenService),
+        ),
+    )
+    container.register_factory(
+        RegisterUser,
+        lambda c: RegisterUser(
+            c.resolve(UserRepository),
+            c.resolve(PasswordHasher),
+        ),
+    )
+    container.register_factory(
+        ChangePassword,
+        lambda c: ChangePassword(
+            c.resolve(UserRepository),
+            c.resolve(PasswordHasher),
         ),
     )

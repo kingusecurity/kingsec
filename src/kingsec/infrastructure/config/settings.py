@@ -29,6 +29,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from .models import (
     AISettings,
     AppSettings,
+    JWTSettings,
     LoggingSettings,
     ScannerSettings,
     SecuritySettings,
@@ -66,6 +67,7 @@ class Settings(BaseSettings):
     app: AppSettings = Field(default_factory=AppSettings)
     server: ServerSettings = Field(default_factory=ServerSettings)
     security: SecuritySettings = Field(default_factory=SecuritySettings)
+    jwt: JWTSettings = Field(default_factory=JWTSettings)
     ai: AISettings = Field(default_factory=AISettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     storage: StorageSettings = Field(default_factory=StorageSettings)

@@ -204,3 +204,115 @@ class ListAssessmentsResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+# ── Auth schemas ─────────────────────────────────────────────────────────────
+
+
+class LoginBody(BaseModel):
+    """POST /api/v1/auth/login request body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    username: str = Field(
+        ...,
+        min_length=3,
+        max_length=64,
+        description="The login username.",
+    )
+    password: str = Field(
+        ...,
+        min_length=1,
+        max_length=128,
+        description="The login password.",
+    )
+
+
+class LoginResponse(BaseModel):
+    """POST /api/v1/auth/login response body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    user_id: str
+    username: str
+    role: str
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int
+
+
+class RefreshTokenBody(BaseModel):
+    """POST /api/v1/auth/refresh request body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    refresh_token: str = Field(
+        ...,
+        min_length=1,
+        description="The refresh token to exchange.",
+    )
+
+
+class RefreshTokenResponse(BaseModel):
+    """POST /api/v1/auth/refresh response body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+
+
+class RegisterUserBody(BaseModel):
+    """POST /api/v1/auth/register request body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    username: str = Field(
+        ...,
+        min_length=3,
+        max_length=64,
+        description="Desired login username.",
+    )
+    email: str = Field(
+        ...,
+        min_length=5,
+        max_length=254,
+        description="User email address.",
+    )
+    password: str = Field(
+        ...,
+        min_length=8,
+        max_length=128,
+        description="Password (min 8 chars, mixed case + digit).",
+    )
+    role: str = Field(
+        default="viewer",
+        description="User role: viewer, analyst, or admin.",
+    )
+
+
+class RegisterUserResponse(BaseModel):
+    """POST /api/v1/auth/register response body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    user_id: str
+    username: str
+    email: str
+    role: str
+
+
+class UserResponse(BaseModel):
+    """GET /api/v1/auth/me response body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    user_id: str
+    username: str
+    email: str
+    role: str
+    is_active: bool
+    created_at: str
+    last_login_at: str | None = None

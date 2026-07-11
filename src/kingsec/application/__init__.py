@@ -1,10 +1,12 @@
 """Application layer: use cases plus the port contracts the core owns."""
 
 from .dto import (
+    AdminChangePasswordRequest,
     AssessmentSummary,
     AssessmentView,
     CancelAssessmentRequest,
     CancelAssessmentResponse,
+    ChangePasswordRequest,
     CreateAssessmentRequest,
     CreateAssessmentResponse,
     DeleteAssessmentRequest,
@@ -15,12 +17,19 @@ from .dto import (
     GetAssessmentRequest,
     ListAssessmentsRequest,
     ListAssessmentsResponse,
+    LoginRequest,
+    LoginResponse,
+    RefreshTokenRequest,
+    RefreshTokenResponse,
+    RegisterUserRequest,
+    RegisterUserResponse,
     RenderedReport,
     SeverityCount,
     StartAssessmentRequest,
     StartAssessmentResponse,
     SubmitAssessmentRequest,
     SubmitAssessmentResponse,
+    UserView,
 )
 from .errors import (
     ApplicationError,
@@ -44,24 +53,35 @@ from .ports import (
     AssessmentRepository,
     EventPublisher,
     JobRunner,
+    PasswordHasher,
     ReportGeneratorPort,
     ReportRepository,
     ScannerPort,
     ServiceAPI,
+    TokenClaims,
+    TokenExpiredError,
+    TokenInvalidError,
+    TokenService,
     UnitOfWork,
     UnitOfWorkFactory,
+    UserRepository,
 )
 from .service_api import UseCaseServiceAPI
 from .submit_assessment import SubmitAssessment
 from .use_cases.cancel_assessment import CancelAssessment
+from .use_cases.change_password import ChangePassword, PasswordChangeError
 from .use_cases.create_assessment import CreateAssessment
 from .use_cases.delete_assessment import DeleteAssessment
 from .use_cases.generate_report import GenerateReport
 from .use_cases.get_assessment import GetAssessment
 from .use_cases.list_assessments import ListAssessments
+from .use_cases.login import AuthenticationError, Login
+from .use_cases.refresh_token import RefreshToken, TokenRefreshError
+from .use_cases.register_user import RegisterUser, RegistrationError
 from .use_cases.start_assessment import StartAssessment
 
 __all__ = [
+    "AdminChangePasswordRequest",
     "AIPort",
     "ApplicationError",
     "AssessmentEvent",
@@ -69,9 +89,12 @@ __all__ = [
     "AssessmentRepository",
     "AssessmentSummary",
     "AssessmentView",
+    "AuthenticationError",
     "CancelAssessment",
     "CancelAssessmentRequest",
     "CancelAssessmentResponse",
+    "ChangePassword",
+    "ChangePasswordRequest",
     "CreateAssessment",
     "CreateAssessmentRequest",
     "CreateAssessmentResponse",
@@ -98,6 +121,18 @@ __all__ = [
     "ListAssessments",
     "ListAssessmentsRequest",
     "ListAssessmentsResponse",
+    "Login",
+    "LoginRequest",
+    "LoginResponse",
+    "PasswordChangeError",
+    "PasswordHasher",
+    "RefreshToken",
+    "RefreshTokenRequest",
+    "RefreshTokenResponse",
+    "RegisterUser",
+    "RegisterUserRequest",
+    "RegisterUserResponse",
+    "RegistrationError",
     "RenderedReport",
     "ReportGeneratorPort",
     "ReportNotFoundError",
@@ -111,7 +146,14 @@ __all__ = [
     "SubmitAssessment",
     "SubmitAssessmentRequest",
     "SubmitAssessmentResponse",
+    "TokenClaims",
+    "TokenExpiredError",
+    "TokenInvalidError",
+    "TokenRefreshError",
+    "TokenService",
     "UnitOfWork",
     "UnitOfWorkFactory",
+    "UserRepository",
+    "UserView",
     "UseCaseServiceAPI",
 ]
