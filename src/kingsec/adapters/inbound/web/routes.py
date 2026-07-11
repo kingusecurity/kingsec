@@ -222,3 +222,21 @@ async def cancel_assessment(
         assessment_id=result.assessment_id,
         status=result.status,
     )
+
+
+# ── Delete Assessment ────────────────────────────────────────────────────────
+
+
+@router.delete(
+    "/assessments/{assessment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["assessments"],
+)
+async def delete_assessment(
+    assessment_id: str,
+    service: ServiceAPI = Depends(get_service),
+) -> None:
+    from kingsec.application.dto import DeleteAssessmentRequest
+
+    request = DeleteAssessmentRequest(assessment_id=assessment_id)
+    service.delete_assessment(request)

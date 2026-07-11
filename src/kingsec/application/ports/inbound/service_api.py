@@ -19,6 +19,8 @@ from kingsec.application.dto import (
     CancelAssessmentResponse,
     CreateAssessmentRequest,
     CreateAssessmentResponse,
+    DeleteAssessmentRequest,
+    DeleteAssessmentResponse,
     GenerateReportRequest,
     GenerateReportResponse,
     GetAssessmentRequest,
@@ -72,4 +74,10 @@ class ServiceAPI(ABC):
     def generate_report(
         self, request: GenerateReportRequest
     ) -> GenerateReportResponse:
+        ...
+
+    @abstractmethod
+    def delete_assessment(
+        self, request: DeleteAssessmentRequest
+    ) -> DeleteAssessmentResponse:
         ...

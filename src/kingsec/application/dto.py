@@ -205,3 +205,16 @@ class ListAssessmentsResponse:
     total: int
     limit: int
     offset: int
+
+
+# --- DeleteAssessment --------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class DeleteAssessmentRequest:
+    assessment_id: str
+
+
+@dataclass(frozen=True)
+class DeleteAssessmentResponse:
+    assessment_id: str

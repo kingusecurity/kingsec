@@ -7,6 +7,8 @@ from .dto import (
     CancelAssessmentResponse,
     CreateAssessmentRequest,
     CreateAssessmentResponse,
+    DeleteAssessmentRequest,
+    DeleteAssessmentResponse,
     FindingView,
     GenerateReportRequest,
     GenerateReportResponse,
@@ -42,6 +44,7 @@ from .service_api import UseCaseServiceAPI
 from .submit_assessment import SubmitAssessment
 from .use_cases.cancel_assessment import CancelAssessment
 from .use_cases.create_assessment import CreateAssessment
+from .use_cases.delete_assessment import DeleteAssessment
 from .use_cases.generate_report import GenerateReport
 from .use_cases.get_assessment import GetAssessment
 from .use_cases.list_assessments import ListAssessments
@@ -60,6 +63,9 @@ __all__ = [
     "CreateAssessment",
     "CreateAssessmentRequest",
     "CreateAssessmentResponse",
+    "DeleteAssessment",
+    "DeleteAssessmentRequest",
+    "DeleteAssessmentResponse",
     "FindingView",
     "GenerateReport",
     "GenerateReportRequest",

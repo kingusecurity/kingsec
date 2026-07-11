@@ -18,6 +18,8 @@ from kingsec.application.dto import (
     CancelAssessmentResponse,
     CreateAssessmentRequest,
     CreateAssessmentResponse,
+    DeleteAssessmentRequest,
+    DeleteAssessmentResponse,
     FindingView,
     GenerateReportRequest,
     GenerateReportResponse,
@@ -49,6 +51,7 @@ class StubServiceAPI(ServiceAPI):
         self.list_called = False
         self.get_called = False
         self.report_called = False
+        self.delete_called = False
 
     def create_assessment(
         self, request: CreateAssessmentRequest
@@ -147,6 +150,14 @@ class StubServiceAPI(ServiceAPI):
             artifact_media_type="application/pdf",
             artifact_filename="report.pdf",
             artifact_bytes=1024,
+        )
+
+    def delete_assessment(
+        self, request: DeleteAssessmentRequest
+    ) -> DeleteAssessmentResponse:
+        self.delete_called = True
+        return DeleteAssessmentResponse(
+            assessment_id=request.assessment_id,
         )
 
 
@@ -261,6 +272,14 @@ class TestListAssessmentsEndpoint:
         assert body["offset"] == 5
 
 
+class TestDeleteAssessmentEndpoint:
+    def test_returns_204(self, client: TestClient, stub_service: StubServiceAPI) -> None:
+        resp = client.delete("/api/v1/assessments/asmt-001")
+        assert resp.status_code == 204
+        assert resp.content == b""
+        assert stub_service.delete_called
+
+
 class TestGetAssessmentEndpoint:
     def test_returns_200(self, client: TestClient, stub_service: StubServiceAPI) -> None:
         resp = client.get("/api/v1/assessments/asmt-001")
@@ -316,6 +335,11 @@ class TestErrorHandling:
 
             def generate_report(self, r):  # type: ignore[override]
                 pass
+
+            def delete_assessment(self, r):
+                from kingsec.application.errors import AssessmentNotFoundError
+
+                raise AssessmentNotFoundError("asmt-missing")
 
         app = FastAPI()
 
@@ -375,6 +399,9 @@ class TestErrorHandling:
             def generate_report(self, r):  # type: ignore[override]
                 pass
 
+            def delete_assessment(self, r):  # type: ignore[override]
+                pass
+
         app = FastAPI()
 
         class _StubApp:
@@ -419,6 +446,9 @@ class TestErrorHandling:
                 raise RuntimeError("database password is xyz")
 
             def generate_report(self, r):  # type: ignore[override]
+                pass
+
+            def delete_assessment(self, r):  # type: ignore[override]
                 pass
 
         app = FastAPI()

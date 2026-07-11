@@ -46,6 +46,17 @@ class AssessmentRepository(ABC):
             A list of assessments, most recent first. May be empty.
         """
 
+    @abstractmethod
+    def delete(self, assessment_id: AssessmentId) -> None:
+        """Delete an assessment and all its children.
+
+        Args:
+            assessment_id: The identity of the assessment to delete.
+
+        Raises:
+            AssessmentNotFoundError: If no assessment has that id.
+        """
+
 
 class ReportRepository(ABC):
     """Persists and retrieves generated :class:`Report` snapshots."""

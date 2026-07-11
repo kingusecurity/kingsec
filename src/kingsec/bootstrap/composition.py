@@ -24,6 +24,7 @@ from kingsec.application import (
     AssessmentRepository,
     CancelAssessment,
     CreateAssessment,
+    DeleteAssessment,
     GenerateReport,
     GetAssessment,
     JobRunner,
@@ -162,6 +163,10 @@ def _register_use_cases(container: Container) -> None:
         ),
     )
     container.register_factory(
+        DeleteAssessment,
+        lambda c: DeleteAssessment(c.resolve(AssessmentRepository)),
+    )
+    container.register_factory(
         ServiceAPI,
         lambda c: UseCaseServiceAPI(
             c.resolve(CreateAssessment),
@@ -171,5 +176,6 @@ def _register_use_cases(container: Container) -> None:
             c.resolve(ListAssessments),
             c.resolve(GetAssessment),
             c.resolve(GenerateReport),
+            c.resolve(DeleteAssessment),
         ),
     )

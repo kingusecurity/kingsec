@@ -67,6 +67,14 @@ class _SessionBoundAssessmentRepository(AssessmentRepository):
         except SQLAlchemyError as exc:
             ops.raise_persistence_error("failed to list assessments", exc, "-")
 
+    def delete(self, assessment_id: AssessmentId) -> None:
+        try:
+            ops.delete_assessment(self._session, assessment_id)
+        except SQLAlchemyError as exc:
+            ops.raise_persistence_error(
+                "failed to delete assessment", exc, assessment_id.value
+            )
+
 
 class _SessionBoundReportRepository(ReportRepository):
     """Report repository that operates on a caller-owned session (no commit)."""

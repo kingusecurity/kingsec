@@ -108,6 +108,26 @@ class SqlAlchemyAssessmentRepository(AssessmentRepository):
         except SQLAlchemyError as exc:
             ops.raise_persistence_error("failed to list assessments", exc, "-")
 
+    def delete(self, assessment_id: AssessmentId) -> None:
+        """Delete an assessment and all its children (cascade).
+
+        Args:
+            assessment_id: The identity of the assessment to delete.
+
+        Raises:
+            AssessmentNotFoundError: If no assessment has that id.
+            PersistenceError: If the database operation fails.
+        """
+
+        try:
+            with self._session_factory.begin() as session:
+                ops.delete_assessment(session, assessment_id)
+            _logger.debug("assessment deleted", assessment_id=assessment_id.value)
+        except SQLAlchemyError as exc:
+            ops.raise_persistence_error(
+                "failed to delete assessment", exc, assessment_id.value
+            )
+
 
 class SqlAlchemyReportRepository(ReportRepository):
     """Persists :class:`~kingsec.domain.Report` snapshots in SQLite."""

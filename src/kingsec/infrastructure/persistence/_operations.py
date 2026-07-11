@@ -161,3 +161,24 @@ def list_assessments(
         .all()
     )
     return [assessment_to_domain(orm) for orm in orms]
+
+
+def delete_assessment(session: Session, assessment_id: AssessmentId) -> None:
+    """Delete an assessment and all its children (cascade).
+
+    Uses the database-level ON DELETE CASCADE to remove findings, evidence,
+    and recommendations in one operation. The ORM-level cascade provides
+    defense-in-depth.
+
+    Args:
+        session: The active session.
+        assessment_id: The identity of the assessment to delete.
+
+    Raises:
+        AssessmentNotFoundError: If no assessment has that id.
+    """
+
+    orm = session.get(AssessmentORM, assessment_id.value)
+    if orm is None:
+        raise AssessmentNotFoundError(assessment_id.value)
+    session.delete(orm)
