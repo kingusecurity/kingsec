@@ -5,6 +5,8 @@ import { LoginPage } from "@/features/auth/pages/login-page"
 import { DashboardPage } from "@/features/dashboard/pages/dashboard-page"
 import { AssessmentListPage } from "@/features/assessments/pages/assessment-list-page"
 import { AssessmentDetailPage } from "@/features/assessments/pages/assessment-detail-page"
+import { ReportsListPage } from "@/features/reports/pages/reports-list-page"
+import { ReportViewerPage } from "@/features/reports/pages/report-viewer-page"
 import { AuditPage } from "@/features/audit/pages/audit-page"
 import { ProfilePage } from "@/features/profile/pages/profile-page"
 import { ROUTES } from "@/shared/lib/constants"
@@ -26,6 +28,8 @@ export const router = createBrowserRouter([
       { path: "dashboard", element: <DashboardPage /> },
       { path: "assessments", element: <AssessmentListPage /> },
       { path: "assessments/:id", element: <AssessmentDetailPage /> },
+      { path: "reports", element: <ReportsListPage /> },
+      { path: "reports/:id", element: <ReportViewerPage /> },
       { path: "audit", element: <ProtectedRoute requiredRole="ADMIN"><AuditPage /></ProtectedRoute> },
       { path: "profile", element: <ProfilePage /> },
     ],

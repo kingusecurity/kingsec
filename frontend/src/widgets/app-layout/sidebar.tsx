@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   ScanSearch,
   Shield,
+  FileText,
   ScrollText,
   User,
   LogOut,
@@ -18,6 +19,7 @@ import { Button } from "@/shared/ui/button"
 const NAV_ITEMS = [
   { to: ROUTES.DASHBOARD, icon: LayoutDashboard, label: "Dashboard", roles: ["VIEWER", "ANALYST", "ADMIN"] },
   { to: ROUTES.ASSESSMENTS, icon: ScanSearch, label: "Assessments", roles: ["VIEWER", "ANALYST", "ADMIN"] },
+  { to: ROUTES.REPORTS, icon: FileText, label: "Reports", roles: ["VIEWER", "ANALYST", "ADMIN"] },
   { to: ROUTES.AUDIT, icon: ScrollText, label: "Audit Log", roles: ["ADMIN"] },
 ] as const
 
