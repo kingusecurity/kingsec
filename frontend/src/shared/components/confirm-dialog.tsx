@@ -7,6 +7,7 @@ import {
   DialogTitle,
 } from "@/shared/ui/dialog"
 import { Button } from "@/shared/ui/button"
+import type { ReactNode } from "react"
 
 interface ConfirmDialogProps {
   open: boolean
@@ -18,6 +19,7 @@ interface ConfirmDialogProps {
   variant?: "default" | "destructive"
   onConfirm: () => void
   loading?: boolean
+  children?: ReactNode
 }
 
 export function ConfirmDialog({
@@ -30,6 +32,7 @@ export function ConfirmDialog({
   variant = "default",
   onConfirm,
   loading,
+  children,
 }: ConfirmDialogProps): React.ReactElement {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -38,6 +41,7 @@ export function ConfirmDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
+        {children}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             {cancelLabel}

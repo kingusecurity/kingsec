@@ -5,6 +5,10 @@ export const ROUTES = {
   ASSESSMENT_DETAIL: "/assessments/:id",
   REPORTS: "/reports",
   REPORT_DETAIL: "/reports/:id",
+  USERS: "/users",
+  USER_DETAIL: "/users/:id",
+  USER_CREATE: "/users/new",
+  USER_EDIT: "/users/:id/edit",
   AUDIT: "/audit",
   PROFILE: "/profile",
 } as const

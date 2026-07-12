@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { renderHook, waitFor } from "@testing-library/react"
+import { renderHook, waitFor, act } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { useGenerateReport, useDownloadReport, reportKeys } from "../hooks/use-reports"
 import * as reportsApi from "../api/reports"
@@ -34,6 +34,7 @@ describe("Report hooks", () => {
   describe("useGenerateReport", () => {
     it("calls generateReport and returns data", async () => {
       const mockData = {
+        report_id: "rpt-001",
         assessment_id: "test-id",
         verdict: "pass",
         action_required: false,
@@ -72,7 +73,7 @@ describe("Report hooks", () => {
   })
 
   describe("useDownloadReport", () => {
-    it("calls downloadReportBlob", async () => {
+    it("calls downloadReportBlob with progress tracking", async () => {
       vi.mocked(reportsApi.downloadReportBlob).mockResolvedValue(undefined)
 
       const { result } = renderHook(() => useDownloadReport(), { wrapper: createWrapper() })
@@ -87,7 +88,59 @@ describe("Report hooks", () => {
         expect(result.current.isSuccess).toBe(true)
       })
 
-      expect(reportsApi.downloadReportBlob).toHaveBeenCalledWith("test-id", "report.pdf", "application/pdf")
+      expect(reportsApi.downloadReportBlob).toHaveBeenCalledWith(
+        "test-id",
+        "report.pdf",
+        "application/pdf",
+        expect.any(Function),
+      )
+    })
+
+    it("exposes progress state", async () => {
+      let resolveDownload: () => void
+      vi.mocked(reportsApi.downloadReportBlob).mockImplementation(
+        () => new Promise<void>((resolve) => { resolveDownload = resolve }),
+      )
+
+      const { result } = renderHook(() => useDownloadReport(), { wrapper: createWrapper() })
+
+      result.current.mutate({
+        assessmentId: "test-id",
+        filename: "report.pdf",
+        mediaType: "application/pdf",
+      })
+
+      await waitFor(() => {
+        expect(result.current.isPending).toBe(true)
+      })
+
+      expect(result.current.progress).toEqual({ loaded: 0, total: 0, percent: 0 })
+
+      act(() => { resolveDownload!() })
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true)
+      })
+
+      expect(result.current.progress).toBeNull()
+    })
+
+    it("clears progress on error", async () => {
+      vi.mocked(reportsApi.downloadReportBlob).mockRejectedValue(new Error("Network error"))
+
+      const { result } = renderHook(() => useDownloadReport(), { wrapper: createWrapper() })
+
+      result.current.mutate({
+        assessmentId: "test-id",
+        filename: "report.pdf",
+        mediaType: "application/pdf",
+      })
+
+      await waitFor(() => {
+        expect(result.current.isError).toBe(true)
+      })
+
+      expect(result.current.progress).toBeNull()
     })
   })
 })

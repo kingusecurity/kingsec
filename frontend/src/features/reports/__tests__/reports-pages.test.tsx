@@ -1,14 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { ReportsListPage } from "../pages/reports-list-page"
 import { ReportViewerPage } from "../pages/report-viewer-page"
 import * as assessmentsHooks from "@/features/assessments/hooks/use-assessments"
 import * as reportsHooks from "../hooks/use-reports"
+import * as authHook from "@/features/auth/hooks/use-auth"
 
 vi.mock("@/features/assessments/hooks/use-assessments")
 vi.mock("../hooks/use-reports")
+vi.mock("@/features/auth/hooks/use-auth")
 
 function createQueryWrapper() {
   const queryClient = new QueryClient({
@@ -19,9 +22,9 @@ function createQueryWrapper() {
   }
 }
 
-function renderWithRouter(ui: React.ReactElement) {
+function renderWithRouter(ui: React.ReactElement, initialEntries = ["/reports"]) {
   return render(
-    <MemoryRouter initialEntries={["/reports"]}>
+    <MemoryRouter initialEntries={initialEntries}>
       {ui}
     </MemoryRouter>,
     { wrapper: createQueryWrapper() },
@@ -49,21 +52,29 @@ const mockAssessmentDetail = {
   authorized_by: "admin",
 }
 
+function mockAuth(role = "ADMIN") {
+  vi.mocked(authHook.useAuth).mockReturnValue({
+    user: { user_id: "u1", username: "admin", email: "admin@test.com", role, is_active: true, created_at: "2025-01-01T00:00:00Z" },
+    login: vi.fn(),
+    logout: vi.fn(),
+    register: vi.fn(),
+    isLoading: false,
+    isAuthenticated: true,
+  } as any)
+}
+
 describe("ReportsListPage", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockAuth()
   })
 
   it("renders page header", () => {
     vi.mocked(assessmentsHooks.useAssessments).mockReturnValue({
       data: mockAssessments, isLoading: false, error: null, refetch: vi.fn(), isFetching: false,
     } as any)
-    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({
-      mutate: vi.fn(), isPending: false,
-    } as any)
-    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({
-      mutate: vi.fn(), isPending: false,
-    } as any)
+    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
+    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({ mutate: vi.fn(), isPending: false, progress: null } as any)
 
     renderWithRouter(<ReportsListPage />)
 
@@ -74,18 +85,13 @@ describe("ReportsListPage", () => {
     vi.mocked(assessmentsHooks.useAssessments).mockReturnValue({
       data: mockAssessments, isLoading: false, error: null, refetch: vi.fn(), isFetching: false,
     } as any)
-    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({
-      mutate: vi.fn(), isPending: false,
-    } as any)
-    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({
-      mutate: vi.fn(), isPending: false,
-    } as any)
+    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
+    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({ mutate: vi.fn(), isPending: false, progress: null } as any)
 
     renderWithRouter(<ReportsListPage />)
 
     expect(screen.getByText("https://example.com")).toBeInTheDocument()
     expect(screen.getByText("https://test.com")).toBeInTheDocument()
-    // Running assessment filtered out
     expect(screen.queryByText("https://pending.com")).not.toBeInTheDocument()
   })
 
@@ -93,12 +99,8 @@ describe("ReportsListPage", () => {
     vi.mocked(assessmentsHooks.useAssessments).mockReturnValue({
       data: { items: [], total: 0 }, isLoading: false, error: null, refetch: vi.fn(), isFetching: false,
     } as any)
-    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({
-      mutate: vi.fn(), isPending: false,
-    } as any)
-    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({
-      mutate: vi.fn(), isPending: false,
-    } as any)
+    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
+    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({ mutate: vi.fn(), isPending: false, progress: null } as any)
 
     renderWithRouter(<ReportsListPage />)
 
@@ -109,12 +111,8 @@ describe("ReportsListPage", () => {
     vi.mocked(assessmentsHooks.useAssessments).mockReturnValue({
       data: mockAssessments, isLoading: false, error: null, refetch: vi.fn(), isFetching: false,
     } as any)
-    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({
-      mutate: vi.fn(), isPending: false,
-    } as any)
-    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({
-      mutate: vi.fn(), isPending: false,
-    } as any)
+    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
+    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({ mutate: vi.fn(), isPending: false, progress: null } as any)
 
     renderWithRouter(<ReportsListPage />)
 
@@ -131,40 +129,45 @@ describe("ReportsListPage", () => {
     vi.mocked(assessmentsHooks.useAssessments).mockReturnValue({
       data: undefined, isLoading: true, error: null, refetch: vi.fn(), isFetching: false,
     } as any)
-    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({
-      mutate: vi.fn(), isPending: false,
-    } as any)
-    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({
-      mutate: vi.fn(), isPending: false,
-    } as any)
+    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
+    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({ mutate: vi.fn(), isPending: false, progress: null } as any)
 
     const { container } = renderWithRouter(<ReportsListPage />)
 
     expect(container.querySelectorAll(".skeleton").length).toBeGreaterThan(0)
+  })
+
+  it("shows error state on fetch failure", () => {
+    const error = new Error("Forbidden") as any
+    error.status = 403
+    vi.mocked(assessmentsHooks.useAssessments).mockReturnValue({
+      data: undefined, isLoading: false, error, refetch: vi.fn(), isFetching: false,
+    } as any)
+    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
+    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({ mutate: vi.fn(), isPending: false, progress: null } as any)
+
+    renderWithRouter(<ReportsListPage />)
+
+    expect(screen.getByRole("alert")).toBeInTheDocument()
   })
 })
 
 describe("ReportViewerPage", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockAuth()
   })
 
   it("shows loading state", () => {
     vi.mocked(assessmentsHooks.useAssessmentDetail).mockReturnValue({
       data: undefined, isLoading: true, error: null, refetch: vi.fn(),
     } as any)
-    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({
-      mutate: vi.fn(), isPending: false,
-    } as any)
-    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({
-      mutate: vi.fn(), isPending: false,
-    } as any)
+    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
+    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({ mutate: vi.fn(), isPending: false, progress: null } as any)
 
-    const { container } = render(
-      <MemoryRouter initialEntries={["/reports/1"]}>
-        <ReportViewerPage />
-      </MemoryRouter>,
-      { wrapper: createQueryWrapper() },
+    const { container } = renderWithRouter(
+      <ReportViewerPage />,
+      ["/reports/1"],
     )
 
     expect(container.querySelectorAll(".skeleton").length).toBeGreaterThan(0)
@@ -176,19 +179,10 @@ describe("ReportViewerPage", () => {
     vi.mocked(assessmentsHooks.useAssessmentDetail).mockReturnValue({
       data: undefined, isLoading: false, error, refetch: vi.fn(),
     } as any)
-    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({
-      mutate: vi.fn(), isPending: false,
-    } as any)
-    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({
-      mutate: vi.fn(), isPending: false,
-    } as any)
+    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
+    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({ mutate: vi.fn(), isPending: false, progress: null } as any)
 
-    render(
-      <MemoryRouter initialEntries={["/reports/1"]}>
-        <ReportViewerPage />
-      </MemoryRouter>,
-      { wrapper: createQueryWrapper() },
-    )
+    renderWithRouter(<ReportViewerPage />, ["/reports/1"])
 
     await waitFor(() => {
       expect(screen.getByText("Not found")).toBeInTheDocument()
@@ -199,19 +193,10 @@ describe("ReportViewerPage", () => {
     vi.mocked(assessmentsHooks.useAssessmentDetail).mockReturnValue({
       data: mockAssessmentDetail, isLoading: false, error: null, refetch: vi.fn(),
     } as any)
-    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({
-      mutate: vi.fn(), isPending: false,
-    } as any)
-    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({
-      mutate: vi.fn(), isPending: false,
-    } as any)
+    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
+    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({ mutate: vi.fn(), isPending: false, progress: null } as any)
 
-    render(
-      <MemoryRouter initialEntries={["/reports/1"]}>
-        <ReportViewerPage />
-      </MemoryRouter>,
-      { wrapper: createQueryWrapper() },
-    )
+    renderWithRouter(<ReportViewerPage />, ["/reports/1"])
 
     expect(screen.getByText("Report: https://example.com")).toBeInTheDocument()
     expect(screen.getByText("Preview")).toBeInTheDocument()
@@ -219,25 +204,134 @@ describe("ReportViewerPage", () => {
     expect(screen.getByText("History")).toBeInTheDocument()
   })
 
-  it("shows download and generate buttons", async () => {
+  it("shows download and regenerate buttons for ADMIN", async () => {
     vi.mocked(assessmentsHooks.useAssessmentDetail).mockReturnValue({
       data: mockAssessmentDetail, isLoading: false, error: null, refetch: vi.fn(),
     } as any)
-    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({
-      mutate: vi.fn(), isPending: false,
-    } as any)
-    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({
-      mutate: vi.fn(), isPending: false,
-    } as any)
+    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
+    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({ mutate: vi.fn(), isPending: false, progress: null } as any)
 
-    render(
-      <MemoryRouter initialEntries={["/reports/1"]}>
-        <ReportViewerPage />
-      </MemoryRouter>,
-      { wrapper: createQueryWrapper() },
-    )
+    renderWithRouter(<ReportViewerPage />, ["/reports/1"])
 
     expect(screen.getByText("Download")).toBeInTheDocument()
     expect(screen.getByText("Regenerate")).toBeInTheDocument()
+  })
+
+  it("hides regenerate button for VIEWER role", async () => {
+    mockAuth("VIEWER")
+    vi.mocked(assessmentsHooks.useAssessmentDetail).mockReturnValue({
+      data: mockAssessmentDetail, isLoading: false, error: null, refetch: vi.fn(),
+    } as any)
+    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
+    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({ mutate: vi.fn(), isPending: false, progress: null } as any)
+
+    renderWithRouter(<ReportViewerPage />, ["/reports/1"])
+
+    expect(screen.getByText("Download")).toBeInTheDocument()
+    expect(screen.queryByText("Regenerate")).not.toBeInTheDocument()
+  })
+
+  it("shows download progress bar when downloading", async () => {
+    vi.mocked(assessmentsHooks.useAssessmentDetail).mockReturnValue({
+      data: mockAssessmentDetail, isLoading: false, error: null, refetch: vi.fn(),
+    } as any)
+    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
+    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({
+      mutate: vi.fn(),
+      isPending: true,
+      progress: { loaded: 512, total: 1024, percent: 50 },
+    } as any)
+
+    renderWithRouter(<ReportViewerPage />, ["/reports/1"])
+
+    expect(screen.getByText("50%")).toBeInTheDocument()
+    expect(screen.getByText("Downloading report...")).toBeInTheDocument()
+  })
+
+  it("shows retry button on download failure", async () => {
+    vi.mocked(assessmentsHooks.useAssessmentDetail).mockReturnValue({
+      data: mockAssessmentDetail, isLoading: false, error: null, refetch: vi.fn(),
+    } as any)
+    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
+    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isError: true,
+      error: new Error("Download failed"),
+      progress: null,
+    } as any)
+
+    renderWithRouter(<ReportViewerPage />, ["/reports/1"])
+
+    expect(screen.getByText("Download failed.")).toBeInTheDocument()
+    expect(screen.getByText("Retry")).toBeInTheDocument()
+  })
+
+  it("shows PDF preview iframe for completed assessment", async () => {
+    vi.mocked(assessmentsHooks.useAssessmentDetail).mockReturnValue({
+      data: mockAssessmentDetail, isLoading: false, error: null, refetch: vi.fn(),
+    } as any)
+    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
+    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({ mutate: vi.fn(), isPending: false, progress: null } as any)
+
+    renderWithRouter(<ReportViewerPage />, ["/reports/1"])
+
+    expect(screen.getByTitle("Report PDF preview")).toBeInTheDocument()
+    expect(screen.getByText("PDF Preview")).toBeInTheDocument()
+  })
+
+  it("shows 'no report' message for non-completed assessment", async () => {
+    vi.mocked(assessmentsHooks.useAssessmentDetail).mockReturnValue({
+      data: { ...mockAssessmentDetail, status: "RUNNING", findings: [] },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any)
+    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
+    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({ mutate: vi.fn(), isPending: false, progress: null } as any)
+
+    renderWithRouter(<ReportViewerPage />, ["/reports/1"])
+
+    expect(screen.getByText("No report generated")).toBeInTheDocument()
+  })
+
+  it("shows metadata tab with all fields", async () => {
+    const user = userEvent.setup()
+    vi.mocked(assessmentsHooks.useAssessmentDetail).mockReturnValue({
+      data: mockAssessmentDetail, isLoading: false, error: null, refetch: vi.fn(),
+    } as any)
+    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
+    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({ mutate: vi.fn(), isPending: false, progress: null } as any)
+
+    renderWithRouter(<ReportViewerPage />, ["/reports/1"])
+
+    await user.click(screen.getByRole("tab", { name: "Metadata" }))
+
+    await waitFor(() => {
+      expect(screen.getByText("Assessment ID")).toBeInTheDocument()
+    })
+    expect(screen.getByText("Target")).toBeInTheDocument()
+    expect(screen.getByText("Status")).toBeInTheDocument()
+    expect(screen.getByText("Findings")).toBeInTheDocument()
+    expect(screen.getByText("Created")).toBeInTheDocument()
+    expect(screen.getByText("Severity Breakdown")).toBeInTheDocument()
+  })
+
+  it("shows history tab with backend integration placeholder", async () => {
+    const user = userEvent.setup()
+    vi.mocked(assessmentsHooks.useAssessmentDetail).mockReturnValue({
+      data: mockAssessmentDetail, isLoading: false, error: null, refetch: vi.fn(),
+    } as any)
+    vi.mocked(reportsHooks.useGenerateReport).mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
+    vi.mocked(reportsHooks.useDownloadReport).mockReturnValue({ mutate: vi.fn(), isPending: false, progress: null } as any)
+
+    renderWithRouter(<ReportViewerPage />, ["/reports/1"])
+
+    await user.click(screen.getByRole("tab", { name: "History" }))
+
+    await waitFor(() => {
+      expect(screen.getByText("Report History")).toBeInTheDocument()
+    })
+    expect(screen.getByText("Ready for backend integration")).toBeInTheDocument()
   })
 })

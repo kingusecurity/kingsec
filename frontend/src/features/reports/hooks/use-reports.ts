@@ -1,8 +1,10 @@
+import { useState, useCallback } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { generateReport, downloadReportBlob } from "../api/reports"
 import { assessmentKeys } from "@/features/assessments/hooks/use-assessments"
 import { getApiError } from "@/shared/api/error-handler"
+import type { DownloadProgress } from "../types"
 
 export const reportKeys = {
   all: ["reports"] as const,
@@ -26,15 +28,37 @@ export function useGenerateReport() {
 }
 
 export function useDownloadReport() {
-  return useMutation({
-    mutationFn: ({ assessmentId, filename, mediaType }: { assessmentId: string; filename: string; mediaType: string }) =>
-      downloadReportBlob(assessmentId, filename, mediaType),
+  const [progress, setProgress] = useState<DownloadProgress | null>(null)
+
+  const mutation = useMutation({
+    mutationFn: ({
+      assessmentId,
+      filename,
+      mediaType,
+    }: {
+      assessmentId: string
+      filename: string
+      mediaType: string
+    }) =>
+      downloadReportBlob(assessmentId, filename, mediaType, (p) => {
+        setProgress(p)
+      }),
+    onMutate: () => {
+      setProgress({ loaded: 0, total: 0, percent: 0 })
+    },
     onSuccess: () => {
+      setProgress(null)
       toast.success("Report downloaded")
     },
     onError: (err) => {
+      setProgress(null)
       const e = getApiError(err)
       toast.error(e.detail)
     },
   })
+
+  return {
+    ...mutation,
+    progress,
+  }
 }

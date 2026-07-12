@@ -1,4 +1,5 @@
 export interface ReportData {
+  report_id: string
   assessment_id: string
   verdict: string
   action_required: boolean
@@ -9,6 +10,9 @@ export interface ReportData {
   artifact_filename: string
   artifact_bytes: number
   generated_at?: string
+  generated_by?: string
+  report_version?: number
+  sha256_checksum?: string
 }
 
 export interface SeverityCount {
@@ -26,3 +30,9 @@ export interface ReportListItem {
 }
 
 export type ReportVerdict = "pass" | "fail" | "warning" | "info"
+
+export interface DownloadProgress {
+  loaded: number
+  total: number
+  percent: number
+}

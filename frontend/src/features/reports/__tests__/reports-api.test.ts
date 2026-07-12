@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
+import { describe, it, expect, vi, beforeEach } from "vitest"
 import {
   generateReport,
   downloadReportBlob,
@@ -23,6 +23,7 @@ describe("Reports API", () => {
     it("calls POST /assessments/:id/report", async () => {
       const mockResponse = {
         data: {
+          report_id: "rpt-001",
           assessment_id: "test-id",
           verdict: "fail",
           action_required: true,
@@ -33,6 +34,9 @@ describe("Reports API", () => {
           artifact_filename: "report.pdf",
           artifact_bytes: 1024,
           generated_at: "2025-01-01T00:00:00Z",
+          generated_by: "admin",
+          report_version: 1,
+          sha256_checksum: "abc123",
         },
       }
       vi.mocked(apiClient.post).mockResolvedValue(mockResponse)
@@ -40,9 +44,11 @@ describe("Reports API", () => {
       const result = await generateReport("test-id")
 
       expect(apiClient.post).toHaveBeenCalledWith("/assessments/test-id/report")
+      expect(result.report_id).toBe("rpt-001")
       expect(result.assessment_id).toBe("test-id")
       expect(result.verdict).toBe("fail")
-      expect(result.total_findings).toBe(3)
+      expect(result.generated_by).toBe("admin")
+      expect(result.sha256_checksum).toBe("abc123")
     })
   })
 
@@ -60,6 +66,7 @@ describe("Reports API", () => {
 
       expect(apiClient.get).toHaveBeenCalledWith("/assessments/test-id/report", {
         responseType: "blob",
+        onDownloadProgress: expect.any(Function),
       })
       expect(mockAnchor.download).toBe("report.pdf")
       expect(mockAnchor.click).toHaveBeenCalled()
@@ -68,11 +75,33 @@ describe("Reports API", () => {
       appendChildSpy.mockRestore()
       removeChildSpy.mockRestore()
     })
+
+    it("calls onDownloadProgress during download", async () => {
+      const mockData = new ArrayBuffer(1024)
+      vi.mocked(apiClient.get).mockImplementation((_url, config: any) => {
+        if (config?.onDownloadProgress) {
+          config.onDownloadProgress({ loaded: 512, total: 1024 })
+          config.onDownloadProgress({ loaded: 1024, total: 1024 })
+        }
+        return Promise.resolve({ data: mockData })
+      })
+
+      const onProgress = vi.fn()
+      const mockAnchor = { href: "", download: "", click: vi.fn() }
+      vi.spyOn(document, "createElement").mockReturnValue(mockAnchor as unknown as HTMLAnchorElement)
+      vi.spyOn(document.body, "appendChild").mockImplementation(() => mockAnchor as unknown as Node)
+      vi.spyOn(document.body, "removeChild").mockImplementation(() => mockAnchor as unknown as Node)
+
+      await downloadReportBlob("test-id", "report.pdf", "application/pdf", onProgress)
+
+      expect(onProgress).toHaveBeenCalledWith({ loaded: 512, total: 1024, percent: 50 })
+      expect(onProgress).toHaveBeenCalledWith({ loaded: 1024, total: 1024, percent: 100 })
+    })
   })
 
   describe("getReportViewUrl", () => {
-    it("returns correct view URL", async () => {
-      const url = await getReportViewUrl("test-id")
+    it("returns correct view URL", () => {
+      const url = getReportViewUrl("test-id")
       expect(url).toBe("/assessments/test-id/report")
     })
   })
