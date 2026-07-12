@@ -3,6 +3,7 @@ import { ProtectedRoute } from "@/features/auth/components/protected-route"
 import { AppLayout } from "@/widgets/app-layout/app-layout"
 import { LoginPage } from "@/features/auth/pages/login-page"
 import { DashboardPage } from "@/features/dashboard/pages/dashboard-page"
+import { AnalyticsPage } from "@/features/analytics/pages/analytics-page"
 import { AssessmentListPage } from "@/features/assessments/pages/assessment-list-page"
 import { AssessmentDetailPage } from "@/features/assessments/pages/assessment-detail-page"
 import { ReportsListPage } from "@/features/reports/pages/reports-list-page"
@@ -31,6 +32,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to={ROUTES.DASHBOARD} replace /> },
       { path: "dashboard", element: <DashboardPage /> },
+      { path: "analytics", element: <AnalyticsPage /> },
       { path: "assessments", element: <AssessmentListPage /> },
       { path: "assessments/:id", element: <AssessmentDetailPage /> },
       { path: "reports", element: <ReportsListPage /> },
