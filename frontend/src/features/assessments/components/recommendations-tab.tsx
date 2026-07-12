@@ -1,12 +1,23 @@
-import { Lightbulb } from "lucide-react"
-import { EmptyState } from "@/shared/components/empty-state"
+import { Construction } from "lucide-react"
+import { Card, CardContent } from "@/shared/ui/card"
+import { Badge } from "@/shared/ui/badge"
 
 export function RecommendationsTab(): React.ReactElement {
   return (
-    <EmptyState
-      icon={<Lightbulb className="size-12" />}
-      title="Recommendations"
-      description="Remediation recommendations will be available when the backend exposes the recommendations endpoint."
-    />
+    <Card>
+      <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
+        <div className="flex size-12 items-center justify-center rounded-lg bg-[hsl(var(--muted))]">
+          <Construction className="size-6 text-[hsl(var(--muted-fg))]" />
+        </div>
+        <div className="space-y-1">
+          <h3 className="text-lg font-semibold text-[hsl(var(--fg))]">Remediation Recommendations</h3>
+          <p className="max-w-md text-sm text-[hsl(var(--fg-secondary))]">
+            This feature requires the backend to expose a recommendations endpoint per finding.
+            When available, you'll see prioritized remediation steps grouped by severity.
+          </p>
+        </div>
+        <Badge variant="secondary">Ready for backend integration</Badge>
+      </CardContent>
+    </Card>
   )
 }

@@ -2,6 +2,10 @@ import { useEffect, useRef, useCallback, useState } from "react"
 import { getApiBaseUrl } from "@/shared/lib/env"
 import { getStoredToken } from "@/shared/api/client"
 
+const MAX_EVENTS = 100
+const MAX_BACKOFF_MS = 30_000
+const INITIAL_BACKOFF_MS = 1_000
+
 export interface SSEEvent {
   event_type: string
   assessment_id: string
@@ -22,11 +26,17 @@ export function useAssessmentSSE({ assessmentId, enabled = true, onEvent }: UseA
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
+  const backoffRef = useRef(INITIAL_BACKOFF_MS)
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const enabledRef = useRef(enabled)
   const onEventRef = useRef(onEvent)
+  enabledRef.current = enabled
   onEventRef.current = onEvent
 
   const connect = useCallback(() => {
-    if (!enabled) return
+    if (!enabledRef.current) return
+
+    eventSourceRef.current?.close()
 
     const baseUrl = getApiBaseUrl()
     const token = getStoredToken()
@@ -43,67 +53,58 @@ export function useAssessmentSSE({ assessmentId, enabled = true, onEvent }: UseA
       es.onopen = () => {
         setIsConnected(true)
         setError(null)
+        backoffRef.current = INITIAL_BACKOFF_MS
       }
 
-      es.addEventListener("assessment.created", ((e: MessageEvent) => {
+      const handleEvent = (e: MessageEvent) => {
         const data: SSEEvent = JSON.parse(e.data)
-        setEvents((prev) => [...prev, data])
+        setEvents((prev) => {
+          const next = [...prev, data]
+          return next.length > MAX_EVENTS ? next.slice(next.length - MAX_EVENTS) : next
+        })
         onEventRef.current?.(data)
-      }) as EventListener)
+      }
 
-      es.addEventListener("assessment.started", ((e: MessageEvent) => {
-        const data: SSEEvent = JSON.parse(e.data)
-        setEvents((prev) => [...prev, data])
-        onEventRef.current?.(data)
-      }) as EventListener)
-
-      es.addEventListener("assessment.completed", ((e: MessageEvent) => {
-        const data: SSEEvent = JSON.parse(e.data)
-        setEvents((prev) => [...prev, data])
-        onEventRef.current?.(data)
-      }) as EventListener)
-
-      es.addEventListener("assessment.failed", ((e: MessageEvent) => {
-        const data: SSEEvent = JSON.parse(e.data)
-        setEvents((prev) => [...prev, data])
-        onEventRef.current?.(data)
-      }) as EventListener)
-
-      es.addEventListener("assessment.cancelled", ((e: MessageEvent) => {
-        const data: SSEEvent = JSON.parse(e.data)
-        setEvents((prev) => [...prev, data])
-        onEventRef.current?.(data)
-      }) as EventListener)
-
-      es.addEventListener("assessment.deleted", ((e: MessageEvent) => {
-        const data: SSEEvent = JSON.parse(e.data)
-        setEvents((prev) => [...prev, data])
-        onEventRef.current?.(data)
-      }) as EventListener)
-
-      es.addEventListener("report.ready", ((e: MessageEvent) => {
-        const data: SSEEvent = JSON.parse(e.data)
-        setEvents((prev) => [...prev, data])
-        onEventRef.current?.(data)
-      }) as EventListener)
+      es.addEventListener("assessment.created", handleEvent as EventListener)
+      es.addEventListener("assessment.started", handleEvent as EventListener)
+      es.addEventListener("assessment.completed", handleEvent as EventListener)
+      es.addEventListener("assessment.failed", handleEvent as EventListener)
+      es.addEventListener("assessment.cancelled", handleEvent as EventListener)
+      es.addEventListener("assessment.deleted", handleEvent as EventListener)
+      es.addEventListener("report.ready", handleEvent as EventListener)
 
       es.onerror = () => {
         setIsConnected(false)
-        setError("Connection lost. Reconnecting...")
         es.close()
-        if (enabled) {
-          setTimeout(connect, 3000)
-        }
+
+        if (!enabledRef.current) return
+
+        const delay = backoffRef.current
+        setError(`Connection lost. Reconnecting in ${Math.round(delay / 1000)}s...`)
+        backoffRef.current = Math.min(backoffRef.current * 2, MAX_BACKOFF_MS)
+
+        reconnectTimerRef.current = setTimeout(() => {
+          connect()
+        }, delay)
       }
-    } catch (err) {
+    } catch {
       setError("Failed to connect to event stream")
       setIsConnected(false)
+
+      if (enabledRef.current) {
+        const delay = backoffRef.current
+        backoffRef.current = Math.min(backoffRef.current * 2, MAX_BACKOFF_MS)
+        reconnectTimerRef.current = setTimeout(() => connect(), delay)
+      }
     }
-  }, [assessmentId, enabled])
+  }, [assessmentId])
 
   useEffect(() => {
     connect()
     return () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current)
+      }
       eventSourceRef.current?.close()
       eventSourceRef.current = null
     }
