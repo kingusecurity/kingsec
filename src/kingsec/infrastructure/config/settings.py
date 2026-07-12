@@ -29,9 +29,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from .models import (
     AISettings,
     AppSettings,
+    CORSSettings,
     JWTSettings,
     LoggingSettings,
+    MiddlewareSettings,
+    RateLimitSettings,
     ScannerSettings,
+    SecurityHeadersSettings,
     SecuritySettings,
     ServerSettings,
     StorageSettings,
@@ -72,3 +76,7 @@ class Settings(BaseSettings):
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     storage: StorageSettings = Field(default_factory=StorageSettings)
     scanner: ScannerSettings = Field(default_factory=ScannerSettings)
+    security_headers: SecurityHeadersSettings = Field(default_factory=SecurityHeadersSettings)
+    cors: CORSSettings = Field(default_factory=CORSSettings)
+    rate_limit: RateLimitSettings = Field(default_factory=RateLimitSettings)
+    middleware: MiddlewareSettings = Field(default_factory=MiddlewareSettings)

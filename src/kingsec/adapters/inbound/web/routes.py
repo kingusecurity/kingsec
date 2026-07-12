@@ -44,6 +44,8 @@ router = APIRouter(prefix="/api/v1")
     "/health",
     response_model=schemas.HealthResponse,
     tags=["health"],
+    summary="Health check",
+    description="Returns service health status. Exposes no internal details.",
 )
 async def health_check() -> schemas.HealthResponse:
     return schemas.HealthResponse(status="ok")
@@ -75,6 +77,13 @@ def _get_register_user_use_case(request: Request):
     response_model=schemas.LoginResponse,
     status_code=status.HTTP_200_OK,
     tags=["auth"],
+    summary="Login",
+    description="Authenticate with username and password. Returns access and refresh tokens.",
+    responses={
+        200: {"description": "Authentication successful"},
+        401: {"description": "Invalid credentials"},
+        429: {"description": "Rate limit exceeded"},
+    },
 )
 async def login(
     body: schemas.LoginBody,
@@ -100,6 +109,12 @@ async def login(
     response_model=schemas.RefreshTokenResponse,
     status_code=status.HTTP_200_OK,
     tags=["auth"],
+    summary="Refresh access token",
+    description="Exchange a valid refresh token for a new access token.",
+    responses={
+        200: {"description": "Token refreshed successfully"},
+        401: {"description": "Invalid or expired refresh token"},
+    },
 )
 async def refresh_token(
     body: schemas.RefreshTokenBody,
@@ -121,6 +136,12 @@ async def refresh_token(
     response_model=schemas.RegisterUserResponse,
     status_code=status.HTTP_201_CREATED,
     tags=["auth"],
+    summary="Register new user",
+    description="Create a new user account. Default role is Viewer.",
+    responses={
+        201: {"description": "User registered successfully"},
+        400: {"description": "Validation error or duplicate username/email"},
+    },
 )
 async def register_user(
     body: schemas.RegisterUserBody,
@@ -147,6 +168,12 @@ async def register_user(
     "/auth/me",
     response_model=schemas.UserResponse,
     tags=["auth"],
+    summary="Get current user",
+    description="Returns the authenticated user's profile.",
+    responses={
+        200: {"description": "User profile"},
+        401: {"description": "Missing or invalid token"},
+    },
 )
 async def get_current_user_info(
     current_user: CurrentUser = Depends(require_viewer),
@@ -183,6 +210,12 @@ async def get_current_user_info(
     response_model=schemas.ListAssessmentsResponse,
     tags=["assessments"],
     dependencies=[Depends(require_viewer)],
+    summary="List assessments",
+    description="Returns a paginated list of assessments.",
+    responses={
+        200: {"description": "List of assessments"},
+        401: {"description": "Missing or invalid token"},
+    },
 )
 async def list_assessments(
     limit: int = 50,
@@ -220,6 +253,14 @@ async def list_assessments(
     status_code=status.HTTP_201_CREATED,
     tags=["assessments"],
     dependencies=[Depends(require_analyst)],
+    summary="Create assessment",
+    description="Create and authorize a new assessment. Requires Analyst role.",
+    responses={
+        201: {"description": "Assessment created"},
+        400: {"description": "Validation error"},
+        401: {"description": "Missing or invalid token"},
+        403: {"description": "Insufficient permissions"},
+    },
 )
 async def create_assessment(
     body: schemas.CreateAssessmentBody,
@@ -250,6 +291,14 @@ async def create_assessment(
     status_code=status.HTTP_202_ACCEPTED,
     tags=["assessments"],
     dependencies=[Depends(require_analyst)],
+    summary="Start assessment",
+    description="Submit an authorized assessment for background scanning. Returns 202 Accepted.",
+    responses={
+        202: {"description": "Assessment submitted for execution"},
+        401: {"description": "Missing or invalid token"},
+        403: {"description": "Insufficient permissions"},
+        404: {"description": "Assessment not found"},
+    },
 )
 async def start_assessment(
     assessment_id: str,
@@ -275,6 +324,13 @@ async def start_assessment(
     response_model=schemas.AssessmentResponse,
     tags=["assessments"],
     dependencies=[Depends(require_viewer)],
+    summary="Get assessment",
+    description="Returns full assessment details including findings.",
+    responses={
+        200: {"description": "Assessment details"},
+        401: {"description": "Missing or invalid token"},
+        404: {"description": "Assessment not found"},
+    },
 )
 async def get_assessment(
     assessment_id: str,
@@ -312,6 +368,14 @@ async def get_assessment(
     response_model=schemas.GenerateReportResponse,
     tags=["assessments"],
     dependencies=[Depends(require_analyst)],
+    summary="Generate report",
+    description="Generate a PDF report for a completed assessment.",
+    responses={
+        200: {"description": "Report generated"},
+        401: {"description": "Missing or invalid token"},
+        403: {"description": "Insufficient permissions"},
+        404: {"description": "Assessment not found"},
+    },
 )
 async def generate_report(
     assessment_id: str,
@@ -347,6 +411,14 @@ async def generate_report(
     status_code=status.HTTP_200_OK,
     tags=["assessments"],
     dependencies=[Depends(require_analyst)],
+    summary="Cancel assessment",
+    description="Cancel a running or authorized assessment.",
+    responses={
+        200: {"description": "Assessment cancelled"},
+        401: {"description": "Missing or invalid token"},
+        403: {"description": "Insufficient permissions"},
+        404: {"description": "Assessment not found"},
+    },
 )
 async def cancel_assessment(
     assessment_id: str,
@@ -371,6 +443,14 @@ async def cancel_assessment(
     status_code=status.HTTP_204_NO_CONTENT,
     tags=["assessments"],
     dependencies=[Depends(require_analyst)],
+    summary="Delete assessment",
+    description="Permanently delete an assessment and all its findings.",
+    responses={
+        204: {"description": "Assessment deleted"},
+        401: {"description": "Missing or invalid token"},
+        403: {"description": "Insufficient permissions"},
+        404: {"description": "Assessment not found"},
+    },
 )
 async def delete_assessment(
     assessment_id: str,

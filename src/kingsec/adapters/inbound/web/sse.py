@@ -117,6 +117,12 @@ async def _sse_generator(
 @router.get(
     "/events",
     tags=["events"],
+    summary="Stream assessment events",
+    description=(
+        "Server-Sent Events endpoint for real-time assessment progress. "
+        "Events include assessment lifecycle changes (created, running, completed, failed, cancelled, deleted) "
+        "and report generation. Heartbeat comments are sent every 15 seconds."
+    ),
 )
 async def stream_events(
     request: Request,

@@ -256,3 +256,71 @@ class ScannerSettings(BaseModel):
         if not value.strip():
             raise ValueError("scanner binary_path must not be empty")
         return value
+
+
+class SecurityHeadersSettings(BaseModel):
+    """HTTP security headers configuration.
+
+    Defaults follow OWASP recommendations. Disable individual headers
+    only if they conflict with legitimate use cases.
+    """
+
+    model_config = _FROZEN
+
+    x_content_type_options: str = "nosniff"
+    x_frame_options: str = "DENY"
+    referrer_policy: str = "strict-origin-when-cross-origin"
+    content_security_policy: str = "default-src 'none'"
+    # Disable server header leakage.
+    remove_server_header: bool = True
+    remove_x_powered_by: bool = True
+
+
+class CORSSettings(BaseModel):
+    """CORS configuration.
+
+    Defaults are restrictive (no origins allowed). Override via env vars
+    for production deployments.
+    """
+
+    model_config = _FROZEN
+
+    allow_origins: list[str] = Field(default_factory=list)
+    allow_methods: list[str] = Field(default_factory=lambda: ["GET", "POST", "PUT", "DELETE", "PATCH"])
+    allow_headers: list[str] = Field(default_factory=lambda: ["Authorization", "Content-Type", "X-Request-ID"])
+    allow_credentials: bool = False
+    expose_headers: list[str] = Field(default_factory=lambda: ["X-Request-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining"])
+    max_age: int = Field(default=600, ge=0)
+
+
+class RateLimitSettings(BaseModel):
+    """Rate limiting configuration.
+
+    Limits are per-IP. Separate limits for authentication endpoints
+    (login, register) and general API endpoints.
+    """
+
+    model_config = _FROZEN
+
+    enabled: bool = True
+    # General API rate limit: requests per minute.
+    api_requests_per_minute: int = Field(default=120, ge=1)
+    # Auth endpoint rate limit: requests per minute (stricter).
+    auth_requests_per_minute: int = Field(default=20, ge=1)
+    # Burst size for the token bucket.
+    burst_size: int = Field(default=30, ge=1)
+
+
+class MiddlewareSettings(BaseModel):
+    """Middleware configuration."""
+
+    model_config = _FROZEN
+
+    # Enable GZip compression.
+    gzip_enabled: bool = True
+    # Minimum response size in bytes before compression.
+    gzip_minimum_size: int = Field(default=500, ge=0)
+    # Trusted hosts (empty = no trusted host restriction).
+    trusted_hosts: list[str] = Field(default_factory=list)
+    # Enable structured request logging.
+    request_logging: bool = True
