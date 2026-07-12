@@ -6,18 +6,21 @@ Steps:
     3. Check that the account is active.
     4. Generate access and refresh tokens.
     5. Record the login timestamp.
+    6. Publish audit entry (success or failure).
 
 Security considerations:
     - Password verification uses constant-time comparison (via PasswordHasher).
     - Invalid credentials produce a generic error message (no username enumeration).
     - Disabled accounts are rejected with a specific error.
+    - Audit entries record both successes and failures for security monitoring.
 """
 
 from __future__ import annotations
 
 from ..dto import LoginRequest, LoginResponse
-from ..ports import PasswordHasher, TokenService, UserRepository
+from ..ports import AuditPublisher, PasswordHasher, TokenService, UserRepository
 from ..errors import ApplicationError
+from kingsec.domain.audit import AuditAction, AuditEntry
 
 
 class Login:
@@ -28,24 +31,59 @@ class Login:
         users: UserRepository,
         hasher: PasswordHasher,
         tokens: TokenService,
+        audit: AuditPublisher | None = None,
     ) -> None:
         self._users = users
         self._hasher = hasher
         self._tokens = tokens
+        self._audit = audit
 
     def execute(self, request: LoginRequest) -> LoginResponse:
         # Step 1: Look up the user.
         user = self._users.find_by_username(request.username)
         if user is None:
             # Generic message to prevent username enumeration.
+            self._publish_audit(
+                AuditEntry(
+                    action=AuditAction.FAILED_LOGIN,
+                    resource_type="user",
+                    success=False,
+                    reason="invalid username or password",
+                    username=request.username,
+                )
+            )
             raise AuthenticationError("invalid username or password")
 
         # Step 2: Verify the password.
         if not self._hasher.verify(request.password, user.password_hash):
+            self._publish_audit(
+                AuditEntry(
+                    action=AuditAction.FAILED_LOGIN,
+                    resource_type="user",
+                    resource_id=user.id,
+                    success=False,
+                    reason="invalid username or password",
+                    user_id=user.id,
+                    username=user.username,
+                    role=user.role.label,
+                )
+            )
             raise AuthenticationError("invalid username or password")
 
         # Step 3: Check that the account is active.
         if not user.is_active:
+            self._publish_audit(
+                AuditEntry(
+                    action=AuditAction.FAILED_LOGIN,
+                    resource_type="user",
+                    resource_id=user.id,
+                    success=False,
+                    reason="account is disabled",
+                    user_id=user.id,
+                    username=user.username,
+                    role=user.role.label,
+                )
+            )
             raise AuthenticationError("account is disabled")
 
         # Step 4: Generate tokens.
@@ -64,6 +102,19 @@ class Login:
         user.record_login()
         self._users.save(user)
 
+        # Step 6: Audit successful login.
+        self._publish_audit(
+            AuditEntry(
+                action=AuditAction.LOGIN,
+                resource_type="user",
+                resource_id=user.id,
+                success=True,
+                user_id=user.id,
+                username=user.username,
+                role=user.role.label,
+            )
+        )
+
         return LoginResponse(
             user_id=user.id,
             username=user.username,
@@ -71,6 +122,15 @@ class Login:
             access_token=access_token,
             refresh_token=refresh_token,
         )
+
+    def _publish_audit(self, entry: AuditEntry) -> None:
+        """Publish an audit entry if a publisher is configured (best-effort)."""
+        if self._audit is None:
+            return
+        try:
+            self._audit.record(entry)
+        except Exception:  # noqa: BLE001 - audit is best-effort
+            pass
 
 
 class AuthenticationError(ApplicationError):

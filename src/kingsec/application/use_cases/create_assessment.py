@@ -10,11 +10,12 @@ added as its own use case if the product ever needs a draft-then-approve step.
 from __future__ import annotations
 
 from kingsec.domain import Assessment, Authorization
+from kingsec.domain.audit import AuditAction, AuditEntry
 
 from .._support import build_target
 from ..dto import CreateAssessmentRequest, CreateAssessmentResponse
 from ..events import AssessmentEvent, EVENT_ASSESSMENT_CREATED
-from ..ports import AssessmentRepository, EventPublisher
+from ..ports import AssessmentRepository, AuditPublisher, EventPublisher
 
 
 class CreateAssessment:
@@ -24,11 +25,13 @@ class CreateAssessment:
         self,
         assessments: AssessmentRepository,
         events: EventPublisher | None = None,
+        audit: AuditPublisher | None = None,
     ) -> None:
         # Constructor injection: the use case depends on the ABSTRACT port, not a
         # concrete repository. The composition root supplies the real one.
         self._assessments = assessments
         self._events = events
+        self._audit = audit
 
     def execute(self, request: CreateAssessmentRequest) -> CreateAssessmentResponse:
         # Translate raw primitives into a validated domain Target (raises
@@ -41,12 +44,22 @@ class CreateAssessment:
 
         self._assessments.save(assessment)
 
-        self._publish(
+        self._publish_event(
             AssessmentEvent(
                 event_type=EVENT_ASSESSMENT_CREATED,
                 assessment_id=str(assessment.id),
                 state=assessment.status.value,
                 message=f"Assessment created for {assessment.target}",
+            )
+        )
+
+        self._publish_audit(
+            AuditEntry(
+                action=AuditAction.ASSESSMENT_CREATED,
+                resource_type="assessment",
+                resource_id=str(assessment.id),
+                success=True,
+                metadata={"target": str(assessment.target), "authorized_by": request.authorized_by},
             )
         )
 
@@ -56,11 +69,20 @@ class CreateAssessment:
             target=str(assessment.target),
         )
 
-    def _publish(self, event: AssessmentEvent) -> None:
+    def _publish_event(self, event: AssessmentEvent) -> None:
         """Publish an event if a publisher is configured (best-effort)."""
         if self._events is None:
             return
         try:
             self._events.publish(event)
         except Exception:  # noqa: BLE001 - event publishing is best-effort
+            pass
+
+    def _publish_audit(self, entry: AuditEntry) -> None:
+        """Publish an audit entry if a publisher is configured (best-effort)."""
+        if self._audit is None:
+            return
+        try:
+            self._audit.record(entry)
+        except Exception:  # noqa: BLE001 - audit is best-effort
             pass

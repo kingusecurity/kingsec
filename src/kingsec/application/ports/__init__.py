@@ -1,6 +1,7 @@
 """Port definitions - the boundaries between the core and the outside."""
 
 from .inbound import ServiceAPI
+from .outbound.audit_publisher import AuditPublisher
 from .outbound.event_publisher import EventPublisher
 from .outbound.job_runner import JobRunner
 from .outbound.password_hasher import PasswordHasher
@@ -13,6 +14,7 @@ from .unit_of_work import UnitOfWork, UnitOfWorkFactory
 __all__ = [
     "AIPort",
     "AssessmentRepository",
+    "AuditPublisher",
     "EventPublisher",
     "JobRunner",
     "PasswordHasher",

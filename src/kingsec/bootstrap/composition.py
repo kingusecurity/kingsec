@@ -3,8 +3,8 @@
 Module 2.4 provides the *core* composition (``create_application``): configuration,
 logging, the DI container, and exception handlers. This module layers the
 *adapters* on top: it registers persistence, the Unit of Work, the scanner, the
-AI enrichment client, and the report generator, then registers the four
-application use cases as DI factories.
+AI enrichment client, and the report generator, then registers the four application
+use cases as DI factories.
 
 This is the ONLY place in the system that names concrete implementations. It is
 allowed to import both the application (use cases + ports) and infrastructure
@@ -22,6 +22,7 @@ from typing import Any
 from kingsec.application import (
     AIPort,
     AssessmentRepository,
+    AuditPublisher,
     CancelAssessment,
     ChangePassword,
     CreateAssessment,
@@ -46,6 +47,7 @@ from kingsec.application import (
     UserRepository,
 )
 from kingsec.infrastructure.ai import register_ai
+from kingsec.infrastructure.audit.provisioning import register_audit
 from kingsec.infrastructure.auth.provisioning import register_auth, register_user_repository
 from kingsec.infrastructure.events.provisioning import register_events
 from kingsec.infrastructure.jobs import register_jobs
@@ -120,6 +122,9 @@ def _register_adapters(
     register_auth(container, settings)
     register_user_repository(container, session_factory)
 
+    # Audit trail: append-only persistence for security events.
+    register_audit(container, session_factory)
+
     # Capability adapters. AI adds its own http-client.close shutdown hook.
     register_scanner(container, settings)
     register_ai(container, settings)
@@ -142,6 +147,7 @@ def _register_use_cases(container: Container) -> None:
         lambda c: CreateAssessment(
             c.resolve(AssessmentRepository),
             c.resolve(EventPublisher),
+            c.resolve(AuditPublisher),
         ),
     )
     container.register_factory(
@@ -151,6 +157,7 @@ def _register_use_cases(container: Container) -> None:
             c.resolve(ScannerPort),
             c.resolve(AIPort),
             c.resolve(EventPublisher),
+            c.resolve(AuditPublisher),
         ),
     )
     container.register_factory(
@@ -161,6 +168,7 @@ def _register_use_cases(container: Container) -> None:
             c.resolve(JobRunner),
             c.resolve(AIPort),
             c.resolve(EventPublisher),
+            c.resolve(AuditPublisher),
         ),
     )
     container.register_factory(
@@ -168,6 +176,7 @@ def _register_use_cases(container: Container) -> None:
         lambda c: CancelAssessment(
             c.resolve(AssessmentRepository),
             c.resolve(EventPublisher),
+            c.resolve(AuditPublisher),
         ),
     )
     container.register_factory(
@@ -185,6 +194,7 @@ def _register_use_cases(container: Container) -> None:
             c.resolve(ReportRepository),
             c.resolve(ReportGeneratorPort),
             c.resolve(EventPublisher),
+            c.resolve(AuditPublisher),
         ),
     )
     container.register_factory(
@@ -192,6 +202,7 @@ def _register_use_cases(container: Container) -> None:
         lambda c: DeleteAssessment(
             c.resolve(AssessmentRepository),
             c.resolve(EventPublisher),
+            c.resolve(AuditPublisher),
         ),
     )
     container.register_factory(
@@ -215,6 +226,7 @@ def _register_use_cases(container: Container) -> None:
             c.resolve(UserRepository),
             c.resolve(PasswordHasher),
             c.resolve(TokenService),
+            c.resolve(AuditPublisher),
         ),
     )
     container.register_factory(
@@ -222,6 +234,7 @@ def _register_use_cases(container: Container) -> None:
         lambda c: RefreshToken(
             c.resolve(UserRepository),
             c.resolve(TokenService),
+            c.resolve(AuditPublisher),
         ),
     )
     container.register_factory(
@@ -229,6 +242,7 @@ def _register_use_cases(container: Container) -> None:
         lambda c: RegisterUser(
             c.resolve(UserRepository),
             c.resolve(PasswordHasher),
+            c.resolve(AuditPublisher),
         ),
     )
     container.register_factory(
@@ -236,5 +250,6 @@ def _register_use_cases(container: Container) -> None:
         lambda c: ChangePassword(
             c.resolve(UserRepository),
             c.resolve(PasswordHasher),
+            c.resolve(AuditPublisher),
         ),
     )

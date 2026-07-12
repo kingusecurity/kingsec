@@ -12,10 +12,12 @@ by querying the JobRunner port.
 
 from __future__ import annotations
 
+from kingsec.domain.audit import AuditAction, AuditEntry
+
 from .._support import to_assessment_id
 from ..dto import CancelAssessmentRequest, CancelAssessmentResponse
 from ..events import AssessmentEvent, EVENT_ASSESSMENT_CANCELLED
-from ..ports import AssessmentRepository, EventPublisher
+from ..ports import AssessmentRepository, AuditPublisher, EventPublisher
 
 
 class CancelAssessment:
@@ -25,9 +27,11 @@ class CancelAssessment:
         self,
         assessments: AssessmentRepository,
         events: EventPublisher | None = None,
+        audit: AuditPublisher | None = None,
     ) -> None:
         self._assessments = assessments
         self._events = events
+        self._audit = audit
 
     def execute(self, request: CancelAssessmentRequest) -> CancelAssessmentResponse:
         assessment = self._assessments.get(to_assessment_id(request.assessment_id))
@@ -40,7 +44,7 @@ class CancelAssessment:
         assessment.cancel()
         self._assessments.save(assessment)
 
-        self._publish(
+        self._publish_event(
             AssessmentEvent(
                 event_type=EVENT_ASSESSMENT_CANCELLED,
                 assessment_id=str(assessment.id),
@@ -49,16 +53,34 @@ class CancelAssessment:
             )
         )
 
+        self._publish_audit(
+            AuditEntry(
+                action=AuditAction.ASSESSMENT_CANCELLED,
+                resource_type="assessment",
+                resource_id=str(assessment.id),
+                success=True,
+            )
+        )
+
         return CancelAssessmentResponse(
             assessment_id=str(assessment.id),
             status=assessment.status.value,
         )
 
-    def _publish(self, event: AssessmentEvent) -> None:
+    def _publish_event(self, event: AssessmentEvent) -> None:
         """Publish an event if a publisher is configured (best-effort)."""
         if self._events is None:
             return
         try:
             self._events.publish(event)
         except Exception:  # noqa: BLE001 - event publishing is best-effort
+            pass
+
+    def _publish_audit(self, entry: AuditEntry) -> None:
+        """Publish an audit entry if a publisher is configured (best-effort)."""
+        if self._audit is None:
+            return
+        try:
+            self._audit.record(entry)
+        except Exception:  # noqa: BLE001 - audit is best-effort
             pass

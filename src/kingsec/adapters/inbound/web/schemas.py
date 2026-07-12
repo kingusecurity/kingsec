@@ -316,3 +316,35 @@ class UserResponse(BaseModel):
     is_active: bool
     created_at: str
     last_login_at: str | None = None
+
+
+# ── Audit schemas ────────────────────────────────────────────────────────────
+
+
+class AuditEntryResponse(BaseModel):
+    """Single audit entry in a list response."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    action: str
+    resource_type: str
+    resource_id: str
+    success: bool
+    reason: str
+    timestamp: str
+    user_id: str
+    username: str
+    role: str
+    ip_address: str
+    correlation_id: str
+
+
+class AuditListResponse(BaseModel):
+    """GET /api/v1/audit response body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[AuditEntryResponse]
+    total: int
+    limit: int
+    offset: int

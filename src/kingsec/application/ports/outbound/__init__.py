@@ -1,5 +1,6 @@
-"""Driven ports: interfaces the core needs (AI provider, persistence, jobs, reporting, events, auth)."""
+"""Driven ports: interfaces the core needs (AI provider, persistence, jobs, reporting, events, auth, audit)."""
 
+from .audit_publisher import AuditPublisher
 from .event_publisher import EventPublisher
 from .job_runner import JobRunner
 from .password_hasher import PasswordHasher
@@ -7,6 +8,7 @@ from .token_service import TokenClaims, TokenExpiredError, TokenInvalidError, To
 from .user_repository import UserRepository
 
 __all__ = [
+    "AuditPublisher",
     "EventPublisher",
     "JobRunner",
     "PasswordHasher",

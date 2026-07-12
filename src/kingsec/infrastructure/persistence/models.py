@@ -151,3 +151,33 @@ class UserORM(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[str] = mapped_column(String, nullable=False)  # ISO-8601
     last_login_at: Mapped[str | None] = mapped_column(String, nullable=True)  # ISO-8601
+
+
+class AuditEntryORM(Base):
+    """Immutable audit trail record.
+
+    Append-only: no update or delete operations are provided on this model.
+    Timestamps are indexed for efficient time-range queries. User ID and
+    action are indexed for filtered queries.
+
+    ``metadata_json`` stores extensible context as JSON text (SQLite has
+    a native JSON type, but TEXT is more portable and sufficient for
+    structured key-value data).
+    """
+
+    __tablename__ = "audit_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    timestamp: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True, default="")
+    username: Mapped[str] = mapped_column(String, nullable=False, default="")
+    role: Mapped[str] = mapped_column(String, nullable=False, default="")
+    action: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    resource_type: Mapped[str] = mapped_column(String, nullable=False, default="")
+    resource_id: Mapped[str] = mapped_column(String, nullable=False, default="")
+    success: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    ip_address: Mapped[str] = mapped_column(String, nullable=False, default="")
+    user_agent: Mapped[str] = mapped_column(String, nullable=False, default="")
+    correlation_id: Mapped[str] = mapped_column(String, nullable=False, default="")
+    metadata_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")

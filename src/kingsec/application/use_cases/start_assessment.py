@@ -17,6 +17,7 @@ Observability for those failures is added at the adapter, which can log them.
 from __future__ import annotations
 
 from kingsec.domain import Finding
+from kingsec.domain.audit import AuditAction, AuditEntry
 
 from .._support import to_assessment_id
 from ..dto import StartAssessmentRequest, StartAssessmentResponse
@@ -26,7 +27,7 @@ from ..events import (
     EVENT_ASSESSMENT_FAILED,
     EVENT_ASSESSMENT_RUNNING,
 )
-from ..ports import AIPort, AssessmentRepository, EventPublisher, ScannerPort
+from ..ports import AIPort, AssessmentRepository, AuditPublisher, EventPublisher, ScannerPort
 
 
 class StartAssessment:
@@ -38,11 +39,13 @@ class StartAssessment:
         scanner: ScannerPort,
         ai: AIPort | None = None,
         events: EventPublisher | None = None,
+        audit: AuditPublisher | None = None,
     ) -> None:
         self._assessments = assessments
         self._scanner = scanner
         self._ai = ai  # optional: AI enrichment is not required to run a scan
         self._events = events
+        self._audit = audit
 
     def execute(self, request: StartAssessmentRequest) -> StartAssessmentResponse:
         assessment = self._assessments.get(to_assessment_id(request.assessment_id))
@@ -53,12 +56,21 @@ class StartAssessment:
         assessment.start()
         self._assessments.save(assessment)
 
-        self._publish(
+        self._publish_event(
             AssessmentEvent(
                 event_type=EVENT_ASSESSMENT_RUNNING,
                 assessment_id=str(assessment.id),
                 state=assessment.status.value,
                 message="Scan started",
+            )
+        )
+
+        self._publish_audit(
+            AuditEntry(
+                action=AuditAction.ASSESSMENT_STARTED,
+                resource_type="assessment",
+                resource_id=str(assessment.id),
+                success=True,
             )
         )
 
@@ -70,13 +82,23 @@ class StartAssessment:
             assessment.complete()
             self._assessments.save(assessment)
 
-            self._publish(
+            self._publish_event(
                 AssessmentEvent(
                     event_type=EVENT_ASSESSMENT_COMPLETED,
                     assessment_id=str(assessment.id),
                     state=assessment.status.value,
                     message=f"Scan completed with {len(assessment.findings)} findings",
                     severity_counts=self._severity_counts(assessment),
+                )
+            )
+
+            self._publish_audit(
+                AuditEntry(
+                    action=AuditAction.ASSESSMENT_COMPLETED,
+                    resource_type="assessment",
+                    resource_id=str(assessment.id),
+                    success=True,
+                    metadata={"findings_count": len(assessment.findings)},
                 )
             )
 
@@ -94,12 +116,22 @@ class StartAssessment:
                 assessment.fail(str(exc))
                 self._assessments.save(assessment)
 
-                self._publish(
+                self._publish_event(
                     AssessmentEvent(
                         event_type=EVENT_ASSESSMENT_FAILED,
                         assessment_id=str(assessment.id),
                         state=assessment.status.value,
                         message=f"Scan failed: {exc}",
+                    )
+                )
+
+                self._publish_audit(
+                    AuditEntry(
+                        action=AuditAction.ASSESSMENT_FAILED,
+                        resource_type="assessment",
+                        resource_id=str(assessment.id),
+                        success=False,
+                        reason=str(exc),
                     )
                 )
             except Exception:  # noqa: BLE001 - best-effort
@@ -119,13 +151,22 @@ class StartAssessment:
             # scan. The adapter is responsible for logging the underlying error.
             return
 
-    def _publish(self, event: AssessmentEvent) -> None:
+    def _publish_event(self, event: AssessmentEvent) -> None:
         """Publish an event if a publisher is configured (best-effort)."""
         if self._events is None:
             return
         try:
             self._events.publish(event)
         except Exception:  # noqa: BLE001 - event publishing is best-effort
+            pass
+
+    def _publish_audit(self, entry: AuditEntry) -> None:
+        """Publish an audit entry if a publisher is configured (best-effort)."""
+        if self._audit is None:
+            return
+        try:
+            self._audit.record(entry)
+        except Exception:  # noqa: BLE001 - audit is best-effort
             pass
 
     @staticmethod

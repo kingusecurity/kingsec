@@ -35,6 +35,10 @@ TAGS = [
         "name": "events",
         "description": "Server-Sent Events for real-time assessment progress streaming.",
     },
+    {
+        "name": "audit",
+        "description": "Security audit trail. Immutable record of all actions. ADMIN role required.",
+    },
 ]
 
 
@@ -51,6 +55,9 @@ def configure_openapi(app: FastAPI, settings: AppSettings) -> None:
         "## Rate Limiting\n\n"
         "API endpoints: 120 requests/minute per IP.\n"
         "Auth endpoints: 20 requests/minute per IP.\n\n"
+        "## Audit Trail\n\n"
+        "All mutations are recorded in an immutable audit trail.\n"
+        "Query via `GET /api/v1/audit` (ADMIN role required).\n\n"
         "## Versioning\n\n"
         "API is versioned via URL prefix: `/api/v1/...`.\n"
     )

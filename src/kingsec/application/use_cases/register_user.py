@@ -7,20 +7,23 @@ Steps:
     4. Hash the password.
     5. Create the user entity.
     6. Persist the user.
+    7. Publish audit entry.
 
 Security considerations:
     - Passwords are hashed before storage (never stored in plaintext).
     - Default role is "viewer" (least privilege).
     - Duplicate username/email are rejected with generic messages.
+    - Audit entries record registration attempts for security monitoring.
 """
 
 from __future__ import annotations
 
 from kingsec.domain import Role, User
+from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.domain.user import PasswordValidationError
 
 from ..dto import RegisterUserRequest, RegisterUserResponse
-from ..ports import PasswordHasher, UserRepository
+from ..ports import AuditPublisher, PasswordHasher, UserRepository
 from ..errors import ApplicationError
 
 
@@ -31,9 +34,11 @@ class RegisterUser:
         self,
         users: UserRepository,
         hasher: PasswordHasher,
+        audit: AuditPublisher | None = None,
     ) -> None:
         self._users = users
         self._hasher = hasher
+        self._audit = audit
 
     def execute(self, request: RegisterUserRequest) -> RegisterUserResponse:
         # Step 1: Validate password.
@@ -69,12 +74,34 @@ class RegisterUser:
         # Step 7: Persist.
         self._users.save(user)
 
+        # Step 8: Audit successful registration.
+        self._publish_audit(
+            AuditEntry(
+                action=AuditAction.USER_REGISTERED,
+                resource_type="user",
+                resource_id=user.id,
+                success=True,
+                user_id=user.id,
+                username=user.username,
+                role=user.role.label,
+            )
+        )
+
         return RegisterUserResponse(
             user_id=user.id,
             username=user.username,
             email=user.email,
             role=user.role.label,
         )
+
+    def _publish_audit(self, entry: AuditEntry) -> None:
+        """Publish an audit entry if a publisher is configured (best-effort)."""
+        if self._audit is None:
+            return
+        try:
+            self._audit.record(entry)
+        except Exception:  # noqa: BLE001 - audit is best-effort
+            pass
 
     @staticmethod
     def _validate_password(password: str) -> None:

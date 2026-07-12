@@ -21,6 +21,7 @@ from collections.abc import Callable
 from typing import Any
 
 from kingsec.domain import AssessmentId, Finding
+from kingsec.domain.audit import AuditAction, AuditEntry
 
 from .._support import to_assessment_id
 from ..dto import SubmitAssessmentRequest, SubmitAssessmentResponse
@@ -30,7 +31,7 @@ from ..events import (
     EVENT_ASSESSMENT_FAILED,
     EVENT_ASSESSMENT_RUNNING,
 )
-from ..ports import AIPort, AssessmentRepository, EventPublisher, JobRunner, ScannerPort
+from ..ports import AIPort, AssessmentRepository, AuditPublisher, EventPublisher, JobRunner, ScannerPort
 
 
 class SubmitAssessment:
@@ -43,12 +44,14 @@ class SubmitAssessment:
         job_runner: JobRunner,
         ai: AIPort | None = None,
         events: EventPublisher | None = None,
+        audit: AuditPublisher | None = None,
     ) -> None:
         self._assessments = assessments
         self._scanner = scanner
         self._job_runner = job_runner
         self._ai = ai
         self._events = events
+        self._audit = audit
 
     def execute(self, request: SubmitAssessmentRequest) -> SubmitAssessmentResponse:
         assessment_id = to_assessment_id(request.assessment_id)
@@ -59,12 +62,21 @@ class SubmitAssessment:
         assessment.start()
         self._assessments.save(assessment)
 
-        self._publish(
+        self._publish_event(
             AssessmentEvent(
                 event_type=EVENT_ASSESSMENT_RUNNING,
                 assessment_id=str(assessment.id),
                 state=assessment.status.value,
                 message="Background scan started",
+            )
+        )
+
+        self._publish_audit(
+            AuditEntry(
+                action=AuditAction.ASSESSMENT_SUBMITTED,
+                resource_type="assessment",
+                resource_id=str(assessment.id),
+                success=True,
             )
         )
 
@@ -85,13 +97,22 @@ class SubmitAssessment:
             job_id=job_id,
         )
 
-    def _publish(self, event: AssessmentEvent) -> None:
+    def _publish_event(self, event: AssessmentEvent) -> None:
         """Publish an event if a publisher is configured (best-effort)."""
         if self._events is None:
             return
         try:
             self._events.publish(event)
         except Exception:  # noqa: BLE001 - event publishing is best-effort
+            pass
+
+    def _publish_audit(self, entry: AuditEntry) -> None:
+        """Publish an audit entry if a publisher is configured (best-effort)."""
+        if self._audit is None:
+            return
+        try:
+            self._audit.record(entry)
+        except Exception:  # noqa: BLE001 - audit is best-effort
             pass
 
     @staticmethod

@@ -88,11 +88,18 @@ def _get_register_user_use_case(request: Request):
 async def login(
     body: schemas.LoginBody,
     login_uc=Depends(_get_login_use_case),
+    request: Request = None,  # type: ignore[assignment]
 ) -> schemas.LoginResponse:
     from kingsec.application.dto import LoginRequest
+    from kingsec.application.use_cases.login import AuthenticationError
 
-    request = LoginRequest(username=body.username, password=body.password)
-    result = login_uc.execute(request)
+    login_request = LoginRequest(username=body.username, password=body.password)
+    try:
+        result = login_uc.execute(login_request)
+    except AuthenticationError:
+        # Record failed login audit entry at the boundary (where we have HTTP context).
+        _record_failed_login_audit(request, body.username)
+        raise
     return schemas.LoginResponse(
         user_id=result.user_id,
         username=result.username,
@@ -102,6 +109,34 @@ async def login(
         token_type=result.token_type,
         expires_in=result.expires_in,
     )
+
+
+def _record_failed_login_audit(request: Request, username: str) -> None:
+    """Record a failed login audit entry at the web boundary (best-effort)."""
+    try:
+        app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
+        from kingsec.application.ports import AuditPublisher
+        from kingsec.domain.audit import AuditAction, AuditEntry
+
+        audit = app.resolve(AuditPublisher)
+        ip = getattr(request.state, "audit_ip", "") or ""
+        user_agent = getattr(request.state, "audit_user_agent", "") or ""
+        correlation_id = getattr(request.state, "audit_correlation_id", "") or ""
+
+        audit.record(
+            AuditEntry(
+                action=AuditAction.FAILED_LOGIN,
+                resource_type="user",
+                success=False,
+                reason="invalid username or password",
+                username=username,
+                ip_address=ip,
+                user_agent=user_agent,
+                correlation_id=correlation_id,
+            )
+        )
+    except Exception:  # noqa: BLE001 - audit is best-effort
+        pass
 
 
 @router.post(

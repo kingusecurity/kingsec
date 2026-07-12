@@ -1,0 +1,94 @@
+"""Audit entry value object and action taxonomy — pure domain, no framework dependencies.
+
+The audit trail is an immutable, append-only security record of every
+meaningful action in KingSec. ``AuditEntry`` is a *frozen* dataclass:
+once constructed, it cannot be modified. This is a domain invariant, not
+an implementation detail.
+
+``AuditAction`` enumerates every auditable action. Adding a new action
+requires updating this enum — the type system catches missing cases.
+
+Design decisions:
+    - AuditEntry is a VALUE OBJECT (no identity, no mutability). The
+      database-assigned ``id`` is a persistence concern set by the
+      repository, not the domain.
+    - Metadata is an optional dict for extensibility (e.g. extra context
+      specific to an action). It must be JSON-serializable.
+    - Success/failure is captured explicitly. A failed login is as
+      important as a successful one.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from enum import Enum
+
+
+class AuditAction(str, Enum):
+    """Every auditable action in KingSec.
+
+    Using ``str, Enum`` so values are human-readable in logs and DB
+    without needing a lookup table.
+    """
+
+    # Authentication
+    LOGIN = "login"
+    FAILED_LOGIN = "failed_login"
+    LOGOUT = "logout"
+    TOKEN_REFRESHED = "token_refreshed"
+
+    # User management
+    USER_REGISTERED = "user_registered"
+    PASSWORD_CHANGED = "password_changed"
+
+    # Assessment lifecycle
+    ASSESSMENT_CREATED = "assessment_created"
+    ASSESSMENT_STARTED = "assessment_started"
+    ASSESSMENT_COMPLETED = "assessment_completed"
+    ASSESSMENT_FAILED = "assessment_failed"
+    ASSESSMENT_CANCELLED = "assessment_cancelled"
+    ASSESSMENT_DELETED = "assessment_deleted"
+    ASSESSMENT_SUBMITTED = "assessment_submitted"
+
+    # Reports
+    REPORT_GENERATED = "report_generated"
+
+    # Authorization failures
+    AUTHORIZATION_FAILURE = "authorization_failure"
+
+
+@dataclass(frozen=True)
+class AuditEntry:
+    """An immutable audit record.
+
+    Attributes:
+        action: The auditable action performed.
+        resource_type: The type of resource affected (e.g. "assessment", "user", "report").
+        resource_id: The ID of the affected resource (optional — some actions
+            have no specific resource, e.g. login).
+        success: Whether the action succeeded.
+        reason: Explanation for failure (optional — only set on failures).
+        timestamp: When the action occurred (UTC, ISO-8601).
+        user_id: ID of the user who performed the action (optional — anonymous actions).
+        username: Username of the actor (optional — denormalized for query convenience).
+        role: Role of the actor at the time of the action (optional).
+        ip_address: Client IP address (optional — set by web adapter).
+        user_agent: Client user-agent string (optional — set by web adapter).
+        correlation_id: Request correlation ID (optional — set by web adapter).
+        metadata: Additional JSON-serializable context (optional).
+    """
+
+    action: AuditAction
+    resource_type: str = ""
+    resource_id: str = ""
+    success: bool = True
+    reason: str = ""
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    user_id: str = ""
+    username: str = ""
+    role: str = ""
+    ip_address: str = ""
+    user_agent: str = ""
+    correlation_id: str = ""
+    metadata: dict[str, object] = field(default_factory=dict)

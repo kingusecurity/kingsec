@@ -7,17 +7,21 @@ Steps:
     4. Hash the new password.
     5. Update the user entity.
     6. Persist the changes.
+    7. Publish audit entry.
 
 Security considerations:
     - Current password verification prevents unauthorized changes.
     - New password must meet complexity requirements.
     - Passwords are hashed before storage.
+    - Audit entries record password changes for security monitoring.
 """
 
 from __future__ import annotations
 
+from kingsec.domain.audit import AuditAction, AuditEntry
+
 from ..dto import ChangePasswordRequest
-from ..ports import PasswordHasher, UserRepository
+from ..ports import AuditPublisher, PasswordHasher, UserRepository
 from ..errors import ApplicationError
 
 
@@ -28,9 +32,11 @@ class ChangePassword:
         self,
         users: UserRepository,
         hasher: PasswordHasher,
+        audit: AuditPublisher | None = None,
     ) -> None:
         self._users = users
         self._hasher = hasher
+        self._audit = audit
 
     def execute(self, request: ChangePasswordRequest) -> None:
         # Step 1: Look up the user.
@@ -50,6 +56,28 @@ class ChangePassword:
 
         # Step 5: Persist.
         self._users.save(user)
+
+        # Step 6: Audit password change.
+        self._publish_audit(
+            AuditEntry(
+                action=AuditAction.PASSWORD_CHANGED,
+                resource_type="user",
+                resource_id=user.id,
+                success=True,
+                user_id=user.id,
+                username=user.username,
+                role=user.role.label,
+            )
+        )
+
+    def _publish_audit(self, entry: AuditEntry) -> None:
+        """Publish an audit entry if a publisher is configured (best-effort)."""
+        if self._audit is None:
+            return
+        try:
+            self._audit.record(entry)
+        except Exception:  # noqa: BLE001 - audit is best-effort
+            pass
 
     @staticmethod
     def _validate_password(password: str) -> None:

@@ -9,9 +9,10 @@ Public API
         Assessment, Finding, User
     Value objects
         AssessmentId, FindingId, Target, TargetType, Authorization,
-        Evidence, Recommendation, Report, Verdict, FindingSummary
+        Evidence, Recommendation, Report, Verdict, FindingSummary,
+        AuditEntry
     Enums
-        Severity, AssessmentStatus, FindingStatus, Role
+        Severity, AssessmentStatus, FindingStatus, Role, AuditAction
     Errors
         DomainError, InvariantViolation, IllegalStateTransition,
         UserError, UserNotFoundError, InvalidCredentialsError,
@@ -21,6 +22,7 @@ Public API
 from __future__ import annotations
 
 from .assessment import Assessment
+from .audit import AuditAction, AuditEntry
 from .authorization import Authorization
 from .enums import AssessmentStatus, FindingStatus, Role, Severity
 from .errors import DomainError, IllegalStateTransition, InvariantViolation
@@ -42,6 +44,8 @@ __all__ = [
     "Assessment",
     "AssessmentId",
     "AssessmentStatus",
+    "AuditAction",
+    "AuditEntry",
     "Authorization",
     "DomainError",
     "Evidence",

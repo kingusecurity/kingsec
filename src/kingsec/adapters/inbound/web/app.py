@@ -15,8 +15,9 @@ Middleware is registered in the correct order (outermost first):
     3. CORS
     4. Security Headers
     5. Correlation ID
-    6. Request Logging
-    7. Rate Limiting
+    6. Audit Context
+    7. Request Logging
+    8. Rate Limiting
 """
 
 from __future__ import annotations
@@ -30,6 +31,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from kingsec.infrastructure.config.settings import Settings
 from kingsec.infrastructure.middleware import (
+    AuditContextMiddleware,
     CorrelationIDMiddleware,
     RateLimitMiddleware,
     RequestLoggingMiddleware,
@@ -103,6 +105,9 @@ def _register_middleware(app: FastAPI, settings: Settings) -> None:
 
     # Correlation ID.
     app.add_middleware(CorrelationIDMiddleware)
+
+    # Audit context (must run AFTER CorrelationID so request_id is available).
+    app.add_middleware(AuditContextMiddleware)
 
     # Security headers.
     app.add_middleware(SecurityHeadersMiddleware, settings=settings.security_headers)

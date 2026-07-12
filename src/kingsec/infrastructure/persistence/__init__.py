@@ -5,13 +5,15 @@ following the Data Mapper pattern (ORM models kept separate from the pure domain
 
 Public API
     Engine/session:  create_database_engine, create_session_factory, create_schema
-    Repositories:    SqlAlchemyAssessmentRepository, SqlAlchemyReportRepository
+    Repositories:    SqlAlchemyAssessmentRepository, SqlAlchemyReportRepository,
+                    SqlAlchemyAuditRepository
     ORM base:        Base
     DI wiring:       register_persistence
 """
 
 from __future__ import annotations
 
+from .audit_repository import SqlAlchemyAuditRepository
 from .database import (
     build_sqlite_url,
     create_database_engine,
@@ -28,6 +30,7 @@ from .repositories import (
 __all__ = [
     "Base",
     "SqlAlchemyAssessmentRepository",
+    "SqlAlchemyAuditRepository",
     "SqlAlchemyReportRepository",
     "build_sqlite_url",
     "create_database_engine",

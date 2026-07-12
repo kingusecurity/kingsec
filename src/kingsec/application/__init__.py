@@ -51,6 +51,7 @@ from .job import JobId
 from .ports import (
     AIPort,
     AssessmentRepository,
+    AuditPublisher,
     EventPublisher,
     JobRunner,
     PasswordHasher,
@@ -90,6 +91,7 @@ __all__ = [
     "AssessmentSummary",
     "AssessmentView",
     "AuthenticationError",
+    "AuditPublisher",
     "CancelAssessment",
     "CancelAssessmentRequest",
     "CancelAssessmentResponse",

@@ -5,6 +5,7 @@ Steps:
     2. Look up the user to ensure they still exist and are active.
     3. Generate a new access token.
     4. Optionally rotate the refresh token (security best practice).
+    5. Publish audit entry.
 
 Security considerations:
     - Refresh tokens are verified for type == "refresh" to prevent access
@@ -12,12 +13,15 @@ Security considerations:
     - User existence is checked to handle deleted/disabled accounts.
     - The old refresh token is not revoked (stateless refresh) for simplicity;
       add revocation for higher security requirements.
+    - Audit entries record token refresh events for security monitoring.
 """
 
 from __future__ import annotations
 
+from kingsec.domain.audit import AuditAction, AuditEntry
+
 from ..dto import RefreshTokenRequest, RefreshTokenResponse
-from ..ports import PasswordHasher, TokenService, UserRepository
+from ..ports import AuditPublisher, PasswordHasher, TokenService, UserRepository
 from ..errors import ApplicationError
 
 
@@ -28,9 +32,11 @@ class RefreshToken:
         self,
         users: UserRepository,
         tokens: TokenService,
+        audit: AuditPublisher | None = None,
     ) -> None:
         self._users = users
         self._tokens = tokens
+        self._audit = audit
 
     def execute(self, request: RefreshTokenRequest) -> RefreshTokenResponse:
         # Step 1: Verify the refresh token.
@@ -57,7 +63,29 @@ class RefreshToken:
             role=user.role.label,
         )
 
+        # Step 5: Audit token refresh.
+        self._publish_audit(
+            AuditEntry(
+                action=AuditAction.TOKEN_REFRESHED,
+                resource_type="user",
+                resource_id=user.id,
+                success=True,
+                user_id=user.id,
+                username=user.username,
+                role=user.role.label,
+            )
+        )
+
         return RefreshTokenResponse(access_token=access_token)
+
+    def _publish_audit(self, entry: AuditEntry) -> None:
+        """Publish an audit entry if a publisher is configured (best-effort)."""
+        if self._audit is None:
+            return
+        try:
+            self._audit.record(entry)
+        except Exception:  # noqa: BLE001 - audit is best-effort
+            pass
 
 
 class TokenRefreshError(ApplicationError):
