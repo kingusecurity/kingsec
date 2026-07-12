@@ -3,7 +3,8 @@ import axios, {
   type InternalAxiosRequestConfig,
   type AxiosResponse,
 } from "axios"
-import { API_BASE_URL, TOKEN_KEY, REFRESH_TOKEN_KEY } from "@/shared/lib/constants"
+import { TOKEN_KEY, REFRESH_TOKEN_KEY } from "@/shared/lib/constants"
+import { getApiBaseUrl } from "@/shared/lib/env"
 
 let isRefreshing = false
 let failedQueue: Array<{
@@ -52,15 +53,19 @@ function clearTokens(): void {
   localStorage.removeItem(REFRESH_TOKEN_KEY)
 }
 
+function isSafeMethod(method?: string): boolean {
+  return !method || ["get", "head", "options"].includes(method.toLowerCase())
+}
+
 export const apiClient = axios.create({
-  baseURL: API_BASE_URL,
   timeout: 30000,
   headers: { "Content-Type": "application/json" },
 })
 
-// Request interceptor: attach JWT + correlation-id
+// Request interceptor: set baseURL (desktop-safe) + attach JWT + correlation-id
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    config.baseURL = getApiBaseUrl()
     const token = getStoredToken()
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`
@@ -73,12 +78,29 @@ apiClient.interceptors.request.use(
   (error: unknown) => Promise.reject(error),
 )
 
-// Response interceptor: handle 401 refresh, global errors
+// Response interceptor: handle 401 refresh, retry for safe methods, global errors
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & {
       _retry?: boolean
+      _retryCount?: number
+    }
+
+    // Retry safe/idempotent requests (GET, HEAD) up to 2 times on network/5xx errors
+    const isRetryable =
+      isSafeMethod(originalRequest.method) &&
+      (!error.response || error.response.status >= 500) &&
+      error.code !== "ECONNABORTED"
+
+    if (isRetryable && !originalRequest._retry) {
+      originalRequest._retryCount = originalRequest._retryCount ?? 0
+      if (originalRequest._retryCount < 2) {
+        originalRequest._retryCount += 1
+        const delay = 1000 * Math.pow(2, originalRequest._retryCount - 1)
+        await new Promise((r) => setTimeout(r, delay))
+        return apiClient(originalRequest)
+      }
     }
 
     // 401 — attempt token refresh
@@ -106,7 +128,7 @@ apiClient.interceptors.response.use(
 
       try {
         const { data } = await axios.post(
-          `${API_BASE_URL}/auth/refresh`,
+          `${getApiBaseUrl()}/auth/refresh`,
           { refresh_token: refreshToken },
           { headers: { "Content-Type": "application/json" } },
         )

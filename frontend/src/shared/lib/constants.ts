@@ -51,6 +51,5 @@ export const ACTION_LABELS: Record<string, string> = {
   AUTHORIZATION_FAILURE: "Authorization Failure",
 } as const
 
-export const API_BASE_URL = "/api/v1"
 export const TOKEN_KEY = "kingsec_access_token"
 export const REFRESH_TOKEN_KEY = "kingsec_refresh_token"
