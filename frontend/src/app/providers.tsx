@@ -1,14 +1,18 @@
-import { type ReactNode, useEffect, useState } from "react"
+import { type ReactNode } from "react"
 import { Toaster } from "sonner"
-import { QueryClientProvider } from "@tanstack/react-query"
-import { QueryClient } from "@tanstack/react-query"
+import { QueryClientProvider, QueryClient } from "@tanstack/react-query"
 import { ErrorBoundary } from "@/shared/components/error-boundary"
+import { OfflineBanner } from "@/shared/components/offline-banner"
+import { SkipToContent } from "@/shared/components/skip-to-content"
+import { PWAUpdateNotification } from "@/shared/components/pwa-update-notification"
+import { PWAInstallPrompt } from "@/shared/components/pwa-install-prompt"
 
 function makeQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
       queries: {
         staleTime: 30_000,
+        gcTime: 5 * 60_000,
         retry: 1,
         refetchOnWindowFocus: false,
       },
@@ -37,30 +41,20 @@ export function AppShell({ children }: { children: ReactNode }): React.ReactElem
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
+        <SkipToContent />
         {children}
+        <OfflineBanner />
+        <PWAUpdateNotification />
+        <PWAInstallPrompt />
         <Toaster
           position="bottom-right"
           richColors
           closeButton
           duration={4000}
           toastOptions={{ className: "text-sm" }}
+          aria-live="polite"
         />
       </QueryClientProvider>
     </ErrorBoundary>
   )
-}
-
-export function useOffline(): boolean {
-  const [offline, setOffline] = useState(!navigator.onLine)
-  useEffect(() => {
-    const on = () => setOffline(false)
-    const off = () => setOffline(true)
-    window.addEventListener("online", on)
-    window.addEventListener("offline", off)
-    return () => {
-      window.removeEventListener("online", on)
-      window.removeEventListener("offline", off)
-    }
-  }, [])
-  return offline
 }
