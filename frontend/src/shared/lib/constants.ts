@@ -9,6 +9,7 @@ export const ROUTES = {
   USER_DETAIL: "/users/:id",
   USER_CREATE: "/users/new",
   USER_EDIT: "/users/:id/edit",
+  SETTINGS: "/settings",
   AUDIT: "/audit",
   PROFILE: "/profile",
 } as const

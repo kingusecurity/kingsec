@@ -6,6 +6,7 @@ import {
   FileText,
   Users,
   ScrollText,
+  Settings,
   User,
   LogOut,
   ChevronLeft,
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   { to: ROUTES.REPORTS, icon: FileText, label: "Reports", roles: ["VIEWER", "ANALYST", "ADMIN"] },
   { to: ROUTES.USERS, icon: Users, label: "Users", roles: ["ADMIN"] },
   { to: ROUTES.AUDIT, icon: ScrollText, label: "Audit Log", roles: ["ADMIN"] },
+  { to: ROUTES.SETTINGS, icon: Settings, label: "Settings", roles: ["VIEWER", "ANALYST", "ADMIN"] },
 ] as const
 
 export function Sidebar(): React.ReactElement {

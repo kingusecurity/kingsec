@@ -11,6 +11,7 @@ import { UsersListPage } from "@/features/users/pages/users-list-page"
 import { UserDetailPage } from "@/features/users/pages/user-detail-page"
 import { CreateUserPage } from "@/features/users/pages/create-user-page"
 import { EditUserPage } from "@/features/users/pages/edit-user-page"
+import { SettingsPage } from "@/features/settings/pages/settings-page"
 import { AuditPage } from "@/features/audit/pages/audit-page"
 import { ProfilePage } from "@/features/profile/pages/profile-page"
 import { ROUTES } from "@/shared/lib/constants"
@@ -38,6 +39,8 @@ export const router = createBrowserRouter([
       { path: "users/new", element: <ProtectedRoute requiredRole="ADMIN"><CreateUserPage /></ProtectedRoute> },
       { path: "users/:id", element: <ProtectedRoute requiredRole="ADMIN"><UserDetailPage /></ProtectedRoute> },
       { path: "users/:id/edit", element: <ProtectedRoute requiredRole="ADMIN"><EditUserPage /></ProtectedRoute> },
+      { path: "settings", element: <SettingsPage /> },
+      { path: "settings/:section", element: <SettingsPage /> },
       { path: "audit", element: <ProtectedRoute requiredRole="ADMIN"><AuditPage /></ProtectedRoute> },
       { path: "profile", element: <ProfilePage /> },
     ],
