@@ -1,0 +1,33 @@
+import { createBrowserRouter, Navigate } from "react-router-dom"
+import { ProtectedRoute } from "@/features/auth/components/protected-route"
+import { AppLayout } from "@/widgets/app-layout/app-layout"
+import { LoginPage } from "@/features/auth/pages/login-page"
+import { DashboardPage } from "@/features/dashboard/pages/dashboard-page"
+import { AssessmentListPage } from "@/features/assessments/pages/assessment-list-page"
+import { AssessmentDetailPage } from "@/features/assessments/pages/assessment-detail-page"
+import { AuditPage } from "@/features/audit/pages/audit-page"
+import { ProfilePage } from "@/features/profile/pages/profile-page"
+import { ROUTES } from "@/shared/lib/constants"
+
+export const router = createBrowserRouter([
+  {
+    path: ROUTES.LOGIN,
+    element: <LoginPage />,
+  },
+  {
+    path: "/",
+    element: (
+      <ProtectedRoute>
+        <AppLayout />
+      </ProtectedRoute>
+    ),
+    children: [
+      { index: true, element: <Navigate to={ROUTES.DASHBOARD} replace /> },
+      { path: "dashboard", element: <DashboardPage /> },
+      { path: "assessments", element: <AssessmentListPage /> },
+      { path: "assessments/:id", element: <AssessmentDetailPage /> },
+      { path: "audit", element: <ProtectedRoute requiredRole="ADMIN"><AuditPage /></ProtectedRoute> },
+      { path: "profile", element: <ProfilePage /> },
+    ],
+  },
+])
