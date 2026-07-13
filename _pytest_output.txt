@@ -1,0 +1,502 @@
+﻿...FFF..FFFFFFFFFFFFFF.....EEEEEFFF.......................F.FFEEEE.E.... [ 13%]
+.....FF...........................FFFFFFFFFFFFF.FFFF.F....FF............ [ 27%]
+........................................................................ [ 41%]
+........................................................................ [ 55%]
+..............F.F....................................................... [ 68%]
+...F......................................FF............................ [ 82%]
+...........................................FFFFF........................ [ 96%]
+...................                                                      [100%]
+=================================== ERRORS ====================================
+_______ ERROR at setup of TestStartup.test_complete_application_startup _______
+E   RuntimeError: Database schema is not up to date.
+    Run:
+      alembic upgrade head
+___________ ERROR at setup of TestStartup.test_every_port_resolves ____________
+E   RuntimeError: Database schema is not up to date.
+    Run:
+      alembic upgrade head
+________ ERROR at setup of TestStartup.test_use_cases_resolve_from_di _________
+E   RuntimeError: Database schema is not up to date.
+    Run:
+      alembic upgrade head
+__ ERROR at setup of TestDependencyGraph.test_full_flow_through_wired_graph ___
+E   RuntimeError: Database schema is not up to date.
+    Run:
+      alembic upgrade head
+_ ERROR at setup of TestDependencyGraph.test_unit_of_work_factory_produces_working_uow _
+E   RuntimeError: Database schema is not up to date.
+    Run:
+      alembic upgrade head
+_ ERROR at setup of TestRealSubprocess.test_findings_are_parsed_from_real_process _
+file D:\New_folder\kingsec\tests\integration\scanner\test_nuclei_integration.py, line 40
+      def test_findings_are_parsed_from_real_process(
+E       fixture 'make_fake_nuclei' not found
+>       available fixtures: _asyncio_loop_factory, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, configure, cov, doctest_namespace, event_loop_policy, fake_runner, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, no_cover, pytestconfig, quiet_logging, read_json, record_property, record_testsuite_property, record_xml_attribute, recwarn, reset_structlog, stream, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\New_folder\kingsec\tests\integration\scanner\test_nuclei_integration.py:40
+____ ERROR at setup of TestRealSubprocess.test_empty_output_is_no_findings ____
+file D:\New_folder\kingsec\tests\integration\scanner\test_nuclei_integration.py, line 48
+      def test_empty_output_is_no_findings(
+E       fixture 'make_fake_nuclei' not found
+>       available fixtures: _asyncio_loop_factory, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, configure, cov, doctest_namespace, event_loop_policy, fake_runner, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, no_cover, pytestconfig, quiet_logging, read_json, record_property, record_testsuite_property, record_xml_attribute, recwarn, reset_structlog, stream, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\New_folder\kingsec\tests\integration\scanner\test_nuclei_integration.py:48
+_ ERROR at setup of TestRealSubprocess.test_nonzero_exit_raises_scanner_error _
+file D:\New_folder\kingsec\tests\integration\scanner\test_nuclei_integration.py, line 53
+      def test_nonzero_exit_raises_scanner_error(
+E       fixture 'make_fake_nuclei' not found
+>       available fixtures: _asyncio_loop_factory, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, configure, cov, doctest_namespace, event_loop_policy, fake_runner, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, no_cover, pytestconfig, quiet_logging, read_json, record_property, record_testsuite_property, record_xml_attribute, recwarn, reset_structlog, stream, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\New_folder\kingsec\tests\integration\scanner\test_nuclei_integration.py:53
+___ ERROR at setup of TestRealSubprocess.test_timeout_raises_scanner_error ____
+file D:\New_folder\kingsec\tests\integration\scanner\test_nuclei_integration.py, line 60
+      def test_timeout_raises_scanner_error(
+E       fixture 'make_fake_nuclei' not found
+>       available fixtures: _asyncio_loop_factory, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, configure, cov, doctest_namespace, event_loop_policy, fake_runner, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, no_cover, pytestconfig, quiet_logging, read_json, record_property, record_testsuite_property, record_xml_attribute, recwarn, reset_structlog, stream, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\New_folder\kingsec\tests\integration\scanner\test_nuclei_integration.py:60
+_______ ERROR at setup of TestEndToEndSlice.test_full_scan_and_persist ________
+file D:\New_folder\kingsec\tests\integration\scanner\test_nuclei_integration.py, line 74
+      def test_full_scan_and_persist(
+E       fixture 'make_fake_nuclei' not found
+>       available fixtures: _asyncio_loop_factory, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, configure, cov, doctest_namespace, event_loop_policy, fake_runner, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, no_cover, pytestconfig, quiet_logging, read_json, record_property, record_testsuite_property, record_xml_attribute, recwarn, reset_structlog, stream, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\New_folder\kingsec\tests\integration\scanner\test_nuclei_integration.py:74
+================================== FAILURES ===================================
+E   assert 8 == 10
+     +  where 8 = count_entries()
+     +    where count_entries = <kingsec.infrastructure.persistence.audit_repository.SqlAlchemyAuditRepository object at 0x0000021031243950>.count_entries
+---------------------------- Captured stdout call -----------------------------
+2026-07-13 17:22:36 [debug    ] audit entry recorded           [kingsec.infrastructure.persistence.audit] action=login resource_id=user-2 resource_type= success=True
+2026-07-13 17:22:36 [debug    ] audit entry recorded           [kingsec.infrastructure.persistence.audit] action=login resource_id=user-1 resource_type= success=True
+2026-07-13 17:22:36 [debug    ] audit entry recorded           [kingsec.infrastructure.persistence.audit] action=login resource_id=user-3 resource_type= success=True
+2026-07-13 17:22:36 [debug    ] audit entry recorded           [kingsec.infrastructure.persistence.audit] action=login resource_id=user-5 resource_type= success=True
+2026-07-13 17:22:36 [debug    ] audit entry recorded           [kingsec.infrastructure.persistence.audit] action=login resource_id=user-4 resource_type= success=True
+2026-07-13 17:22:36 [debug    ] audit entry recorded           [kingsec.infrastructure.persistence.audit] action=login resource_id=user-6 resource_type= success=True
+2026-07-13 17:22:36 [debug    ] audit entry recorded           [kingsec.infrastructure.persistence.audit] action=login resource_id=user-7 resource_type= success=True
+2026-07-13 17:22:36 [debug    ] audit entry recorded           [kingsec.infrastructure.persistence.audit] action=login resource_id=user-8 resource_type= success=True
+2026-07-13 17:22:36 [debug    ] audit entry recorded           [kingsec.infrastructure.persistence.audit] action=login resource_id=user-9 resource_type= success=True
+2026-07-13 17:22:36 [error    ] failed to record audit entry   [kingsec.infrastructure.persistence.audit] action=login error_code=KS-STORE-001 error_type=PersistenceError
+Traceback (most recent call last):
+  File "D:\New_folder\kingsec\src\kingsec\infrastructure\persistence\audit_repository.py", line 47, in record
+    with self._session_factory.begin() as session:
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\contextlib.py", line 148, in __exit__
+    next(self.gen)
+    ~~~~^^^^^^^^^^
+  File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\session.py", line 1819, in _maker_context_manager
+    with self.begin():
+         ~~~~~~~~~~^^
+  File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\engine\util.py", line 147, in __exit__
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\util\langhelpers.py", line 122, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\engine\util.py", line 145, in __exit__
+    self.commit()
+    ~~~~~~~~~~~^^
+  File "<string>", line 2, in commit
+  File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\session.py", line 1316, in commit
+    self._prepare_impl()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "<string>", line 2, in _prepare_impl
+  File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\session.py", line 1290, in _prepare_impl
+    self.session.flush()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\session.py", line 4353, in flush
+    self._flush(objects)
+    ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\session.py", line 4488, in _flush
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\util\langhelpers.py", line 122, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\session.py", line 4455, in _flush
+    flush_context.finalize_flush_changes()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\unitofwork.py", line 486, in finalize_flush_changes
+    self.session._register_persistent(other)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\session.py", line 3365, in _register_persistent
+    raise exc.FlushError(
+    ...<8 lines>...
+    )
+sqlalchemy.orm.exc.FlushError: Instance <AuditEntryORM at 0x210312854a0> has a NULL identity key.  If this is an auto-generated value, check that the database table allows generation of new primary key values, and that the mapped Column object is configured to expect these generated values.  Ensure also that this flush() is not occurring at an inappropriate time, such as within a load() event.
+
+The above exception was the direct cause of the following exception:
+
+kingsec.shared.errors.exceptions.PersistenceError: [KS-STORE-001] failed to record audit entry
+D:\New_folder\kingsec\tests\integration\adapters\inbound\web\test_audit_integration.py:203: assert 8 == 10
+E   ValueError: Unknown service: <class 'kingsec.application.use_cases.register_user.RegisterUser'>
+D:\New_folder\kingsec\tests\integration\adapters\inbound\web\test_auth_integration.py:142: ValueError: Unknown service: <class 'kingsec.application.use_cases.register_user.RegisterUser'>
+E   ValueError: Unknown service: <class 'kingsec.application.use_cases.register_user.RegisterUser'>
+D:\New_folder\kingsec\tests\integration\adapters\inbound\web\test_auth_integration.py:142: ValueError: Unknown service: <class 'kingsec.application.use_cases.register_user.RegisterUser'>
+E   ValueError: Unknown service: <class 'kingsec.application.use_cases.register_user.RegisterUser'>
+D:\New_folder\kingsec\tests\integration\adapters\inbound\web\test_auth_integration.py:142: ValueError: Unknown service: <class 'kingsec.application.use_cases.register_user.RegisterUser'>
+E   TypeError: Can't instantiate abstract class _IntegrationService without an implementation for abstract methods 'cancel_assessment', 'delete_assessment', 'list_assessments'
+D:\New_folder\kingsec\tests\integration\adapters\inbound\web\test_background_integration.py:106: TypeError: Can't instantiate abstract class _IntegrationService without an implementation for abstract methods 'cancel_assessment', 'delete_assessment', 'list_assessments'
+E   TypeError: Can't instantiate abstract class _IntegrationService without an implementation for abstract methods 'delete_assessment', 'list_assessments'
+D:\New_folder\kingsec\tests\integration\adapters\inbound\web\test_cancel_integration.py:104: TypeError: Can't instantiate abstract class _IntegrationService without an implementation for abstract methods 'delete_assessment', 'list_assessments'
+E   assert 401 == 201
+     +  where 401 = <Response [401 Unauthorized]>.status_code
+D:\New_folder\kingsec\tests\integration\adapters\inbound\web\test_delete_integration.py:189: assert 401 == 201
+E   KeyError: 'total'
+D:\New_folder\kingsec\tests\integration\adapters\inbound\web\test_delete_integration.py:221: KeyError: 'total'
+E   assert 401 == 404
+     +  where 401 = <Response [401 Unauthorized]>.status_code
+D:\New_folder\kingsec\tests\integration\adapters\inbound\web\test_delete_integration.py:236: assert 401 == 404
+E   KeyError: 'assessment_id'
+D:\New_folder\kingsec\tests\integration\adapters\inbound\web\test_delete_integration.py:254: KeyError: 'assessment_id'
+E   TypeError: Can't instantiate abstract class _IntegrationService without an implementation for abstract method 'delete_assessment'
+D:\New_folder\kingsec\tests\integration\adapters\inbound\web\test_list_integration.py:140: TypeError: Can't instantiate abstract class _IntegrationService without an implementation for abstract method 'delete_assessment'
+E   TypeError: Can't instantiate abstract class _IntegrationService without an implementation for abstract method 'delete_assessment'
+D:\New_folder\kingsec\tests\integration\adapters\inbound\web\test_list_integration.py:140: TypeError: Can't instantiate abstract class _IntegrationService without an implementation for abstract method 'delete_assessment'
+E   TypeError: Can't instantiate abstract class _IntegrationService without an implementation for abstract method 'delete_assessment'
+D:\New_folder\kingsec\tests\integration\adapters\inbound\web\test_list_integration.py:140: TypeError: Can't instantiate abstract class _IntegrationService without an implementation for abstract method 'delete_assessment'
+E   KeyError: 'X-Content-Type-Options'
+---------------------------- Captured stdout call -----------------------------
+2026-07-13 17:22:36 [info     ] http_request                   [kingsec.http.access] client_ip=testclient duration_ms=0.9 method=GET path=/api/v1/health request_id=571013fede784d3d8a7d9bfceb55e7f8 status_code=200
+C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\httpx\_models.py:302: KeyError: 'X-Content-Type-Options'
+E   KeyError: 'X-Request-ID'
+---------------------------- Captured stdout call -----------------------------
+2026-07-13 17:22:36 [info     ] http_request                   [kingsec.http.access] client_ip=testclient duration_ms=0.97 method=GET path=/api/v1/test request_id=my-trace-id-123 status_code=200
+C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\httpx\_models.py:302: KeyError: 'X-Request-ID'
+E   assert 500 == 429
+     +  where 500 = <Response [500 Internal Server Error]>.status_code
+D:\New_folder\kingsec\tests\integration\adapters\inbound\web\test_middleware_integration.py:92: assert 500 == 429
+E   KeyError: 'X-Content-Type-Options'
+C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\httpx\_models.py:302: KeyError: 'X-Content-Type-Options'
+E   RuntimeError: Database schema is not up to date.
+    Run:
+      alembic upgrade head
+D:\New_folder\kingsec\src\kingsec\infrastructure\persistence\database.py:145: RuntimeError: Database schema is not up to date.
+E   AssertionError: assert ['provisionin...visioning.py'] == []
+      
+      Left contains 4 more items, first extra item: 'provisioning.py'
+      Use -v to get more diff
+D:\New_folder\kingsec\tests\integration\bootstrap\test_composition.py:160: AssertionError: assert ['provisionin...visioning.py'] == []
+E   UnicodeDecodeError: 'charmap' codec can't decode byte 0x90 in position 336: character maps to <undefined>
+C:\Python314\Lib\encodings\cp1252.py:23: UnicodeDecodeError: 'charmap' codec can't decode byte 0x90 in position 336: character maps to <undefined>
+E   OSError: cannot load library 'libgobject-2.0-0': error 0x7e.  Additionally, ctypes.util.find_library() did not manage to locate a library called 'libgobject-2.0-0'
+---------------------------- Captured stdout call -----------------------------
+
+-----
+
+WeasyPrint could not import some external libraries. Please carefully follow the installation steps before reporting an issue:
+https://doc.courtbouillon.org/weasyprint/stable/first_steps.html#installation
+https://doc.courtbouillon.org/weasyprint/stable/first_steps.html#troubleshooting 
+
+-----
+
+C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\cffi\api.py:822: OSError: cannot load library 'libgobject-2.0-0': error 0x7e.  Additionally, ctypes.util.find_library() did not manage to locate a library called 'libgobject-2.0-0'
+E   OSError: cannot load library 'libgobject-2.0-0': error 0x7e.  Additionally, ctypes.util.find_library() did not manage to locate a library called 'libgobject-2.0-0'
+---------------------------- Captured stdout call -----------------------------
+2026-07-13 17:22:42 [info     ] reporting registered           [kingsec.infrastructure.reporting] format=pdf
+
+-----
+
+WeasyPrint could not import some external libraries. Please carefully follow the installation steps before reporting an issue:
+https://doc.courtbouillon.org/weasyprint/stable/first_steps.html#installation
+https://doc.courtbouillon.org/weasyprint/stable/first_steps.html#troubleshooting 
+
+-----
+
+C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\cffi\api.py:822: OSError: cannot load library 'libgobject-2.0-0': error 0x7e.  Additionally, ctypes.util.find_library() did not manage to locate a library called 'libgobject-2.0-0'
+E   OSError: cannot load library 'libgobject-2.0-0': error 0x7e.  Additionally, ctypes.util.find_library() did not manage to locate a library called 'libgobject-2.0-0'
+---------------------------- Captured stdout call -----------------------------
+2026-07-13 17:22:42 [debug    ] assessment saved               [kingsec.infrastructure.persistence] assessment_id=asmt-7b21e7662dab44fc8522303592aa608e
+2026-07-13 17:22:42 [debug    ] assessment saved               [kingsec.infrastructure.persistence] assessment_id=asmt-7b21e7662dab44fc8522303592aa608e
+2026-07-13 17:22:42 [debug    ] assessment saved               [kingsec.infrastructure.persistence] assessment_id=asmt-7b21e7662dab44fc8522303592aa608e
+2026-07-13 17:22:42 [debug    ] report saved                   [kingsec.infrastructure.persistence] assessment_id=asmt-7b21e7662dab44fc8522303592aa608e
+
+-----
+
+WeasyPrint could not import some external libraries. Please carefully follow the installation steps before reporting an issue:
+https://doc.courtbouillon.org/weasyprint/stable/first_steps.html#installation
+https://doc.courtbouillon.org/weasyprint/stable/first_steps.html#troubleshooting 
+
+-----
+
+C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\cffi\api.py:822: OSError: cannot load library 'libgobject-2.0-0': error 0x7e.  Additionally, ctypes.util.find_library() did not manage to locate a library called 'libgobject-2.0-0'
+E   KeyError: 'ip'
+D:\New_folder\kingsec\tests\unit\adapters\inbound\web\test_audit.py:103: KeyError: 'ip'
+E   KeyError: 'correlation_id'
+D:\New_folder\kingsec\tests\unit\adapters\inbound\web\test_audit.py:125: KeyError: 'correlation_id'
+E   assert 401 == 201
+     +  where 401 = <Response [401 Unauthorized]>.status_code
+D:\New_folder\kingsec\tests\unit\adapters\inbound\web\test_routes.py:216: assert 401 == 201
+E   assert 401 == 422
+     +  where 401 = <Response [401 Unauthorized]>.status_code
+D:\New_folder\kingsec\tests\unit\adapters\inbound\web\test_routes.py:227: assert 401 == 422
+E   assert 401 == 422
+     +  where 401 = <Response [401 Unauthorized]>.status_code
+D:\New_folder\kingsec\tests\unit\adapters\inbound\web\test_routes.py:231: assert 401 == 422
+E   assert 401 == 202
+     +  where 401 = <Response [401 Unauthorized]>.status_code
+D:\New_folder\kingsec\tests\unit\adapters\inbound\web\test_routes.py:237: assert 401 == 202
+E   assert 401 == 200
+     +  where 401 = <Response [401 Unauthorized]>.status_code
+D:\New_folder\kingsec\tests\unit\adapters\inbound\web\test_routes.py:248: assert 401 == 200
+E   assert 401 == 200
+     +  where 401 = <Response [401 Unauthorized]>.status_code
+D:\New_folder\kingsec\tests\unit\adapters\inbound\web\test_routes.py:258: assert 401 == 200
+E   assert 401 == 200
+     +  where 401 = <Response [401 Unauthorized]>.status_code
+D:\New_folder\kingsec\tests\unit\adapters\inbound\web\test_routes.py:269: assert 401 == 200
+E   assert 401 == 204
+     +  where 401 = <Response [401 Unauthorized]>.status_code
+D:\New_folder\kingsec\tests\unit\adapters\inbound\web\test_routes.py:278: assert 401 == 204
+E   assert 401 == 200
+     +  where 401 = <Response [401 Unauthorized]>.status_code
+D:\New_folder\kingsec\tests\unit\adapters\inbound\web\test_routes.py:286: assert 401 == 200
+E   assert 401 == 200
+     +  where 401 = <Response [401 Unauthorized]>.status_code
+D:\New_folder\kingsec\tests\unit\adapters\inbound\web\test_routes.py:299: assert 401 == 200
+E   assert 401 == 404
+     +  where 401 = <Response [401 Unauthorized]>.status_code
+D:\New_folder\kingsec\tests\unit\adapters\inbound\web\test_routes.py:361: assert 401 == 404
+E   assert 401 == 409
+     +  where 401 = <Response [401 Unauthorized]>.status_code
+D:\New_folder\kingsec\tests\unit\adapters\inbound\web\test_routes.py:422: assert 401 == 409
+E   assert 401 == 500
+     +  where 401 = <Response [401 Unauthorized]>.status_code
+D:\New_folder\kingsec\tests\unit\adapters\inbound\web\test_routes.py:471: assert 401 == 500
+E   AssertionError: Regex pattern did not match.
+      Expected regex: 'min_length'
+      Actual message: "1 validation error for CreateAssessmentBody\ntarget_value\n  String should have at least 1 character [type=string_too_short, input_value='', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/string_too_short"
+D:\New_folder\kingsec\tests\unit\adapters\inbound\web\test_schemas.py:32: AssertionError: Regex pattern did not match.
+E   AssertionError: Regex pattern did not match.
+      Expected regex: 'min_length'
+      Actual message: "1 validation error for CreateAssessmentBody\ntarget_type\n  String should have at least 1 character [type=string_too_short, input_value='', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/string_too_short"
+D:\New_folder\kingsec\tests\unit\adapters\inbound\web\test_schemas.py:41: AssertionError: Regex pattern did not match.
+E   AssertionError: Regex pattern did not match.
+      Expected regex: 'min_length'
+      Actual message: "1 validation error for CreateAssessmentBody\nauthorized_by\n  String should have at least 1 character [type=string_too_short, input_value='', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/string_too_short"
+D:\New_folder\kingsec\tests\unit\adapters\inbound\web\test_schemas.py:50: AssertionError: Regex pattern did not match.
+E   AssertionError: Regex pattern did not match.
+      Expected regex: 'min_length'
+      Actual message: "1 validation error for CreateAssessmentBody\nscope\n  String should have at least 1 character [type=string_too_short, input_value='', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/string_too_short"
+D:\New_folder\kingsec\tests\unit\adapters\inbound\web\test_schemas.py:59: AssertionError: Regex pattern did not match.
+E   AssertionError: Regex pattern did not match.
+      Expected regex: 'field required'
+      Actual message: "3 validation errors for CreateAssessmentBody\ntarget_type\n  Field required [type=missing, input_value={'target_value': '10.0.0.5'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\nauthorized_by\n  Field required [type=missing, input_value={'target_value': '10.0.0.5'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\nscope\n  Field required [type=missing, input_value={'target_value': '10.0.0.5'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing"
+D:\New_folder\kingsec\tests\unit\adapters\inbound\web\test_schemas.py:78: AssertionError: Regex pattern did not match.
+E   pydantic_core._pydantic_core.ValidationError: 2 validation errors for StartAssessmentResponse
+    findings_count
+      Extra inputs are not permitted [type=extra_forbidden, input_value=3, input_type=int]
+        For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+    highest_severity
+      Extra inputs are not permitted [type=extra_forbidden, input_value='high', input_type=str]
+        For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+D:\New_folder\kingsec\tests\unit\adapters\inbound\web\test_schemas.py:134: pydantic_core._pydantic_core.ValidationError: 2 validation errors for StartAssessmentResponse
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for StartAssessmentResponse
+    findings_count
+      Extra inputs are not permitted [type=extra_forbidden, input_value=0, input_type=int]
+        For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+D:\New_folder\kingsec\tests\unit\adapters\inbound\web\test_schemas.py:143: pydantic_core._pydantic_core.ValidationError: 1 validation error for StartAssessmentResponse
+E   TypeError: UserNotFoundError() takes no keyword arguments
+D:\New_folder\kingsec\src\kingsec\domain\user.py:35: TypeError: UserNotFoundError() takes no keyword arguments
+E   TypeError: UserDisabledError() takes no keyword arguments
+D:\New_folder\kingsec\src\kingsec\domain\user.py:49: TypeError: UserDisabledError() takes no keyword arguments
+E   AssertionError: assert True is False
+     +  where True = LoggingSettings(level=<LogLevel.INFO: 'INFO'>, json_format=True).json_format
+     +    where LoggingSettings(level=<LogLevel.INFO: 'INFO'>, json_format=True) = Settings(app=AppSettings(name='KingSec', version='0.1.0', environment=<Environment.DEVELOPMENT: 'development'>, debug=...e=30), middleware=MiddlewareSettings(gzip_enabled=True, gzip_minimum_size=500, trusted_hosts=[], request_logging=True)).logging
+D:\New_folder\kingsec\tests\unit\infrastructure\config\test_loading.py:29: AssertionError: assert True is False
+E   OSError: cannot load library 'libgobject-2.0-0': error 0x7e.  Additionally, ctypes.util.find_library() did not manage to locate a library called 'libgobject-2.0-0'
+---------------------------- Captured stdout call -----------------------------
+
+-----
+
+WeasyPrint could not import some external libraries. Please carefully follow the installation steps before reporting an issue:
+https://doc.courtbouillon.org/weasyprint/stable/first_steps.html#installation
+https://doc.courtbouillon.org/weasyprint/stable/first_steps.html#troubleshooting 
+
+-----
+
+C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\cffi\api.py:822: OSError: cannot load library 'libgobject-2.0-0': error 0x7e.  Additionally, ctypes.util.find_library() did not manage to locate a library called 'libgobject-2.0-0'
+E   OSError: cannot load library 'libgobject-2.0-0': error 0x7e.  Additionally, ctypes.util.find_library() did not manage to locate a library called 'libgobject-2.0-0'
+---------------------------- Captured stdout call -----------------------------
+
+-----
+
+WeasyPrint could not import some external libraries. Please carefully follow the installation steps before reporting an issue:
+https://doc.courtbouillon.org/weasyprint/stable/first_steps.html#installation
+https://doc.courtbouillon.org/weasyprint/stable/first_steps.html#troubleshooting 
+
+-----
+
+C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\cffi\api.py:822: OSError: cannot load library 'libgobject-2.0-0': error 0x7e.  Additionally, ctypes.util.find_library() did not manage to locate a library called 'libgobject-2.0-0'
+E   KeyError: 'X-Content-Type-Options'
+C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\httpx\_models.py:302: KeyError: 'X-Content-Type-Options'
+E   KeyError: 'X-Frame-Options'
+C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\httpx\_models.py:302: KeyError: 'X-Frame-Options'
+E   KeyError: 'Referrer-Policy'
+C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\httpx\_models.py:302: KeyError: 'Referrer-Policy'
+E   KeyError: 'Content-Security-Policy'
+C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\httpx\_models.py:302: KeyError: 'Content-Security-Policy'
+E   KeyError: 'X-Frame-Options'
+C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\httpx\_models.py:302: KeyError: 'X-Frame-Options'
+============================== warnings summary ===============================
+C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\fastapi\testclient.py:1
+  C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/integration/adapters/inbound/web/test_audit_integration.py::TestAuditTrailIntegration::test_concurrent_appends
+  C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\_pytest\threadexception.py:58: PytestUnhandledThreadExceptionWarning: Exception in thread Thread-5 (_record)
+  
+  Traceback (most recent call last):
+    File "D:\New_folder\kingsec\src\kingsec\infrastructure\persistence\audit_repository.py", line 47, in record
+      with self._session_factory.begin() as session:
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+    File "C:\Python314\Lib\contextlib.py", line 148, in __exit__
+      next(self.gen)
+      ~~~~^^^^^^^^^^
+    File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\session.py", line 1819, in _maker_context_manager
+      with self.begin():
+           ~~~~~~~~~~^^
+    File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\engine\util.py", line 147, in __exit__
+      with util.safe_reraise():
+           ~~~~~~~~~~~~~~~~~^^
+    File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\util\langhelpers.py", line 122, in __exit__
+      raise exc_value.with_traceback(exc_tb)
+    File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\engine\util.py", line 145, in __exit__
+      self.commit()
+      ~~~~~~~~~~~^^
+    File "<string>", line 2, in commit
+    File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\state_changes.py", line 137, in _go
+      ret_value = fn(self, *arg, **kw)
+    File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\session.py", line 1316, in commit
+      self._prepare_impl()
+      ~~~~~~~~~~~~~~~~~~^^
+    File "<string>", line 2, in _prepare_impl
+    File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\state_changes.py", line 137, in _go
+      ret_value = fn(self, *arg, **kw)
+    File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\session.py", line 1290, in _prepare_impl
+      self.session.flush()
+      ~~~~~~~~~~~~~~~~~~^^
+    File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\session.py", line 4353, in flush
+      self._flush(objects)
+      ~~~~~~~~~~~^^^^^^^^^
+    File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\session.py", line 4488, in _flush
+      with util.safe_reraise():
+           ~~~~~~~~~~~~~~~~~^^
+    File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\util\langhelpers.py", line 122, in __exit__
+      raise exc_value.with_traceback(exc_tb)
+    File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\session.py", line 4455, in _flush
+      flush_context.finalize_flush_changes()
+      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+    File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\unitofwork.py", line 486, in finalize_flush_changes
+      self.session._register_persistent(other)
+      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+    File "C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\sqlalchemy\orm\session.py", line 3365, in _register_persistent
+      raise exc.FlushError(
+      ...<8 lines>...
+      )
+  sqlalchemy.orm.exc.FlushError: Instance <AuditEntryORM at 0x210312854a0> has a NULL identity key.  If this is an auto-generated value, check that the database table allows generation of new primary key values, and that the mapped Column object is configured to expect these generated values.  Ensure also that this flush() is not occurring at an inappropriate time, such as within a load() event.
+  
+  The above exception was the direct cause of the following exception:
+  
+  Traceback (most recent call last):
+    File "C:\Python314\Lib\threading.py", line 1082, in _bootstrap_inner
+      self._context.run(self.run)
+      ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+    File "C:\Python314\Lib\threading.py", line 1024, in run
+      self._target(*self._args, **self._kwargs)
+      ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "D:\New_folder\kingsec\tests\integration\adapters\inbound\web\test_audit_integration.py", line 192, in _record
+      repo.record(AuditEntry(
+      ~~~~~~~~~~~^^^^^^^^^^^^
+          action=AuditAction.LOGIN,
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+          resource_id=f"user-{i}",
+          ^^^^^^^^^^^^^^^^^^^^^^^^
+      ))
+      ^^
+    File "D:\New_folder\kingsec\src\kingsec\infrastructure\persistence\audit_repository.py", line 78, in record
+      raise error
+  kingsec.shared.errors.exceptions.PersistenceError: [KS-STORE-001] failed to record audit entry
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+
+tests/unit/infrastructure/test_jwt_service.py::TestJWTTokenService::test_wrong_secret_rejected
+  C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\jwt\api_jwt.py:368: InsecureKeyLengthWarning: The HMAC key is 20 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+    decoded = self.decode_complete(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/integration/adapters/inbound/web/test_audit_integration.py::TestAuditTrailIntegration::test_concurrent_appends
+FAILED tests/integration/adapters/inbound/web/test_auth_integration.py::TestAuthFlowIntegration::test_register_login_me_lifecycle
+FAILED tests/integration/adapters/inbound/web/test_auth_integration.py::TestAuthFlowIntegration::test_refresh_token_lifecycle
+FAILED tests/integration/adapters/inbound/web/test_auth_integration.py::TestAuthFlowIntegration::test_wrong_role_returns_403
+FAILED tests/integration/adapters/inbound/web/test_background_integration.py::TestBackgroundExecutionIntegration::test_create_submit_poll_lifecycle
+FAILED tests/integration/adapters/inbound/web/test_cancel_integration.py::TestCancelAssessmentIntegration::test_create_cancel_poll_lifecycle
+FAILED tests/integration/adapters/inbound/web/test_delete_integration.py::TestDeleteAssessmentIntegration::test_create_delete_get_returns_404
+FAILED tests/integration/adapters/inbound/web/test_delete_integration.py::TestDeleteAssessmentIntegration::test_create_delete_list_excludes_deleted
+FAILED tests/integration/adapters/inbound/web/test_delete_integration.py::TestDeleteAssessmentIntegration::test_delete_nonexistent_returns_404
+FAILED tests/integration/adapters/inbound/web/test_delete_integration.py::TestDeleteAssessmentIntegration::test_double_delete_returns_404
+FAILED tests/integration/adapters/inbound/web/test_list_integration.py::TestListAssessmentsIntegration::test_create_then_list
+FAILED tests/integration/adapters/inbound/web/test_list_integration.py::TestListAssessmentsIntegration::test_list_with_pagination
+FAILED tests/integration/adapters/inbound/web/test_list_integration.py::TestListAssessmentsIntegration::test_list_empty_database
+FAILED tests/integration/adapters/inbound/web/test_middleware_integration.py::TestMiddlewareStackIntegration::test_all_middleware_applied
+FAILED tests/integration/adapters/inbound/web/test_middleware_integration.py::TestMiddlewareStackIntegration::test_custom_correlation_id_forwarded
+FAILED tests/integration/adapters/inbound/web/test_middleware_integration.py::TestMiddlewareStackIntegration::test_rate_limiting_applied
+FAILED tests/integration/adapters/inbound/web/test_middleware_integration.py::TestMiddlewareStackIntegration::test_security_headers_on_error_responses
+FAILED tests/integration/bootstrap/test_composition.py::TestShutdown::test_shutdown_disposes_engine_and_http_client
+FAILED tests/integration/bootstrap/test_composition.py::TestArchitecture::test_infrastructure_never_imports_bootstrap
+FAILED tests/integration/bootstrap/test_composition.py::TestArchitecture::test_application_never_imports_infrastructure
+FAILED tests/integration/reporting/test_reporting_integration.py::TestRealRendering::test_real_pdf_generation
+FAILED tests/integration/reporting/test_reporting_integration.py::TestDependencyInjection::test_registered_port_generates_pdf
+FAILED tests/integration/reporting/test_reporting_integration.py::TestFullSlice::test_assessment_to_report
+FAILED tests/unit/adapters/inbound/web/test_audit.py::TestAuditContextMiddleware::test_sets_audit_context
+FAILED tests/unit/adapters/inbound/web/test_audit.py::TestAuditContextMiddleware::test_uses_correlation_id_from_correlation_middleware
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestCreateAssessmentEndpoint::test_returns_201
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestCreateAssessmentEndpoint::test_validation_error_returns_422
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestCreateAssessmentEndpoint::test_empty_body_returns_422
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestStartAssessmentEndpoint::test_returns_202
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestCancelAssessmentEndpoint::test_returns_200
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestListAssessmentsEndpoint::test_returns_200
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestListAssessmentsEndpoint::test_with_pagination_params
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestDeleteAssessmentEndpoint::test_returns_204
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestGetAssessmentEndpoint::test_returns_200
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestGenerateReportEndpoint::test_returns_200
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestErrorHandling::test_not_found_returns_404
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestErrorHandling::test_illegal_state_returns_409
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestErrorHandling::test_unknown_exception_returns_500
+FAILED tests/unit/adapters/inbound/web/test_schemas.py::TestCreateAssessmentBody::test_empty_target_value_rejected
+FAILED tests/unit/adapters/inbound/web/test_schemas.py::TestCreateAssessmentBody::test_empty_target_type_rejected
+FAILED tests/unit/adapters/inbound/web/test_schemas.py::TestCreateAssessmentBody::test_empty_authorized_by_rejected
+FAILED tests/unit/adapters/inbound/web/test_schemas.py::TestCreateAssessmentBody::test_empty_scope_rejected
+FAILED tests/unit/adapters/inbound/web/test_schemas.py::TestCreateAssessmentBody::test_missing_required_field
+FAILED tests/unit/adapters/inbound/web/test_schemas.py::TestStartAssessmentResponse::test_valid
+FAILED tests/unit/adapters/inbound/web/test_schemas.py::TestStartAssessmentResponse::test_highest_severity_optional
+FAILED tests/unit/domain/test_user.py::TestUserErrors::test_user_not_found_error
+FAILED tests/unit/domain/test_user.py::TestUserErrors::test_user_disabled_error
+FAILED tests/unit/infrastructure/config/test_loading.py::TestDefaults::test_secure_defaults_are_applied
+FAILED tests/unit/infrastructure/reporting/test_adapter.py::TestRendererErrorTranslation::test_pdf_library_error_becomes_report_error
+FAILED tests/unit/infrastructure/reporting/test_adapter.py::TestRendererErrorTranslation::test_no_library_exception_escapes
+FAILED tests/unit/infrastructure/test_security_headers.py::TestSecurityHeaders::test_x_content_type_options
+FAILED tests/unit/infrastructure/test_security_headers.py::TestSecurityHeaders::test_x_frame_options
+FAILED tests/unit/infrastructure/test_security_headers.py::TestSecurityHeaders::test_referrer_policy
+FAILED tests/unit/infrastructure/test_security_headers.py::TestSecurityHeaders::test_content_security_policy
+FAILED tests/unit/infrastructure/test_security_headers.py::TestSecurityHeaders::test_custom_settings
+ERROR tests/integration/bootstrap/test_composition.py::TestStartup::test_complete_application_startup
+ERROR tests/integration/bootstrap/test_composition.py::TestStartup::test_every_port_resolves
+ERROR tests/integration/bootstrap/test_composition.py::TestStartup::test_use_cases_resolve_from_di
+ERROR tests/integration/bootstrap/test_composition.py::TestDependencyGraph::test_full_flow_through_wired_graph
+ERROR tests/integration/bootstrap/test_composition.py::TestDependencyGraph::test_unit_of_work_factory_produces_working_uow
+ERROR tests/integration/scanner/test_nuclei_integration.py::TestRealSubprocess::test_findings_are_parsed_from_real_process
+ERROR tests/integration/scanner/test_nuclei_integration.py::TestRealSubprocess::test_empty_output_is_no_findings
+ERROR tests/integration/scanner/test_nuclei_integration.py::TestRealSubprocess::test_nonzero_exit_raises_scanner_error
+ERROR tests/integration/scanner/test_nuclei_integration.py::TestRealSubprocess::test_timeout_raises_scanner_error
+ERROR tests/integration/scanner/test_nuclei_integration.py::TestEndToEndSlice::test_full_scan_and_persist

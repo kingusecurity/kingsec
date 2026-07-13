@@ -65,10 +65,40 @@ class Assessment:
 
     # --- factory -------------------------------------------------------------
     @classmethod
-    def create(cls, target: Target) -> "Assessment":
+    def create(cls, target: Target, *, created_at: datetime | None = None) -> "Assessment":
         """Create a new DRAFT assessment with a freshly generated id."""
 
-        return cls(AssessmentId.generate(), target)
+        return cls(AssessmentId.generate(), target, created_at=created_at)
+
+    @classmethod
+    def reconstitute(
+        cls,
+        *,
+        assessment_id: AssessmentId,
+        target: Target,
+        status: AssessmentStatus,
+        created_at: datetime,
+        authorization: Authorization | None,
+        failure_reason: str | None = None,
+        findings: list[Finding] | None = None,
+    ) -> "Assessment":
+        """Rebuild an Assessment from stored state (persistence boundary).
+
+        Bypasses lifecycle transitions — the caller (mapper) is trusted to
+        provide a consistent state. Structural invariants (valid id, target type)
+        are still enforced.
+        """
+        a = cls.__new__(cls)
+        a._id = assessment_id
+        a._target = target
+        a._created_at = created_at
+        a._status = status
+        a._authorization = authorization
+        a._failure_reason = failure_reason
+        a._findings = {f.id: f for f in (findings or [])}
+        if len(a._findings) != len(findings or []):
+            raise InvariantViolation("duplicate finding id in reconstitution")
+        return a
 
     # --- read-only accessors -------------------------------------------------
     @property

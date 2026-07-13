@@ -52,6 +52,20 @@ class InMemoryAssessmentRepository(AssessmentRepository):
         except KeyError:
             raise AssessmentNotFoundError(assessment_id.value) from None
 
+    def list(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[Assessment]:
+        ordered = sorted(self._store.values(), key=lambda a: a.created_at, reverse=True)
+        return ordered[offset : offset + limit]
+
+    def delete(self, assessment_id: AssessmentId) -> None:
+        if assessment_id.value not in self._store:
+            raise AssessmentNotFoundError(assessment_id.value)
+        del self._store[assessment_id.value]
+
 
 class InMemoryReportRepository(ReportRepository):
     def __init__(self) -> None:

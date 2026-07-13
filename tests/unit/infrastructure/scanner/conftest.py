@@ -11,13 +11,36 @@ from __future__ import annotations
 import io
 import os
 import stat
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from kingsec.infrastructure.config.models import LoggingSettings
 from kingsec.infrastructure.logging import configure_logging
+from kingsec.infrastructure.scanner.runner import CommandResult
+
+
+class FakeRunner:
+    """In-memory ``CommandRunner`` that records calls and returns canned results.
+
+    Used by unit tests to verify argument building and result parsing without
+    touching the filesystem or spawning subprocesses.
+    """
+
+    def __init__(self, result: CommandResult | None = None) -> None:
+        self._result = result
+        self.calls: list[tuple[list[str], float]] = []
+        self.exception: Exception | None = None
+
+    def run(self, args: Sequence[str], *, timeout: float) -> CommandResult:
+        self.calls.append((list(args), timeout))
+        if self.exception is not None:
+            raise self.exception
+        if self._result is None:
+            return CommandResult(0, "", "", 0.0)
+        return self._result
 
 _SAMPLE_JSONL = (
     '{"template-id":"CVE-2021-1","info":{"name":"Critical RCE",'

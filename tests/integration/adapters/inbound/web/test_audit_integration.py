@@ -12,6 +12,7 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.infrastructure.persistence.audit_repository import SqlAlchemyAuditRepository
@@ -20,8 +21,13 @@ from kingsec.infrastructure.persistence.models import Base
 
 @pytest.fixture()
 def engine():
-    """Create an in-memory SQLite engine."""
-    eng = create_engine("sqlite:///:memory:", future=True)
+    """Create an in-memory SQLite engine shared across threads."""
+    eng = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        future=True,
+    )
 
     @event.listens_for(eng, "connect")
     def _enable_fk(dbapi_conn, _):

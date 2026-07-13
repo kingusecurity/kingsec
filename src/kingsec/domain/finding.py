@@ -69,6 +69,40 @@ class Finding:
 
         return cls(FindingId.generate(), title, description, severity)
 
+    @classmethod
+    def reconstitute(
+        cls,
+        *,
+        finding_id: FindingId,
+        title: str,
+        description: str,
+        severity: Severity,
+        status: FindingStatus,
+        discovered_at: datetime,
+        evidence: list[Evidence] | None = None,
+        recommendations: list[Recommendation] | None = None,
+    ) -> "Finding":
+        """Rebuild a Finding from stored state (persistence boundary).
+
+        Bypasses lifecycle transitions — the caller (mapper) is trusted to
+        provide a consistent state. Structural invariants (non-empty title,
+        timezone-aware timestamps) are still enforced.
+        """
+        ensure_non_empty(title, "Finding title")
+        ensure_non_empty(description, "Finding description")
+        ensure_timezone_aware(discovered_at, "discovered_at")
+
+        f = cls.__new__(cls)
+        f._id = finding_id
+        f._title = title
+        f._description = description
+        f._severity = severity
+        f._status = status
+        f._discovered_at = discovered_at
+        f._evidence = list(evidence) if evidence is not None else []
+        f._recommendations = list(recommendations) if recommendations is not None else []
+        return f
+
     # --- read-only accessors -------------------------------------------------
     @property
     def id(self) -> FindingId:

@@ -1,0 +1,84 @@
+﻿...FFF..FFFFFFFFFFFFFF.....EEEEEFFF.......................F.FFEEEE.E.... [ 13%]
+.....FF...........................FFFFFFFFFFFFF.FFFF.F....FF............ [ 27%]
+........................................................................ [ 41%]
+........................................................................ [ 55%]
+..............F.F....................................................... [ 68%]
+...F......................................FF............................ [ 82%]
+...........................................FFFFF........................ [ 96%]
+...................                                                      [100%]
+============================== warnings summary ===============================
+C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\fastapi\testclient.py:1
+  C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/unit/infrastructure/test_jwt_service.py::TestJWTTokenService::test_wrong_secret_rejected
+  C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\jwt\api_jwt.py:368: InsecureKeyLengthWarning: The HMAC key is 20 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+    decoded = self.decode_complete(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/integration/adapters/inbound/web/test_audit_integration.py::TestAuditTrailIntegration::test_concurrent_appends
+FAILED tests/integration/adapters/inbound/web/test_auth_integration.py::TestAuthFlowIntegration::test_register_login_me_lifecycle
+FAILED tests/integration/adapters/inbound/web/test_auth_integration.py::TestAuthFlowIntegration::test_refresh_token_lifecycle
+FAILED tests/integration/adapters/inbound/web/test_auth_integration.py::TestAuthFlowIntegration::test_wrong_role_returns_403
+FAILED tests/integration/adapters/inbound/web/test_background_integration.py::TestBackgroundExecutionIntegration::test_create_submit_poll_lifecycle
+FAILED tests/integration/adapters/inbound/web/test_cancel_integration.py::TestCancelAssessmentIntegration::test_create_cancel_poll_lifecycle
+FAILED tests/integration/adapters/inbound/web/test_delete_integration.py::TestDeleteAssessmentIntegration::test_create_delete_get_returns_404
+FAILED tests/integration/adapters/inbound/web/test_delete_integration.py::TestDeleteAssessmentIntegration::test_create_delete_list_excludes_deleted
+FAILED tests/integration/adapters/inbound/web/test_delete_integration.py::TestDeleteAssessmentIntegration::test_delete_nonexistent_returns_404
+FAILED tests/integration/adapters/inbound/web/test_delete_integration.py::TestDeleteAssessmentIntegration::test_double_delete_returns_404
+FAILED tests/integration/adapters/inbound/web/test_list_integration.py::TestListAssessmentsIntegration::test_create_then_list
+FAILED tests/integration/adapters/inbound/web/test_list_integration.py::TestListAssessmentsIntegration::test_list_with_pagination
+FAILED tests/integration/adapters/inbound/web/test_list_integration.py::TestListAssessmentsIntegration::test_list_empty_database
+FAILED tests/integration/adapters/inbound/web/test_middleware_integration.py::TestMiddlewareStackIntegration::test_all_middleware_applied
+FAILED tests/integration/adapters/inbound/web/test_middleware_integration.py::TestMiddlewareStackIntegration::test_custom_correlation_id_forwarded
+FAILED tests/integration/adapters/inbound/web/test_middleware_integration.py::TestMiddlewareStackIntegration::test_rate_limiting_applied
+FAILED tests/integration/adapters/inbound/web/test_middleware_integration.py::TestMiddlewareStackIntegration::test_security_headers_on_error_responses
+FAILED tests/integration/bootstrap/test_composition.py::TestShutdown::test_shutdown_disposes_engine_and_http_client
+FAILED tests/integration/bootstrap/test_composition.py::TestArchitecture::test_infrastructure_never_imports_bootstrap
+FAILED tests/integration/bootstrap/test_composition.py::TestArchitecture::test_application_never_imports_infrastructure
+FAILED tests/integration/reporting/test_reporting_integration.py::TestRealRendering::test_real_pdf_generation
+FAILED tests/integration/reporting/test_reporting_integration.py::TestDependencyInjection::test_registered_port_generates_pdf
+FAILED tests/integration/reporting/test_reporting_integration.py::TestFullSlice::test_assessment_to_report
+FAILED tests/unit/adapters/inbound/web/test_audit.py::TestAuditContextMiddleware::test_sets_audit_context
+FAILED tests/unit/adapters/inbound/web/test_audit.py::TestAuditContextMiddleware::test_uses_correlation_id_from_correlation_middleware
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestCreateAssessmentEndpoint::test_returns_201
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestCreateAssessmentEndpoint::test_validation_error_returns_422
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestCreateAssessmentEndpoint::test_empty_body_returns_422
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestStartAssessmentEndpoint::test_returns_202
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestCancelAssessmentEndpoint::test_returns_200
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestListAssessmentsEndpoint::test_returns_200
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestListAssessmentsEndpoint::test_with_pagination_params
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestDeleteAssessmentEndpoint::test_returns_204
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestGetAssessmentEndpoint::test_returns_200
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestGenerateReportEndpoint::test_returns_200
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestErrorHandling::test_not_found_returns_404
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestErrorHandling::test_illegal_state_returns_409
+FAILED tests/unit/adapters/inbound/web/test_routes.py::TestErrorHandling::test_unknown_exception_returns_500
+FAILED tests/unit/adapters/inbound/web/test_schemas.py::TestCreateAssessmentBody::test_empty_target_value_rejected
+FAILED tests/unit/adapters/inbound/web/test_schemas.py::TestCreateAssessmentBody::test_empty_target_type_rejected
+FAILED tests/unit/adapters/inbound/web/test_schemas.py::TestCreateAssessmentBody::test_empty_authorized_by_rejected
+FAILED tests/unit/adapters/inbound/web/test_schemas.py::TestCreateAssessmentBody::test_empty_scope_rejected
+FAILED tests/unit/adapters/inbound/web/test_schemas.py::TestCreateAssessmentBody::test_missing_required_field
+FAILED tests/unit/adapters/inbound/web/test_schemas.py::TestStartAssessmentResponse::test_valid
+FAILED tests/unit/adapters/inbound/web/test_schemas.py::TestStartAssessmentResponse::test_highest_severity_optional
+FAILED tests/unit/domain/test_user.py::TestUserErrors::test_user_not_found_error
+FAILED tests/unit/domain/test_user.py::TestUserErrors::test_user_disabled_error
+FAILED tests/unit/infrastructure/config/test_loading.py::TestDefaults::test_secure_defaults_are_applied
+FAILED tests/unit/infrastructure/reporting/test_adapter.py::TestRendererErrorTranslation::test_pdf_library_error_becomes_report_error
+FAILED tests/unit/infrastructure/reporting/test_adapter.py::TestRendererErrorTranslation::test_no_library_exception_escapes
+FAILED tests/unit/infrastructure/test_security_headers.py::TestSecurityHeaders::test_x_content_type_options
+FAILED tests/unit/infrastructure/test_security_headers.py::TestSecurityHeaders::test_x_frame_options
+FAILED tests/unit/infrastructure/test_security_headers.py::TestSecurityHeaders::test_referrer_policy
+FAILED tests/unit/infrastructure/test_security_headers.py::TestSecurityHeaders::test_content_security_policy
+FAILED tests/unit/infrastructure/test_security_headers.py::TestSecurityHeaders::test_custom_settings
+ERROR tests/integration/bootstrap/test_composition.py::TestStartup::test_complete_application_startup
+ERROR tests/integration/bootstrap/test_composition.py::TestStartup::test_every_port_resolves
+ERROR tests/integration/bootstrap/test_composition.py::TestStartup::test_use_cases_resolve_from_di
+ERROR tests/integration/bootstrap/test_composition.py::TestDependencyGraph::test_full_flow_through_wired_graph
+ERROR tests/integration/bootstrap/test_composition.py::TestDependencyGraph::test_unit_of_work_factory_produces_working_uow
+ERROR tests/integration/scanner/test_nuclei_integration.py::TestRealSubprocess::test_findings_are_parsed_from_real_process
+ERROR tests/integration/scanner/test_nuclei_integration.py::TestRealSubprocess::test_empty_output_is_no_findings
+ERROR tests/integration/scanner/test_nuclei_integration.py::TestRealSubprocess::test_nonzero_exit_raises_scanner_error
+ERROR tests/integration/scanner/test_nuclei_integration.py::TestRealSubprocess::test_timeout_raises_scanner_error
+ERROR tests/integration/scanner/test_nuclei_integration.py::TestEndToEndSlice::test_full_scan_and_persist

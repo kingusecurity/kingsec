@@ -1,8 +1,13 @@
-"""Builders shared by persistence unit tests."""
+"""Builders and fixtures shared by persistence integration tests."""
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
+
+import io
+
+import pytest
 
 from kingsec.domain import (
     Assessment,
@@ -13,6 +18,15 @@ from kingsec.domain import (
     Severity,
     Target,
     TargetType,
+)
+from kingsec.infrastructure.config.models import LoggingSettings
+from kingsec.infrastructure.logging import configure_logging
+from kingsec.infrastructure.persistence import (
+    SqlAlchemyAssessmentRepository,
+    SqlAlchemyReportRepository,
+    create_database_engine,
+    create_schema,
+    create_session_factory,
 )
 
 
@@ -40,3 +54,35 @@ def completed_assessment() -> Assessment:
 
     assessment.complete()
     return assessment
+
+
+@pytest.fixture(autouse=True)
+def quiet_logging() -> None:
+    configure_logging(
+        LoggingSettings(level="INFO", json_format=True), stream=io.StringIO()
+    )
+
+
+@pytest.fixture
+def engine(tmp_path: Path):
+    eng = create_database_engine(url=f"sqlite:///{tmp_path / 'kingsec.db'}")
+    create_schema(eng)
+    try:
+        yield eng
+    finally:
+        eng.dispose()
+
+
+@pytest.fixture
+def session_factory(engine):
+    return create_session_factory(engine)
+
+
+@pytest.fixture
+def assessment_repo(session_factory) -> SqlAlchemyAssessmentRepository:
+    return SqlAlchemyAssessmentRepository(session_factory)
+
+
+@pytest.fixture
+def report_repo(session_factory) -> SqlAlchemyReportRepository:
+    return SqlAlchemyReportRepository(session_factory)

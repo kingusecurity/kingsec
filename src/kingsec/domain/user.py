@@ -32,7 +32,8 @@ class UserNotFoundError(UserError):
     """Raised when a user lookup fails."""
 
     def __init__(self, identifier: str) -> None:
-        super().__init__(f"user not found: {identifier}", context={"identifier": identifier})
+        super().__init__(f"user not found: {identifier}")
+        self.context: dict[str, str] = {"identifier": identifier}
 
 
 class InvalidCredentialsError(UserError):
@@ -46,10 +47,8 @@ class UserDisabledError(UserError):
     """Raised when a disabled user attempts to authenticate."""
 
     def __init__(self, username: str) -> None:
-        super().__init__(
-            f"account disabled: {username}",
-            context={"username": username},
-        )
+        super().__init__(f"account disabled: {username}")
+        self.context: dict[str, str] = {"username": username}
 
 
 class PasswordValidationError(UserError):

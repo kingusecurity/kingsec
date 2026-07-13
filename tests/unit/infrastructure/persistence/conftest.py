@@ -10,10 +10,21 @@ from __future__ import annotations
 
 import io
 from collections.abc import Iterator
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
+from kingsec.domain import (
+    Assessment,
+    Authorization,
+    Evidence,
+    Finding,
+    Recommendation,
+    Severity,
+    Target,
+    TargetType,
+)
 from kingsec.infrastructure.config.models import LoggingSettings
 from kingsec.infrastructure.logging import configure_logging
 from kingsec.infrastructure.persistence import (
@@ -23,6 +34,35 @@ from kingsec.infrastructure.persistence import (
     create_schema,
     create_session_factory,
 )
+
+
+def utc() -> datetime:
+    """Return a timezone-aware UTC datetime (fixed, for deterministic tests)."""
+    return datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+def completed_assessment() -> Assessment:
+    """Build a fully completed Assessment with 2 findings for mapper tests.
+
+    Lifecycle: DRAFT -> AUTHORIZED -> RUNNING -> COMPLETED.
+    Findings:
+        - CRITICAL "SQL Injection" with 1 evidence + 1 recommendation (CONFIRMED)
+        - LOW "Missing headers" (OPEN)
+    """
+    assessment = Assessment.create(Target("10.0.0.5", TargetType.IP_ADDRESS))
+    assessment.authorize(Authorization("tester", utc(), scope="10.0.0.5"))
+    assessment.start()
+
+    sqli = Finding.create("SQL Injection", "injectable param", Severity.CRITICAL)
+    sqli.add_evidence(Evidence("payload", "matched http://10.0.0.5", utc()))
+    sqli.add_recommendation(Recommendation("Fix SQLi", "use params", Severity.CRITICAL))
+    sqli.confirm()
+    assessment.record_finding(sqli)
+
+    assessment.record_finding(Finding.create("Missing headers", "no CSP", Severity.LOW))
+
+    assessment.complete()
+    return assessment
 
 
 @pytest.fixture(autouse=True)
