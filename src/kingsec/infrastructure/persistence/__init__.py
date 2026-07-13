@@ -4,7 +4,8 @@ Implements the application's repository ports using SQLAlchemy 2.x + SQLite,
 following the Data Mapper pattern (ORM models kept separate from the pure domain).
 
 Public API
-    Engine/session:  create_database_engine, create_session_factory, create_schema
+    Engine/session:  create_database_engine, create_session_factory, create_schema,
+                     validate_schema_version
     Repositories:    SqlAlchemyAssessmentRepository, SqlAlchemyReportRepository,
                     SqlAlchemyAuditRepository
     ORM base:        Base
@@ -19,6 +20,7 @@ from .database import (
     create_database_engine,
     create_schema,
     create_session_factory,
+    validate_schema_version,
 )
 from .models import Base
 from .provisioning import register_persistence
@@ -26,15 +28,20 @@ from .repositories import (
     SqlAlchemyAssessmentRepository,
     SqlAlchemyReportRepository,
 )
+from .unit_of_work import SqlAlchemyUnitOfWork, SqlAlchemyUnitOfWorkFactory, register_unit_of_work
 
 __all__ = [
     "Base",
     "SqlAlchemyAssessmentRepository",
     "SqlAlchemyAuditRepository",
     "SqlAlchemyReportRepository",
+    "SqlAlchemyUnitOfWork",
+    "SqlAlchemyUnitOfWorkFactory",
     "build_sqlite_url",
     "create_database_engine",
     "create_schema",
     "create_session_factory",
     "register_persistence",
+    "register_unit_of_work",
+    "validate_schema_version",
 ]

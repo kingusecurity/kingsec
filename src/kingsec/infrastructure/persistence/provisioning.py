@@ -16,7 +16,7 @@ from sqlalchemy import Engine
 from kingsec.application import AssessmentRepository, ReportRepository
 from kingsec.infrastructure.logging import get_logger
 
-from .database import create_database_engine, create_schema, create_session_factory
+from .database import create_database_engine, create_session_factory, validate_schema_version
 from .repositories import SqlAlchemyAssessmentRepository, SqlAlchemyReportRepository
 
 if TYPE_CHECKING:  # typing only
@@ -42,25 +42,38 @@ def register_persistence(
     settings: "Settings",
     *,
     engine: Engine | None = None,
+    validate_migrations: bool = True,
 ) -> Engine:
-    """Create the engine/schema and register repositories on the container.
+    """Create the engine, optionally validate migrations, and register repositories.
 
-    Binds the port types (``AssessmentRepository``, ``ReportRepository``) to their
-    SQLite implementations, and registers ``engine.dispose`` as a shutdown hook so
-    the connection pool is released cleanly when the application stops.
+    In production (``validate_migrations=True``), the database MUST already be
+    migrated via ``alembic upgrade head``. This function validates that the
+    ``alembic_version`` table exists and has a recorded version; if not, it
+    raises ``RuntimeError`` with remediation instructions.
+
+    In tests (``validate_migrations=False``), schema creation via
+    ``create_schema(engine)`` should be called before this function. This
+    skips the Alembic version check.
 
     Args:
         container: The bootstrap DI container (structurally typed).
         settings: Application settings used to locate the SQLite database.
         engine: An optional pre-built engine (useful for tests). If omitted, one
             is created from ``settings``.
+        validate_migrations: Whether to verify the Alembic version table.
+            Pass ``False`` in tests that use ``create_schema()`` directly.
 
     Returns:
         The engine that was created/used, for the caller's reference.
+
+    Raises:
+        RuntimeError: If ``validate_migrations`` is True and the database has
+            not been migrated via Alembic.
     """
 
     engine = engine or create_database_engine(settings=settings)
-    create_schema(engine)
+    if validate_migrations:
+        validate_schema_version(engine)
     session_factory = create_session_factory(engine)
 
     container.register_instance(

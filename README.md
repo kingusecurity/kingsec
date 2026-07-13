@@ -23,6 +23,55 @@ make check
 ```
 Run `make help` to list all developer tasks.
 
+## Database Migrations (Alembic)
+
+KingSec uses Alembic for versioned database migrations. The migration chain is the source of truth for schema changes — never use `create_all()` in production.
+
+### First-time setup
+```bash
+# Apply all migrations to create the schema
+alembic upgrade head
+```
+
+> **Startup validation:** The application validates that the database has been migrated at startup. If `alembic_version` is missing, it raises `RuntimeError` with instructions to run `alembic upgrade head`. The application will NOT call `create_all()` — use Alembic exclusively for schema management.
+
+### Common commands
+```bash
+# Apply all pending migrations
+alembic upgrade head
+
+# Roll back one migration
+alembic downgrade -1
+
+# Roll back to the beginning
+alembic downgrade base
+
+# Show current migration version
+alembic current
+
+# Show migration history
+alembic history --verbose
+
+# Auto-generate a migration after model changes
+alembic revision --autogenerate -m "description of changes"
+
+# Create an empty migration (manual SQL)
+alembic revision -m "description of changes"
+```
+
+### Environment variables
+| Variable | Purpose |
+|---|---|
+| `ALEMBIC_DATABASE_URL` | Override database URL (highest precedence) |
+| `KINGSEC_STORAGE__DATABASE_URL` | PostgreSQL / external database URL |
+| `KINGSEC_STORAGE__DATA_DIR` | SQLite data directory (default: `~/.kingsec`) |
+
+### Troubleshooting
+- **"No 'script_location' key found"**: Run commands from the project root (`kingsec/`).
+- **"No changes detected" after model change**: Ensure the model is imported in `env.py` (it loads `models.py` directly via `importlib.util`).
+- **SQLite foreign key errors**: The engine enables `PRAGMA foreign_keys=ON` automatically.
+- **Downgrade leaves `alembic_version` table**: This is expected — Alembic tracks its version in this table.
+
 ## Layout
 See [`docs/FOUNDATION.md`](docs/FOUNDATION.md) sections 2-3 for the full folder tree and the rationale for each directory.
 

@@ -23,15 +23,15 @@ from typing import Any
 from kingsec.domain import AssessmentId, Finding
 from kingsec.domain.audit import AuditAction, AuditEntry
 
-from .._support import to_assessment_id
-from ..dto import SubmitAssessmentRequest, SubmitAssessmentResponse
-from ..events import (
+from ._support import to_assessment_id
+from .dto import SubmitAssessmentRequest, SubmitAssessmentResponse
+from .events import (
     AssessmentEvent,
     EVENT_ASSESSMENT_COMPLETED,
     EVENT_ASSESSMENT_FAILED,
     EVENT_ASSESSMENT_RUNNING,
 )
-from ..ports import AIPort, AssessmentRepository, AuditPublisher, EventPublisher, JobRunner, ScannerPort
+from .ports import AIPort, AssessmentRepository, AuditPublisher, EventPublisher, JobRunner, ScannerPort
 
 
 class SubmitAssessment:

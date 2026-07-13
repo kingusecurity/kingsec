@@ -111,12 +111,50 @@ def create_session_factory(engine: Engine) -> sessionmaker[Session]:
 def create_schema(engine: Engine) -> None:
     """Create all tables if they do not already exist.
 
-    This is the bootstrap-time schema setup. A future module will replace this
-    with versioned Alembic migrations; for now ``create_all`` is sufficient and
-    idempotent.
+    .. deprecated::
+        Retained for test fixtures and quick-start scenarios only.
+        Production deployments MUST use ``alembic upgrade head`` instead.
 
     Args:
         engine: The engine whose database the schema is created in.
     """
 
     Base.metadata.create_all(engine)
+
+
+def validate_schema_version(engine: Engine) -> None:
+    """Verify that the database has been migrated via Alembic.
+
+    Checks for the ``alembic_version`` table and a recorded version. Raises
+    ``RuntimeError`` with a clear remediation message if the database appears
+    unmigrated — this prevents the application from starting with a stale or
+    empty schema.
+
+    Args:
+        engine: The engine connected to the target database.
+
+    Raises:
+        RuntimeError: If ``alembic_version`` is missing or has no version row.
+    """
+
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+
+    if "alembic_version" not in inspector.get_table_names():
+        raise RuntimeError(
+            "Database schema is not up to date.\n"
+            "Run:\n"
+            "  alembic upgrade head"
+        )
+
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1"))
+        row = result.fetchone()
+
+    if row is None:
+        raise RuntimeError(
+            "Database schema is not up to date.\n"
+            "Run:\n"
+            "  alembic upgrade head"
+        )

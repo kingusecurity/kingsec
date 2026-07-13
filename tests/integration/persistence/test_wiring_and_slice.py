@@ -26,6 +26,7 @@ from kingsec.infrastructure.persistence import (
     SqlAlchemyAssessmentRepository,
     SqlAlchemyReportRepository,
     create_database_engine,
+    create_schema,
     register_persistence,
 )
 
@@ -44,8 +45,9 @@ class TestContainerWiring:
     def test_register_persistence_binds_ports(self, tmp_path: Path) -> None:
         container = Container()
         engine = create_database_engine(url=f"sqlite:///{tmp_path / 'k.db'}")
+        create_schema(engine)
 
-        register_persistence(container, Settings(), engine=engine)
+        register_persistence(container, Settings(), engine=engine, validate_migrations=False)
 
         # Ports resolve to the SQLite adapters.
         assert isinstance(
@@ -58,7 +60,8 @@ class TestContainerWiring:
     def test_shutdown_hook_disposes_engine(self, tmp_path: Path) -> None:
         container = Container()
         engine = create_database_engine(url=f"sqlite:///{tmp_path / 'k.db'}")
-        register_persistence(container, Settings(), engine=engine)
+        create_schema(engine)
+        register_persistence(container, Settings(), engine=engine, validate_migrations=False)
 
         # Running shutdown hooks should dispose the engine's pool without error.
         container.run_shutdown_hooks()
@@ -70,7 +73,8 @@ class TestEndToEndSlice:
     def test_full_vertical_slice(self, tmp_path: Path) -> None:
         container = Container()
         engine = create_database_engine(url=f"sqlite:///{tmp_path / 'k.db'}")
-        register_persistence(container, Settings(), engine=engine)
+        create_schema(engine)
+        register_persistence(container, Settings(), engine=engine, validate_migrations=False)
 
         assessments = container.resolve(AssessmentRepository)
         reports = container.resolve(ReportRepository)
