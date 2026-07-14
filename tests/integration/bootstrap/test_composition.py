@@ -31,6 +31,11 @@ from kingsec.bootstrap import Application
 from kingsec.bootstrap.composition import create_wired_application
 from kingsec.domain import Finding, Severity, Target
 
+from kingsec.infrastructure.persistence import (
+    create_database_engine,
+    create_schema,
+)
+
 _SRC = pathlib.Path(__file__).resolve().parents[3] / "src" / "kingsec"
 
 
@@ -38,7 +43,15 @@ _SRC = pathlib.Path(__file__).resolve().parents[3] / "src" / "kingsec"
 def wired_app(tmp_path, monkeypatch) -> Application:
     # Point persistence at a temp DB and keep logs out of the console.
     monkeypatch.setenv("KINGSEC_STORAGE__DATA_DIR", str(tmp_path))
-    return create_wired_application(log_stream=io.StringIO(), ensure_directories=False)
+    # Create the schema so the app can operate without Alembic migrations.
+    engine = create_database_engine(url=f"sqlite:///{tmp_path / 'kingsec.db'}")
+    create_schema(engine)
+    engine.dispose()
+    return create_wired_application(
+        log_stream=io.StringIO(),
+        ensure_directories=False,
+        validate_migrations=False,
+    )
 
 
 class _StubScanner(ScannerPort):
@@ -135,7 +148,16 @@ class TestShutdown:
         monkeypatch.setattr(httpx.Client, "close", spy_close)
         monkeypatch.setenv("KINGSEC_STORAGE__DATA_DIR", str(tmp_path))
 
-        app = create_wired_application(log_stream=io.StringIO(), ensure_directories=False)
+        # Create the schema so the app can operate without Alembic migrations.
+        engine = create_database_engine(url=f"sqlite:///{tmp_path / 'kingsec.db'}")
+        create_schema(engine)
+        engine.dispose()
+
+        app = create_wired_application(
+            log_stream=io.StringIO(),
+            ensure_directories=False,
+            validate_migrations=False,
+        )
         app.start()
         app.stop()
 

@@ -70,6 +70,7 @@ def create_wired_application(
     ensure_directories: bool = True,
     report_format: str = "pdf",
     brand_name: str = "KingSec",
+    validate_migrations: bool = True,
 ) -> Application:
     """Compose a fully wired, production-ready application.
 
@@ -84,6 +85,9 @@ def create_wired_application(
         ensure_directories: Whether ``start()`` should create the data directory.
         report_format: Report deliverable format, ``"pdf"`` (default) or ``"html"``.
         brand_name: Company-branding placeholder used in reports.
+        validate_migrations: Whether to verify the Alembic schema version at
+            startup. Pass ``False`` in tests that create a fresh database via
+            ``create_schema()`` instead of ``alembic upgrade head``.
 
     Returns:
         A wired :class:`Application` with every port and use case registered.
@@ -94,7 +98,12 @@ def create_wired_application(
         log_stream=log_stream,
         ensure_directories=ensure_directories,
     )
-    _register_adapters(app, report_format=report_format, brand_name=brand_name)
+    _register_adapters(
+        app,
+        report_format=report_format,
+        brand_name=brand_name,
+        validate_migrations=validate_migrations,
+    )
     _register_use_cases(app.container)
     app.logger.info(
         "application composed",
@@ -105,7 +114,11 @@ def create_wired_application(
 
 
 def _register_adapters(
-    app: Application, *, report_format: str, brand_name: str
+    app: Application,
+    *,
+    report_format: str,
+    brand_name: str,
+    validate_migrations: bool = True,
 ) -> None:
     """Bind every port to its concrete adapter on the container."""
 
@@ -114,7 +127,9 @@ def _register_adapters(
 
     # Persistence first: it builds the engine + schema and adds the
     # engine.dispose shutdown hook. The Unit of Work shares that engine.
-    engine = register_persistence(container, settings)
+    engine = register_persistence(
+        container, settings, validate_migrations=validate_migrations
+    )
     session_factory = create_session_factory(engine)
     register_unit_of_work(container, session_factory)
 
