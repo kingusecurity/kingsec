@@ -29,7 +29,7 @@ class TestCreateAssessmentBody:
         assert body.target_type == "ip_address"
 
     def test_empty_target_value_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="min_length"):
+        with pytest.raises(ValidationError, match="string_too_short"):
             CreateAssessmentBody(
                 target_value="",
                 target_type="ip_address",
@@ -38,7 +38,7 @@ class TestCreateAssessmentBody:
             )
 
     def test_empty_target_type_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="min_length"):
+        with pytest.raises(ValidationError, match="string_too_short"):
             CreateAssessmentBody(
                 target_value="10.0.0.5",
                 target_type="",
@@ -47,7 +47,7 @@ class TestCreateAssessmentBody:
             )
 
     def test_empty_authorized_by_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="min_length"):
+        with pytest.raises(ValidationError, match="string_too_short"):
             CreateAssessmentBody(
                 target_value="10.0.0.5",
                 target_type="ip_address",
@@ -56,7 +56,7 @@ class TestCreateAssessmentBody:
             )
 
     def test_empty_scope_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="min_length"):
+        with pytest.raises(ValidationError, match="string_too_short"):
             CreateAssessmentBody(
                 target_value="10.0.0.5",
                 target_type="ip_address",
@@ -75,7 +75,7 @@ class TestCreateAssessmentBody:
             )
 
     def test_missing_required_field(self) -> None:
-        with pytest.raises(ValidationError, match="field required"):
+        with pytest.raises(ValidationError, match="Field required"):
             CreateAssessmentBody(
                 target_value="10.0.0.5",
             )
@@ -134,18 +134,18 @@ class TestStartAssessmentResponse:
         resp = StartAssessmentResponse(
             assessment_id="asmt-001",
             status="completed",
-            findings_count=3,
-            highest_severity="high",
+            job_id="job-001",
         )
-        assert resp.findings_count == 3
+        assert resp.assessment_id == "asmt-001"
+        assert resp.status == "completed"
+        assert resp.job_id == "job-001"
 
-    def test_highest_severity_optional(self) -> None:
+    def test_job_id_optional(self) -> None:
         resp = StartAssessmentResponse(
             assessment_id="asmt-001",
             status="completed",
-            findings_count=0,
         )
-        assert resp.highest_severity is None
+        assert resp.job_id is None
 
 
 class TestSeverityCountResponse:
