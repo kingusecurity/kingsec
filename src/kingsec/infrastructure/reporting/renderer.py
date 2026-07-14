@@ -80,7 +80,7 @@ class ReportRenderer:
             # Lazy import: only needed for PDF, and keeps the heavy dependency
             # out of the import path for HTML-only use.
             from weasyprint import HTML  # noqa: PLC0415 - intentional lazy import
-        except ImportError as exc:
+        except (ImportError, OSError) as exc:
             raise ReportGenerationError(
                 "PDF rendering library is not available", cause=exc
             ) from exc
