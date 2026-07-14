@@ -11,6 +11,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from kingsec.adapters.inbound.web.auth import CurrentUser, get_current_user, require_analyst, require_viewer
 from kingsec.adapters.inbound.web.dependencies import get_service
 from kingsec.application.dto import (
     AssessmentSummary,
@@ -33,7 +34,29 @@ from kingsec.application.dto import (
     SubmitAssessmentRequest,
     SubmitAssessmentResponse,
 )
+from datetime import datetime, timezone
+
+from kingsec.application.ports import TokenClaims
 from kingsec.application.ports.inbound.service_api import ServiceAPI
+from kingsec.domain import Role
+
+
+def _make_fake_user() -> CurrentUser:
+    now = datetime.now(timezone.utc)
+    return CurrentUser(
+        user_id="user-001",
+        username="testuser",
+        role=Role.ANALYST,
+        claims=TokenClaims(
+            user_id="user-001",
+            username="testuser",
+            role="analyst",
+            token_type="access",
+            jti="jti-test-001",
+            issued_at=now,
+            expires_at=now,
+        ),
+    )
 
 
 class _IntegrationService(ServiceAPI):
@@ -165,6 +188,11 @@ def _build_app() -> FastAPI:
     register_error_handlers(app)
     app.include_router(router)
     app.dependency_overrides[get_service] = lambda: service
+
+    fake_user = _make_fake_user()
+    app.dependency_overrides[get_current_user] = lambda: fake_user
+    app.dependency_overrides[require_analyst] = lambda: fake_user
+    app.dependency_overrides[require_viewer] = lambda: fake_user
 
     return app
 

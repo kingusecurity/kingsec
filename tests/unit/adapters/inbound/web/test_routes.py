@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from kingsec.adapters.inbound.web.app import create_fastapi_app
+from kingsec.adapters.inbound.web.auth import CurrentUser, get_current_user, require_analyst, require_viewer
 from kingsec.adapters.inbound.web.dependencies import get_service
 from kingsec.application.dto import (
     AssessmentSummary,
@@ -32,9 +33,31 @@ from kingsec.application.dto import (
     SubmitAssessmentRequest,
     SubmitAssessmentResponse,
 )
+from datetime import datetime, timezone
+
+from kingsec.application.ports import TokenClaims
 from kingsec.application.ports.inbound.service_api import ServiceAPI
 from kingsec.bootstrap.application import Application
+from kingsec.domain import Role
 from kingsec.infrastructure.config import Settings
+
+
+def _make_fake_user() -> CurrentUser:
+    now = datetime.now(timezone.utc)
+    return CurrentUser(
+        user_id="user-001",
+        username="testuser",
+        role=Role.ANALYST,
+        claims=TokenClaims(
+            user_id="user-001",
+            username="testuser",
+            role="analyst",
+            token_type="access",
+            jti="jti-test-001",
+            issued_at=now,
+            expires_at=now,
+        ),
+    )
 
 
 # --- Stub ServiceAPI ---------------------------------------------------------
@@ -188,6 +211,11 @@ def client(stub_service: StubServiceAPI) -> TestClient:
     register_error_handlers(app)
     app.include_router(router)
     app.dependency_overrides[get_service] = lambda: stub_service
+
+    fake_user = _make_fake_user()
+    app.dependency_overrides[get_current_user] = lambda: fake_user
+    app.dependency_overrides[require_analyst] = lambda: fake_user
+    app.dependency_overrides[require_viewer] = lambda: fake_user
 
     return TestClient(app, raise_server_exceptions=False)
 
@@ -356,6 +384,11 @@ class TestErrorHandling:
         app.include_router(router)
         app.dependency_overrides[get_service] = lambda: _FailingService()
 
+        fake_user = _make_fake_user()
+        app.dependency_overrides[get_current_user] = lambda: fake_user
+        app.dependency_overrides[require_analyst] = lambda: fake_user
+        app.dependency_overrides[require_viewer] = lambda: fake_user
+
         client = TestClient(app, raise_server_exceptions=False)
         resp = client.get("/api/v1/assessments/asmt-missing")
         assert resp.status_code == 404
@@ -417,6 +450,11 @@ class TestErrorHandling:
         app.include_router(router)
         app.dependency_overrides[get_service] = lambda: _FailingService()
 
+        fake_user = _make_fake_user()
+        app.dependency_overrides[get_current_user] = lambda: fake_user
+        app.dependency_overrides[require_analyst] = lambda: fake_user
+        app.dependency_overrides[require_viewer] = lambda: fake_user
+
         client = TestClient(app, raise_server_exceptions=False)
         resp = client.post("/api/v1/assessments/asmt-001/start")
         assert resp.status_code == 409
@@ -465,6 +503,11 @@ class TestErrorHandling:
         register_error_handlers(app)
         app.include_router(router)
         app.dependency_overrides[get_service] = lambda: _FailingService()
+
+        fake_user = _make_fake_user()
+        app.dependency_overrides[get_current_user] = lambda: fake_user
+        app.dependency_overrides[require_analyst] = lambda: fake_user
+        app.dependency_overrides[require_viewer] = lambda: fake_user
 
         client = TestClient(app, raise_server_exceptions=False)
         resp = client.get("/api/v1/assessments/asmt-001")
