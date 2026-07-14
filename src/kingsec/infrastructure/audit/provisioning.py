@@ -9,14 +9,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from kingsec.application.ports.outbound.audit_publisher import AuditPublisher
-from kingsec.bootstrap.container import Container
 from kingsec.infrastructure.persistence.audit_repository import SqlAlchemyAuditRepository
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import sessionmaker
 
 
-def register_audit(container: Container, session_factory: sessionmaker) -> None:
+def register_audit(container: object, session_factory: sessionmaker) -> None:
     """Register the audit repository on the container.
 
     Args:

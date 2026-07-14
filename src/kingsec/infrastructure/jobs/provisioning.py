@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 from kingsec.application.ports.outbound.job_runner import JobRunner
-from kingsec.bootstrap.container import Container
 
 from .thread_runner import ThreadJobRunner
 
 
-def register_jobs(container: Container, *, max_workers: int = 4) -> None:
+def register_jobs(container: object, *, max_workers: int = 4) -> None:
     """Register the job runner and add a shutdown hook.
 
     Args:

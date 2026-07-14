@@ -7,14 +7,13 @@ on the DI container. The composition root calls ``register_auth()``.
 from __future__ import annotations
 
 from kingsec.application.ports import PasswordHasher, TokenService, UserRepository
-from kingsec.bootstrap.container import Container
 from kingsec.infrastructure.config.settings import Settings
 
 from .jwt_service import JWTTokenService
 from ..persistence.user_repository import SqlAlchemyUserRepository
 
 
-def register_auth(container: Container, settings: Settings) -> None:
+def register_auth(container: object, settings: Settings) -> None:
     """Register authentication adapters on the container.
 
     Args:
@@ -30,7 +29,7 @@ def register_auth(container: Container, settings: Settings) -> None:
     container.register_instance(TokenService, jwt_service)
 
 
-def register_user_repository(container: Container, session_factory: callable) -> None:
+def register_user_repository(container: object, session_factory: callable) -> None:
     """Register the user repository on the container.
 
     Args:
