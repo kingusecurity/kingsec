@@ -15,6 +15,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from kingsec.adapters.inbound.web.auth import CurrentUser
+from kingsec.application import Login, RefreshToken, RegisterUser
 from kingsec.application.ports import TokenClaims, TokenService
 from kingsec.domain import Role, User
 
@@ -139,6 +140,12 @@ def _build_app() -> tuple[FastAPI, StubTokenService, StubUserRepo]:
                 return user_repo
             if service_type == PasswordHasher:
                 return hasher
+            if service_type == RegisterUser:
+                return RegisterUser(user_repo, hasher)
+            if service_type == Login:
+                return Login(user_repo, hasher, token_service)
+            if service_type == RefreshToken:
+                return RefreshToken(user_repo, token_service)
             raise ValueError(f"Unknown service: {service_type}")
 
     app.state.kingsec_app = _StubApp()  # type: ignore[attr-defined]
