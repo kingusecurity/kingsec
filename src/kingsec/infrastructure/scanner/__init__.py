@@ -7,6 +7,7 @@ Public API
     Adapter:      NucleiScannerAdapter
     Runner:       CommandRunner, SubprocessCommandRunner, CommandResult
     Parser:       parse_nuclei_jsonl
+    Registry:     InMemoryPluginRegistry
     Errors:       ScannerExecutionError, ScannerOutputError
     DI wiring:    register_scanner
 """
@@ -17,11 +18,13 @@ from .errors import ScannerExecutionError, ScannerOutputError
 from .nuclei import NucleiScannerAdapter
 from .parser import parse_nuclei_jsonl
 from .provisioning import register_scanner
+from .registry import InMemoryPluginRegistry
 from .runner import CommandResult, CommandRunner, SubprocessCommandRunner
 
 __all__ = [
     "CommandResult",
     "CommandRunner",
+    "InMemoryPluginRegistry",
     "NucleiScannerAdapter",
     "ScannerExecutionError",
     "ScannerOutputError",
