@@ -10,9 +10,11 @@ Public API
     Value objects
         AssessmentId, FindingId, Target, TargetType, Authorization,
         Evidence, Recommendation, Report, Verdict, FindingSummary,
-        AuditEntry
+        AuditEntry, ScannerId, ScannerPluginMetadata, ScannerCapability,
+        PluginConfig, PluginAvailability, ScannerResult
     Enums
-        Severity, AssessmentStatus, FindingStatus, Role, AuditAction
+        Severity, AssessmentStatus, FindingStatus, Role, AuditAction,
+        ScanCategory, OutputFormat
     Errors
         DomainError, InvariantViolation, IllegalStateTransition,
         UserError, UserNotFoundError, InvalidCredentialsError,
@@ -30,6 +32,16 @@ from .evidence import Evidence, Recommendation
 from .finding import Finding
 from .identifiers import AssessmentId, FindingId
 from .report import FindingSummary, Report, Verdict
+from .scanner import (
+    OutputFormat,
+    PluginAvailability,
+    PluginConfig,
+    ScanCategory,
+    ScannerCapability,
+    ScannerId,
+    ScannerPluginMetadata,
+    ScannerResult,
+)
 from .target import Target, TargetType
 from .user import (
     InvalidCredentialsError,
@@ -56,10 +68,18 @@ __all__ = [
     "IllegalStateTransition",
     "InvariantViolation",
     "InvalidCredentialsError",
+    "OutputFormat",
     "PasswordValidationError",
+    "PluginAvailability",
+    "PluginConfig",
     "Recommendation",
     "Report",
     "Role",
+    "ScanCategory",
+    "ScannerCapability",
+    "ScannerId",
+    "ScannerPluginMetadata",
+    "ScannerResult",
     "Severity",
     "Target",
     "TargetType",
