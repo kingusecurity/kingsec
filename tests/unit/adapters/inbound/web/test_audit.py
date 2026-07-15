@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 
 from kingsec.domain.audit import AuditAction, AuditEntry
 
@@ -90,7 +91,7 @@ class TestAuditContextMiddleware:
         app.add_middleware(AuditContextMiddleware)
 
         @app.get("/test")
-        async def test_endpoint(request):
+        async def test_endpoint(request: Request):
             return {
                 "ip": getattr(request.state, "audit_ip", None),
                 "user_agent": getattr(request.state, "audit_user_agent", None),
@@ -113,7 +114,7 @@ class TestAuditContextMiddleware:
         app.add_middleware(CorrelationIDMiddleware)
 
         @app.get("/test")
-        async def test_endpoint(request):
+        async def test_endpoint(request: Request):
             return {
                 "correlation_id": getattr(request.state, "audit_correlation_id", None),
                 "request_id": getattr(request.state, "request_id", None),

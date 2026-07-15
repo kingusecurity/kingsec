@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -9,10 +10,18 @@ import pytest
 from kingsec.infrastructure.config import Environment, LogLevel, load_settings
 
 
+def _clean_kingsec_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Remove all KINGSEC_* vars so code defaults are actually tested."""
+    for key in list(os.environ):
+        if key.upper().startswith("KINGSEC_"):
+            monkeypatch.delenv(key, raising=False)
+
+
 class TestDefaults:
     """With no configuration provided, the safe defaults must hold."""
 
-    def test_secure_defaults_are_applied(self) -> None:
+    def test_secure_defaults_are_applied(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _clean_kingsec_env(monkeypatch)
         settings = load_settings()
 
         # Security guardrails: loopback bind + authorization gate ON.
@@ -61,7 +70,10 @@ class TestEnvironmentOverrides:
 class TestDotEnvLoading:
     """A .env file must be read, and real env vars must win over it."""
 
-    def test_values_loaded_from_dotenv(self, tmp_path: Path) -> None:
+    def test_values_loaded_from_dotenv(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _clean_kingsec_env(monkeypatch)
         env_file = tmp_path / ".env"
         env_file.write_text(
             "KINGSEC_SERVER__PORT=5555\nKINGSEC_APP__ENVIRONMENT=testing\n",

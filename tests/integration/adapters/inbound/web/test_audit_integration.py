@@ -12,7 +12,6 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.infrastructure.persistence.audit_repository import SqlAlchemyAuditRepository
@@ -20,12 +19,12 @@ from kingsec.infrastructure.persistence.models import Base
 
 
 @pytest.fixture()
-def engine():
-    """Create an in-memory SQLite engine shared across threads."""
+def engine(tmp_path):
+    """Create a file-backed SQLite engine for thread-safe concurrent access."""
+    db_path = tmp_path / "test_audit.db"
     eng = create_engine(
-        "sqlite:///:memory:",
+        f"sqlite:///{db_path}",
         connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
         future=True,
     )
 

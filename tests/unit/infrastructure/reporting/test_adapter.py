@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import sys
+import types
+from unittest.mock import MagicMock
+
 import pytest
 
 from kingsec.application import RenderedReport, ReportGeneratorPort
@@ -13,6 +17,26 @@ from kingsec.infrastructure.reporting import (
     register_reporting,
 )
 from tests.unit.infrastructure.reporting.conftest import build_report
+
+
+def _inject_fake_weasyprint(monkeypatch, *, write_pdf_exc: Exception | None = None):
+    """Inject a fake weasyprint module so the renderer's lazy import succeeds.
+
+    The fake ``HTML`` class either raises ``write_pdf_exc`` from ``write_pdf``
+    (if provided) or returns a minimal bytes object.
+    """
+    fake_module = types.ModuleType("weasyprint")
+
+    class _FakeHTML:
+        def __init__(self, *a, **k) -> None: ...
+
+        def write_pdf(self, *a, **k):
+            if write_pdf_exc is not None:
+                raise write_pdf_exc
+            return b"%PDF-fake"
+
+    fake_module.HTML = _FakeHTML  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "weasyprint", fake_module)
 
 
 class TestRendererErrorTranslation:
@@ -31,29 +55,13 @@ class TestRendererErrorTranslation:
 
     def test_pdf_library_error_becomes_report_error(self, monkeypatch) -> None:
         renderer = ReportRenderer()
-
-        # Simulate the rendering library raising during PDF conversion. Patch the
-        # library itself so the failure occurs at the real translation boundary.
-        class _BadHTML:
-            def __init__(self, *a, **k) -> None: ...
-
-            def write_pdf(self, *a, **k):
-                raise RuntimeError("weasy fail")
-
-        monkeypatch.setattr("weasyprint.HTML", _BadHTML)
+        _inject_fake_weasyprint(monkeypatch, write_pdf_exc=RuntimeError("weasy fail"))
         with pytest.raises(ReportGenerationError):
             renderer.to_pdf(build_report())
 
     def test_no_library_exception_escapes(self, monkeypatch) -> None:
         renderer = ReportRenderer()
-
-        class _BadHTML:
-            def __init__(self, *a, **k) -> None: ...
-
-            def write_pdf(self, *a, **k):
-                raise ValueError("x")
-
-        monkeypatch.setattr("weasyprint.HTML", _BadHTML)
+        _inject_fake_weasyprint(monkeypatch, write_pdf_exc=ValueError("x"))
         try:
             renderer.to_pdf(build_report())
         except ReportGenerationError:

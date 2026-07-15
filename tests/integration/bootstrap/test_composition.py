@@ -39,6 +39,22 @@ from kingsec.infrastructure.persistence import (
 _SRC = pathlib.Path(__file__).resolve().parents[3] / "src" / "kingsec"
 
 
+def _weasyprint_available() -> bool:
+    """Return True only if WeasyPrint can actually render PDFs."""
+    try:
+        from weasyprint import HTML
+        HTML(string="<p>test</p>").write_pdf()
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+needs_weasyprint = pytest.mark.skipif(
+    not _weasyprint_available(),
+    reason="WeasyPrint native dependencies (GTK/Pango) are not available",
+)
+
+
 @pytest.fixture
 def wired_app(tmp_path, monkeypatch) -> Application:
     # Point persistence at a temp DB and keep logs out of the console.
@@ -94,6 +110,7 @@ class TestStartup:
 
 
 class TestDependencyGraph:
+    @needs_weasyprint
     def test_full_flow_through_wired_graph(self, wired_app: Application) -> None:
         with wired_app as app:
             # Override only the scanner (no nuclei binary available); everything
@@ -171,7 +188,7 @@ class TestArchitecture:
         # (bootstrap) knows concretes, but infrastructure must not depend on it.
         offenders: list[str] = []
         for path in (_SRC / "infrastructure").rglob("*.py"):
-            for node in ast.walk(ast.parse(path.read_text())):
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
                 names: list[str] = []
                 if isinstance(node, ast.Import):
                     names = [a.name for a in node.names]
@@ -184,7 +201,7 @@ class TestArchitecture:
     def test_application_never_imports_infrastructure(self) -> None:
         offenders: list[str] = []
         for path in (_SRC / "application").rglob("*.py"):
-            for node in ast.walk(ast.parse(path.read_text())):
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
                 names: list[str] = []
                 if isinstance(node, ast.Import):
                     names = [a.name for a in node.names]

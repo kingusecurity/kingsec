@@ -30,11 +30,13 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Content-Security-Policy"] = self._settings.content_security_policy
 
         if self._settings.remove_server_header:
-            response.headers.pop("server", None)
-            response.headers.pop("Server", None)
+            for key in ("server", "Server"):
+                if key in response.headers:
+                    del response.headers[key]
 
         if self._settings.remove_x_powered_by:
-            response.headers.pop("x-powered-by", None)
-            response.headers.pop("X-Powered-By", None)
+            for key in ("x-powered-by", "X-Powered-By"):
+                if key in response.headers:
+                    del response.headers[key]
 
         return response
