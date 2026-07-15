@@ -33,3 +33,41 @@ class AssessmentNotFoundError(ApplicationError):
 
 class ReportNotFoundError(ApplicationError):
     """No report exists for the requested assessment."""
+
+
+# ---------------------------------------------------------------------------
+# Scanner plugin framework errors
+# ---------------------------------------------------------------------------
+
+
+class ScannerPluginError(ApplicationError):
+    """Base class for all scanner plugin framework errors."""
+
+
+class ScannerUnavailableError(ScannerPluginError):
+    """A scanner plugin cannot execute because its dependency is missing."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        scanner_id: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.scanner_id = scanner_id
+
+
+class ScannerConfigError(ScannerPluginError):
+    """A scanner plugin received invalid configuration."""
+
+
+class ScannerVersionError(ScannerPluginError):
+    """A scanner plugin targets an incompatible API version."""
+
+
+class ScannerDuplicateError(ScannerPluginError):
+    """A scanner plugin with the same id is already registered."""
+
+
+class ScannerTimeoutError(ScannerPluginError):
+    """A scanner plugin exceeded its execution time limit."""
