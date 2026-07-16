@@ -304,6 +304,30 @@ class NiktoSettings(BaseModel):
         return value
 
 
+class GobusterSettings(BaseModel):
+    """Settings for the Gobuster directory enumerator.
+
+    Gobuster performs directory, DNS, and vhost brute-forcing. The binary
+    path, wordlist, and scan timeout are operator-controlled.
+    """
+
+    model_config = _FROZEN
+
+    binary_path: str = "gobuster"
+    # Path to the wordlist file. Must be provided by the operator.
+    wordlist: str = ""
+    timeout_seconds: float = Field(default=600.0, gt=0)
+    # Scan arguments. The adapter appends dir -u <target> -w <wordlist>.
+    scan_args: tuple[str, ...] = ()
+
+    @field_validator("binary_path")
+    @classmethod
+    def _binary_path_not_empty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("gobuster binary_path must not be empty")
+        return value
+
+
 class FfufSettings(BaseModel):
     """Settings for the ffuf web fuzzer.
 

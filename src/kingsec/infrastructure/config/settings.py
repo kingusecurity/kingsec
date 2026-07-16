@@ -31,6 +31,7 @@ from .models import (
     AppSettings,
     CORSSettings,
     FfufSettings,
+    GobusterSettings,
     JWTSettings,
     LoggingSettings,
     MiddlewareSettings,
@@ -82,6 +83,7 @@ class Settings(BaseSettings):
     nmap: NmapSettings = Field(default_factory=NmapSettings)
     nikto: NiktoSettings = Field(default_factory=NiktoSettings)
     ffuf: FfufSettings = Field(default_factory=FfufSettings)
+    gobuster: GobusterSettings = Field(default_factory=GobusterSettings)
     security_headers: SecurityHeadersSettings = Field(default_factory=SecurityHeadersSettings)
     cors: CORSSettings = Field(default_factory=CORSSettings)
     rate_limit: RateLimitSettings = Field(default_factory=RateLimitSettings)
