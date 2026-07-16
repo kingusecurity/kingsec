@@ -5,12 +5,14 @@ via subprocess and parsing their output into domain findings.
 
 Public API
     Adapter:      NucleiScannerAdapter, NmapScannerAdapter, NiktoScannerAdapter,
-                  FfufScannerAdapter, GobusterScannerAdapter, AmassScannerAdapter
+                  FfufScannerAdapter, GobusterScannerAdapter, AmassScannerAdapter,
+                  TrivyScannerAdapter
     Plugin:       NucleiPlugin, NmapPlugin, NiktoPlugin, FfufPlugin, GobusterPlugin,
-                  AmassPlugin
+                  AmassPlugin, TrivyPlugin
     Runner:       CommandRunner, SubprocessCommandRunner, CommandResult
     Parser:       parse_nuclei_jsonl, parse_nmap_xml, parse_nikto_output,
-                  parse_ffuf_json, parse_gobuster_output, parse_amass_json
+                  parse_ffuf_json, parse_gobuster_output, parse_amass_json,
+                  parse_trivy_json
     Registry:     InMemoryPluginRegistry
     Orchestrator: ScannerOrchestrator
     Errors:       ScannerExecutionError, ScannerOutputError
@@ -39,9 +41,12 @@ from .plugins.gobuster import GobusterPlugin
 from .plugins.nikto import NiktoPlugin
 from .plugins.nmap import NmapPlugin
 from .plugins.nuclei import NucleiPlugin
+from .plugins.trivy import TrivyPlugin
 from .provisioning import register_scanner
 from .registry import InMemoryPluginRegistry
 from .runner import CommandResult, CommandRunner, SubprocessCommandRunner
+from .trivy import TrivyScannerAdapter
+from .trivy_parser import parse_trivy_json
 
 __all__ = [
     "AmassPlugin",
@@ -63,11 +68,14 @@ __all__ = [
     "ScannerOrchestrator",
     "ScannerOutputError",
     "SubprocessCommandRunner",
+    "TrivyPlugin",
+    "TrivyScannerAdapter",
     "parse_amass_json",
     "parse_ffuf_json",
     "parse_gobuster_output",
     "parse_nikto_output",
     "parse_nmap_xml",
     "parse_nuclei_jsonl",
+    "parse_trivy_json",
     "register_scanner",
 ]

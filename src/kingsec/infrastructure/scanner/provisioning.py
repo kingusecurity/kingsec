@@ -1,7 +1,7 @@
 """Dependency-injection wiring for the scanner.
 
 ``register_scanner`` creates scanner plugins (Nuclei, Nmap, Nikto, ffuf,
-Gobuster, Amass), registers them in the plugin registry, builds the
+Gobuster, Amass, Trivy), registers them in the plugin registry, builds the
 ``ScannerOrchestrator``, and binds it to ``ScannerPort`` on the container.
 It takes the container as a duck-typed object (needs only
 ``register_instance``) so infrastructure never imports the bootstrap layer.
@@ -21,6 +21,7 @@ from .plugins.gobuster import GobusterPlugin
 from .plugins.nikto import NiktoPlugin
 from .plugins.nmap import NmapPlugin
 from .plugins.nuclei import NucleiPlugin
+from .plugins.trivy import TrivyPlugin
 from .registry import InMemoryPluginRegistry
 from .runner import CommandRunner
 
@@ -38,9 +39,9 @@ def register_scanner(
 ) -> ScannerPort:
     """Register scanner plugins and bind the orchestrator to ``ScannerPort``.
 
-    Creates and registers Nuclei, Nmap, Nikto, ffuf, Gobuster, and Amass
-    plugins. Unavailable plugins (missing binary) are registered but will
-    raise on scan — the orchestrator handles this gracefully.
+    Creates and registers Nuclei, Nmap, Nikto, ffuf, Gobuster, Amass, and
+    Trivy plugins. Unavailable plugins (missing binary) are registered but
+    will raise on scan — the orchestrator handles this gracefully.
     """
     registry = InMemoryPluginRegistry()
 
@@ -68,8 +69,12 @@ def register_scanner(
     amass_plugin = AmassPlugin(settings.amass, runner=runner)
     registry.register(amass_plugin)
 
+    # Trivy plugin
+    trivy_plugin = TrivyPlugin(settings.trivy, runner=runner)
+    registry.register(trivy_plugin)
+
     orchestrator = ScannerOrchestrator(registry)
     register = getattr(container, "register_instance")
     register(ScannerPort, orchestrator)
-    _logger.info("scanner registered", engines="nuclei,nmap,nikto,ffuf,gobuster,amass")
+    _logger.info("scanner registered", engines="nuclei,nmap,nikto,ffuf,gobuster,amass,trivy")
     return orchestrator

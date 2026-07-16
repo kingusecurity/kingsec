@@ -44,6 +44,7 @@ from .models import (
     SecuritySettings,
     ServerSettings,
     StorageSettings,
+    TrivySettings,
 )
 
 
@@ -86,6 +87,7 @@ class Settings(BaseSettings):
     ffuf: FfufSettings = Field(default_factory=FfufSettings)
     gobuster: GobusterSettings = Field(default_factory=GobusterSettings)
     amass: AmassSettings = Field(default_factory=AmassSettings)
+    trivy: TrivySettings = Field(default_factory=TrivySettings)
     security_headers: SecurityHeadersSettings = Field(default_factory=SecurityHeadersSettings)
     cors: CORSSettings = Field(default_factory=CORSSettings)
     rate_limit: RateLimitSettings = Field(default_factory=RateLimitSettings)

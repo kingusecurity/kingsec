@@ -304,6 +304,37 @@ class NiktoSettings(BaseModel):
         return value
 
 
+class TrivySettings(BaseModel):
+    """Settings for the Trivy vulnerability scanner.
+
+    Trivy scans filesystems and container images for vulnerabilities and
+    misconfigurations. The binary path and scan timeout are operator-controlled.
+    """
+
+    model_config = _FROZEN
+
+    binary_path: str = "trivy"
+    timeout_seconds: float = Field(default=600.0, gt=0)
+    # Scan type: "fs" for filesystem, "image" for container images.
+    scan_type: str = "fs"
+    # Scan arguments. The adapter appends --format json <target>.
+    scan_args: tuple[str, ...] = ()
+
+    @field_validator("binary_path")
+    @classmethod
+    def _binary_path_not_empty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("trivy binary_path must not be empty")
+        return value
+
+    @field_validator("scan_type")
+    @classmethod
+    def _scan_type_valid(cls, value: str) -> str:
+        if value not in ("fs", "image"):
+            raise ValueError("trivy scan_type must be 'fs' or 'image'")
+        return value
+
+
 class AmassSettings(BaseModel):
     """Settings for the OWASP Amass subdomain enumerator.
 
