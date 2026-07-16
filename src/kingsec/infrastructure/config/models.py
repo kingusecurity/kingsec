@@ -258,6 +258,29 @@ class ScannerSettings(BaseModel):
         return value
 
 
+class NmapSettings(BaseModel):
+    """Settings for the Nmap network scanner.
+
+    Nmap performs host discovery, port scanning, and service/version detection.
+    The binary path and scan timeout are operator-controlled.
+    """
+
+    model_config = _FROZEN
+
+    binary_path: str = "nmap"
+    timeout_seconds: float = Field(default=600.0, gt=0)
+    # Scan arguments. The adapter appends the target automatically.
+    # Default: service version detection (-sV), XML output to stdout (-oX -).
+    scan_args: tuple[str, ...] = ("-sV",)
+
+    @field_validator("binary_path")
+    @classmethod
+    def _binary_path_not_empty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("nmap binary_path must not be empty")
+        return value
+
+
 class SecurityHeadersSettings(BaseModel):
     """HTTP security headers configuration.
 

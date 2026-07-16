@@ -96,13 +96,16 @@ class TestErrorTranslation:
 class TestRegistration:
     def test_register_scanner_binds_port(self) -> None:
         from kingsec.infrastructure.config import Settings
-        from kingsec.infrastructure.config.models import ScannerSettings
+        from kingsec.infrastructure.config.models import NmapSettings, ScannerSettings
 
         container = Container()
         runner = FakeRunner(CommandResult(0, _SAMPLE, "", 0.0))
         settings = Settings()
         scanner_settings = ScannerSettings(binary_path="python")
-        settings = settings.model_copy(update={"scanner": scanner_settings})
+        nmap_settings = NmapSettings(binary_path="python")
+        settings = settings.model_copy(
+            update={"scanner": scanner_settings, "nmap": nmap_settings}
+        )
         register_scanner(container, settings, runner=runner)
 
         scanner = container.resolve(ScannerPort)
