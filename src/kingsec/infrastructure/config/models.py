@@ -357,6 +357,30 @@ class ZapSettings(BaseModel):
         return value
 
 
+class SemgrepSettings(BaseModel):
+    """Settings for the Semgrep static analysis scanner.
+
+    Semgrep performs pattern-based code analysis. The binary path, rules,
+    and scan timeout are operator-controlled.
+    """
+
+    model_config = _FROZEN
+
+    binary_path: str = "semgrep"
+    timeout_seconds: float = Field(default=600.0, gt=0)
+    # Optional rules directory or rule ID. Empty means use default rules.
+    rules: str = ""
+    # Scan arguments. The adapter appends scan --json <target>.
+    scan_args: tuple[str, ...] = ()
+
+    @field_validator("binary_path")
+    @classmethod
+    def _binary_path_not_empty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("semgrep binary_path must not be empty")
+        return value
+
+
 class AmassSettings(BaseModel):
     """Settings for the OWASP Amass subdomain enumerator.
 

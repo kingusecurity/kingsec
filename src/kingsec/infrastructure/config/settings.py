@@ -43,6 +43,7 @@ from .models import (
     SecurityHeadersSettings,
     SecuritySettings,
     ServerSettings,
+    SemgrepSettings,
     StorageSettings,
     TrivySettings,
     ZapSettings,
@@ -90,6 +91,7 @@ class Settings(BaseSettings):
     amass: AmassSettings = Field(default_factory=AmassSettings)
     trivy: TrivySettings = Field(default_factory=TrivySettings)
     zap: ZapSettings = Field(default_factory=ZapSettings)
+    semgrep: SemgrepSettings = Field(default_factory=SemgrepSettings)
     security_headers: SecurityHeadersSettings = Field(default_factory=SecurityHeadersSettings)
     cors: CORSSettings = Field(default_factory=CORSSettings)
     rate_limit: RateLimitSettings = Field(default_factory=RateLimitSettings)

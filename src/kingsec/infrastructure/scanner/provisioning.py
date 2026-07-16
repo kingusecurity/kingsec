@@ -1,9 +1,9 @@
 """Dependency-injection wiring for the scanner.
 
 ``register_scanner`` creates scanner plugins (Nuclei, Nmap, Nikto, ffuf,
-Gobuster, Amass, Trivy, ZAP), registers them in the plugin registry, builds
-the ``ScannerOrchestrator``, and binds it to ``ScannerPort`` on the container.
-It takes the container as a duck-typed object (needs only
+Gobuster, Amass, Trivy, ZAP, Semgrep), registers them in the plugin registry,
+builds the ``ScannerOrchestrator``, and binds it to ``ScannerPort`` on the
+container. It takes the container as a duck-typed object (needs only
 ``register_instance``) so infrastructure never imports the bootstrap layer.
 """
 
@@ -21,6 +21,7 @@ from .plugins.gobuster import GobusterPlugin
 from .plugins.nikto import NiktoPlugin
 from .plugins.nmap import NmapPlugin
 from .plugins.nuclei import NucleiPlugin
+from .plugins.semgrep import SemgrepPlugin
 from .plugins.trivy import TrivyPlugin
 from .plugins.zap import ZapPlugin
 from .registry import InMemoryPluginRegistry
@@ -41,8 +42,9 @@ def register_scanner(
     """Register scanner plugins and bind the orchestrator to ``ScannerPort``.
 
     Creates and registers Nuclei, Nmap, Nikto, ffuf, Gobuster, Amass, Trivy,
-    and ZAP plugins. Unavailable plugins (missing binary) are registered but
-    will raise on scan — the orchestrator handles this gracefully.
+    ZAP, and Semgrep plugins. Unavailable plugins (missing binary) are
+    registered but will raise on scan — the orchestrator handles this
+    gracefully.
     """
     registry = InMemoryPluginRegistry()
 
@@ -78,8 +80,15 @@ def register_scanner(
     zap_plugin = ZapPlugin(settings.zap, runner=runner)
     registry.register(zap_plugin)
 
+    # Semgrep plugin
+    semgrep_plugin = SemgrepPlugin(settings.semgrep, runner=runner)
+    registry.register(semgrep_plugin)
+
     orchestrator = ScannerOrchestrator(registry)
     register = getattr(container, "register_instance")
     register(ScannerPort, orchestrator)
-    _logger.info("scanner registered", engines="nuclei,nmap,nikto,ffuf,gobuster,amass,trivy,zap")
+    _logger.info(
+        "scanner registered",
+        engines="nuclei,nmap,nikto,ffuf,gobuster,amass,trivy,zap,semgrep",
+    )
     return orchestrator
