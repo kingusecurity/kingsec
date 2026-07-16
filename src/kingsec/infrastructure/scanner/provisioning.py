@@ -1,7 +1,8 @@
 """Dependency-injection wiring for the scanner.
 
-``register_scanner`` binds the Nuclei adapter to the ``ScannerPort`` on the
-Module 2.4 container. It takes the container as a duck-typed object (needs only
+``register_scanner`` creates the Nuclei plugin, registers it in the plugin
+registry, builds the ``ScannerOrchestrator``, and binds it to ``ScannerPort``
+on the container. It takes the container as a duck-typed object (needs only
 ``register_instance``) so infrastructure never imports the bootstrap layer.
 """
 
@@ -12,7 +13,9 @@ from typing import TYPE_CHECKING
 from kingsec.application import ScannerPort
 from kingsec.infrastructure.logging import get_logger
 
-from .nuclei import NucleiScannerAdapter
+from .orchestrator import ScannerOrchestrator
+from .plugins.nuclei import NucleiPlugin
+from .registry import InMemoryPluginRegistry
 from .runner import CommandRunner
 
 if TYPE_CHECKING:  # typing only
@@ -27,7 +30,7 @@ def register_scanner(
     *,
     runner: CommandRunner | None = None,
 ) -> ScannerPort:
-    """Register the Nuclei scanner adapter on the container as ``ScannerPort``.
+    """Register the Nuclei plugin and bind the orchestrator to ``ScannerPort``.
 
     Args:
         container: The bootstrap DI container (duck-typed: needs
@@ -36,11 +39,14 @@ def register_scanner(
         runner: Optional command runner override (mainly for tests).
 
     Returns:
-        The registered ``ScannerPort`` implementation.
+        The registered ``ScannerPort`` implementation (the orchestrator).
     """
+    registry = InMemoryPluginRegistry()
+    plugin = NucleiPlugin(settings.scanner, runner=runner)
+    registry.register(plugin)
 
-    adapter = NucleiScannerAdapter(settings.scanner, runner=runner)
+    orchestrator = ScannerOrchestrator(registry)
     register = getattr(container, "register_instance")
-    register(ScannerPort, adapter)
+    register(ScannerPort, orchestrator)
     _logger.info("scanner registered", engine="nuclei")
-    return adapter
+    return orchestrator

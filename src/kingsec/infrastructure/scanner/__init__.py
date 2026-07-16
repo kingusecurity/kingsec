@@ -5,6 +5,7 @@ via subprocess and parsing its JSONL output into domain findings.
 
 Public API
     Adapter:      NucleiScannerAdapter
+    Plugin:       NucleiPlugin
     Runner:       CommandRunner, SubprocessCommandRunner, CommandResult
     Parser:       parse_nuclei_jsonl
     Registry:     InMemoryPluginRegistry
@@ -19,6 +20,7 @@ from .errors import ScannerExecutionError, ScannerOutputError
 from .nuclei import NucleiScannerAdapter
 from .orchestrator import ScannerOrchestrator
 from .parser import parse_nuclei_jsonl
+from .plugins.nuclei import NucleiPlugin
 from .provisioning import register_scanner
 from .registry import InMemoryPluginRegistry
 from .runner import CommandResult, CommandRunner, SubprocessCommandRunner
@@ -27,6 +29,7 @@ __all__ = [
     "CommandResult",
     "CommandRunner",
     "InMemoryPluginRegistry",
+    "NucleiPlugin",
     "NucleiScannerAdapter",
     "ScannerExecutionError",
     "ScannerOrchestrator",

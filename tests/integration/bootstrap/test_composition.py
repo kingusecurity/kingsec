@@ -92,12 +92,12 @@ class TestStartup:
                 SqlAlchemyUnitOfWorkFactory,
             )
             from kingsec.infrastructure.reporting import ReportGeneratorAdapter
-            from kingsec.infrastructure.scanner import NucleiScannerAdapter
+            from kingsec.infrastructure.scanner.orchestrator import ScannerOrchestrator
 
             assert isinstance(app.resolve(AssessmentRepository), SqlAlchemyAssessmentRepository)
             assert isinstance(app.resolve(ReportRepository), SqlAlchemyReportRepository)
             assert isinstance(app.resolve(UnitOfWorkFactory), SqlAlchemyUnitOfWorkFactory)
-            assert isinstance(app.resolve(ScannerPort), NucleiScannerAdapter)
+            assert isinstance(app.resolve(ScannerPort), ScannerOrchestrator)
             assert isinstance(app.resolve(AIPort), AIProviderAdapter)
             assert isinstance(app.resolve(ReportGeneratorPort), ReportGeneratorAdapter)
 
