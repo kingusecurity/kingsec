@@ -76,6 +76,7 @@ from .ports import (
     UnitOfWorkFactory,
     UserRepository,
 )
+from .normalization import FindingNormalizer, NormalizedFinding
 from .service_api import UseCaseServiceAPI
 from .submit_assessment import SubmitAssessment
 from .use_cases.cancel_assessment import CancelAssessment
@@ -120,6 +121,7 @@ __all__ = [
     "EVENT_ASSESSMENT_RUNNING",
     "EVENT_REPORT_READY",
     "EventPublisher",
+    "FindingNormalizer",
     "FindingView",
     "GenerateReport",
     "GenerateReportRequest",
@@ -135,6 +137,7 @@ __all__ = [
     "Login",
     "LoginRequest",
     "LoginResponse",
+    "NormalizedFinding",
     "PasswordChangeError",
     "PasswordHasher",
     "RefreshToken",
