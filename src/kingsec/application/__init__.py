@@ -76,6 +76,7 @@ from .ports import (
     UnitOfWorkFactory,
     UserRepository,
 )
+from .correlation import CorrelatedFinding, CorrelationEngine
 from .normalization import FindingNormalizer, NormalizedFinding
 from .service_api import UseCaseServiceAPI
 from .submit_assessment import SubmitAssessment
@@ -107,6 +108,8 @@ __all__ = [
     "CancelAssessmentResponse",
     "ChangePassword",
     "ChangePasswordRequest",
+    "CorrelatedFinding",
+    "CorrelationEngine",
     "CreateAssessment",
     "CreateAssessmentRequest",
     "CreateAssessmentResponse",
