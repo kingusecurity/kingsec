@@ -5,11 +5,12 @@ via subprocess and parsing their output into domain findings.
 
 Public API
     Adapter:      NucleiScannerAdapter, NmapScannerAdapter, NiktoScannerAdapter,
-                  FfufScannerAdapter, GobusterScannerAdapter
-    Plugin:       NucleiPlugin, NmapPlugin, NiktoPlugin, FfufPlugin, GobusterPlugin
+                  FfufScannerAdapter, GobusterScannerAdapter, AmassScannerAdapter
+    Plugin:       NucleiPlugin, NmapPlugin, NiktoPlugin, FfufPlugin, GobusterPlugin,
+                  AmassPlugin
     Runner:       CommandRunner, SubprocessCommandRunner, CommandResult
     Parser:       parse_nuclei_jsonl, parse_nmap_xml, parse_nikto_output,
-                  parse_ffuf_json, parse_gobuster_output
+                  parse_ffuf_json, parse_gobuster_output, parse_amass_json
     Registry:     InMemoryPluginRegistry
     Orchestrator: ScannerOrchestrator
     Errors:       ScannerExecutionError, ScannerOutputError
@@ -18,6 +19,8 @@ Public API
 
 from __future__ import annotations
 
+from .amass import AmassScannerAdapter
+from .amass_parser import parse_amass_json
 from .errors import ScannerExecutionError, ScannerOutputError
 from .ffuf import FfufScannerAdapter
 from .ffuf_parser import parse_ffuf_json
@@ -30,6 +33,7 @@ from .nmap_parser import parse_nmap_xml
 from .nuclei import NucleiScannerAdapter
 from .orchestrator import ScannerOrchestrator
 from .parser import parse_nuclei_jsonl
+from .plugins.amass import AmassPlugin
 from .plugins.ffuf import FfufPlugin
 from .plugins.gobuster import GobusterPlugin
 from .plugins.nikto import NiktoPlugin
@@ -40,6 +44,8 @@ from .registry import InMemoryPluginRegistry
 from .runner import CommandResult, CommandRunner, SubprocessCommandRunner
 
 __all__ = [
+    "AmassPlugin",
+    "AmassScannerAdapter",
     "CommandResult",
     "CommandRunner",
     "FfufPlugin",
@@ -57,6 +63,7 @@ __all__ = [
     "ScannerOrchestrator",
     "ScannerOutputError",
     "SubprocessCommandRunner",
+    "parse_amass_json",
     "parse_ffuf_json",
     "parse_gobuster_output",
     "parse_nikto_output",

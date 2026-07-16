@@ -304,6 +304,28 @@ class NiktoSettings(BaseModel):
         return value
 
 
+class AmassSettings(BaseModel):
+    """Settings for the OWASP Amass subdomain enumerator.
+
+    Amass performs passive and active subdomain enumeration. The binary
+    path and scan timeout are operator-controlled.
+    """
+
+    model_config = _FROZEN
+
+    binary_path: str = "amass"
+    timeout_seconds: float = Field(default=900.0, gt=0)
+    # Scan arguments. The adapter appends enum -passive -json - -d <target>.
+    scan_args: tuple[str, ...] = ()
+
+    @field_validator("binary_path")
+    @classmethod
+    def _binary_path_not_empty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("amass binary_path must not be empty")
+        return value
+
+
 class GobusterSettings(BaseModel):
     """Settings for the Gobuster directory enumerator.
 

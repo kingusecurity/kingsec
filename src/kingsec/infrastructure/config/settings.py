@@ -28,6 +28,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .models import (
     AISettings,
+    AmassSettings,
     AppSettings,
     CORSSettings,
     FfufSettings,
@@ -84,6 +85,7 @@ class Settings(BaseSettings):
     nikto: NiktoSettings = Field(default_factory=NiktoSettings)
     ffuf: FfufSettings = Field(default_factory=FfufSettings)
     gobuster: GobusterSettings = Field(default_factory=GobusterSettings)
+    amass: AmassSettings = Field(default_factory=AmassSettings)
     security_headers: SecurityHeadersSettings = Field(default_factory=SecurityHeadersSettings)
     cors: CORSSettings = Field(default_factory=CORSSettings)
     rate_limit: RateLimitSettings = Field(default_factory=RateLimitSettings)
