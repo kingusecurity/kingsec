@@ -335,6 +335,28 @@ class TrivySettings(BaseModel):
         return value
 
 
+class ZapSettings(BaseModel):
+    """Settings for the OWASP ZAP web application scanner.
+
+    ZAP performs automated web application security testing. The binary
+    path and scan timeout are operator-controlled.
+    """
+
+    model_config = _FROZEN
+
+    binary_path: str = "zap"
+    timeout_seconds: float = Field(default=1200.0, gt=0)
+    # Scan arguments. The adapter appends -quickurl <target> -quickout json.
+    scan_args: tuple[str, ...] = ()
+
+    @field_validator("binary_path")
+    @classmethod
+    def _binary_path_not_empty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("zap binary_path must not be empty")
+        return value
+
+
 class AmassSettings(BaseModel):
     """Settings for the OWASP Amass subdomain enumerator.
 
