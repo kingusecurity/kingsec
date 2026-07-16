@@ -281,6 +281,29 @@ class NmapSettings(BaseModel):
         return value
 
 
+class NiktoSettings(BaseModel):
+    """Settings for the Nikto web server scanner.
+
+    Nikto performs web server scanning for misconfigurations, dangerous files,
+    and outdated software. The binary path and scan timeout are operator-controlled.
+    """
+
+    model_config = _FROZEN
+
+    binary_path: str = "nikto"
+    timeout_seconds: float = Field(default=600.0, gt=0)
+    # Scan arguments. The adapter appends the target automatically.
+    # Default: tuning options for common checks, no SSL warnings.
+    scan_args: tuple[str, ...] = ("-Tuning", "1234567890abc", "-nointeractive")
+
+    @field_validator("binary_path")
+    @classmethod
+    def _binary_path_not_empty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("nikto binary_path must not be empty")
+        return value
+
+
 class SecurityHeadersSettings(BaseModel):
     """HTTP security headers configuration.
 

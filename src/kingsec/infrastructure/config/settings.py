@@ -33,6 +33,7 @@ from .models import (
     JWTSettings,
     LoggingSettings,
     MiddlewareSettings,
+    NiktoSettings,
     NmapSettings,
     RateLimitSettings,
     ScannerSettings,
@@ -78,6 +79,7 @@ class Settings(BaseSettings):
     storage: StorageSettings = Field(default_factory=StorageSettings)
     scanner: ScannerSettings = Field(default_factory=ScannerSettings)
     nmap: NmapSettings = Field(default_factory=NmapSettings)
+    nikto: NiktoSettings = Field(default_factory=NiktoSettings)
     security_headers: SecurityHeadersSettings = Field(default_factory=SecurityHeadersSettings)
     cors: CORSSettings = Field(default_factory=CORSSettings)
     rate_limit: RateLimitSettings = Field(default_factory=RateLimitSettings)
