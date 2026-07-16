@@ -304,6 +304,30 @@ class NiktoSettings(BaseModel):
         return value
 
 
+class FfufSettings(BaseModel):
+    """Settings for the ffuf web fuzzer.
+
+    ffuf performs directory and parameter fuzzing against web servers.
+    The binary path, wordlist, and scan timeout are operator-controlled.
+    """
+
+    model_config = _FROZEN
+
+    binary_path: str = "ffuf"
+    # Path to the wordlist file. Must be provided by the operator.
+    wordlist: str = ""
+    timeout_seconds: float = Field(default=600.0, gt=0)
+    # Scan arguments. The adapter appends -u <target>/FUZZ -w <wordlist> -json.
+    scan_args: tuple[str, ...] = ()
+
+    @field_validator("binary_path")
+    @classmethod
+    def _binary_path_not_empty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("ffuf binary_path must not be empty")
+        return value
+
+
 class SecurityHeadersSettings(BaseModel):
     """HTTP security headers configuration.
 

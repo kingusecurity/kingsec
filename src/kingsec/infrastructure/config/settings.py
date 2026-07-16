@@ -30,6 +30,7 @@ from .models import (
     AISettings,
     AppSettings,
     CORSSettings,
+    FfufSettings,
     JWTSettings,
     LoggingSettings,
     MiddlewareSettings,
@@ -80,6 +81,7 @@ class Settings(BaseSettings):
     scanner: ScannerSettings = Field(default_factory=ScannerSettings)
     nmap: NmapSettings = Field(default_factory=NmapSettings)
     nikto: NiktoSettings = Field(default_factory=NiktoSettings)
+    ffuf: FfufSettings = Field(default_factory=FfufSettings)
     security_headers: SecurityHeadersSettings = Field(default_factory=SecurityHeadersSettings)
     cors: CORSSettings = Field(default_factory=CORSSettings)
     rate_limit: RateLimitSettings = Field(default_factory=RateLimitSettings)
