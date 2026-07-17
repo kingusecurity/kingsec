@@ -79,6 +79,7 @@ from .ports import (
 from .correlation import CorrelatedFinding, CorrelationEngine
 from .enrichment import EnrichedFinding, FindingEnricher
 from .normalization import FindingNormalizer, NormalizedFinding
+from .risk import RiskAssessment, RiskFactor, RiskScorer
 from .service_api import UseCaseServiceAPI
 from .submit_assessment import SubmitAssessment
 from .use_cases.cancel_assessment import CancelAssessment
@@ -157,6 +158,9 @@ __all__ = [
     "ReportGeneratorPort",
     "ReportNotFoundError",
     "ReportRepository",
+    "RiskAssessment",
+    "RiskFactor",
+    "RiskScorer",
     "ScannerConfigError",
     "ScannerDuplicateError",
     "ScannerExecutor",
