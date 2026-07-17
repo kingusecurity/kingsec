@@ -77,6 +77,7 @@ from .ports import (
     UserRepository,
 )
 from .correlation import CorrelatedFinding, CorrelationEngine
+from .enrichment import EnrichedFinding, FindingEnricher
 from .normalization import FindingNormalizer, NormalizedFinding
 from .service_api import UseCaseServiceAPI
 from .submit_assessment import SubmitAssessment
@@ -110,6 +111,8 @@ __all__ = [
     "ChangePasswordRequest",
     "CorrelatedFinding",
     "CorrelationEngine",
+    "EnrichedFinding",
+    "FindingEnricher",
     "CreateAssessment",
     "CreateAssessmentRequest",
     "CreateAssessmentResponse",
