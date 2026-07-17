@@ -111,8 +111,6 @@ class RiskSummary:
     top_risk_factors: tuple[str, ...]
 
     def __post_init__(self) -> None:
-        if not self.score_distribution:
-            raise ValueError("score_distribution must not be empty")
         if not 0.0 <= self.average_score <= 100.0:
             raise ValueError("average_score must be between 0 and 100")
         if not 0 <= self.highest_score <= 100:
@@ -151,8 +149,6 @@ class AssetSummary:
     total_assets: int
 
     def __post_init__(self) -> None:
-        if not self.entries:
-            raise ValueError("entries must not be empty")
         if self.total_assets < 0:
             raise ValueError("total_assets must not be negative")
 
@@ -200,12 +196,8 @@ class FindingSection:
     severity_breakdown: dict[str, int] = field(hash=False)
 
     def __post_init__(self) -> None:
-        if not self.entries:
-            raise ValueError("entries must not be empty")
         if self.total_count < 0:
             raise ValueError("total_count must not be negative")
-        if not self.severity_breakdown:
-            raise ValueError("severity_breakdown must not be empty")
 
 
 @dataclass(frozen=True)
@@ -255,8 +247,6 @@ class RecommendationSection:
     total_recommendations: int
 
     def __post_init__(self) -> None:
-        if not self.entries:
-            raise ValueError("entries must not be empty")
         if self.total_recommendations < 0:
             raise ValueError("total_recommendations must not be negative")
 
@@ -271,8 +261,6 @@ class Appendix:
     generated_by: str
 
     def __post_init__(self) -> None:
-        if not self.scanner_versions:
-            raise ValueError("scanner_versions must not be empty")
         if self.total_plugins < 0:
             raise ValueError("total_plugins must not be negative")
         if not self.generated_by:

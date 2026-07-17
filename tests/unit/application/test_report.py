@@ -310,13 +310,13 @@ class TestRiskSummaryConstruction:
         with pytest.raises(AttributeError):
             rs.average_score = 50.0  # type: ignore[misc]
 
-    def test_empty_distribution_raises(self) -> None:
-        with pytest.raises(ValueError, match="score_distribution"):
-            RiskSummary(
-                score_distribution={},
-                average_score=0.0, highest_score=0, lowest_score=0,
-                top_risk_factors=(),
-            )
+    def test_empty_distribution_allowed(self) -> None:
+        rs = RiskSummary(
+            score_distribution={},
+            average_score=0.0, highest_score=0, lowest_score=0,
+            top_risk_factors=(),
+        )
+        assert rs.score_distribution == {}
 
     def test_highest_score_out_of_range(self) -> None:
         with pytest.raises(ValueError, match="highest_score"):
@@ -450,9 +450,10 @@ class TestAssetSummaryConstruction:
         with pytest.raises(AttributeError):
             a.total_assets = 5  # type: ignore[misc]
 
-    def test_empty_entries_raises(self) -> None:
-        with pytest.raises(ValueError, match="entries"):
-            AssetSummary(entries=(), total_assets=0)
+    def test_empty_entries_allowed(self) -> None:
+        a = AssetSummary(entries=(), total_assets=0)
+        assert a.total_assets == 0
+        assert a.total_findings == 0
 
     def test_total_findings_property(self, sample_asset_entry: AssetEntry) -> None:
         a = AssetSummary(entries=(sample_asset_entry,), total_assets=1)
@@ -575,14 +576,15 @@ class TestFindingSectionConstruction:
         with pytest.raises(AttributeError):
             fs.total_count = 5  # type: ignore[misc]
 
-    def test_empty_entries_raises(self) -> None:
-        with pytest.raises(ValueError, match="entries"):
-            FindingSection(
-                entries=(), total_count=0,
-                severity_breakdown={},
-            )
+    def test_empty_entries_allowed(self) -> None:
+        fs = FindingSection(
+            entries=(), total_count=0,
+            severity_breakdown={},
+        )
+        assert fs.total_count == 0
+        assert fs.entries == ()
 
-    def test_empty_breakdown_raises(self) -> None:
+    def test_empty_breakdown_allowed(self) -> None:
         fe = FindingEntry(
             correlation_id="c-1", title="T", severity="LOW",
             category="info", confidence=0.5,
@@ -591,11 +593,11 @@ class TestFindingSectionConstruction:
             attack_surface=None, risk_score=0,
             risk_level="Low", priority="Low",
         )
-        with pytest.raises(ValueError, match="severity_breakdown"):
-            FindingSection(
-                entries=(fe,), total_count=1,
-                severity_breakdown={},
-            )
+        fs = FindingSection(
+            entries=(fe,), total_count=1,
+            severity_breakdown={},
+        )
+        assert fs.severity_breakdown == {}
 
     def test_equality(self, sample_finding_entry: FindingEntry) -> None:
         fs1 = FindingSection(
@@ -763,9 +765,10 @@ class TestRecommendationSectionConstruction:
         with pytest.raises(AttributeError):
             rs.total_recommendations = 5  # type: ignore[misc]
 
-    def test_empty_entries_raises(self) -> None:
-        with pytest.raises(ValueError, match="entries"):
-            RecommendationSection(entries=(), total_recommendations=0)
+    def test_empty_entries_allowed(self) -> None:
+        rs = RecommendationSection(entries=(), total_recommendations=0)
+        assert rs.total_recommendations == 0
+        assert rs.entries == ()
 
     def test_negative_total(self, sample_recommendation_entry: RecommendationEntry) -> None:
         with pytest.raises(ValueError, match="total_recommendations"):
@@ -822,14 +825,14 @@ class TestAppendixConstruction:
         with pytest.raises(AttributeError):
             a.total_plugins = 5  # type: ignore[misc]
 
-    def test_empty_versions_raises(self) -> None:
-        with pytest.raises(ValueError, match="scanner_versions"):
-            Appendix(
-                scanner_versions={},
-                total_plugins=0,
-                generated_at=datetime.now(timezone.utc),
-                generated_by="KingSec",
-            )
+    def test_empty_versions_allowed(self) -> None:
+        a = Appendix(
+            scanner_versions={},
+            total_plugins=0,
+            generated_at=datetime.now(timezone.utc),
+            generated_by="KingSec",
+        )
+        assert a.scanner_versions == {}
 
     def test_negative_plugins(self) -> None:
         with pytest.raises(ValueError, match="total_plugins"):
