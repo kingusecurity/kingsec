@@ -6,11 +6,26 @@ only through ports (abstract interfaces / dependency injection).
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from fastapi import FastAPI
 
+if TYPE_CHECKING:
+    from kingsec.application.ports import ScannerPluginRegistry, ScannerPort
 
-def create_app() -> FastAPI:
+
+def create_app(
+    registry: ScannerPluginRegistry | None = None,
+    scanner: ScannerPort | None = None,
+) -> FastAPI:
     """Create and return a configured FastAPI application instance.
+
+    Args:
+        registry: Optional ``ScannerPluginRegistry`` port for scanner
+            listing and validation.  When ``None``, scan endpoints
+            are not registered.
+        scanner: Optional ``ScannerPort`` for scan execution.  When
+            ``None``, scan endpoints are not registered.
 
     Returns:
         A fully configured ``FastAPI`` instance with route mounts.
@@ -32,5 +47,9 @@ def create_app() -> FastAPI:
     @app.get("/version")
     async def version() -> dict:
         return {"version": "0.6.0"}
+
+    if registry is not None and scanner is not None:
+        from kingsec.interfaces.api.routes.scan import create_scan_router
+        app.include_router(create_scan_router(registry, scanner))
 
     return app
