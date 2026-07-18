@@ -17,6 +17,11 @@ from .application import Application, create_application
 from .container import Container
 from .errors import BootstrapError
 from .exception_handling import ExceptionHandlerRegistry, default_exception_handlers
+from .production import (
+    ProductionApplication,
+    ProductionReportService,
+    create_production_application,
+)
 
 # Convenience alias — reads naturally at a program entrypoint.
 bootstrap = create_application
@@ -26,7 +31,10 @@ __all__ = [
     "BootstrapError",
     "Container",
     "ExceptionHandlerRegistry",
+    "ProductionApplication",
+    "ProductionReportService",
     "bootstrap",
     "create_application",
+    "create_production_application",
     "default_exception_handlers",
 ]
