@@ -62,4 +62,7 @@ def create_app(
         app.include_router(create_report_router(report_service))
         app.include_router(create_download_router(report_service))
 
+    from kingsec.interfaces.api.errors import register_error_handlers
+    register_error_handlers(app)
+
     return app
