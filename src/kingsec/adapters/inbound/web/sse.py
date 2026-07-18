@@ -34,12 +34,14 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import queue
 import time
 import uuid
 from collections.abc import AsyncGenerator
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
+from starlette.background import BackgroundTask
 
 from kingsec.application.events import AssessmentEvent
 from kingsec.application.ports.outbound.event_publisher import EventPublisher
@@ -96,8 +98,7 @@ async def _sse_generator(
                     asyncio.to_thread(subscriber.queue.get, timeout=1.0),
                     timeout=HEARTBEAT_INTERVAL,
                 )
-            except (asyncio.TimeoutError, Exception):
-                # Send heartbeat comment to keep connection alive
+            except (asyncio.TimeoutError, queue.Empty):
                 yield ": heartbeat\n\n"
                 continue
 
@@ -148,15 +149,14 @@ async def stream_events(
 
     logger.info(
         "SSE client connected",
-        client_id=client_id,
-        assessment_id=assessment_id,
+        extra={"client_id": client_id, "assessment_id": assessment_id},
     )
 
     async def cleanup_on_disconnect() -> None:
         """Clean up the subscriber when the client disconnects."""
         # This is called by FastAPI when the connection closes
         event_bus.unsubscribe(client_id)
-        logger.info("SSE client disconnected", client_id=client_id)
+        logger.info("SSE client disconnected", extra={"client_id": client_id})
 
     return StreamingResponse(
         _sse_generator(event_bus, assessment_id, client_id),
@@ -166,5 +166,5 @@ async def stream_events(
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",  # Disable nginx buffering
         },
-        background=cleanup_on_disconnect(),
+        background=BackgroundTask(cleanup_on_disconnect),
     )

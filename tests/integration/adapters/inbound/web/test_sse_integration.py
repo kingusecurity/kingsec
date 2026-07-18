@@ -5,23 +5,26 @@ Verifies the full SSE lifecycle:
   2. Publish events on the bus
   3. Receive events in correct SSE format
   4. Verify event filtering by assessment_id
+
+Uses anyio memory channels directly instead of Starlette's TestClient
+because TestClient buffers the entire response before returning, which
+is incompatible with infinite SSE streams. The anyio approach provides
+true streaming: the ASGI app runs in a background task and delivers
+body chunks through a memory channel as the SSE generator yields them.
 """
 
 from __future__ import annotations
 
 import json
-import threading
-import time
 
+import anyio
 import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from httpx import AsyncByteStream, AsyncClient, AsyncBaseTransport, Request, Response
 
-from kingsec.adapters.inbound.web.dependencies import get_application
 from kingsec.adapters.inbound.web.sse import _get_event_publisher, router
 from kingsec.application.events import AssessmentEvent, EVENT_ASSESSMENT_CREATED, EVENT_ASSESSMENT_COMPLETED
 from kingsec.application.ports.outbound.event_publisher import EventPublisher
-from kingsec.bootstrap.application import Application
 from kingsec.infrastructure.events.in_memory_bus import InMemoryEventBus
 
 
@@ -49,143 +52,268 @@ def _build_app(event_bus: InMemoryEventBus) -> FastAPI:
     return app
 
 
-class TestSSEIntegration:
-    """Full lifecycle: connect → publish → receive events."""
+class _StreamingTransport(AsyncBaseTransport):
+    """ASGI transport that delivers body chunks via anyio memory channel.
 
-    def test_receives_events_in_real_time(self) -> None:
+    Runs the ASGI app in a background ``asyncio.Task`` so the response
+    can be returned as soon as headers are received. Body chunks are
+    streamed through a memory channel, enabling true SSE streaming
+    without blocking on ``response_complete``.
+    """
+
+    def __init__(
+        self,
+        app: object,
+        *,
+        raise_app_exceptions: bool = True,
+        client: tuple[str, int] = ("127.0.0.1", 123),
+    ) -> None:
+        self.app = app
+        self.raise_app_exceptions = raise_app_exceptions
+        self.client = client
+
+    async def handle_async_request(self, request: Request) -> Response:
+        import asyncio
+
+        scope = {
+            "type": "http",
+            "asgi": {"version": "3.0", "spec_version": "2.4"},
+            "http_version": "1.1",
+            "method": request.method,
+            "headers": [(k.lower(), v) for (k, v) in request.headers.raw],
+            "scheme": request.url.scheme,
+            "path": request.url.path,
+            "raw_path": request.url.raw_path.split(b"?")[0],
+            "query_string": request.url.query,
+            "server": (request.url.host, request.url.port),
+            "client": self.client,
+            "root_path": "",
+        }
+
+        request_body_chunks = request.stream.__aiter__()
+        request_complete = False
+
+        status_code: int | None = None
+        response_headers: list[tuple[bytes, bytes]] | None = None
+        chunk_sender, chunk_receiver = anyio.create_memory_object_stream[bytes]()
+
+        async def receive() -> dict:
+            nonlocal request_complete
+            if request_complete:
+                await anyio.sleep_forever()
+                return {"type": "http.disconnect"}
+            try:
+                body = await request_body_chunks.__anext__()
+            except StopAsyncIteration:
+                request_complete = True
+                return {"type": "http.request", "body": b"", "more_body": False}
+            return {"type": "http.request", "body": body, "more_body": True}
+
+        async def send(message: dict) -> None:
+            nonlocal status_code, response_headers
+            if message["type"] == "http.response.start":
+                status_code = message["status"]
+                response_headers = message.get("headers", [])
+            elif message["type"] == "http.response.body":
+                body = message.get("body", b"")
+                more_body = message.get("more_body", False)
+                if body and request.method != "HEAD":
+                    await chunk_sender.send(body)
+                if not more_body:
+                    await chunk_sender.aclose()
+
+        async def run_app() -> None:
+            try:
+                await self.app(scope, receive, send)  # type: ignore[arg-type]
+            except BaseException:
+                if self.raise_app_exceptions:
+                    raise
+            finally:
+                if not chunk_sender._closed:
+                    await chunk_sender.aclose()
+
+        loop = asyncio.get_running_loop()
+        app_task = loop.create_task(run_app())
+
+        try:
+            while status_code is None:
+                await anyio.sleep(0.001)
+
+            stream = _ChannelStream(chunk_receiver, app_task)
+            return Response(
+                status_code=status_code,
+                headers=list(response_headers or []),
+                stream=stream,
+            )
+        except BaseException:
+            app_task.cancel()
+            raise
+
+
+class _ChannelStream(AsyncByteStream):
+    """AsyncByteStream that reads from an anyio memory channel.
+
+    Cancels the background app task when the stream is exhausted or the
+    channel is closed, ensuring proper cleanup.
+    """
+
+    def __init__(
+        self,
+        receive_stream: anyio.abc.ObjectReceiveStream[bytes],
+        app_task: object,
+    ) -> None:
+        self._receive_stream = receive_stream
+        self._app_task = app_task
+        self._cleaned_up = False
+
+    async def __aiter__(self) -> object:
+        try:
+            async for chunk in self._receive_stream:
+                yield chunk
+        except anyio.EndOfStream:
+            pass
+        finally:
+            await self._cleanup()
+
+    async def aclose(self) -> None:
+        await self._cleanup()
+
+    async def _cleanup(self) -> None:
+        import asyncio
+
+        if self._cleaned_up:
+            return
+        self._cleaned_up = True
+        self._app_task.cancel()
+        try:
+            await self._app_task
+        except (asyncio.CancelledError, BaseException):
+            pass
+
+
+class TestSSEIntegration:
+    """Full lifecycle: connect -> publish -> receive events."""
+
+    @pytest.mark.anyio
+    async def test_receives_events_in_real_time(self) -> None:
         """Events published on the bus appear in the SSE stream."""
         event_bus = InMemoryEventBus(maxsize=100)
         app = _build_app(event_bus)
-        client = TestClient(app, raise_server_exceptions=False)
 
-        event = AssessmentEvent(
-            event_type=EVENT_ASSESSMENT_CREATED,
-            assessment_id="asmt-int-001",
-            state="authorized",
-            message="Integration test event",
-        )
+        transport = _StreamingTransport(app, raise_app_exceptions=False)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            event = AssessmentEvent(
+                event_type=EVENT_ASSESSMENT_CREATED,
+                assessment_id="asmt-int-001",
+                state="authorized",
+                message="Integration test event",
+            )
 
-        def publish_event() -> None:
-            time.sleep(0.2)
-            event_bus.publish(event)
+            async def publish_event() -> None:
+                await anyio.sleep(0.2)
+                event_bus.publish(event)
 
-        thread = threading.Thread(target=publish_event)
-        thread.start()
+            async with client.stream("GET", "/api/v1/events") as response:
+                async with anyio.create_task_group() as tg:
+                    tg.start_soon(publish_event)
 
-        # Connect and read first event
-        with client.stream("GET", "/api/v1/events") as response:
-            # Read event type
-            event_line = response.readline().decode("utf-8")
-            assert event_line.startswith("event: assessment.created")
+                    raw = b""
+                    async for chunk in response.aiter_bytes():
+                        raw += chunk
+                        if b"\ndata: " in raw or b"\nevent: " in raw:
+                            break
 
-            # Read data
-            data_line = response.readline().decode("utf-8")
-            assert data_line.startswith("data: ")
-            payload = json.loads(data_line[6:])
-            assert payload["event_type"] == "assessment.created"
-            assert payload["assessment_id"] == "asmt-int-001"
-            assert payload["state"] == "authorized"
-            assert payload["message"] == "Integration test event"
+                    lines = raw.decode("utf-8").splitlines()
+                    event_line = next((l for l in lines if l.startswith("event: ")), "")
+                    data_line = next((l for l in lines if l.startswith("data: ")), "")
 
-            thread.join(timeout=1.0)
+                    assert event_line == "event: assessment.created"
+                    payload = json.loads(data_line[6:])
+                    assert payload["event_type"] == "assessment.created"
+                    assert payload["assessment_id"] == "asmt-int-001"
+                    assert payload["state"] == "authorized"
+                    assert payload["message"] == "Integration test event"
 
-    def test_multiple_subscribers_receive_same_events(self) -> None:
+                    tg.cancel_scope.cancel()
+
+    @pytest.mark.anyio
+    async def test_multiple_subscribers_receive_same_events(self) -> None:
         """Multiple SSE connections receive the same events."""
         event_bus = InMemoryEventBus(maxsize=100)
         app = _build_app(event_bus)
-        client = TestClient(app, raise_server_exceptions=False)
+        transport = _StreamingTransport(app, raise_app_exceptions=False)
 
-        event = AssessmentEvent(
-            event_type=EVENT_ASSESSMENT_COMPLETED,
-            assessment_id="asmt-int-002",
-            state="completed",
-            message="Completed",
-        )
+        received_by_sub1: list[str] = []
+        received_by_sub2: list[str] = []
 
-        received_by_subscriber1: list[str] = []
-        received_by_subscriber2: list[str] = []
+        async def subscriber(results: list[str]) -> None:
+            async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+                async with client.stream("GET", "/api/v1/events") as response:
+                    async for chunk in response.aiter_bytes():
+                        text = chunk.decode("utf-8")
+                        results.append(text)
+                        if "assessment.completed" in text:
+                            return
 
-        def subscriber1() -> None:
-            with client.stream("GET", "/api/v1/events") as response:
-                for _ in range(2):  # event type + data
-                    line = response.readline().decode("utf-8")
-                    received_by_subscriber1.append(line)
-
-        def subscriber2() -> None:
-            with client.stream("GET", "/api/v1/events") as response:
-                for _ in range(2):
-                    line = response.readline().decode("utf-8")
-                    received_by_subscriber2.append(line)
-
-        def publish_event() -> None:
-            time.sleep(0.3)
+        async def publish_event() -> None:
+            await anyio.sleep(0.3)
+            event = AssessmentEvent(
+                event_type=EVENT_ASSESSMENT_COMPLETED,
+                assessment_id="asmt-int-002",
+                state="completed",
+                message="Completed",
+            )
             event_bus.publish(event)
 
-        # Start subscribers
-        t1 = threading.Thread(target=subscriber1)
-        t2 = threading.Thread(target=subscriber2)
-        t1.start()
-        t2.start()
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(subscriber, received_by_sub1)
+            tg.start_soon(subscriber, received_by_sub2)
+            tg.start_soon(publish_event)
 
-        # Publish event
-        t_pub = threading.Thread(target=publish_event)
-        t_pub.start()
+        assert len(received_by_sub1) >= 1
+        assert len(received_by_sub2) >= 1
+        assert "assessment.completed" in received_by_sub1[0]
+        assert "assessment.completed" in received_by_sub2[0]
 
-        # Wait for all threads
-        t1.join(timeout=2.0)
-        t2.join(timeout=2.0)
-        t_pub.join(timeout=1.0)
-
-        # Both subscribers should have received the event
-        assert len(received_by_subscriber1) >= 1
-        assert len(received_by_subscriber2) >= 1
-        assert "assessment.completed" in received_by_subscriber1[0]
-        assert "assessment.completed" in received_by_subscriber2[0]
-
-    def test_filtering_by_assessment_id(self) -> None:
+    @pytest.mark.anyio
+    async def test_filtering_by_assessment_id(self) -> None:
         """Events are filtered by assessment_id when specified."""
         event_bus = InMemoryEventBus(maxsize=100)
         app = _build_app(event_bus)
-        client = TestClient(app, raise_server_exceptions=False)
-
-        event1 = AssessmentEvent(
-            event_type=EVENT_ASSESSMENT_CREATED,
-            assessment_id="asmt-filter-001",
-            state="authorized",
-            message="Event 1",
-        )
-        event2 = AssessmentEvent(
-            event_type=EVENT_ASSESSMENT_CREATED,
-            assessment_id="asmt-filter-002",
-            state="authorized",
-            message="Event 2",
-        )
+        transport = _StreamingTransport(app, raise_app_exceptions=False)
 
         received_events: list[dict] = []
 
-        def subscriber() -> None:
-            with client.stream("GET", "/api/v1/events?assessment_id=asmt-filter-001") as response:
-                # Read event type
-                event_line = response.readline().decode("utf-8")
-                # Read data
-                data_line = response.readline().decode("utf-8")
-                payload = json.loads(data_line[6:])
-                received_events.append(payload)
+        async def subscriber() -> None:
+            async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+                async with client.stream("GET", "/api/v1/events?assessment_id=asmt-filter-001") as response:
+                    async for chunk in response.aiter_bytes():
+                        text = chunk.decode("utf-8")
+                        if "data: " in text:
+                            data_part = text.split("data: ")[1].split("\n")[0]
+                            received_events.append(json.loads(data_part))
+                            return
 
-        def publish_events() -> None:
-            time.sleep(0.2)
+        async def publish_events() -> None:
+            await anyio.sleep(0.2)
+            event1 = AssessmentEvent(
+                event_type=EVENT_ASSESSMENT_CREATED,
+                assessment_id="asmt-filter-001",
+                state="authorized",
+                message="Event 1",
+            )
+            event2 = AssessmentEvent(
+                event_type=EVENT_ASSESSMENT_CREATED,
+                assessment_id="asmt-filter-002",
+                state="authorized",
+                message="Event 2",
+            )
             event_bus.publish(event1)
             event_bus.publish(event2)
 
-        t_sub = threading.Thread(target=subscriber)
-        t_pub = threading.Thread(target=publish_events)
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(subscriber)
+            tg.start_soon(publish_events)
 
-        t_sub.start()
-        t_pub.start()
-
-        t_sub.join(timeout=2.0)
-        t_pub.join(timeout=1.0)
-
-        # Should only receive event1 (filtered by assessment_id)
         assert len(received_events) == 1
         assert received_events[0]["assessment_id"] == "asmt-filter-001"
