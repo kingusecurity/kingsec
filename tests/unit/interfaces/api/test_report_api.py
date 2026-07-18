@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from fastapi.testclient import TestClient
 
 from kingsec.application import ReportGenerationResult, ReportServicePort
+from kingsec.application.dto import RenderedReport
 from kingsec.interfaces.api.app import create_app
 
 # ---------------------------------------------------------------------------
@@ -87,6 +88,22 @@ class _MockReportService(ReportServicePort):
         if report_id not in self._reports:
             raise ValueError(f"Report not found: {report_id}")
         return self._formats
+
+    def render_report(self, report_id: str, format_name: str) -> RenderedReport:
+        if report_id not in self._reports:
+            raise ValueError(f"Report not found: {report_id}")
+        if format_name not in self._formats:
+            raise ValueError(f"Unsupported format: {format_name}")
+        content_map = {
+            "markdown": (b"# Mock", "text/markdown", ".md"),
+            "html": (b"<html></html>", "text/html", ".html"),
+            "pdf": (b"%PDF-", "application/pdf", ".pdf"),
+            "json": (b"{}", "application/json", ".json"),
+            "csv": (b"a,b", "text/csv", ".csv"),
+            "sarif": (b"{}", "application/sarif+json", ".sarif"),
+        }
+        content, media_type, ext = content_map[format_name]
+        return RenderedReport(content=content, media_type=media_type, filename=f"report{ext}")
 
 
 _REPORT_SERVICE = _MockReportService()

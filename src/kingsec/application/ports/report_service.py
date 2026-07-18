@@ -12,6 +12,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
 
+from ..dto import RenderedReport
+
 
 @dataclass(frozen=True)
 class ReportGenerationResult:
@@ -41,3 +43,7 @@ class ReportServicePort(ABC):
     @abstractmethod
     def get_formats(self, report_id: str) -> list[str]:
         """Return the list of available output format names."""
+
+    @abstractmethod
+    def render_report(self, report_id: str, format_name: str) -> RenderedReport:
+        """Render a report in the given format and return the artifact."""
