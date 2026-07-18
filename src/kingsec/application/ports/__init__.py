@@ -8,6 +8,7 @@ from .outbound.password_hasher import PasswordHasher
 from .outbound.token_service import TokenClaims, TokenExpiredError, TokenInvalidError, TokenService
 from .outbound.user_repository import UserRepository
 from .repositories import AssessmentRepository, ReportRepository
+from .report_service import ReportGenerationResult, ReportServicePort
 from .scanner_executor import ScannerExecutor
 from .scanner_plugin import ScannerPluginPort
 from .scanner_registry import ScannerPluginRegistry
@@ -21,8 +22,10 @@ __all__ = [
     "EventPublisher",
     "JobRunner",
     "PasswordHasher",
+    "ReportGenerationResult",
     "ReportGeneratorPort",
     "ReportRepository",
+    "ReportServicePort",
     "ScannerExecutor",
     "ScannerPluginPort",
     "ScannerPluginRegistry",

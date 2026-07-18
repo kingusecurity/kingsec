@@ -11,12 +11,13 @@ from typing import TYPE_CHECKING
 from fastapi import FastAPI
 
 if TYPE_CHECKING:
-    from kingsec.application.ports import ScannerPluginRegistry, ScannerPort
+    from kingsec.application.ports import ReportServicePort, ScannerPluginRegistry, ScannerPort
 
 
 def create_app(
     registry: ScannerPluginRegistry | None = None,
     scanner: ScannerPort | None = None,
+    report_service: ReportServicePort | None = None,
 ) -> FastAPI:
     """Create and return a configured FastAPI application instance.
 
@@ -26,6 +27,9 @@ def create_app(
             are not registered.
         scanner: Optional ``ScannerPort`` for scan execution.  When
             ``None``, scan endpoints are not registered.
+        report_service: Optional ``ReportServicePort`` for report
+            generation and retrieval.  When ``None``, report endpoints
+            are not registered.
 
     Returns:
         A fully configured ``FastAPI`` instance with route mounts.
@@ -51,5 +55,9 @@ def create_app(
     if registry is not None and scanner is not None:
         from kingsec.interfaces.api.routes.scan import create_scan_router
         app.include_router(create_scan_router(registry, scanner))
+
+    if report_service is not None:
+        from kingsec.interfaces.api.routes.report import create_report_router
+        app.include_router(create_report_router(report_service))
 
     return app
