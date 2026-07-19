@@ -6,7 +6,7 @@ only through ports (abstract interfaces / dependency injection).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable
 
 from fastapi import FastAPI
 
@@ -24,6 +24,9 @@ def create_app(
     scanner: ScannerPort | None = None,
     report_service: ReportServicePort | None = None,
     job_service: JobServicePort | None = None,
+    *,
+    get_current_user: Callable | None = None,
+    app_instance: Any | None = None,
 ) -> FastAPI:
     """Create and return a configured FastAPI application instance.
 
@@ -45,6 +48,12 @@ def create_app(
         version="0.7.0",
         description="Enterprise Security Assessment Platform",
     )
+
+    # When an Application instance is provided, set it on app.state so that
+    # auth dependencies (get_current_user, require_role, …) can resolve ports
+    # from the DI container.
+    if app_instance is not None:
+        app.state.kingsec_app = app_instance  # type: ignore[attr-defined]
 
     @app.get("/")
     async def root() -> dict:
@@ -70,7 +79,7 @@ def create_app(
 
     if job_service is not None:
         from kingsec.interfaces.api.routes.jobs import create_jobs_router
-        app.include_router(create_jobs_router(job_service))
+        app.include_router(create_jobs_router(job_service, get_current_user=get_current_user))
 
     from kingsec.interfaces.api.errors import register_error_handlers
     register_error_handlers(app)
