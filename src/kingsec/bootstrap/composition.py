@@ -24,6 +24,7 @@ from kingsec.application import (
     ApiKeyHasher,
     ApiKeyRepository,
     AssessmentRepository,
+    AuditEventRepository,
     AuditPublisher,
     CancelAssessment,
     ChangePassword,
@@ -38,6 +39,7 @@ from kingsec.application import (
     ListAssessments,
     Login,
     PasswordHasher,
+    RecordAuditEvent,
     RefreshToken,
     RegisterUser,
     ReportGeneratorPort,
@@ -45,6 +47,7 @@ from kingsec.application import (
     RevokeApiKey,
     RotateApiKey,
     ScannerPort,
+    SearchAuditEvents,
     ServiceAPI,
     StartAssessment,
     SubmitAssessment,
@@ -54,7 +57,7 @@ from kingsec.application import (
     ValidateApiKey,
 )
 from kingsec.infrastructure.ai import register_ai
-from kingsec.infrastructure.audit.provisioning import register_audit
+from kingsec.infrastructure.audit.provisioning import register_audit, register_enterprise_audit
 from kingsec.infrastructure.auth.provisioning import register_api_key_auth, register_auth, register_user_repository
 from kingsec.infrastructure.events.provisioning import register_events
 from kingsec.infrastructure.jobs import register_jobs
@@ -145,6 +148,7 @@ def _register_adapters(
 
     # Audit trail: append-only persistence for security events.
     register_audit(container, session_factory)
+    register_enterprise_audit(container, session_factory)
 
     # Capability adapters. AI adds its own http-client.close shutdown hook.
     register_scanner(container, settings)
@@ -303,4 +307,14 @@ def _register_use_cases(container: Container) -> None:
             c.resolve(ApiKeyRepository),
             c.resolve(ApiKeyHasher),
         ),
+    )
+
+    # Enterprise audit use cases.
+    container.register_factory(
+        RecordAuditEvent,
+        lambda c: RecordAuditEvent(c.resolve(AuditEventRepository)),
+    )
+    container.register_factory(
+        SearchAuditEvents,
+        lambda c: SearchAuditEvents(c.resolve(AuditEventRepository)),
     )

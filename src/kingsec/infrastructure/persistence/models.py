@@ -203,6 +203,34 @@ class AuditEntryORM(Base):
     metadata_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
 
 
+class AuditEventORM(Base):
+    """Immutable enterprise audit event record.
+
+    This is the Phase 8.4 enterprise audit table, separate from the legacy
+    ``audit_entries`` table. Append-only: no update or delete operations.
+    Timestamps are ISO-8601 strings. Enums are stored by value. Metadata is
+    stored as a JSON string.
+    """
+
+    __tablename__ = "audit_events"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    timestamp: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    actor_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    actor_type: Mapped[str] = mapped_column(String, nullable=False)
+    username: Mapped[str] = mapped_column(String, nullable=False)
+    ip_address: Mapped[str] = mapped_column(String, nullable=False, default="")
+    user_agent: Mapped[str] = mapped_column(String, nullable=False, default="")
+    request_id: Mapped[str] = mapped_column(String, nullable=False, default="")
+    action: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    resource_type: Mapped[str] = mapped_column(String, nullable=False, default="")
+    resource_id: Mapped[str] = mapped_column(String, nullable=False, default="")
+    outcome: Mapped[str] = mapped_column(String, nullable=False)
+    severity: Mapped[str] = mapped_column(String, nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    metadata_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+
+
 # ===========================================================================
 #  Scan-job / Asset models  (Phase 7.2)
 # ===========================================================================

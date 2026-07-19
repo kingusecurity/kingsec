@@ -17,6 +17,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from .audit import router as v1_audit_router
+from .audit_events import router as v1_audit_events_router
 from .routes import router as v1_router
 from .sse import router as v1_sse_router
 
@@ -30,6 +31,7 @@ def register_versioned_routes(app: FastAPI) -> None:
     app.include_router(v1_router)
     app.include_router(v1_sse_router)
     app.include_router(v1_audit_router)
+    app.include_router(v1_audit_events_router)
 
     # Future example:
     # from .routes_v2 import router as v2_router

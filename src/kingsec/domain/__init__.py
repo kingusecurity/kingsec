@@ -6,12 +6,16 @@ Python so the core business rules can be understood and tested in isolation.
 
 Public API
     Entities / aggregate
-        Assessment, Finding, User
+        Assessment, Finding, User, AuditEvent
     Value objects
-        AssessmentId, FindingId, Target, TargetType, Authorization,
-        Evidence, Recommendation, Report, Verdict, FindingSummary,
-        AuditEntry, ScannerId, ScannerPluginMetadata, ScannerCapability,
-        PluginConfig, PluginAvailability, ScannerResult
+        AssessmentId, FindingId, AuditEventId, Target, TargetType,
+        Authorization, Evidence, Recommendation, Report, Verdict,
+        FindingSummary, AuditEntry, ScannerId, ScannerPluginMetadata,
+        ScannerCapability, PluginConfig, PluginAvailability, ScannerResult
+    Enums
+        ApiKeyStatus, ApiKeyScope, Severity, AssessmentStatus,
+        FindingStatus, Role, AuditAction, AuditOutcome, AuditSeverity,
+        ScanCategory, OutputFormat
     Enums
         ApiKeyStatus, ApiKeyScope, Severity, AssessmentStatus,
         FindingStatus, Role, AuditAction, ScanCategory, OutputFormat
@@ -25,6 +29,7 @@ from __future__ import annotations
 
 from .api_key import ApiKey, ApiKeyScope, ApiKeyStatus
 from .assessment import Assessment
+from .audit_event import AuditEvent, AuditEventId, AuditOutcome, AuditSeverity
 from .audit import AuditAction, AuditEntry
 from .authorization import Authorization
 from .enums import AssessmentStatus, FindingStatus, Role, Severity
@@ -62,6 +67,10 @@ __all__ = [
     "AssessmentStatus",
     "AuditAction",
     "AuditEntry",
+    "AuditEvent",
+    "AuditEventId",
+    "AuditOutcome",
+    "AuditSeverity",
     "Authorization",
     "DomainError",
     "Evidence",

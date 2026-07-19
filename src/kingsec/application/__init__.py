@@ -75,11 +75,21 @@ from .jobs import (
     validate_transition,
 )
 from .normalization import FindingNormalizer, NormalizedFinding
+from .use_cases.audit_dto import (
+    AuditEventView,
+    RecordAuditEventRequest,
+    RecordAuditEventResponse,
+    SearchAuditEventsRequest,
+    SearchAuditEventsResponse,
+)
+from .use_cases.record_audit_event import RecordAuditEvent
+from .use_cases.search_audit_events import SearchAuditEvents
 from .ports import (
     AIPort,
     ApiKeyHasher,
     ApiKeyRepository,
     AssessmentRepository,
+    AuditEventRepository,
     Asset,
     AssetRepositoryPort,
     AuditPublisher,
@@ -151,6 +161,8 @@ __all__ = [
     "AssessmentView",
     "Asset",
     "AssetRepositoryPort",
+    "AuditEventRepository",
+    "AuditEventView",
     "AuditPublisher",
     "AuthenticationError",
     "CancelAssessment",
@@ -182,7 +194,6 @@ __all__ = [
     "IllegalJobTransitionError",
     "InMemoryJobService",
     "InputValidationError",
-    "JobId",
     "JobNotFoundError",
     "JobRepositoryPort",
     "JobRunner",
@@ -256,4 +267,10 @@ __all__ = [
     "ValidateApiKey",
     "ValidateApiKeyRequest",
     "ValidateApiKeyResponse",
+    "RecordAuditEvent",
+    "RecordAuditEventRequest",
+    "RecordAuditEventResponse",
+    "SearchAuditEvents",
+    "SearchAuditEventsRequest",
+    "SearchAuditEventsResponse",
 ]
