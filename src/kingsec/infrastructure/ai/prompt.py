@@ -90,7 +90,6 @@ def sanitize(text: str, *, max_len: int = _MAX_FIELD_LEN) -> str:
     Returns:
         A sanitised string safe to embed as data.
     """
-
     if not text:
         return ""
     cleaned = _CONTROL_RE.sub("", text)
@@ -115,7 +114,6 @@ class PromptBuilder:
         Returns:
             ``(system_prompt, user_prompt)``.
         """
-
         lines = [
             "<finding>",
             f"title: {sanitize(finding.title)}",

@@ -8,7 +8,7 @@ Finding safely expose them and what makes a Report a trustworthy snapshot.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from ._validation import ensure_non_empty, ensure_timezone_aware
 from .enums import Severity
@@ -28,10 +28,9 @@ class Evidence:
         ensure_timezone_aware(self.collected_at, "Evidence collected_at")
 
     @classmethod
-    def create(cls, summary: str, detail: str) -> "Evidence":
+    def create(cls, summary: str, detail: str) -> Evidence:
         """Create evidence stamped at the current UTC time."""
-
-        return cls(summary=summary, detail=detail, collected_at=datetime.now(timezone.utc))
+        return cls(summary=summary, detail=detail, collected_at=datetime.now(UTC))
 
 
 @dataclass(frozen=True, slots=True)

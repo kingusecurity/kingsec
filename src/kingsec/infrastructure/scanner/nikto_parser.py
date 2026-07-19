@@ -20,7 +20,7 @@ Severity mapping (conservative):
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from kingsec.domain import Evidence, Finding, Severity
 from kingsec.infrastructure.logging import get_logger
@@ -132,7 +132,7 @@ def parse_nikto_output(output: str) -> list[Finding]:
             Evidence(
                 summary=f"Nikto finding: {finding_text[:80]}",
                 detail=f"raw: {line}",
-                collected_at=datetime.now(timezone.utc),
+                collected_at=datetime.now(UTC),
             )
         )
         findings.append(finding)

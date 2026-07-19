@@ -27,7 +27,7 @@ _logger = get_logger("kingsec.infrastructure.ai")
 
 def register_ai(
     container: object,
-    settings: "Settings",
+    settings: Settings,
     *,
     transport: httpx.BaseTransport | None = None,
 ) -> AIPort:
@@ -42,7 +42,6 @@ def register_ai(
     Returns:
         The registered ``AIPort`` implementation.
     """
-
     ai_settings = settings.ai
     provider = resolve_provider(ai_settings.provider)  # fails fast on bad provider
     client = AIClient(
@@ -54,7 +53,7 @@ def register_ai(
     )
     adapter = AIProviderAdapter(settings=ai_settings, provider=provider, client=client)
 
-    register = getattr(container, "register_instance")
+    register = container.register_instance
     register(AIPort, adapter)
     add_shutdown_hook = getattr(container, "add_shutdown_hook", None)
     if callable(add_shutdown_hook):

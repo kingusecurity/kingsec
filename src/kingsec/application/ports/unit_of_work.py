@@ -44,7 +44,7 @@ class UnitOfWork(ABC):
     reports: ReportRepository
 
     @abstractmethod
-    def __enter__(self) -> "UnitOfWork":
+    def __enter__(self) -> UnitOfWork:
         """Begin the transaction and expose the session-bound repositories."""
 
     @abstractmethod

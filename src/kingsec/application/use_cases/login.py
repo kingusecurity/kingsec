@@ -17,10 +17,11 @@ Security considerations:
 
 from __future__ import annotations
 
-from ..dto import LoginRequest, LoginResponse
-from ..ports import AuditPublisher, PasswordHasher, TokenService, UserRepository
-from ..errors import ApplicationError
 from kingsec.domain.audit import AuditAction, AuditEntry
+
+from ..dto import LoginRequest, LoginResponse
+from ..errors import ApplicationError
+from ..ports import AuditPublisher, PasswordHasher, TokenService, UserRepository
 
 
 class Login:
@@ -129,7 +130,7 @@ class Login:
             return
         try:
             self._audit.record(entry)
-        except Exception:  # noqa: BLE001 - audit is best-effort
+        except Exception:
             pass
 
 

@@ -11,7 +11,12 @@ from typing import TYPE_CHECKING
 from fastapi import FastAPI
 
 if TYPE_CHECKING:
-    from kingsec.application.ports import JobServicePort, ReportServicePort, ScannerPluginRegistry, ScannerPort
+    from kingsec.application.ports import (
+        JobServicePort,
+        ReportServicePort,
+        ScannerPluginRegistry,
+        ScannerPort,
+    )
 
 
 def create_app(
@@ -37,7 +42,7 @@ def create_app(
     """
     app = FastAPI(
         title="KingSec API",
-        version="0.6.0",
+        version="0.7.0",
         description="Enterprise Security Assessment Platform",
     )
 

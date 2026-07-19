@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from kingsec.domain import Evidence, Finding, Severity
 from kingsec.infrastructure.logging import get_logger
@@ -124,7 +124,7 @@ def parse_ffuf_json(output: str) -> list[Finding]:
                     f"words: {words} | lines: {lines_count} | "
                     f"content-type: {content_type} | duration: {duration}us"
                 ),
-                collected_at=datetime.now(timezone.utc),
+                collected_at=datetime.now(UTC),
             )
         )
         findings.append(finding)

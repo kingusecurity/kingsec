@@ -29,7 +29,6 @@ from kingsec.infrastructure.logging import get_logger
 
 def main() -> None:
     """Compose, wire, and serve the KingSec API."""
-
     kingsec_app = create_wired_application()
 
     with kingsec_app:

@@ -70,23 +70,19 @@ class Application:
 
     def resolve(self, service_type: type) -> Any:
         """Resolve a service from the container (convenience passthrough)."""
-
         return self._container.resolve(service_type)
 
     def register_shutdown(self, hook: Any) -> None:
         """Register a teardown callback (runs LIFO on stop)."""
-
         self._container.add_shutdown_hook(hook)
 
     def translate_exception(self, exc: BaseException) -> Any:
         """Translate an exception into a safe, leak-free payload for a boundary."""
-
         return self._exception_handlers.handle(exc)
 
     # --- lifecycle -----------------------------------------------------------
-    def start(self) -> "Application":
+    def start(self) -> Application:
         """Install runtime hooks and mark the app running. Idempotent."""
-
         if self._started:
             return self
         self._logger.info(
@@ -104,7 +100,6 @@ class Application:
 
     def stop(self) -> None:
         """Tear down in reverse order and restore global hooks. Idempotent."""
-
         if not self._started or self._stopped:
             return
         self._logger.info("application stopping")
@@ -131,7 +126,7 @@ class Application:
             ) from exc
 
     # --- context manager -----------------------------------------------------
-    def __enter__(self) -> "Application":
+    def __enter__(self) -> Application:
         return self.start()
 
     def __exit__(self, *exc_info: object) -> bool:
@@ -156,7 +151,6 @@ def create_application(
     ensure_directories:
         Whether ``start()`` should create the configured data directory.
     """
-
     # 1. Config first — fail fast before any subsystem exists.
     settings = load_settings(env_file)
 

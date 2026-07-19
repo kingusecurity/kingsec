@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from kingsec.infrastructure.persistence._legacy_repositories import (
     SqlAlchemyAssessmentRepository as _LegacyAssessmentRepo,
+)
+from kingsec.infrastructure.persistence._legacy_repositories import (
     SqlAlchemyReportRepository as _LegacyReportRepo,
 )
 
@@ -15,15 +17,15 @@ from kingsec.infrastructure.persistence._legacy_repositories import (
 SqlAlchemyAssessmentRepository = _LegacyAssessmentRepo
 SqlAlchemyReportRepository = _LegacyReportRepo
 
-from .asset import SQLAlchemyAssetRepository  # noqa: E402, F811
-from .assessment import SQLAlchemyAssessmentRepository  # noqa: E402, F811
-from .job import SQLAlchemyJobRepository  # noqa: E402, F811
-from .report import SQLAlchemyReportRepository  # noqa: E402, F811
-from .scan import SQLAlchemyScanRepository  # noqa: E402, F811
+from .assessment import SQLAlchemyAssessmentRepository
+from .asset import SQLAlchemyAssetRepository
+from .job import SQLAlchemyJobRepository
+from .report import SQLAlchemyReportRepository
+from .scan import SQLAlchemyScanRepository
 
 __all__ = [
-    "SQLAlchemyAssetRepository",
     "SQLAlchemyAssessmentRepository",
+    "SQLAlchemyAssetRepository",
     "SQLAlchemyJobRepository",
     "SQLAlchemyReportRepository",
     "SQLAlchemyScanRepository",

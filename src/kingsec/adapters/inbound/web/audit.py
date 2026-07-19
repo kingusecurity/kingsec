@@ -11,14 +11,13 @@ to the audit trail. It requires ADMIN role.
 
 from __future__ import annotations
 
-import json
 from typing import TYPE_CHECKING, Annotated
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request
 
 from kingsec.application.ports.outbound.audit_publisher import AuditPublisher
 from kingsec.bootstrap.application import Application
-from kingsec.domain.audit import AuditAction, AuditEntry
+from kingsec.domain.audit import AuditEntry
 
 from .auth import require_admin
 
@@ -69,7 +68,7 @@ class EnrichedAuditPublisher(AuditPublisher):
 # ── Admin query schemas ──────────────────────────────────────────────────────
 
 
-def _get_audit_repository(request: Request) -> "SqlAlchemyAuditRepository":
+def _get_audit_repository(request: Request) -> SqlAlchemyAuditRepository:
     """Resolve the audit repository from the DI container."""
     app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
     return app.resolve(AuditPublisher)  # type: ignore[return-value]
@@ -102,8 +101,6 @@ async def list_audit_entries(
     offset: Annotated[int, Query(ge=0, description="Results to skip")] = 0,
 ) -> dict:
     """Query audit trail entries with optional filters."""
-    from kingsec.infrastructure.persistence.audit_repository import SqlAlchemyAuditRepository
-
     app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
     repo: SqlAlchemyAuditRepository = app.resolve(AuditPublisher)  # type: ignore[assignment]
 

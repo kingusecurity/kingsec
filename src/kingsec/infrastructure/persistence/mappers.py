@@ -35,8 +35,8 @@ from kingsec.domain import (
 )
 
 from .models import (
-    AssetModel,
     AssessmentORM,
+    AssetModel,
     EvidenceORM,
     FindingModel,
     FindingORM,
@@ -51,7 +51,6 @@ from .models import (
 
 def finding_to_orm(finding: Finding) -> FindingORM:
     """Build a FindingORM (with its children) from a domain Finding."""
-
     return FindingORM(
         id=str(finding.id),
         title=finding.title,
@@ -80,7 +79,6 @@ def finding_to_orm(finding: Finding) -> FindingORM:
 
 def assessment_to_orm(assessment: Assessment) -> AssessmentORM:
     """Build an AssessmentORM aggregate (with findings) from a domain Assessment."""
-
     authorization = assessment.authorization
     return AssessmentORM(
         id=str(assessment.id),
@@ -98,7 +96,6 @@ def assessment_to_orm(assessment: Assessment) -> AssessmentORM:
 
 def report_to_orm(report: Report) -> ReportORM:
     """Build a ReportORM (with JSON entries) from a domain Report snapshot."""
-
     return ReportORM(
         assessment_id=report.assessment_id,
         target=report.target,
@@ -132,7 +129,6 @@ def report_to_orm(report: Report) -> ReportORM:
 
 def finding_to_domain(orm: FindingORM) -> Finding:
     """Rebuild a domain Finding from a FindingORM row and its children."""
-
     evidence = [
         Evidence(
             summary=item.summary,
@@ -163,7 +159,6 @@ def finding_to_domain(orm: FindingORM) -> Finding:
 
 def assessment_to_domain(orm: AssessmentORM) -> Assessment:
     """Rebuild a domain Assessment aggregate from an AssessmentORM row."""
-
     authorization: Authorization | None = None
     if orm.authorized_by is not None:
         authorization = Authorization(
@@ -189,7 +184,6 @@ def assessment_to_domain(orm: AssessmentORM) -> Assessment:
 
 def report_to_domain(orm: ReportORM) -> Report:
     """Rebuild a domain Report snapshot from a ReportORM row."""
-
     verdict = Verdict(
         highest_severity=(
             Severity[orm.verdict_highest_severity]
@@ -230,7 +224,6 @@ def report_to_domain(orm: ReportORM) -> Report:
 
 def scan_finding_to_orm(finding: Finding, scan_id: str) -> FindingModel:
     """Build a FindingModel row from a domain Finding for a scan result."""
-
     return FindingModel(
         id=str(finding.id),
         scan_id=scan_id,
@@ -245,7 +238,6 @@ def scan_finding_to_orm(finding: Finding, scan_id: str) -> FindingModel:
 
 def scan_finding_to_domain(orm: FindingModel) -> Finding:
     """Rebuild a domain Finding from a FindingModel row (scan context)."""
-
     return Finding.reconstitute(
         finding_id=FindingId(orm.id),
         title=orm.title,
@@ -258,7 +250,6 @@ def scan_finding_to_domain(orm: FindingModel) -> Finding:
 
 def scan_result_to_orm(scan_id: str, result: ScannerResult) -> ScanModel:
     """Build a ScanModel from a scan id and ScannerResult."""
-
     now = datetime.now().isoformat()
     return ScanModel(
         id=scan_id,
@@ -278,7 +269,6 @@ def scan_result_to_domain(orm: ScanModel) -> ScannerResult:
     ``warnings`` are not stored in the current ORM schema and are returned
     as empty / zero defaults.  A future migration can add columns for these.
     """
-
     return ScannerResult(
         scanner_id=ScannerId(orm.target),
         findings=tuple(scan_finding_to_domain(f) for f in orm.findings),
@@ -294,7 +284,6 @@ def scan_result_to_domain(orm: ScanModel) -> ScannerResult:
 
 def job_to_orm(job: ScanJob) -> JobModel:
     """Build a JobModel row from a ScanJob record."""
-
     return JobModel(
         id=str(job.id),
         status=job.status.value,
@@ -310,7 +299,6 @@ def job_to_domain(orm: JobModel) -> ScanJob:
     Note: ``config`` is not stored in the current ORM schema and is returned
     as ``{}``.  A future migration can add a column for it.
     """
-
     from kingsec.application.job import JobId
     from kingsec.application.jobs import JobStatus, ScanJob
 
@@ -331,7 +319,6 @@ def job_to_domain(orm: JobModel) -> ScanJob:
 
 def _infer_target(orm: AssetModel) -> Target:
     """Rebuild a Target from whichever AssetModel column carries the value."""
-
     if orm.hostname:
         return Target(orm.hostname, TargetType.HOSTNAME)
     if orm.ip_address:
@@ -341,7 +328,6 @@ def _infer_target(orm: AssetModel) -> Target:
 
 def asset_to_orm(asset: Asset) -> AssetModel:
     """Build an AssetModel row from an Asset value object."""
-
     hostname = asset.target.value if asset.target.type == TargetType.HOSTNAME else None
     ip_address = asset.target.value if asset.target.type == TargetType.IP_ADDRESS else None
 
@@ -359,7 +345,6 @@ def asset_to_domain(orm: AssetModel) -> Asset:
     Note: ``tags`` are not stored in the current ORM schema and are returned
     as an empty frozenset.  A future migration can add a column for them.
     """
-
     from kingsec.application.ports.repositories import Asset
 
     return Asset(

@@ -29,7 +29,7 @@ class ZapScannerAdapter(ScannerPort):
 
     def __init__(
         self,
-        settings: "ZapSettings",
+        settings: ZapSettings,
         runner: CommandRunner | None = None,
     ) -> None:
         self._settings = settings

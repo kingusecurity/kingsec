@@ -14,14 +14,14 @@ from typing import TYPE_CHECKING
 
 from kingsec.application.ports.scanner_plugin import ScannerPluginPort
 from kingsec.domain import (
+    OutputFormat,
     PluginAvailability,
     PluginConfig,
+    ScanCategory,
     ScannerCapability,
     ScannerId,
     ScannerPluginMetadata,
     ScannerResult,
-    ScanCategory,
-    OutputFormat,
     Target,
     TargetType,
 )
@@ -42,8 +42,8 @@ class AmassPlugin(ScannerPluginPort):
 
     def __init__(
         self,
-        settings: "AmassSettings",
-        runner: "CommandRunner | None" = None,
+        settings: AmassSettings,
+        runner: CommandRunner | None = None,
     ) -> None:
         from ...amass import AmassScannerAdapter
 

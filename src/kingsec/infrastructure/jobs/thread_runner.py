@@ -53,7 +53,6 @@ class ThreadJobRunner(JobRunner):
         Raises:
             JobRunnerError: If a job with this ID is already running.
         """
-
         with self._lock:
             if job_id in self._futures:
                 future = self._futures[job_id]
@@ -75,7 +74,6 @@ class ThreadJobRunner(JobRunner):
 
     def is_running(self, job_id: str) -> bool:
         """Return True if the job is still executing."""
-
         with self._lock:
             future = self._futures.get(job_id)
             if future is None:
@@ -84,6 +82,5 @@ class ThreadJobRunner(JobRunner):
 
     def shutdown(self, wait: bool = True) -> None:
         """Shutdown the executor, waiting for pending jobs if requested."""
-
         self._executor.shutdown(wait=wait)
         logger.info("job runner shut down", wait=wait)

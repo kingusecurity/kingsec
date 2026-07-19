@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import os
 import secrets
 from base64 import b64decode, b64encode
 
@@ -37,7 +36,7 @@ class Argon2PasswordHasher(PasswordHasher):
     def _check_argon2_available() -> bool:
         """Check if argon2-cffi is available."""
         try:
-            import argon2  # noqa: F401
+            import argon2
             return True
         except ImportError:
             return False
@@ -60,7 +59,6 @@ class Argon2PasswordHasher(PasswordHasher):
     def _hash_argon2(self, password: str) -> str:
         """Hash using argon2id."""
         from argon2 import PasswordHasher as Argon2Hasher
-        from argon2.exceptions import VerifyMismatchError
 
         hasher = Argon2Hasher(
             time_cost=3,
@@ -75,7 +73,7 @@ class Argon2PasswordHasher(PasswordHasher):
     def _verify_argon2(self, password: str, password_hash: str) -> bool:
         """Verify against argon2id hash."""
         from argon2 import PasswordHasher as Argon2Hasher
-        from argon2.exceptions import VerifyMismatchError, InvalidHashError
+        from argon2.exceptions import InvalidHashError, VerifyMismatchError
 
         hasher = Argon2Hasher(
             time_cost=3,

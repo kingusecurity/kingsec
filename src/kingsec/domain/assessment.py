@@ -13,7 +13,7 @@ holds even if some future caller forgets an infrastructure-level check.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from .authorization import Authorization
 from .enums import AssessmentStatus, Severity
@@ -52,7 +52,7 @@ class Assessment:
         if not isinstance(target, Target):
             raise InvariantViolation("target must be a Target")
 
-        moment = created_at or datetime.now(timezone.utc)
+        moment = created_at or datetime.now(UTC)
 
         self._id = assessment_id
         self._target = target
@@ -65,9 +65,8 @@ class Assessment:
 
     # --- factory -------------------------------------------------------------
     @classmethod
-    def create(cls, target: Target, *, created_at: datetime | None = None) -> "Assessment":
+    def create(cls, target: Target, *, created_at: datetime | None = None) -> Assessment:
         """Create a new DRAFT assessment with a freshly generated id."""
-
         return cls(AssessmentId.generate(), target, created_at=created_at)
 
     @classmethod
@@ -81,7 +80,7 @@ class Assessment:
         authorization: Authorization | None,
         failure_reason: str | None = None,
         findings: list[Finding] | None = None,
-    ) -> "Assessment":
+    ) -> Assessment:
         """Rebuild an Assessment from stored state (persistence boundary).
 
         Bypasses lifecycle transitions — the caller (mapper) is trusted to
@@ -136,7 +135,6 @@ class Assessment:
     @property
     def highest_severity(self) -> Severity | None:
         """The most severe finding's severity, or None if there are no findings."""
-
         if not self._findings:
             return None
         return max(finding.severity for finding in self._findings.values())
@@ -144,7 +142,6 @@ class Assessment:
     # --- lifecycle -----------------------------------------------------------
     def authorize(self, authorization: Authorization) -> None:
         """Record authorization and move DRAFT -> AUTHORIZED."""
-
         if not isinstance(authorization, Authorization):
             raise InvariantViolation("authorization must be an Authorization")
         self._transition_to(AssessmentStatus.AUTHORIZED)
@@ -152,7 +149,6 @@ class Assessment:
 
     def start(self) -> None:
         """Begin active work: AUTHORIZED -> RUNNING (the authorization gate)."""
-
         # Explicit, friendly message for the single most important rule.
         if self._status is not AssessmentStatus.AUTHORIZED:
             raise IllegalStateTransition(
@@ -167,7 +163,6 @@ class Assessment:
 
     def record_finding(self, finding: Finding) -> None:
         """Add a finding. Only permitted while RUNNING; ids must be unique."""
-
         if not isinstance(finding, Finding):
             raise InvariantViolation("finding must be a Finding")
         if self._status is not AssessmentStatus.RUNNING:
@@ -181,12 +176,10 @@ class Assessment:
 
     def complete(self) -> None:
         """Finish successfully: RUNNING -> COMPLETED."""
-
         self._transition_to(AssessmentStatus.COMPLETED)
 
     def fail(self, reason: str) -> None:
         """Abort due to error: RUNNING -> FAILED, recording why."""
-
         ensure_reason = reason.strip() if isinstance(reason, str) else ""
         if not ensure_reason:
             raise InvariantViolation("a failure reason is required")
@@ -195,7 +188,6 @@ class Assessment:
 
     def cancel(self) -> None:
         """Cancel a not-yet-terminal assessment."""
-
         self._transition_to(AssessmentStatus.CANCELLED)
 
     # --- internals -----------------------------------------------------------

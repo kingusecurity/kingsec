@@ -29,7 +29,7 @@ class NiktoScannerAdapter(ScannerPort):
 
     def __init__(
         self,
-        settings: "NiktoSettings",
+        settings: NiktoSettings,
         runner: CommandRunner | None = None,
     ) -> None:
         self._settings = settings

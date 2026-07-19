@@ -14,14 +14,14 @@ from typing import TYPE_CHECKING
 
 from kingsec.application.ports.scanner_plugin import ScannerPluginPort
 from kingsec.domain import (
+    OutputFormat,
     PluginAvailability,
     PluginConfig,
+    ScanCategory,
     ScannerCapability,
     ScannerId,
     ScannerPluginMetadata,
     ScannerResult,
-    ScanCategory,
-    OutputFormat,
     Target,
     TargetType,
 )
@@ -42,8 +42,8 @@ class NmapPlugin(ScannerPluginPort):
 
     def __init__(
         self,
-        settings: "NmapSettings",
-        runner: "CommandRunner | None" = None,
+        settings: NmapSettings,
+        runner: CommandRunner | None = None,
     ) -> None:
         from ...nmap import NmapScannerAdapter
 

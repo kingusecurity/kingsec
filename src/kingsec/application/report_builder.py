@@ -6,13 +6,21 @@ Pure application layer, stateless, deterministic. Never mutates inputs.
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from kingsec.application.report import (
-    Appendix, AssetEntry, AssetSummary, AttackPathSection,
-    ExecutiveSummary, FindingEntry, FindingSection,
-    RecommendationEntry, RecommendationSection, Report, RiskSummary,
+    Appendix,
+    AssetEntry,
+    AssetSummary,
+    AttackPathSection,
+    ExecutiveSummary,
+    FindingEntry,
+    FindingSection,
+    RecommendationEntry,
+    RecommendationSection,
+    Report,
+    RiskSummary,
     TechnicalSummary,
 )
 
@@ -77,9 +85,9 @@ class ReportBuilder:
         appendix = self._build_appendix(normalized_findings)
 
         return Report(
-            report_id=f"rpt-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+            report_id=f"rpt-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}",
             title="KingSec Security Report",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             executive_summary=executive_summary,
             technical_summary=technical_summary,
             risk_summary=risk_summary,
@@ -318,6 +326,6 @@ class ReportBuilder:
         return Appendix(
             scanner_versions=versions,
             total_plugins=len(versions),
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
             generated_by="KingSec Report Builder",
         )

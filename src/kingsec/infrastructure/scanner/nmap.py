@@ -29,7 +29,7 @@ class NmapScannerAdapter(ScannerPort):
 
     def __init__(
         self,
-        settings: "NmapSettings",
+        settings: NmapSettings,
         runner: CommandRunner | None = None,
     ) -> None:
         self._settings = settings

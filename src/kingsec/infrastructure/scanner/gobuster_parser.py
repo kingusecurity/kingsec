@@ -19,7 +19,7 @@ Severity mapping (conservative):
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from kingsec.domain import Evidence, Finding, Severity
 from kingsec.infrastructure.logging import get_logger
@@ -106,7 +106,7 @@ def parse_gobuster_output(output: str) -> list[Finding]:
             Evidence(
                 summary=f"Gobuster: {status} {path}",
                 detail=f"status: {status} | path: {path} | size: {size}",
-                collected_at=datetime.now(timezone.utc),
+                collected_at=datetime.now(UTC),
             )
         )
         findings.append(finding)

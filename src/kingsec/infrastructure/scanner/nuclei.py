@@ -30,7 +30,7 @@ class NucleiScannerAdapter(ScannerPort):
 
     def __init__(
         self,
-        settings: "ScannerSettings",
+        settings: ScannerSettings,
         runner: CommandRunner | None = None,
     ) -> None:
         """Initialise the adapter.
@@ -41,7 +41,6 @@ class NucleiScannerAdapter(ScannerPort):
             runner: The command runner to execute Nuclei with. Defaults to the
                 real subprocess runner; tests inject a fake.
         """
-
         self._settings = settings
         self._runner: CommandRunner = runner or SubprocessCommandRunner()
 
@@ -59,7 +58,6 @@ class NucleiScannerAdapter(ScannerPort):
             ScannerError: If the scanner is misconfigured, fails to run, times
                 out, or exits with a non-zero status.
         """
-
         self._validate_templates_dir()
         args = self._build_args(target)
 
@@ -100,7 +98,6 @@ class NucleiScannerAdapter(ScannerPort):
                                                   network calls mid-scan)
             -rl     rate limit (safety)  -t       templates dir (if configured)
         """
-
         settings = self._settings
         args: list[str] = [
             settings.binary_path,
@@ -119,7 +116,6 @@ class NucleiScannerAdapter(ScannerPort):
 
     def _validate_templates_dir(self) -> None:
         """Fail fast with a clear error if a configured templates dir is missing."""
-
         templates_dir = self._settings.templates_dir
         if templates_dir is not None and not templates_dir.is_dir():
             raise ScannerExecutionError(

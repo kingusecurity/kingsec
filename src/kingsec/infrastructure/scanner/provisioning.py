@@ -35,7 +35,7 @@ _logger = get_logger("kingsec.infrastructure.scanner")
 
 def register_scanner(
     container: object,
-    settings: "Settings",
+    settings: Settings,
     *,
     runner: CommandRunner | None = None,
 ) -> ScannerPort:
@@ -85,7 +85,7 @@ def register_scanner(
     registry.register(semgrep_plugin)
 
     orchestrator = ScannerOrchestrator(registry)
-    register = getattr(container, "register_instance")
+    register = container.register_instance
     register(ScannerPort, orchestrator)
     _logger.info(
         "scanner registered",

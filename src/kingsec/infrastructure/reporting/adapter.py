@@ -42,7 +42,6 @@ class ReportGeneratorAdapter(ReportGeneratorPort):
         Raises:
             ReportGenerationError: If ``output_format`` is not supported.
         """
-
         fmt = output_format.lower()
         if fmt not in _FORMATS:
             raise ReportGenerationError(
@@ -64,7 +63,6 @@ class ReportGeneratorAdapter(ReportGeneratorPort):
         Raises:
             ReportGenerationError: If rendering fails.
         """
-
         media_type, extension = _FORMATS[self._format]
         if self._format == "pdf":
             content = self._renderer.to_pdf(report)

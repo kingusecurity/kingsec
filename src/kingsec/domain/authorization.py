@@ -9,7 +9,7 @@ and makes the authorization gate meaningful (you cannot authorize anonymously).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from ._validation import ensure_non_empty, ensure_timezone_aware
 
@@ -28,11 +28,10 @@ class Authorization:
         ensure_timezone_aware(self.authorized_at, "authorized_at")
 
     @classmethod
-    def grant(cls, authorized_by: str, scope: str) -> "Authorization":
+    def grant(cls, authorized_by: str, scope: str) -> Authorization:
         """Create an authorization stamped at the current UTC time."""
-
         return cls(
             authorized_by=authorized_by,
-            authorized_at=datetime.now(timezone.utc),
+            authorized_at=datetime.now(UTC),
             scope=scope,
         )

@@ -17,7 +17,7 @@ Severity mapping (conservative):
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from kingsec.domain import Evidence, Finding, Severity
 from kingsec.infrastructure.logging import get_logger
@@ -29,8 +29,8 @@ _LOW_NAMES = frozenset({
     "admin", "vpn", "dev", "stage", "staging", "internal",
     "api", "mail", "git", "jenkins", "kibana", "grafana",
     "cloud", "aws", "azure", "gcp", "cdn", "static",
-    "ci", "cd", "jenkins", "gitlab", "bitbucket",
-    "grafana", "prometheus", "monitor", "metrics",
+    "ci", "cd", "gitlab", "bitbucket",
+    "prometheus", "monitor", "metrics",
     "k8s", "kubernetes", "docker", "registry",
     "s3", "blob", "storage",
 })
@@ -117,7 +117,7 @@ def parse_amass_json(output: str) -> list[Finding]:
             Evidence(
                 summary=f"Amass: {name} ({domain})",
                 detail=f"name: {name} | domain: {domain} | addresses: {address_str} | sources: {source_str} | tag: {tag}",
-                collected_at=datetime.now(timezone.utc),
+                collected_at=datetime.now(UTC),
             )
         )
         findings.append(finding)

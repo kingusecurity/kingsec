@@ -18,7 +18,7 @@ from __future__ import annotations
 import hashlib
 import re
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from kingsec.domain import Severity
@@ -73,7 +73,7 @@ class CorrelatedFinding:
     affected_assets: tuple[str, ...]
     references: tuple[str, ...]
     scanner_sources: tuple[str, ...]
-    merged_findings: tuple["NormalizedFinding", ...]
+    merged_findings: tuple[NormalizedFinding, ...]
     confidence: float
     description: str
     recommendations: tuple[str, ...]
@@ -123,7 +123,7 @@ def _extract_software_names(text: str) -> tuple[str, ...]:
     return tuple(found)
 
 
-def _compute_correlation_keys(finding: "NormalizedFinding") -> set[str]:
+def _compute_correlation_keys(finding: NormalizedFinding) -> set[str]:
     """Compute the set of correlation keys for a single finding.
 
     Two findings are considered related when they share at least one key.
@@ -183,7 +183,7 @@ def _merge_references(reference_lists: list[tuple[str, ...]]) -> tuple[str, ...]
     return tuple(merged)
 
 
-def _merge_recommendations(findings: list["NormalizedFinding"]) -> tuple[str, ...]:
+def _merge_recommendations(findings: list[NormalizedFinding]) -> tuple[str, ...]:
     """Merge recommendation text from multiple findings."""
     seen: set[str] = set()
     merged: list[str] = []
@@ -197,8 +197,8 @@ def _merge_recommendations(findings: list["NormalizedFinding"]) -> tuple[str, ..
 
 
 def _find_connected_groups(
-    findings: list["NormalizedFinding"],
-) -> list[list["NormalizedFinding"]]:
+    findings: list[NormalizedFinding],
+) -> list[list[NormalizedFinding]]:
     """Group findings into connected components via shared correlation keys.
 
     Uses union-find for O(n α(n)) performance.
@@ -231,7 +231,7 @@ def _find_connected_groups(
             for idx in indices[1:]:
                 union(root, idx)
 
-    groups: dict[int, list["NormalizedFinding"]] = defaultdict(list)
+    groups: dict[int, list[NormalizedFinding]] = defaultdict(list)
     for i, finding in enumerate(findings):
         groups[find(i)].append(finding)
 
@@ -256,7 +256,7 @@ class CorrelationEngine:
     # ------------------------------------------------------------------
 
     def correlate(
-        self, findings: list["NormalizedFinding"]
+        self, findings: list[NormalizedFinding]
     ) -> list[CorrelatedFinding]:
         """Correlate a list of normalized findings into deduplicated issues.
 
@@ -284,43 +284,43 @@ class CorrelationEngine:
     # ------------------------------------------------------------------
 
     def group_by_asset(
-        self, findings: list["NormalizedFinding"]
-    ) -> dict[str, list["NormalizedFinding"]]:
+        self, findings: list[NormalizedFinding]
+    ) -> dict[str, list[NormalizedFinding]]:
         """Group findings by affected asset (hostname, IP, file path).
 
         Returns:
             A dict keyed by asset string. A finding may appear under
             multiple assets if it affects more than one.
         """
-        result: dict[str, list["NormalizedFinding"]] = defaultdict(list)
+        result: dict[str, list[NormalizedFinding]] = defaultdict(list)
         for finding in findings:
             for asset in (finding.affected_assets or ("unknown",)):
                 result[asset].append(finding)
         return dict(result)
 
     def group_by_category(
-        self, findings: list["NormalizedFinding"]
-    ) -> dict[str, list["NormalizedFinding"]]:
+        self, findings: list[NormalizedFinding]
+    ) -> dict[str, list[NormalizedFinding]]:
         """Group findings by their normalized category.
 
         Returns:
             A dict keyed by category string. Every finding has a
             category, so every finding appears exactly once.
         """
-        result: dict[str, list["NormalizedFinding"]] = defaultdict(list)
+        result: dict[str, list[NormalizedFinding]] = defaultdict(list)
         for finding in findings:
             result[finding.category].append(finding)
         return dict(result)
 
     def group_by_severity(
-        self, findings: list["NormalizedFinding"]
-    ) -> dict[Severity, list["NormalizedFinding"]]:
+        self, findings: list[NormalizedFinding]
+    ) -> dict[Severity, list[NormalizedFinding]]:
         """Group findings by severity level.
 
         Returns:
             A dict keyed by ``Severity``, ordered from highest to lowest.
         """
-        result: dict[Severity, list["NormalizedFinding"]] = defaultdict(list)
+        result: dict[Severity, list[NormalizedFinding]] = defaultdict(list)
         for finding in findings:
             result[finding.severity].append(finding)
         return dict(result)
@@ -331,7 +331,7 @@ class CorrelationEngine:
 
     @staticmethod
     def _build_correlated(
-        group: list["NormalizedFinding"],
+        group: list[NormalizedFinding],
     ) -> CorrelatedFinding:
         """Build one ``CorrelatedFinding`` from a group of related findings."""
         # Collect all scanner sources (unique, preserving order)
@@ -410,7 +410,7 @@ class CorrelationEngine:
 
 
 def _derive_title(
-    group: list["NormalizedFinding"], max_severity: Severity
+    group: list[NormalizedFinding], max_severity: Severity
 ) -> str:
     """Derive a single descriptive title for a correlated finding."""
     # Use the first CVE reference as the title anchor if available
@@ -425,7 +425,7 @@ def _derive_title(
 
 
 def _derive_description(
-    group: list["NormalizedFinding"],
+    group: list[NormalizedFinding],
 ) -> str:
     """Derive a consolidated description from grouped findings."""
     sorted_by_sev = sorted(group, key=lambda f: f.severity, reverse=True)

@@ -28,7 +28,6 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 
 from kingsec.application.errors import (
-    ApplicationError,
     AssessmentNotFoundError,
     InputValidationError,
     ReportNotFoundError,
@@ -154,7 +153,7 @@ def register_error_handlers(app: object) -> None:
     """
     from fastapi import FastAPI
 
-    assert isinstance(app, FastAPI)  # noqa: S101 - programmer error, not runtime
+    assert isinstance(app, FastAPI)
 
     # Application errors (most specific first).
     app.exception_handler(InputValidationError)(handle_input_validation_error)

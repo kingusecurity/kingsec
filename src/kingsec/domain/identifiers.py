@@ -29,9 +29,8 @@ class AssessmentId:
         ensure_non_empty(self.value, "AssessmentId")
 
     @classmethod
-    def generate(cls) -> "AssessmentId":
+    def generate(cls) -> AssessmentId:
         """Create a fresh, collision-resistant id (prefixed for readability)."""
-
         return cls(f"asmt-{uuid.uuid4().hex}")
 
     def __str__(self) -> str:
@@ -48,7 +47,7 @@ class FindingId:
         ensure_non_empty(self.value, "FindingId")
 
     @classmethod
-    def generate(cls) -> "FindingId":
+    def generate(cls) -> FindingId:
         return cls(f"find-{uuid.uuid4().hex}")
 
     def __str__(self) -> str:

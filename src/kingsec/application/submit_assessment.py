@@ -18,7 +18,6 @@ Error handling
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
 
 from kingsec.domain import AssessmentId, Finding
 from kingsec.domain.audit import AuditAction, AuditEntry
@@ -26,12 +25,19 @@ from kingsec.domain.audit import AuditAction, AuditEntry
 from ._support import to_assessment_id
 from .dto import SubmitAssessmentRequest, SubmitAssessmentResponse
 from .events import (
-    AssessmentEvent,
     EVENT_ASSESSMENT_COMPLETED,
     EVENT_ASSESSMENT_FAILED,
     EVENT_ASSESSMENT_RUNNING,
+    AssessmentEvent,
 )
-from .ports import AIPort, AssessmentRepository, AuditPublisher, EventPublisher, JobRunner, ScannerPort
+from .ports import (
+    AIPort,
+    AssessmentRepository,
+    AuditPublisher,
+    EventPublisher,
+    JobRunner,
+    ScannerPort,
+)
 
 
 class SubmitAssessment:
@@ -103,7 +109,7 @@ class SubmitAssessment:
             return
         try:
             self._events.publish(event)
-        except Exception:  # noqa: BLE001 - event publishing is best-effort
+        except Exception:
             pass
 
     def _publish_audit(self, entry: AuditEntry) -> None:
@@ -112,7 +118,7 @@ class SubmitAssessment:
             return
         try:
             self._audit.record(entry)
-        except Exception:  # noqa: BLE001 - audit is best-effort
+        except Exception:
             pass
 
     @staticmethod
@@ -172,7 +178,7 @@ def _execute_scan(
             ),
         )
 
-    except Exception as exc:  # noqa: BLE001 - catch all to mark as failed
+    except Exception as exc:
         try:
             assessment.fail(str(exc))
             assessments.save(assessment)
@@ -186,19 +192,18 @@ def _execute_scan(
                     message=f"Scan failed: {exc}",
                 ),
             )
-        except Exception:  # noqa: BLE001 - best-effort failure recording
+        except Exception:
             pass
 
 
 def _enrich(finding: Finding, ai: AIPort | None) -> None:
     """Attach an AI recommendation if available (best-effort)."""
-
     if ai is None:
         return
     try:
         recommendation = ai.recommend(finding)
         finding.add_recommendation(recommendation)
-    except Exception:  # noqa: BLE001 - enrichment is optional, never fatal
+    except Exception:
         return
 
 
@@ -208,7 +213,7 @@ def _publish_event(events: EventPublisher | None, event: AssessmentEvent) -> Non
         return
     try:
         events.publish(event)
-    except Exception:  # noqa: BLE001 - event publishing is best-effort
+    except Exception:
         pass
 
 

@@ -29,7 +29,6 @@ from kingsec.shared.errors import ErrorCode, KingSecError, log_exception
 
 def install_excepthooks(logger: Any) -> Callable[[], None]:
     """Route uncaught exceptions through structured logging. Returns restore()."""
-
     previous_sys = sys.excepthook
     previous_thread = threading.excepthook
 
@@ -43,7 +42,7 @@ def install_excepthooks(logger: Any) -> Callable[[], None]:
             log_exception(
                 logger, exc_value, event="uncaught exception", level="critical"
             )
-        except Exception:  # noqa: BLE001 - if logging itself fails, fall back
+        except Exception:
             previous_sys(exc_type, exc_value, exc_tb)
 
     def thread_hook(args: threading.ExceptHookArgs) -> None:
@@ -90,14 +89,12 @@ class ExceptionHandlerRegistry:
 
     def handle(self, exc: BaseException) -> Any | None:
         """Return the handler's safe result, or None if nothing is registered."""
-
         handler = self.handler_for(exc)
         return handler(exc) if handler is not None else None
 
 
 def default_exception_handlers() -> ExceptionHandlerRegistry:
     """A registry that safely translates any exception to a leak-free payload."""
-
     registry = ExceptionHandlerRegistry()
 
     # Known application errors expose their stable code + safe user message.

@@ -31,24 +31,21 @@ class Container:
 
     def __init__(self) -> None:
         self._instances: dict[type, Any] = {}
-        self._factories: dict[type, Callable[["Container"], Any]] = {}
+        self._factories: dict[type, Callable[[Container], Any]] = {}
         self._shutdown_hooks: list[Callable[[], None]] = []
 
     def register_instance(self, service_type: type[T], instance: T) -> None:
         """Register an already-constructed singleton under its type."""
-
         self._instances[service_type] = instance
 
     def register_factory(
-        self, service_type: type[T], factory: Callable[["Container"], T]
+        self, service_type: type[T], factory: Callable[[Container], T]
     ) -> None:
         """Register a lazy factory; the result is cached as a singleton."""
-
         self._factories[service_type] = factory
 
     def resolve(self, service_type: type[T]) -> T:
         """Return the service for ``service_type``, building it lazily if needed."""
-
         if service_type in self._instances:
             return self._instances[service_type]
         if service_type in self._factories:
@@ -62,12 +59,10 @@ class Container:
 
     def has(self, service_type: type) -> bool:
         """True if a service (instance or factory) is registered for the type."""
-
         return service_type in self._instances or service_type in self._factories
 
     def add_shutdown_hook(self, hook: Callable[[], None]) -> None:
         """Register a zero-arg callback to run at shutdown (LIFO order)."""
-
         self._shutdown_hooks.append(hook)
 
     def run_shutdown_hooks(
@@ -80,11 +75,10 @@ class Container:
         closing). Failures are reported via ``on_error`` if provided, then
         swallowed so shutdown always completes.
         """
-
         while self._shutdown_hooks:
             hook = self._shutdown_hooks.pop()  # LIFO
             try:
                 hook()
-            except Exception as exc:  # noqa: BLE001 - shutdown is best-effort
+            except Exception as exc:
                 if on_error is not None:
                     on_error(exc)

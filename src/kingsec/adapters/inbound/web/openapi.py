@@ -8,8 +8,6 @@ the metadata.
 from __future__ import annotations
 
 from fastapi import FastAPI
-from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
-from fastapi.security import HTTPBearer
 
 from kingsec.infrastructure.config.models import AppSettings
 
@@ -44,7 +42,6 @@ TAGS = [
 
 def configure_openapi(app: FastAPI, settings: AppSettings) -> None:
     """Configure the OpenAPI specification for the application."""
-
     app.title = "KingSec API"
     app.version = settings.version
     app.description = (

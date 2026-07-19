@@ -31,7 +31,7 @@ from kingsec.infrastructure.config.models import RateLimitSettings
 class _TokenBucket:
     """A single token bucket for rate limiting."""
 
-    __slots__ = ("capacity", "tokens", "refill_rate", "last_refill")
+    __slots__ = ("capacity", "last_refill", "refill_rate", "tokens")
 
     def __init__(self, capacity: int, refill_rate: float) -> None:
         self.capacity = capacity

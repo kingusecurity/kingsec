@@ -17,9 +17,8 @@ from typing import Annotated
 from fastapi import APIRouter, Body, HTTPException, status
 
 from kingsec.application import ScannerPluginRegistry, ScannerPort
-from kingsec.application.errors import InputValidationError, ScannerPluginError
+from kingsec.application.errors import ScannerPluginError
 from kingsec.domain import ScannerId, Target, TargetType
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -46,7 +45,6 @@ def create_scan_router(
     scanner: ScannerPort,
 ) -> APIRouter:
     """Create an ``APIRouter`` with scan endpoints wired to the given ports."""
-
     router = APIRouter(prefix="/scan", tags=["scan"])
 
     # ── POST /scan ───────────────────────────────────────────────────────
@@ -153,7 +151,6 @@ def _build_target(raw: str) -> Target:
 
 def _count_scanners(registry: ScannerPluginRegistry, target: Target) -> int:
     """Count how many scanners are compatible with the given target."""
-    from kingsec.application.errors import InputValidationError
     try:
         matched = registry.resolve(target)
         return len(matched)

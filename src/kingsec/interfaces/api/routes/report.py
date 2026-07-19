@@ -16,7 +16,6 @@ from fastapi import APIRouter, Body, HTTPException, status
 
 from kingsec.application import ReportServicePort
 
-
 # ---------------------------------------------------------------------------
 # Router factory
 # ---------------------------------------------------------------------------
@@ -24,7 +23,6 @@ from kingsec.application import ReportServicePort
 
 def create_report_router(service: ReportServicePort) -> APIRouter:
     """Create an ``APIRouter`` with report endpoints wired to the given port."""
-
     router = APIRouter(prefix="/report", tags=["report"])
 
     # ── POST /report ─────────────────────────────────────────────────────

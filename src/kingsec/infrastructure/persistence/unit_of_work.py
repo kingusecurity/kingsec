@@ -20,7 +20,6 @@ Two UoW styles coexist:
 from __future__ import annotations
 
 from types import TracebackType
-from typing import Callable
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
@@ -128,11 +127,10 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
         Args:
             session_factory: A ``sessionmaker`` bound to the target engine.
         """
-
         self._session_factory = session_factory
         self._session: Session | None = None
 
-    def __enter__(self) -> "SqlAlchemyUnitOfWork":
+    def __enter__(self) -> SqlAlchemyUnitOfWork:
         self._session = self._session_factory()
         self.assessments = _SessionBoundAssessmentRepository(self._session)
         self.reports = _SessionBoundReportRepository(self._session)
@@ -161,7 +159,6 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
         Raises:
             PersistenceError: If the commit fails at the database level.
         """
-
         assert self._session is not None
         try:
             self._session.commit()
@@ -170,7 +167,6 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
 
     def rollback(self) -> None:
         """Discard all changes made in this transaction."""
-
         assert self._session is not None
         self._session.rollback()
 
@@ -196,7 +192,6 @@ def create_unit_of_work_factory(
     Returns:
         A ``UnitOfWorkFactory`` that yields fresh Units of Work.
     """
-
     return SqlAlchemyUnitOfWorkFactory(session_factory)
 
 
@@ -220,10 +215,9 @@ def register_unit_of_work(
     Returns:
         The registered ``UnitOfWorkFactory`` (for the caller's reference).
     """
-
     factory = create_unit_of_work_factory(session_factory)
     # Duck-typed call keeps infrastructure decoupled from the bootstrap layer.
-    register = getattr(container, "register_instance")
+    register = container.register_instance
     register(UnitOfWorkFactory, factory)
     _logger.info("unit of work registered", backend="sqlite")
     return factory

@@ -160,7 +160,7 @@ class AssessmentSummary:
     findings_count: int
 
     @classmethod
-    def from_domain(cls, assessment: "Assessment") -> "AssessmentSummary":
+    def from_domain(cls, assessment: Assessment) -> AssessmentSummary:
         """Map a domain Assessment aggregate to a boundary-safe summary view."""
         return cls(
             assessment_id=str(assessment.id),
@@ -201,7 +201,7 @@ class FindingView:
     recommendation_count: int
 
     @classmethod
-    def from_domain(cls, finding: "Finding") -> "FindingView":
+    def from_domain(cls, finding: Finding) -> FindingView:
         """Map a domain Finding entity to a boundary-safe view."""
         return cls(
             finding_id=str(finding.id),
@@ -225,7 +225,7 @@ class AssessmentView:
     findings: tuple[FindingView, ...]
 
     @classmethod
-    def from_domain(cls, assessment: "Assessment") -> "AssessmentView":
+    def from_domain(cls, assessment: Assessment) -> AssessmentView:
         """Map a domain Assessment aggregate to a boundary-safe detail view."""
         return cls(
             assessment_id=str(assessment.id),

@@ -13,13 +13,17 @@ Security considerations:
 
 from __future__ import annotations
 
-import time
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import jwt
 
-from kingsec.application.ports import TokenClaims, TokenExpiredError, TokenInvalidError, TokenService
+from kingsec.application.ports import (
+    TokenClaims,
+    TokenExpiredError,
+    TokenInvalidError,
+    TokenService,
+)
 from kingsec.infrastructure.config.models import JWTSettings
 
 
@@ -40,7 +44,7 @@ class JWTTokenService(TokenService):
         username: str,
         role: str,
     ) -> str:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         payload = {
             "sub": user_id,
             "username": username,
@@ -59,7 +63,7 @@ class JWTTokenService(TokenService):
         username: str,
         role: str,
     ) -> str:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         payload = {
             "sub": user_id,
             "username": username,
@@ -120,4 +124,4 @@ class JWTTokenService(TokenService):
 
 def _to_datetime(value: int | float) -> datetime:
     """Convert a UNIX timestamp to a timezone-aware datetime."""
-    return datetime.fromtimestamp(value, tz=timezone.utc)
+    return datetime.fromtimestamp(value, tz=UTC)

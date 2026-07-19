@@ -14,7 +14,7 @@ from kingsec.domain.audit import AuditAction, AuditEntry
 
 from .._support import build_target
 from ..dto import CreateAssessmentRequest, CreateAssessmentResponse
-from ..events import AssessmentEvent, EVENT_ASSESSMENT_CREATED
+from ..events import EVENT_ASSESSMENT_CREATED, AssessmentEvent
 from ..ports import AssessmentRepository, AuditPublisher, EventPublisher
 
 
@@ -75,7 +75,7 @@ class CreateAssessment:
             return
         try:
             self._events.publish(event)
-        except Exception:  # noqa: BLE001 - event publishing is best-effort
+        except Exception:
             pass
 
     def _publish_audit(self, entry: AuditEntry) -> None:
@@ -84,5 +84,5 @@ class CreateAssessment:
             return
         try:
             self._audit.record(entry)
-        except Exception:  # noqa: BLE001 - audit is best-effort
+        except Exception:
             pass

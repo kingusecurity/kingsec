@@ -92,7 +92,6 @@ def create_wired_application(
     Returns:
         A wired :class:`Application` with every port and use case registered.
     """
-
     app = create_application(
         env_file=env_file,
         log_stream=log_stream,
@@ -121,7 +120,6 @@ def _register_adapters(
     validate_migrations: bool = True,
 ) -> None:
     """Bind every port to its concrete adapter on the container."""
-
     container = app.container
     settings = app.settings
 
@@ -156,7 +154,6 @@ def _register_use_cases(container: Container) -> None:
     no manual wiring. The UseCaseServiceAPI facade is also registered here,
     wiring the use cases into the ServiceAPI port.
     """
-
     container.register_factory(
         CreateAssessment,
         lambda c: CreateAssessment(

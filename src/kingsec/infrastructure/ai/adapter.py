@@ -33,7 +33,7 @@ class AIProviderAdapter(AIPort):
     def __init__(
         self,
         *,
-        settings: "AISettings",
+        settings: AISettings,
         provider: ProviderConfig,
         client: AIClient,
         prompt_builder: PromptBuilder | None = None,
@@ -48,7 +48,6 @@ class AIProviderAdapter(AIPort):
             prompt_builder: Builds sanitised prompts (defaulted).
             parser: Parses provider responses (defaulted).
         """
-
         self._settings = settings
         self._provider = provider
         self._client = client
@@ -69,7 +68,6 @@ class AIProviderAdapter(AIPort):
             AIError: If the provider is unreachable, unauthenticated, or returns
                 an unusable response.
         """
-
         api_key = self._require_api_key()
         base_url = self._settings.base_url or self._provider.default_base_url
         model = self._settings.model
@@ -95,7 +93,6 @@ class AIProviderAdapter(AIPort):
 
     def _require_api_key(self) -> str:
         """Return the secret API key value, or raise if none is configured."""
-
         api_key = self._settings.api_key
         if api_key is None:
             raise AIAuthenticationError("no AI API key configured")
@@ -105,7 +102,6 @@ class AIProviderAdapter(AIPort):
 
     def _to_recommendation(self, finding: Finding, enrichment: Enrichment) -> Recommendation:
         """Map an enrichment onto a domain Recommendation (severity preserved)."""
-
         sections: list[str] = []
         if enrichment.explanation:
             sections.append(f"Explanation: {enrichment.explanation}")

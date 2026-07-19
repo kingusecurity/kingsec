@@ -1,5 +1,6 @@
 """Application layer: use cases plus the port contracts the core owns."""
 
+from .correlation import CorrelatedFinding, CorrelationEngine
 from .dto import (
     AdminChangePasswordRequest,
     AssessmentSummary,
@@ -31,6 +32,7 @@ from .dto import (
     SubmitAssessmentResponse,
     UserView,
 )
+from .enrichment import EnrichedFinding, FindingEnricher
 from .errors import (
     ApplicationError,
     AssessmentNotFoundError,
@@ -44,7 +46,6 @@ from .errors import (
     ScannerVersionError,
 )
 from .events import (
-    AssessmentEvent,
     EVENT_ASSESSMENT_CANCELLED,
     EVENT_ASSESSMENT_COMPLETED,
     EVENT_ASSESSMENT_CREATED,
@@ -52,6 +53,7 @@ from .events import (
     EVENT_ASSESSMENT_FAILED,
     EVENT_ASSESSMENT_RUNNING,
     EVENT_REPORT_READY,
+    AssessmentEvent,
 )
 from .job import JobId
 from .jobs import (
@@ -63,11 +65,12 @@ from .jobs import (
     ScanJobResult,
     validate_transition,
 )
+from .normalization import FindingNormalizer, NormalizedFinding
 from .ports import (
     AIPort,
+    AssessmentRepository,
     Asset,
     AssetRepositoryPort,
-    AssessmentRepository,
     AuditPublisher,
     EventPublisher,
     JobRepositoryPort,
@@ -77,11 +80,11 @@ from .ports import (
     ReportGeneratorPort,
     ReportRepository,
     ReportServicePort,
-    ScanRepositoryPort,
     ScannerExecutor,
     ScannerPluginPort,
     ScannerPluginRegistry,
     ScannerPort,
+    ScanRepositoryPort,
     ServiceAPI,
     TokenClaims,
     TokenExpiredError,
@@ -91,14 +94,11 @@ from .ports import (
     UnitOfWorkFactory,
     UserRepository,
 )
-from .unit_of_work import UnitOfWorkPort
-from .correlation import CorrelatedFinding, CorrelationEngine
-from .enrichment import EnrichedFinding, FindingEnricher
-from .normalization import FindingNormalizer, NormalizedFinding
 from .risk import RiskAssessment, RiskFactor, RiskScorer
-from .services.persistent_job_service import PersistentJobService
 from .service_api import UseCaseServiceAPI
+from .services.persistent_job_service import PersistentJobService
 from .submit_assessment import SubmitAssessment
+from .unit_of_work import UnitOfWorkPort
 from .use_cases.cancel_assessment import CancelAssessment
 from .use_cases.change_password import ChangePassword, PasswordChangeError
 from .use_cases.create_assessment import CreateAssessment
@@ -112,18 +112,25 @@ from .use_cases.register_user import RegisterUser, RegistrationError
 from .use_cases.start_assessment import StartAssessment
 
 __all__ = [
-    "AdminChangePasswordRequest",
+    "EVENT_ASSESSMENT_CANCELLED",
+    "EVENT_ASSESSMENT_COMPLETED",
+    "EVENT_ASSESSMENT_CREATED",
+    "EVENT_ASSESSMENT_DELETED",
+    "EVENT_ASSESSMENT_FAILED",
+    "EVENT_ASSESSMENT_RUNNING",
+    "EVENT_REPORT_READY",
     "AIPort",
+    "AdminChangePasswordRequest",
     "ApplicationError",
-    "Asset",
-    "AssetRepositoryPort",
     "AssessmentEvent",
     "AssessmentNotFoundError",
     "AssessmentRepository",
     "AssessmentSummary",
     "AssessmentView",
-    "AuthenticationError",
+    "Asset",
+    "AssetRepositoryPort",
     "AuditPublisher",
+    "AuthenticationError",
     "CancelAssessment",
     "CancelAssessmentRequest",
     "CancelAssessmentResponse",
@@ -137,13 +144,6 @@ __all__ = [
     "DeleteAssessment",
     "DeleteAssessmentRequest",
     "DeleteAssessmentResponse",
-    "EVENT_ASSESSMENT_CANCELLED",
-    "EVENT_ASSESSMENT_COMPLETED",
-    "EVENT_ASSESSMENT_CREATED",
-    "EVENT_ASSESSMENT_DELETED",
-    "EVENT_ASSESSMENT_FAILED",
-    "EVENT_ASSESSMENT_RUNNING",
-    "EVENT_REPORT_READY",
     "EnrichedFinding",
     "EventPublisher",
     "FindingEnricher",
@@ -171,8 +171,8 @@ __all__ = [
     "LoginResponse",
     "NormalizedFinding",
     "PasswordChangeError",
-    "PersistentJobService",
     "PasswordHasher",
+    "PersistentJobService",
     "RefreshToken",
     "RefreshTokenRequest",
     "RefreshTokenResponse",
@@ -218,7 +218,7 @@ __all__ = [
     "UnitOfWork",
     "UnitOfWorkFactory",
     "UnitOfWorkPort",
+    "UseCaseServiceAPI",
     "UserRepository",
     "UserView",
-    "UseCaseServiceAPI",
 ]

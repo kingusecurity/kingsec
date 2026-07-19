@@ -13,15 +13,11 @@ Design principles:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from kingsec.application.attack_path import AttackGraph
-    from kingsec.application.correlation import CorrelatedFinding
-    from kingsec.application.enrichment import EnrichedFinding
-    from kingsec.application.normalization import NormalizedFinding
-    from kingsec.application.risk import RiskAssessment
 
 
 # ---------------------------------------------------------------------------
@@ -207,7 +203,7 @@ class AttackPathSection:
     total_paths: int
     highest_score: int
     average_score: float
-    graph: "AttackGraph" = field(hash=False)
+    graph: AttackGraph = field(hash=False)
 
     def __post_init__(self) -> None:
         if self.total_paths < 0:

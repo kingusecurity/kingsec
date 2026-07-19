@@ -55,7 +55,6 @@ def raise_persistence_error(
     Raises:
         PersistenceError: Always.
     """
-
     error = PersistenceError(message, context={"reference": reference}, cause=cause)
     log_exception(_logger, error)
     raise error
@@ -73,7 +72,6 @@ def persist_assessment(session: Session, assessment: Assessment) -> None:
         session: The active session (transaction owned by the caller).
         assessment: The aggregate to persist.
     """
-
     existing = session.get(AssessmentORM, str(assessment.id))
     if existing is not None:
         session.delete(existing)
@@ -94,7 +92,6 @@ def load_assessment(session: Session, assessment_id: AssessmentId) -> Assessment
     Raises:
         AssessmentNotFoundError: If no assessment has that id.
     """
-
     orm = session.get(AssessmentORM, assessment_id.value)
     if orm is None:
         raise AssessmentNotFoundError(assessment_id.value)
@@ -112,7 +109,6 @@ def persist_report(session: Session, report: Report) -> None:
         session: The active session.
         report: The report snapshot to persist.
     """
-
     session.merge(report_to_orm(report))
 
 
@@ -129,7 +125,6 @@ def load_report(session: Session, assessment_id: AssessmentId) -> Report:
     Raises:
         ReportNotFoundError: If no report exists for the assessment.
     """
-
     orm = session.get(ReportORM, assessment_id.value)
     if orm is None:
         raise ReportNotFoundError(assessment_id.value)
@@ -152,7 +147,6 @@ def list_assessments(
     Returns:
         A list of assessments, most recent first. May be empty.
     """
-
     orms = (
         session.query(AssessmentORM)
         .order_by(AssessmentORM.created_at.desc())
@@ -177,7 +171,6 @@ def delete_assessment(session: Session, assessment_id: AssessmentId) -> None:
     Raises:
         AssessmentNotFoundError: If no assessment has that id.
     """
-
     orm = session.get(AssessmentORM, assessment_id.value)
     if orm is None:
         raise AssessmentNotFoundError(assessment_id.value)

@@ -73,9 +73,7 @@ class UnitOfWorkPort(ABC):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> bool:
-        if exc_type is not None:
-            self.rollback()
-        elif not self._committed:
+        if exc_type is not None or not self._committed:
             self.rollback()
         self.close()
         return False  # do not suppress any exception

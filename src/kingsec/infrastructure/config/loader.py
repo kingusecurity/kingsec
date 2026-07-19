@@ -34,7 +34,6 @@ def _format_validation_error(exc: ValidationError) -> str:
     operator knows exactly which knob to turn, and we omit the raw input value
     so secrets are never echoed.
     """
-
     lines = ["KingSec configuration is invalid. Fix the following and restart:"]
     # include_url=False drops the "for further information visit ..." links that
     # add noise to a startup log.
@@ -58,18 +57,17 @@ def load_settings(env_file: str | Path | None = None) -> Settings:
         tests, which point it at a temporary file so they never depend on a
         ``.env`` in the working directory.
 
-    Returns
+    Returns:
     -------
     Settings
         A frozen, fully validated configuration tree.
 
-    Raises
+    Raises:
     ------
     ConfigError
         If any value is missing or invalid. The message lists every problem at
         once so an operator can fix them in a single pass.
     """
-
     try:
         if env_file is not None:
             # ``_env_file`` is pydantic-settings' documented per-instance
@@ -95,7 +93,6 @@ def get_settings() -> Settings:
     never import it — configuration is handed to domain code as arguments, not
     fetched by it. Wiring that hand-off is Bootstrap/DI's job (out of scope).
     """
-
     return load_settings()
 
 
@@ -105,5 +102,4 @@ def reset_settings_cache() -> None:
     Only useful for tests, which construct many different configurations in one
     process and must not see a stale cached instance between cases.
     """
-
     get_settings.cache_clear()

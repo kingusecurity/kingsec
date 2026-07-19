@@ -14,7 +14,7 @@ Why a plain class rather than a dataclass?
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from ._validation import ensure_non_empty, ensure_timezone_aware
 from .enums import FindingStatus, Severity
@@ -50,7 +50,7 @@ class Finding:
         ensure_non_empty(title, "Finding title")
         ensure_non_empty(description, "Finding description")
 
-        moment = discovered_at or datetime.now(timezone.utc)
+        moment = discovered_at or datetime.now(UTC)
         ensure_timezone_aware(moment, "discovered_at")
 
         self._id = finding_id
@@ -64,9 +64,8 @@ class Finding:
 
     # --- factory -------------------------------------------------------------
     @classmethod
-    def create(cls, title: str, description: str, severity: Severity) -> "Finding":
+    def create(cls, title: str, description: str, severity: Severity) -> Finding:
         """Create a new OPEN finding with a freshly generated id."""
-
         return cls(FindingId.generate(), title, description, severity)
 
     @classmethod
@@ -81,7 +80,7 @@ class Finding:
         discovered_at: datetime,
         evidence: list[Evidence] | None = None,
         recommendations: list[Recommendation] | None = None,
-    ) -> "Finding":
+    ) -> Finding:
         """Rebuild a Finding from stored state (persistence boundary).
 
         Bypasses lifecycle transitions — the caller (mapper) is trusted to
@@ -140,7 +139,6 @@ class Finding:
     # --- behaviour -----------------------------------------------------------
     def add_evidence(self, evidence: Evidence) -> None:
         """Attach supporting evidence. Not allowed once the finding is closed."""
-
         if not isinstance(evidence, Evidence):
             raise InvariantViolation("evidence must be an Evidence instance")
         if self._status.is_closed:
@@ -152,7 +150,6 @@ class Finding:
 
     def add_recommendation(self, recommendation: Recommendation) -> None:
         """Attach a remediation recommendation. Not allowed once closed."""
-
         if not isinstance(recommendation, Recommendation):
             raise InvariantViolation("recommendation must be a Recommendation")
         if self._status.is_closed:
@@ -164,17 +161,14 @@ class Finding:
 
     def confirm(self) -> None:
         """Mark an OPEN finding as CONFIRMED (a real, verified issue)."""
-
         self._transition_to(FindingStatus.CONFIRMED)
 
     def mark_false_positive(self) -> None:
         """Dismiss the finding as a false positive."""
-
         self._transition_to(FindingStatus.FALSE_POSITIVE)
 
     def mark_remediated(self) -> None:
         """Mark a CONFIRMED finding as fixed."""
-
         self._transition_to(FindingStatus.REMEDIATED)
 
     # --- internals -----------------------------------------------------------

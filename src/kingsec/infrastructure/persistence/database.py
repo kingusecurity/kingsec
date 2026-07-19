@@ -29,13 +29,12 @@ def _enable_sqlite_foreign_keys(dbapi_connection, _connection_record) -> None:
     orphaned findings/evidence. We turn it on for every connection so our
     ON DELETE CASCADE relationships are actually honoured.
     """
-
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
 
 
-def build_sqlite_url(settings: "Settings") -> str:
+def build_sqlite_url(settings: Settings) -> str:
     """Derive the SQLite URL from settings, creating the data directory.
 
     Args:
@@ -44,7 +43,6 @@ def build_sqlite_url(settings: "Settings") -> str:
     Returns:
         A SQLAlchemy SQLite URL pointing at ``<data_dir>/kingsec.db``.
     """
-
     data_dir: Path = settings.storage.data_dir
     # Defensive: ensure the directory exists even if bootstrap hasn't run.
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -54,7 +52,7 @@ def build_sqlite_url(settings: "Settings") -> str:
 def create_database_engine(
     *,
     url: str | None = None,
-    settings: "Settings | None" = None,
+    settings: Settings | None = None,
     echo: bool = False,
 ) -> Engine:
     """Create a configured SQLAlchemy engine.
@@ -73,7 +71,6 @@ def create_database_engine(
     Raises:
         ValueError: If neither ``url`` nor ``settings`` is provided.
     """
-
     if url is None:
         if settings is None:
             raise ValueError("create_database_engine requires either 'url' or 'settings'")
@@ -104,7 +101,6 @@ def create_session_factory(engine: Engine) -> sessionmaker[Session]:
     Returns:
         A configured ``sessionmaker``.
     """
-
     return sessionmaker(bind=engine, expire_on_commit=False, future=True)
 
 
@@ -118,7 +114,6 @@ def create_schema(engine: Engine) -> None:
     Args:
         engine: The engine whose database the schema is created in.
     """
-
     Base.metadata.create_all(engine)
 
 
@@ -136,7 +131,6 @@ def validate_schema_version(engine: Engine) -> None:
     Raises:
         RuntimeError: If ``alembic_version`` is missing or has no version row.
     """
-
     from sqlalchemy import inspect, text
 
     inspector = inspect(engine)

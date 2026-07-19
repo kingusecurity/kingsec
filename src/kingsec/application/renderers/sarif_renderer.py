@@ -7,14 +7,13 @@ Deterministic ordering, UTF-8, pretty-printed JSON.
 from __future__ import annotations
 
 import json
-from datetime import timezone
+from datetime import UTC
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from kingsec.application.report import (
         FindingEntry,
-        RecommendationEntry,
         RecommendationSection,
         Report,
     )
@@ -64,7 +63,7 @@ class SarifRenderer:
         results = self._build_results(entries, recs_by_cid)
         artifacts = self._build_artifacts(entries)
 
-        ts = report.created_at.astimezone(timezone.utc).strftime(
+        ts = report.created_at.astimezone(UTC).strftime(
             "%Y-%m-%d %H:%M:%S UTC"
         )
 

@@ -17,11 +17,10 @@ Design decisions:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from .enums import Role
 from .errors import DomainError, InvariantViolation
-from .identifiers import AssessmentId
 
 
 class UserError(DomainError):
@@ -79,7 +78,7 @@ class User:
     password_hash: str
     role: Role
     is_active: bool = True
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     last_login_at: datetime | None = None
 
     def __post_init__(self) -> None:
@@ -113,7 +112,7 @@ class User:
 
     def record_login(self) -> None:
         """Record a successful login timestamp."""
-        self.last_login_at = datetime.now(timezone.utc)
+        self.last_login_at = datetime.now(UTC)
 
     def disable(self) -> None:
         """Disable the user account."""

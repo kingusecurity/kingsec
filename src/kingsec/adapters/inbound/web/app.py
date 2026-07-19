@@ -56,7 +56,6 @@ def create_fastapi_app(kingsec_app: Application) -> FastAPI:
     Returns:
         A ready-to-serve ``FastAPI`` instance.
     """
-
     settings = kingsec_app.settings
 
     app = FastAPI(
@@ -95,7 +94,6 @@ def _register_middleware(app: FastAPI, settings: Settings) -> None:
     Middleware is executed in reverse registration order, so the last
     middleware added is the outermost (executes first).
     """
-
     # Rate limiting (innermost — runs after all other middleware).
     app.add_middleware(RateLimitMiddleware, settings=settings.rate_limit)
 

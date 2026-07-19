@@ -7,7 +7,7 @@ All user content is escaped via stdlib html.escape().
 from __future__ import annotations
 
 import html
-from datetime import timezone
+from datetime import UTC
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -219,7 +219,7 @@ class HTMLReportRenderer:
 
     @staticmethod
     def _write_header(parts: list[str], report: Report) -> None:
-        ts = report.created_at.astimezone(timezone.utc).strftime(
+        ts = report.created_at.astimezone(UTC).strftime(
             "%Y-%m-%d %H:%M:%S UTC"
         )
         parts.append(f"<h1>{html.escape(report.title)}</h1>")

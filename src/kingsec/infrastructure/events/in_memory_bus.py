@@ -25,8 +25,6 @@ from __future__ import annotations
 import logging
 import queue
 import threading
-from collections.abc import Iterator
-from typing import Any
 
 from kingsec.application.events import AssessmentEvent
 from kingsec.application.ports.outbound.event_publisher import EventPublisher

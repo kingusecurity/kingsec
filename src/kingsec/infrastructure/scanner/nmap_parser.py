@@ -14,7 +14,7 @@ Severity mapping (conservative — Nmap itself doesn't rate vulns):
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from kingsec.domain import Evidence, Finding, Severity
 from kingsec.infrastructure.logging import get_logger
@@ -107,7 +107,7 @@ def _parse_host(host_el: ET.Element) -> list[Finding]:
                     f"port: {portid}/{protocol} | state: open | "
                     f"service: {service_desc} | addr: {addr}"
                 ),
-                collected_at=datetime.now(timezone.utc),
+                collected_at=datetime.now(UTC),
             )
         )
         findings.append(finding)
@@ -129,7 +129,7 @@ def _parse_host(host_el: ET.Element) -> list[Finding]:
                 Evidence(
                     summary=f"Script '{script_id}' on port {portid}/{protocol}",
                     detail=f"script-id: {script_id} | output: {script_output.strip()[:500]}",
-                    collected_at=datetime.now(timezone.utc),
+                    collected_at=datetime.now(UTC),
                 )
             )
             findings.append(script_finding)
@@ -161,7 +161,7 @@ def parse_nmap_xml(output: str) -> list[Finding]:
     for host_el in root.findall(".//host"):
         try:
             findings.extend(_parse_host(host_el))
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             _logger.warning("skipping malformed host element", error=str(exc))
 
     return findings

@@ -18,8 +18,8 @@ Usage::
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -34,15 +34,15 @@ if TYPE_CHECKING:
 from kingsec.application import ReportGenerationResult, ReportServicePort
 from kingsec.application.dto import RenderedReport
 from kingsec.application.executive_summary import ExecutiveSummaryGenerator
-from kingsec.application.report_builder import ReportBuilder
-from kingsec.application.services.persistent_job_service import PersistentJobService
 from kingsec.application.renderers import MarkdownReportRenderer
 from kingsec.application.renderers.csv_renderer import CsvReportRenderer
 from kingsec.application.renderers.html_renderer import HTMLReportRenderer
 from kingsec.application.renderers.json_renderer import JsonReportRenderer
 from kingsec.application.renderers.pdf_renderer import PDFReportRenderer
 from kingsec.application.renderers.sarif_renderer import SarifRenderer
-from kingsec.application.unit_of_work import UnitOfWorkPort
+from kingsec.application.report_builder import ReportBuilder
+from kingsec.application.services.persistent_job_service import PersistentJobService
+from kingsec.infrastructure.config.loader import load_settings
 
 # ── Infrastructure adapters ────────────────────────────────────────────────
 from kingsec.infrastructure.config.models import (
@@ -56,7 +56,6 @@ from kingsec.infrastructure.config.models import (
     TrivySettings,
     ZapSettings,
 )
-from kingsec.infrastructure.config.loader import load_settings
 from kingsec.infrastructure.persistence import (
     create_database_engine,
     create_schema,
@@ -87,7 +86,6 @@ from kingsec.infrastructure.scanner import (
 
 # ── API ────────────────────────────────────────────────────────────────────
 from kingsec.interfaces.api.app import create_app
-
 
 # ============================================================================
 # Application container
@@ -174,7 +172,7 @@ class ProductionReportService(ReportServicePort):
 
     def generate_report(self, scan_id: str) -> ReportGenerationResult:
         rid = str(uuid.uuid4())
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         self._reports[rid] = {
             "report_id": rid,
             "status": "completed",

@@ -29,7 +29,7 @@ class GobusterScannerAdapter(ScannerPort):
 
     def __init__(
         self,
-        settings: "GobusterSettings",
+        settings: GobusterSettings,
         runner: CommandRunner | None = None,
     ) -> None:
         self._settings = settings

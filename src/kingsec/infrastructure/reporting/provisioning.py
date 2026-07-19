@@ -32,9 +32,8 @@ def register_reporting(
     Returns:
         The registered ``ReportGeneratorPort`` implementation.
     """
-
     adapter = ReportGeneratorAdapter(output_format=output_format, brand_name=brand_name)
-    register = getattr(container, "register_instance")
+    register = container.register_instance
     register(ReportGeneratorPort, adapter)
     _logger.info("reporting registered", format=output_format)
     return adapter

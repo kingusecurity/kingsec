@@ -2,7 +2,7 @@
 
 Local-first, AI-augmented **Attack Surface Management (ASM)** and **Vulnerability Management (VM)** for small and mid-sized businesses.
 
-> **Status:** Module 1 - Project Foundation. This repository is a scaffold. It contains the production project structure, tooling, and conventions; it does **not** yet contain application logic.
+> **Status:** Release Candidate 1 — a production-grade security assessment platform with persistence, job management, report generation/multi-format export, scanner orchestration, and AI-augmented enrichment. Built on Clean Architecture (Hexagonal).
 
 ## Principles baked into the foundation
 - **Local-first & private.** Runs on the user's machine; the web server binds to `127.0.0.1` by default.

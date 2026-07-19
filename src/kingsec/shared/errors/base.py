@@ -49,11 +49,10 @@ class KingSecError(Exception):
 
     # Global code -> class map, populated at import time by __init_subclass__.
     # Enables duplicate detection and code->class lookup for docs/tooling.
-    _registry: ClassVar[dict[str, type["KingSecError"]]] = {}
+    _registry: ClassVar[dict[str, type[KingSecError]]] = {}
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Register each subclass's code and reject duplicates at import time."""
-
         super().__init_subclass__(**kwargs)
         # Only consider a code the subclass declares ITSELF. A subclass that
         # merely inherits its parent's code is not a new registration.
@@ -76,8 +75,7 @@ class KingSecError(Exception):
         context: dict[str, Any] | None = None,
         cause: BaseException | None = None,
     ) -> None:
-        """
-        Parameters
+        """Parameters
         ----------
         message:
             Internal, developer-facing detail. Goes to logs. May be specific.
@@ -94,7 +92,6 @@ class KingSecError(Exception):
             ``raise KingSecError(...) from cause`` but usable when you construct
             the error before raising it.
         """
-
         super().__init__(message)
         self.message = message
         self.user_message = (
@@ -115,7 +112,6 @@ class KingSecError(Exception):
         instance ``context`` is spread on top. No secrets are included by design;
         the logging layer redacts anyway as a second line of defence.
         """
-
         fields: dict[str, Any] = {
             "error_code": self.code,
             "error_type": type(self).__name__,
@@ -129,7 +125,6 @@ class KingSecError(Exception):
         Intentionally contains only the stable code and the user-safe message —
         never the internal message, context, or cause.
         """
-
         return {"error_code": self.code, "message": self.user_message}
 
     def __str__(self) -> str:
@@ -147,11 +142,9 @@ KingSecError._registry[KingSecError.code] = KingSecError
 
 def get_exception_for_code(code: str) -> type[KingSecError] | None:
     """Look up the exception class that owns a given code (or None)."""
-
     return KingSecError._registry.get(code)
 
 
 def registered_codes() -> dict[str, type[KingSecError]]:
     """Return a copy of the full code -> class registry (for docs/tooling)."""
-
     return dict(KingSecError._registry)

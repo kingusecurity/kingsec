@@ -35,7 +35,6 @@ import asyncio
 import json
 import logging
 import queue
-import time
 import uuid
 from collections.abc import AsyncGenerator
 
@@ -81,7 +80,7 @@ def _format_sse(event: AssessmentEvent) -> str:
 
 
 async def _sse_generator(
-    event_bus: "InMemoryEventBus",  # type: ignore[name-defined]  # noqa: F821
+    event_bus: InMemoryEventBus,  # type: ignore[name-defined]
     assessment_id: str | None,
     client_id: str,
 ) -> AsyncGenerator[str, None]:
@@ -98,7 +97,7 @@ async def _sse_generator(
                     asyncio.to_thread(subscriber.queue.get, timeout=1.0),
                     timeout=HEARTBEAT_INTERVAL,
                 )
-            except (asyncio.TimeoutError, queue.Empty):
+            except (TimeoutError, queue.Empty):
                 yield ": heartbeat\n\n"
                 continue
 
@@ -128,7 +127,7 @@ async def _sse_generator(
 async def stream_events(
     request: Request,
     assessment_id: str | None = Query(default=None, description="Filter by assessment ID"),
-    event_bus: "InMemoryEventBus" = Depends(_get_event_publisher),  # type: ignore[name-defined]  # noqa: F821
+    event_bus: InMemoryEventBus = Depends(_get_event_publisher),  # type: ignore[name-defined]
 ) -> StreamingResponse:
     """Stream assessment lifecycle events via Server-Sent Events.
 

@@ -29,7 +29,7 @@ class TrivyScannerAdapter(ScannerPort):
 
     def __init__(
         self,
-        settings: "TrivySettings",
+        settings: TrivySettings,
         runner: CommandRunner | None = None,
     ) -> None:
         self._settings = settings

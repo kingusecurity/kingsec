@@ -9,7 +9,7 @@ real binary.
 
 from __future__ import annotations
 
-import subprocess  # noqa: S404 - used safely: arg list, shell=False, with timeout
+import subprocess
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -71,11 +71,10 @@ class SubprocessCommandRunner:
             ScannerExecutionError: If the executable is not found or the run
                 exceeds ``timeout``.
         """
-
         argv = list(args)
         start = time.monotonic()
         try:
-            completed = subprocess.run(  # noqa: S603 - list args, shell=False, trusted binary
+            completed = subprocess.run(
                 argv,
                 capture_output=True,
                 text=True,

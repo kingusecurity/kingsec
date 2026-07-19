@@ -47,7 +47,7 @@ _FROZEN = ConfigDict(frozen=True, extra="forbid")
 # Binding to any of these means "listen on every network interface", which
 # exposes the service beyond the local machine. KingSec's frozen trust posture
 # is loopback-by-default, so these require an explicit, deliberate opt-in.
-_WILDCARD_HOSTS = frozenset({"0.0.0.0", "::", "*"})  # noqa: S104 - referenced to REJECT, not to bind
+_WILDCARD_HOSTS = frozenset({"0.0.0.0", "::", "*"})
 
 
 class AppSettings(BaseModel):
@@ -64,7 +64,7 @@ class AppSettings(BaseModel):
     debug: bool = False
 
     @model_validator(mode="after")
-    def _forbid_debug_in_production(self) -> "AppSettings":
+    def _forbid_debug_in_production(self) -> AppSettings:
         # Cross-field rule: debug + production is almost always an accident and
         # can leak internals. Catch it at startup rather than in the field.
         if self.environment is Environment.PRODUCTION and self.debug:
@@ -102,7 +102,7 @@ class ServerSettings(BaseModel):
         return stripped
 
     @model_validator(mode="after")
-    def _guard_wildcard_bind(self) -> "ServerSettings":
+    def _guard_wildcard_bind(self) -> ServerSettings:
         if self.host in _WILDCARD_HOSTS and not self.allow_external_bind:
             raise ValueError(
                 f"refusing to bind to {self.host!r}, which exposes KingSec on all "

@@ -18,7 +18,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from ._validation import ensure_non_empty
-from .enums import Severity
 from .errors import InvariantViolation
 from .finding import Finding
 from .target import TargetType

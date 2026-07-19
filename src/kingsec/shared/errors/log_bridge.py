@@ -61,7 +61,6 @@ def log_exception(
     (and chained cause) into the ``exception`` field. Any secret that slipped
     into the message or context is still masked by 2.2's redaction processor.
     """
-
     if isinstance(exc, KingSecError):
         message = event if event is not None else exc.message
         fields = exc.log_context()
@@ -84,7 +83,6 @@ def add_exception_context(
     you want automatic extraction. It is intentionally NOT added by default, so
     2.3 leaves Module 2.2 untouched.
     """
-
     exc = event_dict.get("exc_info")
     if isinstance(exc, KingSecError):
         for key, value in exc.log_context().items():

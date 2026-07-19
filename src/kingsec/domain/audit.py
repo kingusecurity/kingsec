@@ -21,7 +21,7 @@ Design decisions:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 
 
@@ -84,7 +84,7 @@ class AuditEntry:
     resource_id: str = ""
     success: bool = True
     reason: str = ""
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     user_id: str = ""
     username: str = ""
     role: str = ""

@@ -38,19 +38,16 @@ _UNSET = "-"
 
 def new_correlation_id() -> str:
     """Generate a fresh, collision-resistant correlation ID."""
-
     return uuid.uuid4().hex
 
 
 def bind_context(**values: Any) -> None:
     """Bind arbitrary key/values onto the current logging context."""
-
     structlog.contextvars.bind_contextvars(**values)
 
 
 def bind_correlation_id(correlation_id: str | None = None) -> str:
     """Bind a correlation ID (generating one if not supplied) and return it."""
-
     cid = correlation_id or new_correlation_id()
     structlog.contextvars.bind_contextvars(**{CORRELATION_ID_KEY: cid})
     return cid
@@ -58,13 +55,11 @@ def bind_correlation_id(correlation_id: str | None = None) -> str:
 
 def bind_assessment_id(assessment_id: str) -> None:
     """Bind the current assessment ID onto the logging context."""
-
     structlog.contextvars.bind_contextvars(**{ASSESSMENT_ID_KEY: assessment_id})
 
 
 def clear_context() -> None:
     """Remove all bound context values (call at the end of a request/task)."""
-
     structlog.contextvars.clear_contextvars()
 
 
@@ -81,7 +76,6 @@ def logging_context(
     across operation boundaries — the previous state is always restored, even if
     the body raises. Yields the correlation ID in use.
     """
-
     cid = correlation_id or new_correlation_id()
     data: dict[str, Any] = {CORRELATION_ID_KEY: cid, **extra}
     if assessment_id is not None:
@@ -105,7 +99,6 @@ def ensure_context_fields(
     call site bound them, we default any missing one to ``"-"`` so the log
     schema is stable and predictable.
     """
-
     event_dict.setdefault(CORRELATION_ID_KEY, _UNSET)
     event_dict.setdefault(ASSESSMENT_ID_KEY, _UNSET)
     return event_dict

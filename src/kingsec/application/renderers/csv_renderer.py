@@ -8,9 +8,8 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from kingsec.application.report import (

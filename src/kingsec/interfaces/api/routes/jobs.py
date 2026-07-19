@@ -10,7 +10,6 @@ from kingsec.application.ports.job_service import JobServicePort
 
 def create_jobs_router(job_service: JobServicePort) -> APIRouter:
     """Create an ``APIRouter`` with scan-job endpoints."""
-
     router = APIRouter(prefix="/jobs", tags=["jobs"])
 
     # ── POST /jobs ───────────────────────────────────────────────────
@@ -49,7 +48,7 @@ def create_jobs_router(job_service: JobServicePort) -> APIRouter:
         try:
             job = job_service.get_job(job_id)
         except JobNotFoundError:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found") from None
         return _job_to_response(job)
 
     # ── DELETE /jobs/{job_id} ─────────────────────────────────────────
@@ -60,12 +59,12 @@ def create_jobs_router(job_service: JobServicePort) -> APIRouter:
         try:
             job = job_service.cancel_job(job_id)
         except JobNotFoundError:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found") from None
         except IllegalJobTransitionError:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Job is already in a terminal state and cannot be cancelled",
-            )
+            ) from None
         return _job_to_response(job)
 
     # ── GET /jobs/{job_id}/result ─────────────────────────────────────
@@ -76,12 +75,12 @@ def create_jobs_router(job_service: JobServicePort) -> APIRouter:
         try:
             result = job_service.get_job_result(job_id)
         except JobNotFoundError:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found") from None
         except IllegalJobTransitionError:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Job has not completed yet",
-            )
+            ) from None
         return {
             "job_id": result.job_id,
             "findings": list(result.findings),

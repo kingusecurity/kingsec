@@ -9,7 +9,8 @@ concrete ``Container`` class, so infrastructure never depends on the bootstrap
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Protocol
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Protocol
 
 from sqlalchemy import Engine
 
@@ -39,7 +40,7 @@ class ServiceContainer(Protocol):
 
 def register_persistence(
     container: ServiceContainer,
-    settings: "Settings",
+    settings: Settings,
     *,
     engine: Engine | None = None,
     validate_migrations: bool = True,
@@ -70,7 +71,6 @@ def register_persistence(
         RuntimeError: If ``validate_migrations`` is True and the database has
             not been migrated via Alembic.
     """
-
     engine = engine or create_database_engine(settings=settings)
     if validate_migrations:
         validate_schema_version(engine)

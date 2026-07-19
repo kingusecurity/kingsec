@@ -15,7 +15,7 @@ on work that isn't finished.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from .assessment import Assessment
 from .enums import AssessmentStatus, FindingStatus, Severity
@@ -41,9 +41,8 @@ class Verdict:
     action_required: bool
 
     @classmethod
-    def from_findings(cls, findings: tuple) -> "Verdict":
+    def from_findings(cls, findings: tuple) -> Verdict:
         """Derive the overall verdict, ignoring false positives."""
-
         actionable = [
             f for f in findings if f.status is not FindingStatus.FALSE_POSITIVE
         ]
@@ -82,9 +81,8 @@ class Report:
     @classmethod
     def from_assessment(
         cls, assessment: Assessment, *, generated_at: datetime | None = None
-    ) -> "Report":
+    ) -> Report:
         """Build a report from a COMPLETED assessment (else raise)."""
-
         if assessment.status is not AssessmentStatus.COMPLETED:
             raise IllegalStateTransition(
                 "a report can only be generated from a completed assessment",
@@ -118,7 +116,7 @@ class Report:
         return cls(
             assessment_id=str(assessment.id),
             target=str(assessment.target),
-            generated_at=generated_at or datetime.now(timezone.utc),
+            generated_at=generated_at or datetime.now(UTC),
             verdict=Verdict.from_findings(findings),
             entries=entries,
             severity_counts=severity_counts,
@@ -131,7 +129,6 @@ class Report:
 
     def count_for(self, severity: Severity) -> int:
         """Number of findings at a given severity (0 if none)."""
-
         for level, count in self.severity_counts:
             if level is severity:
                 return count

@@ -27,7 +27,6 @@ class ReportRenderer:
         Args:
             brand_name: Company branding placeholder used in the report.
         """
-
         self._brand_name = brand_name
 
     def to_html(self, report: Report) -> str:
@@ -42,10 +41,9 @@ class ReportRenderer:
         Raises:
             ReportGenerationError: If HTML generation fails.
         """
-
         try:
             return render_report_html(report, brand_name=self._brand_name)
-        except Exception as exc:  # noqa: BLE001 - translate anything into our error
+        except Exception as exc:
             raise ReportGenerationError(
                 "failed to render report HTML",
                 context={"assessment_id": report.assessment_id},
@@ -65,7 +63,6 @@ class ReportRenderer:
             ReportGenerationError: If HTML or PDF generation fails, or the PDF
                 library is unavailable.
         """
-
         html = self.to_html(report)
         pdf = self._html_to_pdf(html)
         _logger.debug(
@@ -75,18 +72,17 @@ class ReportRenderer:
 
     def _html_to_pdf(self, html: str) -> bytes:
         """Convert HTML to PDF bytes, containing all library exceptions."""
-
         try:
             # Lazy import: only needed for PDF, and keeps the heavy dependency
             # out of the import path for HTML-only use.
-            from weasyprint import HTML  # noqa: PLC0415 - intentional lazy import
+            from weasyprint import HTML
         except (ImportError, OSError) as exc:
             raise ReportGenerationError(
                 "PDF rendering library is not available", cause=exc
             ) from exc
         try:
             result = HTML(string=html).write_pdf()
-        except Exception as exc:  # noqa: BLE001 - no library exception may escape
+        except Exception as exc:
             raise ReportGenerationError("failed to render report PDF", cause=exc) from exc
         if result is None:  # pragma: no cover - defensive
             raise ReportGenerationError("PDF rendering produced no output")

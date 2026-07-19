@@ -123,5 +123,5 @@ class ScannerOrchestrator(ScannerPort, ScannerExecutor):
             plugin = self._registry.get(plugin_metadata.id)
             try:
                 plugin.shutdown()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass

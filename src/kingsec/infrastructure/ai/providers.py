@@ -52,7 +52,6 @@ class ProviderConfig(ABC):
 
 def _extract(response: dict, *path) -> str:
     """Safely walk ``path`` (keys/indices) into ``response`` or raise AIResponseError."""
-
     node: object = response
     try:
         for step in path:
@@ -145,7 +144,7 @@ class GeminiProvider(ProviderConfig):
 
 
 # Registry: provider name (from config) -> factory. Aliases share a strategy.
-_PROVIDER_FACTORIES: dict[str, "callable[[], ProviderConfig]"] = {
+_PROVIDER_FACTORIES: dict[str, callable[[], ProviderConfig]] = {
     "openai": lambda: OpenAICompatibleProvider("openai", "https://api.openai.com/v1"),
     "openrouter": lambda: OpenAICompatibleProvider("openrouter", "https://openrouter.ai/api/v1"),
     "glm": lambda: OpenAICompatibleProvider("glm", "https://open.bigmodel.cn/api/paas/v4"),
@@ -167,7 +166,6 @@ def resolve_provider(name: str) -> ProviderConfig:
     Raises:
         AIError: If no provider matches the name.
     """
-
     factory = _PROVIDER_FACTORIES.get(name.strip().lower())
     if factory is None:
         supported = ", ".join(sorted(_PROVIDER_FACTORIES))
@@ -180,5 +178,4 @@ def resolve_provider(name: str) -> ProviderConfig:
 
 def supported_providers() -> tuple[str, ...]:
     """Return the sorted names of all registered providers."""
-
     return tuple(sorted(_PROVIDER_FACTORIES))

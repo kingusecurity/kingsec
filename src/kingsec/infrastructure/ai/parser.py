@@ -54,7 +54,6 @@ class ResponseParser:
             AIResponseError: If the text is not valid JSON or lacks usable
                 content.
         """
-
         stripped = _FENCE_RE.sub("", text.strip())
         try:
             data = json.loads(stripped)

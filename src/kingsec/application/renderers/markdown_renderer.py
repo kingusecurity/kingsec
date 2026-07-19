@@ -6,7 +6,7 @@ Deterministic, stable ordering, UTF-8, Unix newlines.
 
 from __future__ import annotations
 
-from datetime import timezone
+from datetime import UTC
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -49,7 +49,7 @@ class MarkdownReportRenderer:
     @staticmethod
     def _write_title(lines: list[str], report: Report) -> None:
         lines.append(f"# {report.title}")
-        ts = report.created_at.astimezone(timezone.utc).strftime(
+        ts = report.created_at.astimezone(UTC).strftime(
             "%Y-%m-%d %H:%M:%S UTC"
         )
         lines.append("")
@@ -84,7 +84,7 @@ class MarkdownReportRenderer:
         ap = report.attack_path_section
         lines.append("### Attack Path Summary")
         lines.append("")
-        lines.append(f"| Metric | Value |")
+        lines.append("| Metric | Value |")
         lines.append("|--------|-------|")
         lines.append(f"| Attack Paths | {ap.total_paths} |")
         lines.append(f"| Highest Score | {ap.highest_score}/100 |")
@@ -304,7 +304,7 @@ class MarkdownReportRenderer:
         for i, entry in enumerate(rs.entries, 1):
             lines.append(f"### {i}. {entry.finding_title}")
             lines.append("")
-            lines.append(f"| Field | Value |")
+            lines.append("| Field | Value |")
             lines.append("|-------|-------|")
             lines.append(f"| **Severity** | {entry.severity} |")
             lines.append(f"| **Risk Score** | {entry.risk_score}/100 |")

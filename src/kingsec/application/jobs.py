@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import threading
 import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from enum import Enum
 
 from kingsec.application.errors import IllegalJobTransitionError, JobNotFoundError
@@ -94,7 +94,7 @@ class InMemoryJobService(JobServicePort):
 
     def submit_scan(self, target: str, config: dict | None = None) -> ScanJob:
         job_id = JobId(str(uuid.uuid4()))
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         job = ScanJob(
             id=job_id,
             target=target,
@@ -126,7 +126,7 @@ class InMemoryJobService(JobServicePort):
             if job is None:
                 raise JobNotFoundError(f"Job not found: {job_id}")
             validate_transition(job.status, JobStatus.CANCELLED)
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             job = ScanJob(
                 id=job.id,
                 target=job.target,
@@ -168,7 +168,7 @@ class InMemoryJobService(JobServicePort):
             if job is None:
                 raise JobNotFoundError(f"Job not found: {job_id}")
             validate_transition(job.status, target)
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             job = ScanJob(
                 id=job.id,
                 target=job.target,

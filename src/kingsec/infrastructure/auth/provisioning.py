@@ -9,8 +9,8 @@ from __future__ import annotations
 from kingsec.application.ports import PasswordHasher, TokenService, UserRepository
 from kingsec.infrastructure.config.settings import Settings
 
-from .jwt_service import JWTTokenService
 from ..persistence.user_repository import SqlAlchemyUserRepository
+from .jwt_service import JWTTokenService
 
 
 def register_auth(container: object, settings: Settings) -> None:

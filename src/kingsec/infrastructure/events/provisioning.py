@@ -14,7 +14,6 @@ def register_events(container: object, *, maxsize: int = 100) -> None:
         container: The DI container to register on.
         maxsize: Maximum queue size per subscriber.
     """
-
     bus = InMemoryEventBus(maxsize=maxsize)
     container.register_instance(EventPublisher, bus)
     container.add_shutdown_hook(lambda: bus.shutdown())

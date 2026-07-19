@@ -21,8 +21,8 @@ from __future__ import annotations
 from kingsec.domain.audit import AuditAction, AuditEntry
 
 from ..dto import ChangePasswordRequest
-from ..ports import AuditPublisher, PasswordHasher, UserRepository
 from ..errors import ApplicationError
+from ..ports import AuditPublisher, PasswordHasher, UserRepository
 
 
 class ChangePassword:
@@ -76,7 +76,7 @@ class ChangePassword:
             return
         try:
             self._audit.record(entry)
-        except Exception:  # noqa: BLE001 - audit is best-effort
+        except Exception:
             pass
 
     @staticmethod

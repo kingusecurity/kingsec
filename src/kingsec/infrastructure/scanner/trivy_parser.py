@@ -20,7 +20,7 @@ Severity mapping:
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from kingsec.domain import Evidence, Finding, Severity
 from kingsec.infrastructure.logging import get_logger
@@ -79,7 +79,7 @@ def _parse_vulnerabilities(
                     f"fixed: {fixed or 'none'} | severity: {severity_str} | "
                     f"title: {title} | description: {description[:200]}"
                 ),
-                collected_at=datetime.now(timezone.utc),
+                collected_at=datetime.now(UTC),
             )
         )
         findings.append(finding)
@@ -122,7 +122,7 @@ def _parse_misconfigs(
                     f"title: {title} | message: {message[:200]} | "
                     f"resolution: {resolution[:200]}"
                 ),
-                collected_at=datetime.now(timezone.utc),
+                collected_at=datetime.now(UTC),
             )
         )
         findings.append(finding)

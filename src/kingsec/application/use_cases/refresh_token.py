@@ -21,8 +21,8 @@ from __future__ import annotations
 from kingsec.domain.audit import AuditAction, AuditEntry
 
 from ..dto import RefreshTokenRequest, RefreshTokenResponse
-from ..ports import AuditPublisher, PasswordHasher, TokenService, UserRepository
 from ..errors import ApplicationError
+from ..ports import AuditPublisher, TokenService, UserRepository
 
 
 class RefreshToken:
@@ -84,7 +84,7 @@ class RefreshToken:
             return
         try:
             self._audit.record(entry)
-        except Exception:  # noqa: BLE001 - audit is best-effort
+        except Exception:
             pass
 
 

@@ -11,7 +11,7 @@ decides HOW they are delivered (SSE, WebSocket, logging, etc.).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 @dataclass(frozen=True)
@@ -21,7 +21,7 @@ class AssessmentEvent:
     event_type: str
     assessment_id: str
     state: str
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     progress: int | None = None
     message: str | None = None
     severity_counts: dict[str, int] | None = None

@@ -201,7 +201,6 @@ def render_report_html(report: Report, *, brand_name: str = "KingSec") -> str:
     Returns:
         A full HTML document as a string (deterministic for a given report).
     """
-
     title = f"Security Assessment Report — {report.target}"
     header = (
         '<header class="report-header"><div class="brand">'

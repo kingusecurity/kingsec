@@ -29,7 +29,7 @@ class SemgrepScannerAdapter(ScannerPort):
 
     def __init__(
         self,
-        settings: "SemgrepSettings",
+        settings: SemgrepSettings,
         runner: CommandRunner | None = None,
     ) -> None:
         self._settings = settings

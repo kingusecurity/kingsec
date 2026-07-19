@@ -29,7 +29,7 @@ class FfufScannerAdapter(ScannerPort):
 
     def __init__(
         self,
-        settings: "FfufSettings",
+        settings: FfufSettings,
         runner: CommandRunner | None = None,
     ) -> None:
         self._settings = settings

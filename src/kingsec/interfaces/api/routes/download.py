@@ -35,13 +35,11 @@ _SUPPORTED_FORMATS = frozenset(_FORMAT_MAP)
 
 def create_download_router(service: ReportServicePort) -> APIRouter:
     """Create an ``APIRouter`` with report download endpoints."""
-
     router = APIRouter(prefix="/report", tags=["download"])
 
     @router.get("/{report_id}/download/{format_name}")
     async def download_report(report_id: str, format_name: str) -> Response:
         """Download a report in the specified format."""
-
         if format_name not in _SUPPORTED_FORMATS:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

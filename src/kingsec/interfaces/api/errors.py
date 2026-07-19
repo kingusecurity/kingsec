@@ -7,14 +7,13 @@ No business logic, no infrastructure — only HTTP error translation.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
 from .models import ApiError
-
 
 # ============================================================================
 # Error factory
@@ -31,7 +30,7 @@ def _error_response(
 ) -> JSONResponse:
     """Build a standard ``ApiError`` JSON response."""
     error = ApiError(
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         request_id=str(uuid.uuid4()),
         status=status_code,
         error=error_type,
@@ -90,7 +89,6 @@ def register_error_handlers(app: FastAPI) -> None:
     Must be called after the app is created but before it is exposed to
     the server — typically inside ``create_app()``.
     """
-
     # ── 403 ────────────────────────────────────────────────────────────
     from kingsec.shared.errors import AuthorizationError
 
@@ -109,8 +107,8 @@ def register_error_handlers(app: FastAPI) -> None:
     async def _http_exception(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         return _error_response(request, exc.status_code, "HTTP_ERROR", exc.detail)
 
-    from kingsec.shared.errors import ResourceNotFoundError
     from kingsec.application.errors import AssessmentNotFoundError, ReportNotFoundError
+    from kingsec.shared.errors import ResourceNotFoundError
 
     @app.exception_handler(KeyError)
     async def _key_error(request: Request, exc: KeyError) -> JSONResponse:

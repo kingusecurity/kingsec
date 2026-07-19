@@ -17,14 +17,14 @@ from typing import TYPE_CHECKING
 
 from kingsec.application.ports.scanner_plugin import ScannerPluginPort
 from kingsec.domain import (
+    OutputFormat,
     PluginAvailability,
     PluginConfig,
+    ScanCategory,
     ScannerCapability,
     ScannerId,
     ScannerPluginMetadata,
     ScannerResult,
-    ScanCategory,
-    OutputFormat,
     Target,
     TargetType,
 )
@@ -45,8 +45,8 @@ class NucleiPlugin(ScannerPluginPort):
 
     def __init__(
         self,
-        settings: "ScannerSettings",
-        runner: "CommandRunner | None" = None,
+        settings: ScannerSettings,
+        runner: CommandRunner | None = None,
     ) -> None:
         from ...nuclei import NucleiScannerAdapter
 

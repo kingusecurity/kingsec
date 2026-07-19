@@ -26,7 +26,7 @@ from alembic import context
 from sqlalchemy import Engine, create_engine, event
 
 if TYPE_CHECKING:
-    from alembic.runtime.migration import MigrationContext
+    pass
 
 # Alembic Config object — provides access to values in alembic.ini.
 config = context.config
@@ -67,7 +67,6 @@ def _resolve_database_url() -> str:
     Returns:
         A SQLAlchemy-compatible connection URL.
     """
-
     # Explicit CI override — highest precedence.
     explicit = os.environ.get("ALEMBIC_DATABASE_URL")
     if explicit:
@@ -100,7 +99,6 @@ def _engine_from_settings(url: str | None = None) -> Engine:
     Returns:
         A SQLAlchemy ``Engine`` configured for the target database.
     """
-
     resolved_url = url or _resolve_database_url()
 
     if resolved_url.startswith("sqlite"):
@@ -136,7 +134,6 @@ def run_migrations_offline() -> None:
         * CI verification that the migration chain produces valid SQL.
         * ``alembic upgrade --sql`` workflows.
     """
-
     url = _resolve_database_url()
     context.configure(
         url=url,
@@ -155,7 +152,6 @@ def run_migrations_online() -> None:
 
     This is the normal path for ``alembic upgrade head``.
     """
-
     connectable = _engine_from_settings()
 
     with connectable.connect() as connection:

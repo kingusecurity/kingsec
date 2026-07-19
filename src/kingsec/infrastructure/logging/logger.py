@@ -40,7 +40,6 @@ def _level_to_int(level_name: str) -> int:
 
     getLevelNamesMapping() is stdlib on Python 3.11+, which is our floor.
     """
-
     return logging.getLevelNamesMapping()[level_name]
 
 
@@ -78,7 +77,6 @@ def configure_logging(
         Where rendered lines are written. Defaults to stdout. Injectable so the
         composition root (or a test) can redirect output without monkeypatching.
     """
-
     target: TextIO = stream if stream is not None else sys.stdout
     # Colours only when writing to a real terminal; never in files/pipes/tests.
     colors = hasattr(target, "isatty") and target.isatty()
@@ -106,5 +104,4 @@ def get_logger(name: str) -> Any:
     ``logger`` field so every line records its origin — satisfying the
     "logger name" requirement without relying on stdlib integration.
     """
-
     return structlog.get_logger(name).bind(logger=name)

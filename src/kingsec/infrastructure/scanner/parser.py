@@ -13,7 +13,7 @@ findings. Empty output means "no findings", which is a valid, successful result.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from kingsec.domain import Evidence, Finding, Recommendation, Severity
 from kingsec.infrastructure.logging import get_logger
@@ -41,7 +41,6 @@ def _finding_from_record(record: dict) -> Finding | None:
     Returns None (and logs) if the record lacks the minimum fields needed to be
     a meaningful finding.
     """
-
     template_id = record.get("template-id") or record.get("templateID")
     info = record.get("info") or {}
     name = info.get("name") or template_id
@@ -65,7 +64,7 @@ def _finding_from_record(record: dict) -> Finding | None:
         Evidence(
             summary=f"Matched by Nuclei template '{template_id or name}'",
             detail=" | ".join(detail_parts),
-            collected_at=datetime.now(timezone.utc),
+            collected_at=datetime.now(UTC),
         )
     )
 
@@ -92,7 +91,6 @@ def parse_nuclei_jsonl(output: str) -> list[Finding]:
     Returns:
         The findings parsed from the output (empty if there were none).
     """
-
     findings: list[Finding] = []
     for line in output.splitlines():
         stripped = line.strip()

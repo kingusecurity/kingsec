@@ -29,7 +29,7 @@ class AmassScannerAdapter(ScannerPort):
 
     def __init__(
         self,
-        settings: "AmassSettings",
+        settings: AmassSettings,
         runner: CommandRunner | None = None,
     ) -> None:
         self._settings = settings

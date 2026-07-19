@@ -14,7 +14,6 @@ def register_jobs(container: object, *, max_workers: int = 4) -> None:
         container: The DI container to register on.
         max_workers: Maximum concurrent background jobs.
     """
-
     runner = ThreadJobRunner(max_workers=max_workers)
     container.register_instance(JobRunner, runner)
     container.add_shutdown_hook(lambda: runner.shutdown(wait=True))

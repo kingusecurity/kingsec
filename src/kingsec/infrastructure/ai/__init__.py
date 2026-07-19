@@ -37,6 +37,7 @@ from .providers import (
 from .provisioning import register_ai
 
 __all__ = [
+    "SYSTEM_PROMPT",
     "AIAuthenticationError",
     "AIClient",
     "AIError",
@@ -49,7 +50,6 @@ __all__ = [
     "PromptBuilder",
     "ProviderConfig",
     "ResponseParser",
-    "SYSTEM_PROMPT",
     "register_ai",
     "resolve_provider",
     "sanitize",

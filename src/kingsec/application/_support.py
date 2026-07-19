@@ -20,7 +20,6 @@ from .errors import InputValidationError
 
 def to_assessment_id(raw: str) -> AssessmentId:
     """Build an AssessmentId, or raise InputValidationError if malformed."""
-
     try:
         return AssessmentId(raw)
     except InvariantViolation as exc:
@@ -29,7 +28,6 @@ def to_assessment_id(raw: str) -> AssessmentId:
 
 def parse_target_type(raw: str) -> TargetType:
     """Parse a target-type string into the enum, or raise InputValidationError."""
-
     try:
         return TargetType(raw)
     except ValueError as exc:
@@ -41,7 +39,6 @@ def parse_target_type(raw: str) -> TargetType:
 
 def build_target(value: str, type_raw: str) -> Target:
     """Build a validated Target from raw primitives."""
-
     target_type = parse_target_type(type_raw)
     try:
         return Target(value, target_type)

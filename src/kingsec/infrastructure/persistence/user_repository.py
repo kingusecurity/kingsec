@@ -7,14 +7,13 @@ autocommit per call, shared engine.
 
 from __future__ import annotations
 
+from datetime import UTC
+
 from sqlalchemy import func, select
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
 
 from kingsec.application.ports import UserRepository
 from kingsec.domain import Role, User
 from kingsec.infrastructure.logging import get_logger
-from kingsec.shared.errors import PersistenceError
 
 from .models import UserORM
 
@@ -91,7 +90,7 @@ class SqlAlchemyUserRepository(UserRepository):
 
 def _to_domain(orm: UserORM) -> User:
     """Convert a UserORM row to a domain User entity."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     return User(
         id=orm.id,
@@ -100,7 +99,7 @@ def _to_domain(orm: UserORM) -> User:
         password_hash=orm.password_hash,
         role=Role[orm.role],
         is_active=orm.is_active,
-        created_at=datetime.fromisoformat(orm.created_at) if orm.created_at else datetime.now(timezone.utc),
+        created_at=datetime.fromisoformat(orm.created_at) if orm.created_at else datetime.now(UTC),
         last_login_at=datetime.fromisoformat(orm.last_login_at) if orm.last_login_at else None,
     )
 

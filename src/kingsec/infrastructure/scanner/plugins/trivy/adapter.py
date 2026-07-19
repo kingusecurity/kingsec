@@ -14,22 +14,22 @@ from typing import TYPE_CHECKING
 
 from kingsec.application.ports.scanner_plugin import ScannerPluginPort
 from kingsec.domain import (
+    OutputFormat,
     PluginAvailability,
     PluginConfig,
+    ScanCategory,
     ScannerCapability,
     ScannerId,
     ScannerPluginMetadata,
     ScannerResult,
-    ScanCategory,
-    OutputFormat,
     Target,
     TargetType,
 )
 
 if TYPE_CHECKING:
     from kingsec.infrastructure.config.models import TrivySettings
-    from kingsec.infrastructure.scanner.trivy import TrivyScannerAdapter
     from kingsec.infrastructure.scanner.runner import CommandRunner
+    from kingsec.infrastructure.scanner.trivy import TrivyScannerAdapter
 
 
 class TrivyPlugin(ScannerPluginPort):
@@ -42,8 +42,8 @@ class TrivyPlugin(ScannerPluginPort):
 
     def __init__(
         self,
-        settings: "TrivySettings",
-        runner: "CommandRunner | None" = None,
+        settings: TrivySettings,
+        runner: CommandRunner | None = None,
     ) -> None:
         from ...trivy import TrivyScannerAdapter
 

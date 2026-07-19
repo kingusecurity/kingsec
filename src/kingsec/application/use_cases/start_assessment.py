@@ -22,10 +22,10 @@ from kingsec.domain.audit import AuditAction, AuditEntry
 from .._support import to_assessment_id
 from ..dto import StartAssessmentRequest, StartAssessmentResponse
 from ..events import (
-    AssessmentEvent,
     EVENT_ASSESSMENT_COMPLETED,
     EVENT_ASSESSMENT_FAILED,
     EVENT_ASSESSMENT_RUNNING,
+    AssessmentEvent,
 )
 from ..ports import AIPort, AssessmentRepository, AuditPublisher, EventPublisher, ScannerPort
 
@@ -134,19 +134,18 @@ class StartAssessment:
                         reason=str(exc),
                     )
                 )
-            except Exception:  # noqa: BLE001 - best-effort
+            except Exception:
                 pass
             raise
 
     def _enrich(self, finding: Finding) -> None:
         """Attach an AI recommendation if an AI port is configured (best-effort)."""
-
         if self._ai is None:
             return
         try:
             recommendation = self._ai.recommend(finding)
             finding.add_recommendation(recommendation)
-        except Exception:  # noqa: BLE001 - enrichment is optional, never fatal
+        except Exception:
             # Intentionally swallowed: an AI outage must not fail an authorized
             # scan. The adapter is responsible for logging the underlying error.
             return
@@ -157,7 +156,7 @@ class StartAssessment:
             return
         try:
             self._events.publish(event)
-        except Exception:  # noqa: BLE001 - event publishing is best-effort
+        except Exception:
             pass
 
     def _publish_audit(self, entry: AuditEntry) -> None:
@@ -166,7 +165,7 @@ class StartAssessment:
             return
         try:
             self._audit.record(entry)
-        except Exception:  # noqa: BLE001 - audit is best-effort
+        except Exception:
             pass
 
     @staticmethod

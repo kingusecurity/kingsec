@@ -52,7 +52,6 @@ class ErrorTranslator:
         Returns:
             The corresponding ``AIError`` subtype.
         """
-
         if isinstance(exc, httpx.TimeoutException):
             return AITimeoutError("AI request timed out", cause=exc)
         if isinstance(exc, httpx.TransportError):
@@ -73,7 +72,6 @@ class ErrorTranslator:
         Returns:
             The corresponding ``AIError`` subtype.
         """
-
         context = {"status": status_code, "body": body.strip()[:200]}
         if status_code in (401, 403):
             return AIAuthenticationError(

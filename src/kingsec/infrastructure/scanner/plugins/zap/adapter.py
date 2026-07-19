@@ -14,22 +14,22 @@ from typing import TYPE_CHECKING
 
 from kingsec.application.ports.scanner_plugin import ScannerPluginPort
 from kingsec.domain import (
+    OutputFormat,
     PluginAvailability,
     PluginConfig,
+    ScanCategory,
     ScannerCapability,
     ScannerId,
     ScannerPluginMetadata,
     ScannerResult,
-    ScanCategory,
-    OutputFormat,
     Target,
     TargetType,
 )
 
 if TYPE_CHECKING:
     from kingsec.infrastructure.config.models import ZapSettings
-    from kingsec.infrastructure.scanner.zap import ZapScannerAdapter
     from kingsec.infrastructure.scanner.runner import CommandRunner
+    from kingsec.infrastructure.scanner.zap import ZapScannerAdapter
 
 
 class ZapPlugin(ScannerPluginPort):
@@ -42,8 +42,8 @@ class ZapPlugin(ScannerPluginPort):
 
     def __init__(
         self,
-        settings: "ZapSettings",
-        runner: "CommandRunner | None" = None,
+        settings: ZapSettings,
+        runner: CommandRunner | None = None,
     ) -> None:
         from ...zap import ZapScannerAdapter
 

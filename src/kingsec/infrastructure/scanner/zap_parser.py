@@ -19,7 +19,7 @@ Risk mapping:
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from kingsec.domain import Evidence, Finding, Severity
 from kingsec.infrastructure.logging import get_logger
@@ -81,7 +81,7 @@ def _parse_alerts(alerts: list[dict], site_url: str) -> list[Finding]:
                     f"url: {url} | param: {param} | description: {description[:200]} | "
                     f"solution: {solution[:200]} | reference: {reference[:200]}"
                 ),
-                collected_at=datetime.now(timezone.utc),
+                collected_at=datetime.now(UTC),
             )
         )
         findings.append(finding)

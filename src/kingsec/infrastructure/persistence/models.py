@@ -17,9 +17,9 @@ Storage decisions worth noting:
       aggregate removes its children in one operation.
 """
 
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text
-from sqlalchemy.types import JSON
+from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.types import JSON
 
 
 class Base(DeclarativeBase):

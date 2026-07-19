@@ -15,18 +15,15 @@ Design principles:
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import datetime
 
 from kingsec.domain import (
     Evidence,
-    Finding,
     Recommendation,
-    ScannerId,
     ScannerResult,
     Severity,
 )
-
 
 # ---------------------------------------------------------------------------
 # Normalized value objects

@@ -23,8 +23,8 @@ from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.domain.user import PasswordValidationError
 
 from ..dto import RegisterUserRequest, RegisterUserResponse
-from ..ports import AuditPublisher, PasswordHasher, UserRepository
 from ..errors import ApplicationError
+from ..ports import AuditPublisher, PasswordHasher, UserRepository
 
 
 class RegisterUser:
@@ -100,7 +100,7 @@ class RegisterUser:
             return
         try:
             self._audit.record(entry)
-        except Exception:  # noqa: BLE001 - audit is best-effort
+        except Exception:
             pass
 
     @staticmethod

@@ -38,7 +38,6 @@ class SqlAlchemyAssessmentRepository(AssessmentRepository):
         Args:
             session_factory: A ``sessionmaker`` bound to the target engine.
         """
-
         self._session_factory = session_factory
 
     def save(self, assessment: Assessment) -> None:
@@ -50,7 +49,6 @@ class SqlAlchemyAssessmentRepository(AssessmentRepository):
         Raises:
             PersistenceError: If the database operation fails.
         """
-
         try:
             # begin() opens a transaction, commits on success, rolls back on error.
             with self._session_factory.begin() as session:
@@ -74,7 +72,6 @@ class SqlAlchemyAssessmentRepository(AssessmentRepository):
             AssessmentNotFoundError: If no assessment has that id.
             PersistenceError: If the database operation fails.
         """
-
         try:
             with self._session_factory() as session:
                 return ops.load_assessment(session, assessment_id)
@@ -98,7 +95,6 @@ class SqlAlchemyAssessmentRepository(AssessmentRepository):
         Returns:
             A list of assessments, most recent first. May be empty.
         """
-
         clamped_limit = min(max(limit, 1), 200)
         try:
             with self._session_factory() as session:
@@ -118,7 +114,6 @@ class SqlAlchemyAssessmentRepository(AssessmentRepository):
             AssessmentNotFoundError: If no assessment has that id.
             PersistenceError: If the database operation fails.
         """
-
         try:
             with self._session_factory.begin() as session:
                 ops.delete_assessment(session, assessment_id)
@@ -138,7 +133,6 @@ class SqlAlchemyReportRepository(ReportRepository):
         Args:
             session_factory: A ``sessionmaker`` bound to the target engine.
         """
-
         self._session_factory = session_factory
 
     def save(self, report: Report) -> None:
@@ -150,7 +144,6 @@ class SqlAlchemyReportRepository(ReportRepository):
         Raises:
             PersistenceError: If the database operation fails.
         """
-
         try:
             with self._session_factory.begin() as session:
                 ops.persist_report(session, report)
@@ -173,7 +166,6 @@ class SqlAlchemyReportRepository(ReportRepository):
             ReportNotFoundError: If no report exists for the assessment.
             PersistenceError: If the database operation fails.
         """
-
         try:
             with self._session_factory() as session:
                 return ops.load_report(session, assessment_id)

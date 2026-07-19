@@ -27,7 +27,6 @@ class Severity(IntEnum):
     @property
     def label(self) -> str:
         """A capitalised, human-friendly label for reports/verdicts."""
-
         return self.name.capitalize()
 
 
@@ -44,7 +43,6 @@ class AssessmentStatus(Enum):
     @property
     def is_terminal(self) -> bool:
         """True if no further transitions are allowed from this state."""
-
         return self in {
             AssessmentStatus.COMPLETED,
             AssessmentStatus.CANCELLED,
@@ -63,7 +61,6 @@ class FindingStatus(Enum):
     @property
     def is_closed(self) -> bool:
         """True once a finding is settled and should not accrue new evidence."""
-
         return self in {FindingStatus.FALSE_POSITIVE, FindingStatus.REMEDIATED}
 
 

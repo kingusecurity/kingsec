@@ -14,22 +14,22 @@ from typing import TYPE_CHECKING
 
 from kingsec.application.ports.scanner_plugin import ScannerPluginPort
 from kingsec.domain import (
+    OutputFormat,
     PluginAvailability,
     PluginConfig,
+    ScanCategory,
     ScannerCapability,
     ScannerId,
     ScannerPluginMetadata,
     ScannerResult,
-    ScanCategory,
-    OutputFormat,
     Target,
     TargetType,
 )
 
 if TYPE_CHECKING:
     from kingsec.infrastructure.config.models import SemgrepSettings
-    from kingsec.infrastructure.scanner.semgrep import SemgrepScannerAdapter
     from kingsec.infrastructure.scanner.runner import CommandRunner
+    from kingsec.infrastructure.scanner.semgrep import SemgrepScannerAdapter
 
 
 class SemgrepPlugin(ScannerPluginPort):
@@ -42,8 +42,8 @@ class SemgrepPlugin(ScannerPluginPort):
 
     def __init__(
         self,
-        settings: "SemgrepSettings",
-        runner: "CommandRunner | None" = None,
+        settings: SemgrepSettings,
+        runner: CommandRunner | None = None,
     ) -> None:
         from ...semgrep import SemgrepScannerAdapter
 

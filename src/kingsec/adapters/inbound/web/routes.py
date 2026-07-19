@@ -22,16 +22,13 @@ Security notes
 
 from __future__ import annotations
 
-from typing import Annotated
-
 from fastapi import APIRouter, Depends, Request, status
 
 from kingsec.application.ports.inbound.service_api import ServiceAPI
 from kingsec.bootstrap.application import Application
-from kingsec.domain import Role
 
 from . import schemas
-from .auth import CurrentUser, get_current_user, require_analyst, require_viewer
+from .auth import CurrentUser, require_analyst, require_viewer
 from .dependencies import get_service
 
 router = APIRouter(prefix="/api/v1")
@@ -135,7 +132,7 @@ def _record_failed_login_audit(request: Request, username: str) -> None:
                 correlation_id=correlation_id,
             )
         )
-    except Exception:  # noqa: BLE001 - audit is best-effort
+    except Exception:
         pass
 
 
@@ -215,8 +212,6 @@ async def get_current_user_info(
     request: Request = None,  # type: ignore[assignment]
 ) -> schemas.UserResponse:
     """Return the current authenticated user's profile."""
-    from datetime import datetime, timezone
-
     app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
     from kingsec.application import UserRepository
     user_repo = app.resolve(UserRepository)

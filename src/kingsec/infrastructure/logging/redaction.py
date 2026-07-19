@@ -76,7 +76,6 @@ def _key_is_sensitive(key: str) -> bool:
 
 def _redact_text(value: str) -> str:
     """Mask secret-shaped substrings inside a free-text string."""
-
     value = _BEARER_RE.sub(REDACTED, value)
     value = _SK_KEY_RE.sub(REDACTED, value)
     # Keep the label, mask only the value part: "api_key=***REDACTED***".
@@ -86,7 +85,6 @@ def _redact_text(value: str) -> str:
 
 def _redact(obj: Any) -> Any:
     """Recursively redact a value of arbitrary shape."""
-
     # Strategy 2: pydantic SecretStr / SecretBytes (duck-typed so we don't have
     # to import pydantic here, keeping logging decoupled from config internals).
     # We deliberately never call get_secret_value().
@@ -112,16 +110,15 @@ def _redact(obj: Any) -> Any:
 def redact_processor(
     logger: WrappedLogger, method_name: str, event_dict: EventDict
 ) -> EventDict:
-    """structlog processor entry point. Redacts the whole event dict.
+    """Structlog processor entry point. Redacts the whole event dict.
 
     Placed late in the chain (after contextvars are merged and exceptions are
     formatted) so it also scrubs secrets that arrived via bound context or that
     appear inside a rendered traceback string.
     """
-
     try:
         return _redact(event_dict)  # type: ignore[return-value]
-    except Exception:  # noqa: BLE001 - logging must never raise
+    except Exception:
         # Fail closed: discard the potentially-secret-bearing event and emit a
         # safe marker so operators still see that *something* was logged.
         return {

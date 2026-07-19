@@ -18,7 +18,7 @@ Severity mapping:
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from kingsec.domain import Evidence, Finding, Severity
 from kingsec.infrastructure.logging import get_logger
@@ -108,7 +108,7 @@ def parse_semgrep_json(output: str) -> list[Finding]:
                     f"severity: {severity_str} | message: {message[:200]} | "
                     f"category: {category} | confidence: {confidence}"
                 ),
-                collected_at=datetime.now(timezone.utc),
+                collected_at=datetime.now(UTC),
             )
         )
         findings.append(finding)

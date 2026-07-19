@@ -15,7 +15,6 @@ from .errors import InvariantViolation
 
 def ensure_non_empty(value: str, field: str) -> str:
     """Return ``value`` if it is a non-blank string, else raise."""
-
     if not isinstance(value, str) or not value.strip():
         raise InvariantViolation(f"{field} must be a non-empty string")
     return value
@@ -28,7 +27,6 @@ def ensure_timezone_aware(moment: datetime, field: str) -> datetime:
     surprises). The domain refuses them outright so every timestamp it holds is
     unambiguous.
     """
-
     if not isinstance(moment, datetime):
         raise InvariantViolation(f"{field} must be a datetime")
     if moment.tzinfo is None or moment.tzinfo.utcoffset(moment) is None:

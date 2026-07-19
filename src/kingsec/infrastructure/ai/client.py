@@ -43,7 +43,6 @@ class AIClient:
                 only an explicit False disables verification.
             transport: Optional transport override (tests inject a mock).
         """
-
         self._retry_count = max(0, retry_count)
         self._retry_delay = max(0.0, retry_delay)
         # A single pooled client is reused for all requests (keep-alive).
@@ -72,7 +71,6 @@ class AIClient:
             AIError: On timeout, transport failure, error status, or unparseable
                 body. (One of its subtypes.)
         """
-
         attempts = self._retry_count + 1
         for attempt in range(1, attempts + 1):
             try:
@@ -110,11 +108,9 @@ class AIClient:
 
     def _backoff(self, attempt: int) -> None:
         """Sleep with exponential back-off before the next attempt."""
-
         if self._retry_delay > 0:
             time.sleep(self._retry_delay * (2 ** (attempt - 1)))
 
     def close(self) -> None:
         """Close the underlying connection pool (registered as a shutdown hook)."""
-
         self._client.close()

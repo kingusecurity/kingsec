@@ -6,7 +6,6 @@ Persists and retrieves :class:`ScannerResult` objects through the existing
 
 from __future__ import annotations
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from kingsec.application import AssessmentNotFoundError, ScanRepositoryPort

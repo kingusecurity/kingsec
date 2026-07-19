@@ -12,8 +12,6 @@ app unaware of KingSec internals — it only knows about the typed dependency.
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import Request
 
 from kingsec.application.ports.inbound.service_api import ServiceAPI
@@ -22,12 +20,10 @@ from kingsec.bootstrap.application import Application
 
 def get_application(request: Request) -> Application:
     """Retrieve the wired Application from FastAPI's app state."""
-
     return request.app.state.kingsec_app  # type: ignore[no-any-return]
 
 
 def get_service(request: Request) -> ServiceAPI:
     """Resolve the ServiceAPI port from the KingSec DI container."""
-
     app = get_application(request)
     return app.resolve(ServiceAPI)  # type: ignore[no-any-return]

@@ -9,12 +9,11 @@ repositories — it delegates all persistence to the Unit of Work.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from kingsec.application.job import JobId
 from kingsec.application.jobs import (
     IllegalJobTransitionError,
-    JobNotFoundError,
     JobStatus,
     ScanJob,
     ScanJobResult,
@@ -42,7 +41,7 @@ class PersistentJobService(JobServicePort):
 
     def submit_scan(self, target: str, config: dict | None = None) -> ScanJob:
         job_id = JobId(str(uuid.uuid4()))
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         job = ScanJob(
             id=job_id,
             target=target,
@@ -72,7 +71,7 @@ class PersistentJobService(JobServicePort):
         with self._uow:
             job = self._uow.job_repository.get(job_id)
             validate_transition(job.status, JobStatus.CANCELLED)
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             updated = ScanJob(
                 id=job.id,
                 target=job.target,
