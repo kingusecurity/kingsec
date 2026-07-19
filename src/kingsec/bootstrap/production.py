@@ -1,8 +1,11 @@
 """Production composition root for the KingSec API stack.
 
-Wires scanner plugins, registry, orchestrator, renderers, report service,
-and the FastAPI application together. This is the ONLY module that
-instantiates concrete infrastructure adapter implementations.
+Wires persistence (Engine, Session, SQLAlchemy repositories, Unit of Work),
+scanner plugins, registry, orchestrator, renderers, report service,
+job service, and the FastAPI application together.
+
+This is the ONLY module that instantiates concrete infrastructure adapter
+implementations — the composition root of Clean Architecture.
 
 Usage::
 
@@ -15,15 +18,23 @@ Usage::
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
+from sqlalchemy import Engine
+from sqlalchemy.orm import Session, sessionmaker
+
+if TYPE_CHECKING:
+    from kingsec.infrastructure.config import Settings
 
 # ── Application layer ──────────────────────────────────────────────────────
 from kingsec.application import ReportGenerationResult, ReportServicePort
 from kingsec.application.dto import RenderedReport
 from kingsec.application.executive_summary import ExecutiveSummaryGenerator
+from kingsec.application.jobs import InMemoryJobService
 from kingsec.application.report_builder import ReportBuilder
 from kingsec.application.renderers import MarkdownReportRenderer
 from kingsec.application.renderers.csv_renderer import CsvReportRenderer
@@ -31,6 +42,7 @@ from kingsec.application.renderers.html_renderer import HTMLReportRenderer
 from kingsec.application.renderers.json_renderer import JsonReportRenderer
 from kingsec.application.renderers.pdf_renderer import PDFReportRenderer
 from kingsec.application.renderers.sarif_renderer import SarifRenderer
+from kingsec.application.unit_of_work import UnitOfWorkPort
 
 # ── Infrastructure adapters ────────────────────────────────────────────────
 from kingsec.infrastructure.config.models import (
@@ -44,6 +56,20 @@ from kingsec.infrastructure.config.models import (
     TrivySettings,
     ZapSettings,
 )
+from kingsec.infrastructure.config.loader import load_settings
+from kingsec.infrastructure.persistence import (
+    create_database_engine,
+    create_schema,
+    create_session_factory,
+)
+from kingsec.infrastructure.persistence.repositories import (
+    SQLAlchemyAssessmentRepository,
+    SQLAlchemyAssetRepository,
+    SQLAlchemyJobRepository,
+    SQLAlchemyReportRepository,
+    SQLAlchemyScanRepository,
+)
+from kingsec.infrastructure.persistence.unit_of_work import SQLAlchemyUnitOfWork
 from kingsec.infrastructure.scanner import (
     AmassPlugin,
     FfufPlugin,
@@ -76,10 +102,27 @@ class ProductionApplication:
     Access them directly — no globals, no singletons, no service locator.
     """
 
+    # Persistence
+    engine: Engine
+    session_factory: sessionmaker[Session]
+    uow: SQLAlchemyUnitOfWork
+
+    # Repositories (session-bound, share a single session)
+    assessment_repository: SQLAlchemyAssessmentRepository
+    report_repository: SQLAlchemyReportRepository
+    scan_repository: SQLAlchemyScanRepository
+    job_repository: SQLAlchemyJobRepository
+    asset_repository: SQLAlchemyAssetRepository
+
+    # Job service
+    job_service: InMemoryJobService
+
+    # Scanner
     scanner_registry: InMemoryPluginRegistry
     scanner_orchestrator: ScannerOrchestrator
     command_runner: SubprocessCommandRunner
 
+    # Report
     report_service: ReportServicePort
     report_builder: ReportBuilder
     executive_summary_generator: ExecutiveSummaryGenerator
@@ -91,6 +134,7 @@ class ProductionApplication:
     csv_renderer: CsvReportRenderer
     sarif_renderer: SarifRenderer
 
+    # API
     fastapi_app: FastAPI
 
 
@@ -271,21 +315,65 @@ def _build_report_service(
     )
 
 
+def _build_persistence(settings: Settings) -> tuple[Engine, sessionmaker[Session], Session]:
+    """Create engine, schema, session factory, and a default session.
+
+    Returns:
+        A tuple of (engine, session_factory, default_session).
+    """
+    engine = create_database_engine(settings=settings)
+    create_schema(engine)
+    session_factory = create_session_factory(engine)
+    session = session_factory()
+    return engine, session_factory, session
+
+
 # ============================================================================
 # Public factory
 # ============================================================================
 
 
-def create_production_application() -> ProductionApplication:
+def create_production_application(
+    settings: Settings | None = None,
+    env_file: str | Path | None = None,
+) -> ProductionApplication:
     """Build and return a fully wired :class:`ProductionApplication`.
 
     Every component is constructed once, connected explicitly, and returned
     as a snapshot of the complete dependency graph.
+
+    Args:
+        settings: Optional pre-built ``Settings`` (useful for tests). If
+            omitted, settings are loaded from the environment.
+        env_file: Optional ``.env`` file path passed to ``load_settings``
+            when ``settings`` is not provided.
+
+    Returns:
+        A fully wired ``ProductionApplication``.
     """
+    if settings is None:
+        settings = load_settings(env_file)
+
+    # --- Persistence ---
+    engine, session_factory, session = _build_persistence(settings)
+
+    assessment_repository = SQLAlchemyAssessmentRepository(session)
+    report_repository = SQLAlchemyReportRepository(session)
+    scan_repository = SQLAlchemyScanRepository(session)
+    job_repository = SQLAlchemyJobRepository(session)
+    asset_repository = SQLAlchemyAssetRepository(session)
+
+    uow = SQLAlchemyUnitOfWork(session)
+
+    # --- Job service ---
+    job_service = InMemoryJobService()
+
+    # --- Scanner ---
     runner = _build_runner()
     registry = _build_registry(runner)
     orchestrator = ScannerOrchestrator(registry)
 
+    # --- Renderers & Report ---
     (
         markdown_renderer,
         html_renderer,
@@ -306,19 +394,31 @@ def create_production_application() -> ProductionApplication:
         sarif_renderer,
     )
 
+    # --- API (pass all optional services) ---
     fastapi_app = create_app(
         registry=registry,
         scanner=orchestrator,
         report_service=report_service,
+        job_service=job_service,
     )
 
     return ProductionApplication(
+        engine=engine,
+        session_factory=session_factory,
+        uow=uow,
+        assessment_repository=assessment_repository,
+        report_repository=report_repository,
+        scan_repository=scan_repository,
+        job_repository=job_repository,
+        asset_repository=asset_repository,
+        job_service=job_service,
         scanner_registry=registry,
         scanner_orchestrator=orchestrator,
         command_runner=runner,
         report_service=report_service,
         report_builder=report_builder,
         executive_summary_generator=exec_summary_gen,
+
         markdown_renderer=markdown_renderer,
         html_renderer=html_renderer,
         pdf_renderer=pdf_renderer,
