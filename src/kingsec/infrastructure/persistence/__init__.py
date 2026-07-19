@@ -39,6 +39,7 @@ from .models import (
 )
 from .provisioning import register_persistence
 from .repositories import (
+    SQLAlchemyAssessmentRepository,
     SqlAlchemyAssessmentRepository,
     SqlAlchemyReportRepository,
 )
@@ -57,6 +58,7 @@ __all__ = [
     "ReportModel",
     "ReportORM",
     "ScanModel",
+    "SQLAlchemyAssessmentRepository",
     "SqlAlchemyAssessmentRepository",
     "SqlAlchemyAuditRepository",
     "SqlAlchemyReportRepository",
