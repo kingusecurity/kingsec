@@ -16,9 +16,11 @@ SqlAlchemyAssessmentRepository = _LegacyAssessmentRepo
 SqlAlchemyReportRepository = _LegacyReportRepo
 
 from .assessment import SQLAlchemyAssessmentRepository  # noqa: E402, F811
+from .report import SQLAlchemyReportRepository  # noqa: E402, F811
 
 __all__ = [
     "SQLAlchemyAssessmentRepository",
+    "SQLAlchemyReportRepository",
     "SqlAlchemyAssessmentRepository",
     "SqlAlchemyReportRepository",
 ]
