@@ -1,21 +1,3 @@
-"""Application-layer errors.
-
-Boundary policy (important architectural decision)
-    * Problems with the *inputs* to a use case, or with *persistence lookups*,
-      are the application layer's concern and become ``ApplicationError`` types
-      (e.g. a malformed id, or an assessment that isn't stored). These are what a
-      caller of a use case should expect to handle.
-    * Genuine *domain-rule* violations (the authorization gate, "a report needs
-      a completed assessment") are raised by the domain as ``DomainError`` and
-      are allowed to PROPAGATE unchanged — they are precise signals, and a
-      further-out boundary (the future web layer) will translate them into
-      transport responses.
-
-Per this module's constraint, these errors subclass the standard-library
-``Exception`` only — the application layer imports nothing but the domain and the
-standard library.
-"""
-
 from __future__ import annotations
 
 
@@ -35,18 +17,11 @@ class ReportNotFoundError(ApplicationError):
     """No report exists for the requested assessment."""
 
 
-# ---------------------------------------------------------------------------
-# Scanner plugin framework errors
-# ---------------------------------------------------------------------------
-
-
 class ScannerPluginError(ApplicationError):
     """Base class for all scanner plugin framework errors."""
 
 
 class ScannerUnavailableError(ScannerPluginError):
-    """A scanner plugin cannot execute because its dependency is missing."""
-
     def __init__(
         self,
         message: str,
@@ -71,3 +46,11 @@ class ScannerDuplicateError(ScannerPluginError):
 
 class ScannerTimeoutError(ScannerPluginError):
     """A scanner plugin exceeded its execution time limit."""
+
+
+class JobNotFoundError(ApplicationError):
+    """No job exists for the requested identifier."""
+
+
+class IllegalJobTransitionError(ApplicationError):
+    """A job state transition is not allowed by the state machine."""

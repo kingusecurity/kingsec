@@ -54,6 +54,15 @@ from .events import (
     EVENT_REPORT_READY,
 )
 from .job import JobId
+from .jobs import (
+    IllegalJobTransitionError,
+    InMemoryJobService,
+    JobNotFoundError,
+    JobStatus,
+    ScanJob,
+    ScanJobResult,
+    validate_transition,
+)
 from .ports import (
     AIPort,
     AssessmentRepository,
@@ -137,9 +146,16 @@ __all__ = [
     "GenerateReportResponse",
     "GetAssessment",
     "GetAssessmentRequest",
+    "IllegalJobTransitionError",
+    "InMemoryJobService",
     "InputValidationError",
     "JobId",
+    "JobNotFoundError",
     "JobRunner",
+    "JobServicePort",
+    "JobStatus",
+    "ScanJob",
+    "ScanJobResult",
     "ListAssessments",
     "ListAssessmentsRequest",
     "ListAssessmentsResponse",

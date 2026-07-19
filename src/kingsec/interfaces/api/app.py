@@ -11,13 +11,14 @@ from typing import TYPE_CHECKING
 from fastapi import FastAPI
 
 if TYPE_CHECKING:
-    from kingsec.application.ports import ReportServicePort, ScannerPluginRegistry, ScannerPort
+    from kingsec.application.ports import JobServicePort, ReportServicePort, ScannerPluginRegistry, ScannerPort
 
 
 def create_app(
     registry: ScannerPluginRegistry | None = None,
     scanner: ScannerPort | None = None,
     report_service: ReportServicePort | None = None,
+    job_service: JobServicePort | None = None,
 ) -> FastAPI:
     """Create and return a configured FastAPI application instance.
 
@@ -61,6 +62,10 @@ def create_app(
         from kingsec.interfaces.api.routes.report import create_report_router
         app.include_router(create_report_router(report_service))
         app.include_router(create_download_router(report_service))
+
+    if job_service is not None:
+        from kingsec.interfaces.api.routes.jobs import create_jobs_router
+        app.include_router(create_jobs_router(job_service))
 
     from kingsec.interfaces.api.errors import register_error_handlers
     register_error_handlers(app)

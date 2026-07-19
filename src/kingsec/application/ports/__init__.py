@@ -1,6 +1,7 @@
 """Port definitions - the boundaries between the core and the outside."""
 
 from .inbound import ServiceAPI
+from .job_service import JobServicePort
 from .outbound.audit_publisher import AuditPublisher
 from .outbound.event_publisher import EventPublisher
 from .outbound.job_runner import JobRunner
@@ -21,6 +22,7 @@ __all__ = [
     "AuditPublisher",
     "EventPublisher",
     "JobRunner",
+    "JobServicePort",
     "PasswordHasher",
     "ReportGenerationResult",
     "ReportGeneratorPort",
