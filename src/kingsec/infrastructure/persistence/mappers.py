@@ -26,6 +26,8 @@ from kingsec.domain import (
     FindingSummary,
     Recommendation,
     Report,
+    ScannerId,
+    ScannerResult,
     Severity,
     Target,
     TargetType,
@@ -35,9 +37,11 @@ from kingsec.domain import (
 from .models import (
     AssessmentORM,
     EvidenceORM,
+    FindingModel,
     FindingORM,
     RecommendationORM,
     ReportORM,
+    ScanModel,
 )
 
 # --- domain -> ORM (for writing) ---------------------------------------------
@@ -214,4 +218,68 @@ def report_to_domain(orm: ReportORM) -> Report:
         verdict=verdict,
         entries=entries,
         severity_counts=severity_counts,
+    )
+
+
+# ===========================================================================
+#  ScannerResult ↔ ScanModel / FindingModel  (Phase 7.3.3)
+# ===========================================================================
+
+
+def scan_finding_to_orm(finding: Finding, scan_id: str) -> FindingModel:
+    """Build a FindingModel row from a domain Finding for a scan result."""
+
+    return FindingModel(
+        id=str(finding.id),
+        scan_id=scan_id,
+        title=finding.title,
+        description=finding.description,
+        severity=finding.severity.name,
+        scanner=None,
+        asset=None,
+        created_at=finding.discovered_at.isoformat(),
+    )
+
+
+def scan_finding_to_domain(orm: FindingModel) -> Finding:
+    """Rebuild a domain Finding from a FindingModel row (scan context)."""
+
+    return Finding.reconstitute(
+        finding_id=FindingId(orm.id),
+        title=orm.title,
+        description=orm.description,
+        severity=Severity[orm.severity],
+        status=FindingStatus.OPEN,
+        discovered_at=datetime.fromisoformat(orm.created_at),
+    )
+
+
+def scan_result_to_orm(scan_id: str, result: ScannerResult) -> ScanModel:
+    """Build a ScanModel from a scan id and ScannerResult."""
+
+    now = datetime.now().isoformat()
+    return ScanModel(
+        id=scan_id,
+        target=str(result.scanner_id),
+        status="COMPLETED",
+        created_at=now,
+        completed_at=now,
+        scanner_count=len(result.findings),
+        findings=[scan_finding_to_orm(f, scan_id) for f in result.findings],
+    )
+
+
+def scan_result_to_domain(orm: ScanModel) -> ScannerResult:
+    """Rebuild a ScannerResult from a ScanModel row and its findings.
+
+    Note: ``raw_output``, ``duration_seconds``, ``scanner_version``, and
+    ``warnings`` are not stored in the current ORM schema and are returned
+    as empty / zero defaults.  A future migration can add columns for these.
+    """
+
+    return ScannerResult(
+        scanner_id=ScannerId(orm.target),
+        findings=tuple(scan_finding_to_domain(f) for f in orm.findings),
+        raw_output="",
+        duration_seconds=0.0,
     )
