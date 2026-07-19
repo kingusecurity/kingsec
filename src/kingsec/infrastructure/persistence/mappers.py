@@ -35,6 +35,7 @@ from kingsec.domain import (
 )
 
 from .models import (
+    AssetModel,
     AssessmentORM,
     EvidenceORM,
     FindingModel,
@@ -320,4 +321,50 @@ def job_to_domain(orm: JobModel) -> ScanJob:
         status=JobStatus(orm.status),
         created_at=datetime.fromisoformat(orm.created_at),
         updated_at=datetime.fromisoformat(orm.updated_at),
+    )
+
+
+# ===========================================================================
+#  Asset ↔ AssetModel  (Phase 7.3.5)
+# ===========================================================================
+
+
+def _infer_target(orm: AssetModel) -> Target:
+    """Rebuild a Target from whichever AssetModel column carries the value."""
+
+    if orm.hostname:
+        return Target(orm.hostname, TargetType.HOSTNAME)
+    if orm.ip_address:
+        return Target(orm.ip_address, TargetType.IP_ADDRESS)
+    return Target(orm.id, TargetType.HOSTNAME)
+
+
+def asset_to_orm(asset: Asset) -> AssetModel:
+    """Build an AssetModel row from an Asset value object."""
+
+    hostname = asset.target.value if asset.target.type == TargetType.HOSTNAME else None
+    ip_address = asset.target.value if asset.target.type == TargetType.IP_ADDRESS else None
+
+    return AssetModel(
+        id=asset.id,
+        hostname=hostname,
+        ip_address=ip_address,
+        created_at=asset.discovered_at.isoformat(),
+    )
+
+
+def asset_to_domain(orm: AssetModel) -> Asset:
+    """Rebuild an Asset value object from an AssetModel row.
+
+    Note: ``tags`` are not stored in the current ORM schema and are returned
+    as an empty frozenset.  A future migration can add a column for them.
+    """
+
+    from kingsec.application.ports.repositories import Asset
+
+    return Asset(
+        id=orm.id,
+        target=_infer_target(orm),
+        discovered_at=datetime.fromisoformat(orm.created_at),
+        tags=frozenset(),
     )

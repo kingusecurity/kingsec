@@ -15,12 +15,14 @@ from kingsec.infrastructure.persistence._legacy_repositories import (
 SqlAlchemyAssessmentRepository = _LegacyAssessmentRepo
 SqlAlchemyReportRepository = _LegacyReportRepo
 
+from .asset import SQLAlchemyAssetRepository  # noqa: E402, F811
 from .assessment import SQLAlchemyAssessmentRepository  # noqa: E402, F811
 from .job import SQLAlchemyJobRepository  # noqa: E402, F811
 from .report import SQLAlchemyReportRepository  # noqa: E402, F811
 from .scan import SQLAlchemyScanRepository  # noqa: E402, F811
 
 __all__ = [
+    "SQLAlchemyAssetRepository",
     "SQLAlchemyAssessmentRepository",
     "SQLAlchemyJobRepository",
     "SQLAlchemyReportRepository",
