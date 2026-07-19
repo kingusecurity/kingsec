@@ -87,6 +87,11 @@ EXPECTED_TABLES = frozenset({
     "reports",
     "users",
     "audit_entries",
+    "assets",
+    "scan_results",
+    "scan_findings",
+    "scan_reports",
+    "scan_jobs",
 })
 
 

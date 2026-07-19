@@ -22,7 +22,21 @@ from .database import (
     create_session_factory,
     validate_schema_version,
 )
-from .models import Base
+from .base import Base
+from .models import (
+    AssetModel,
+    AssessmentORM,
+    AuditEntryORM,
+    EvidenceORM,
+    FindingModel,
+    FindingORM,
+    JobModel,
+    RecommendationORM,
+    ReportModel,
+    ReportORM,
+    ScanModel,
+    UserORM,
+)
 from .provisioning import register_persistence
 from .repositories import (
     SqlAlchemyAssessmentRepository,
@@ -31,12 +45,24 @@ from .repositories import (
 from .unit_of_work import SqlAlchemyUnitOfWork, SqlAlchemyUnitOfWorkFactory, register_unit_of_work
 
 __all__ = [
+    "AssetModel",
+    "AssessmentORM",
+    "AuditEntryORM",
     "Base",
+    "EvidenceORM",
+    "FindingModel",
+    "FindingORM",
+    "JobModel",
+    "RecommendationORM",
+    "ReportModel",
+    "ReportORM",
+    "ScanModel",
     "SqlAlchemyAssessmentRepository",
     "SqlAlchemyAuditRepository",
     "SqlAlchemyReportRepository",
     "SqlAlchemyUnitOfWork",
     "SqlAlchemyUnitOfWorkFactory",
+    "UserORM",
     "build_sqlite_url",
     "create_database_engine",
     "create_schema",

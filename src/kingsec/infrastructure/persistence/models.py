@@ -17,7 +17,7 @@ Storage decisions worth noting:
       aggregate removes its children in one operation.
 """
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.types import JSON
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -181,3 +181,102 @@ class AuditEntryORM(Base):
     user_agent: Mapped[str] = mapped_column(String, nullable=False, default="")
     correlation_id: Mapped[str] = mapped_column(String, nullable=False, default="")
     metadata_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+
+
+# ===========================================================================
+#  Scan-job / Asset models  (Phase 7.2)
+# ===========================================================================
+
+
+class ScanModel(Base):
+    """A single scan execution against a target."""
+
+    __tablename__ = "scan_results"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    target: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)  # ISO-8601
+    completed_at: Mapped[str | None] = mapped_column(String, nullable=True)  # ISO-8601
+    scanner_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    findings: Mapped[list["FindingModel"]] = relationship(
+        back_populates="scan",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    reports: Mapped[list["ReportModel"]] = relationship(
+        back_populates="scan",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
+
+class FindingModel(Base):
+    """A single finding discovered during a scan."""
+
+    __tablename__ = "scan_findings"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    scan_id: Mapped[str] = mapped_column(
+        ForeignKey("scan_results.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    severity: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    scanner: Mapped[str | None] = mapped_column(String, nullable=True)
+    asset: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)  # ISO-8601
+
+    scan: Mapped[ScanModel] = relationship(back_populates="findings")
+
+    asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("assets.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
+
+class ReportModel(Base):
+    """A generated report document attached to a scan."""
+
+    __tablename__ = "scan_reports"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    scan_id: Mapped[str] = mapped_column(
+        ForeignKey("scan_results.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    format: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)  # ISO-8601
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+
+    scan: Mapped[ScanModel] = relationship(back_populates="reports")
+
+
+class JobModel(Base):
+    """A scan job submitted for asynchronous execution."""
+
+    __tablename__ = "scan_jobs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    status: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    target: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)  # ISO-8601
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)  # ISO-8601
+
+
+class AssetModel(Base):
+    """A discovered network asset."""
+
+    __tablename__ = "assets"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    hostname: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    ip_address: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    operating_system: Mapped[str | None] = mapped_column(String, nullable=True)
+    owner: Mapped[str | None] = mapped_column(String, nullable=True)
+    criticality: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)  # ISO-8601
+
+    findings: Mapped[list[FindingModel]] = relationship(
+        foreign_keys=[FindingModel.asset_id],
+        lazy="selectin",
+    )
