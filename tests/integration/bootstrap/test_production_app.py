@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
-from kingsec.application.jobs import InMemoryJobService
+from kingsec.application.services.persistent_job_service import PersistentJobService
 from kingsec.application.unit_of_work import UnitOfWorkPort
 from kingsec.bootstrap.production import (
     ProductionApplication,
@@ -259,7 +259,7 @@ class TestDependencyGraph:
         assert isinstance(app.scanner_registry, InMemoryPluginRegistry)
 
     def test_job_service_wired(self, app: ProductionApplication) -> None:
-        assert isinstance(app.job_service, InMemoryJobService)
+        assert isinstance(app.job_service, PersistentJobService)
 
     def test_report_service_wired(self, app: ProductionApplication) -> None:
         assert app.report_service is not None

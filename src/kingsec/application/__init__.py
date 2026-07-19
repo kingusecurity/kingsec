@@ -96,6 +96,7 @@ from .correlation import CorrelatedFinding, CorrelationEngine
 from .enrichment import EnrichedFinding, FindingEnricher
 from .normalization import FindingNormalizer, NormalizedFinding
 from .risk import RiskAssessment, RiskFactor, RiskScorer
+from .services.persistent_job_service import PersistentJobService
 from .service_api import UseCaseServiceAPI
 from .submit_assessment import SubmitAssessment
 from .use_cases.cancel_assessment import CancelAssessment
@@ -170,6 +171,7 @@ __all__ = [
     "LoginResponse",
     "NormalizedFinding",
     "PasswordChangeError",
+    "PersistentJobService",
     "PasswordHasher",
     "RefreshToken",
     "RefreshTokenRequest",

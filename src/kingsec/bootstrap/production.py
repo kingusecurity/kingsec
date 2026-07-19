@@ -34,8 +34,8 @@ if TYPE_CHECKING:
 from kingsec.application import ReportGenerationResult, ReportServicePort
 from kingsec.application.dto import RenderedReport
 from kingsec.application.executive_summary import ExecutiveSummaryGenerator
-from kingsec.application.jobs import InMemoryJobService
 from kingsec.application.report_builder import ReportBuilder
+from kingsec.application.services.persistent_job_service import PersistentJobService
 from kingsec.application.renderers import MarkdownReportRenderer
 from kingsec.application.renderers.csv_renderer import CsvReportRenderer
 from kingsec.application.renderers.html_renderer import HTMLReportRenderer
@@ -115,7 +115,7 @@ class ProductionApplication:
     asset_repository: SQLAlchemyAssetRepository
 
     # Job service
-    job_service: InMemoryJobService
+    job_service: PersistentJobService
 
     # Scanner
     scanner_registry: InMemoryPluginRegistry
@@ -366,7 +366,7 @@ def create_production_application(
     uow = SQLAlchemyUnitOfWork(session)
 
     # --- Job service ---
-    job_service = InMemoryJobService()
+    job_service = PersistentJobService(uow)
 
     # --- Scanner ---
     runner = _build_runner()
