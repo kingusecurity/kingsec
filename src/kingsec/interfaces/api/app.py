@@ -65,4 +65,7 @@ def create_app(
     from kingsec.interfaces.api.errors import register_error_handlers
     register_error_handlers(app)
 
+    from kingsec.interfaces.api.middleware import register_middleware
+    register_middleware(app)
+
     return app
