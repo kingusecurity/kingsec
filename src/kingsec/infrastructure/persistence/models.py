@@ -153,6 +153,26 @@ class UserORM(Base):
     last_login_at: Mapped[str | None] = mapped_column(String, nullable=True)  # ISO-8601
 
 
+class ApiKeyORM(Base):
+    """Row representation of an :class:`~kingsec.domain.ApiKey` entity.
+
+    Only the key hash is stored; the plaintext key is never persisted.
+    """
+
+    __tablename__ = "api_keys"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    key_hash: Mapped[str] = mapped_column(String, nullable=False)
+    scope: Mapped[str] = mapped_column(String, nullable=False, default="read_only")
+    status: Mapped[str] = mapped_column(String, nullable=False, default="active")
+    last_used_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
 class AuditEntryORM(Base):
     """Immutable audit trail record.
 

@@ -347,3 +347,86 @@ class AuditListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+# ── API Key schemas ───────────────────────────────────────────────────────────
+
+
+class CreateApiKeyBody(BaseModel):
+    """POST /api/v1/apikeys request body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(
+        ...,
+        min_length=1,
+        max_length=128,
+        description="Human-readable name for the API key.",
+        examples=["CI/CD Pipeline"],
+    )
+    scope: str = Field(
+        default="read_only",
+        pattern=r"^(read_only|full_access)$",
+        description="Operational scope: read_only or full_access.",
+    )
+
+
+class CreateApiKeyResponse(BaseModel):
+    """POST /api/v1/apikeys response body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    api_key_id: str
+    name: str
+    plaintext_key: str
+    scope: str
+    created_at: str
+
+
+class ApiKeyResponse(BaseModel):
+    """API key view (no sensitive data)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    api_key_id: str
+    user_id: str
+    name: str
+    scope: str
+    status: str
+    last_used_at: str | None = None
+    created_at: str
+
+
+class ApiKeyListResponse(BaseModel):
+    """GET /api/v1/apikeys response body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[ApiKeyResponse]
+    total: int
+
+
+class RotateApiKeyResponse(BaseModel):
+    """POST /api/v1/apikeys/{id}/rotate response body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    api_key_id: str
+    name: str
+    plaintext_key: str
+    scope: str
+    created_at: str
+
+
+class CurrentApiKeyResponse(BaseModel):
+    """GET /api/v1/apikeys/me response body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    api_key_id: str
+    user_id: str
+    name: str
+    scope: str
+    status: str
+    last_used_at: str | None = None
+    created_at: str

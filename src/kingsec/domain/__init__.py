@@ -13,8 +13,8 @@ Public API
         AuditEntry, ScannerId, ScannerPluginMetadata, ScannerCapability,
         PluginConfig, PluginAvailability, ScannerResult
     Enums
-        Severity, AssessmentStatus, FindingStatus, Role, AuditAction,
-        ScanCategory, OutputFormat
+        ApiKeyStatus, ApiKeyScope, Severity, AssessmentStatus,
+        FindingStatus, Role, AuditAction, ScanCategory, OutputFormat
     Errors
         DomainError, InvariantViolation, IllegalStateTransition,
         UserError, UserNotFoundError, InvalidCredentialsError,
@@ -23,6 +23,7 @@ Public API
 
 from __future__ import annotations
 
+from .api_key import ApiKey, ApiKeyScope, ApiKeyStatus
 from .assessment import Assessment
 from .audit import AuditAction, AuditEntry
 from .authorization import Authorization
@@ -53,6 +54,9 @@ from .user import (
 )
 
 __all__ = [
+    "ApiKey",
+    "ApiKeyScope",
+    "ApiKeyStatus",
     "Assessment",
     "AssessmentId",
     "AssessmentStatus",

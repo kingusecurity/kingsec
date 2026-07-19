@@ -2,6 +2,8 @@
 
 from .inbound import ServiceAPI
 from .job_service import JobServicePort
+from .outbound.api_key_hasher import ApiKeyHasher
+from .outbound.api_key_repository import ApiKeyRepository
 from .outbound.audit_publisher import AuditPublisher
 from .outbound.event_publisher import EventPublisher
 from .outbound.job_runner import JobRunner
@@ -25,6 +27,8 @@ from .unit_of_work import UnitOfWork, UnitOfWorkFactory
 
 __all__ = [
     "AIPort",
+    "ApiKeyHasher",
+    "ApiKeyRepository",
     "AssessmentRepository",
     "Asset",
     "AssetRepositoryPort",

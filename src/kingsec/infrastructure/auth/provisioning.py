@@ -6,7 +6,7 @@ on the DI container. The composition root calls ``register_auth()``.
 
 from __future__ import annotations
 
-from kingsec.application.ports import PasswordHasher, TokenService, UserRepository
+from kingsec.application.ports import ApiKeyHasher, ApiKeyRepository, PasswordHasher, TokenService, UserRepository
 from kingsec.infrastructure.config.settings import Settings
 
 from ..persistence.user_repository import SqlAlchemyUserRepository
@@ -38,3 +38,20 @@ def register_user_repository(container: object, session_factory: callable) -> No
     """
     repo = SqlAlchemyUserRepository(session_factory)
     container.register_instance(UserRepository, repo)
+
+
+def register_api_key_auth(container: object, session_factory: callable) -> None:
+    """Register API key hasher and repository on the container.
+
+    Args:
+        container: The DI container.
+        session_factory: SQLAlchemy session factory.
+    """
+    from .api_key_hasher import HmacApiKeyHasher
+    from ..persistence.api_key_repository import SqlAlchemyApiKeyRepository
+
+    hasher = HmacApiKeyHasher()
+    container.register_instance(ApiKeyHasher, hasher)
+
+    repo = SqlAlchemyApiKeyRepository(session_factory)
+    container.register_instance(ApiKeyRepository, repo)

@@ -1,13 +1,15 @@
-"""FastAPI auth dependencies — resolve the current user from JWT Bearer tokens.
+"""FastAPI auth dependencies — resolve the current user/API key from tokens.
 
 This module lives entirely inside the web adapter. It never leaks into the
 application or domain layers. FastAPI's ``Depends()`` wires the dependency
 at request time.
 
 Security considerations:
-    - Bearer token is extracted from the ``Authorization`` header.
+    - JWT Bearer token is extracted from the ``Authorization`` header.
     - Expired tokens return 401, invalid tokens return 401.
     - Missing/invalid roles return 403.
+    - API keys can be provided via ``Authorization: Bearer <key>`` or the
+      ``X-API-Key`` header.
     - The dependency is reusable across all protected endpoints.
 """
 
@@ -213,3 +215,74 @@ def require_self_or_admin(resource_owner_id: str):
 require_admin = require_role(Role.ADMIN)
 require_analyst = require_role(Role.ANALYST)
 require_viewer = require_role(Role.VIEWER)
+
+
+# ── API Key Authentication ────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class CurrentApiKey:
+    """Authenticated API key context for the current request."""
+
+    api_key_id: str
+    user_id: str
+    scope: str
+    status: str
+
+
+def _get_validate_api_key_use_case(request: Request):
+    """Resolve the ``ValidateApiKey`` use case from the DI container."""
+    app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
+    from kingsec.application import ValidateApiKey
+    return app.resolve(ValidateApiKey)
+
+
+async def get_current_api_key(
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)] = None,
+) -> CurrentApiKey:
+    """Extract and validate an API key from the request.
+
+    Supports two methods:
+        1. ``Authorization: Bearer <api_key>``
+        2. ``X-API-Key`` header
+
+    Raises:
+        HTTPException: 401 if the key is missing, invalid, or revoked.
+    """
+    api_key_str: str | None = None
+
+    # Try Authorization header first.
+    if credentials is not None:
+        api_key_str = credentials.credentials
+
+    # Fall back to X-API-Key header.
+    if api_key_str is None:
+        api_key_str = request.headers.get("X-API-Key")
+
+    if api_key_str is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="missing API key",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    validate_uc = _get_validate_api_key_use_case(request)
+
+    from kingsec.application.dto import ValidateApiKeyRequest
+
+    try:
+        result = validate_uc.execute(ValidateApiKeyRequest(api_key=api_key_str))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"invalid API key: {exc}",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+
+    return CurrentApiKey(
+        api_key_id=result.api_key_id,
+        user_id=result.user_id,
+        scope=result.scope,
+        status=result.status,
+    )

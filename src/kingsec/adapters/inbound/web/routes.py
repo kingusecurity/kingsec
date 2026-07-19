@@ -28,7 +28,8 @@ from kingsec.application.ports.inbound.service_api import ServiceAPI
 from kingsec.bootstrap.application import Application
 
 from . import schemas
-from .auth import CurrentUser, require_analyst, require_viewer
+from .auth import CurrentApiKey, CurrentUser, get_current_api_key, require_analyst, require_permission, require_viewer
+from kingsec.application.auth import Permission
 from .dependencies import get_service
 
 router = APIRouter(prefix="/api/v1")
@@ -490,3 +491,200 @@ async def delete_assessment(
 
     request = DeleteAssessmentRequest(assessment_id=assessment_id)
     service.delete_assessment(request)
+
+
+# ── API Keys ──────────────────────────────────────────────────────────────────
+
+
+def _get_create_api_key_uc(request: Request):
+    app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
+    from kingsec.application import CreateApiKey
+    return app.resolve(CreateApiKey)
+
+
+def _get_list_api_keys_uc(request: Request):
+    app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
+    from kingsec.application import ListApiKeys
+    return app.resolve(ListApiKeys)
+
+
+def _get_revoke_api_key_uc(request: Request):
+    app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
+    from kingsec.application import RevokeApiKey
+    return app.resolve(RevokeApiKey)
+
+
+def _get_rotate_api_key_uc(request: Request):
+    app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
+    from kingsec.application import RotateApiKey
+    return app.resolve(RotateApiKey)
+
+
+@router.post(
+    "/apikeys",
+    response_model=schemas.CreateApiKeyResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["api-keys"],
+    summary="Create API key",
+    description="Create a new API key. The plaintext key is returned once.",
+    responses={
+        201: {"description": "API key created"},
+        400: {"description": "Validation error"},
+        401: {"description": "Missing or invalid token"},
+        403: {"description": "Insufficient permissions"},
+    },
+)
+async def create_api_key(
+    body: schemas.CreateApiKeyBody,
+    current_user: CurrentUser = Depends(require_permission(Permission.CREATE_API_KEY)),
+    create_uc=Depends(_get_create_api_key_uc),
+) -> schemas.CreateApiKeyResponse:
+    from kingsec.application.dto import CreateApiKeyRequest
+
+    request = CreateApiKeyRequest(
+        user_id=current_user.user_id,
+        name=body.name,
+        scope=body.scope,
+    )
+    result = create_uc.execute(request)
+    return schemas.CreateApiKeyResponse(
+        api_key_id=result.api_key_id,
+        name=result.name,
+        plaintext_key=result.plaintext_key,
+        scope=result.scope,
+        created_at=result.created_at,
+    )
+
+
+@router.get(
+    "/apikeys",
+    response_model=schemas.ApiKeyListResponse,
+    tags=["api-keys"],
+    summary="List API keys",
+    description="List API keys for the current user.",
+    responses={
+        200: {"description": "List of API keys"},
+        401: {"description": "Missing or invalid token"},
+    },
+)
+async def list_api_keys(
+    limit: int = 50,
+    offset: int = 0,
+    current_user: CurrentUser = Depends(require_permission(Permission.LIST_API_KEYS)),
+    list_uc=Depends(_get_list_api_keys_uc),
+) -> schemas.ApiKeyListResponse:
+    from kingsec.application.dto import ListApiKeysRequest
+
+    request = ListApiKeysRequest(
+        user_id=current_user.user_id,
+        limit=limit,
+        offset=offset,
+    )
+    items = list_uc.execute(request)
+    return schemas.ApiKeyListResponse(
+        items=[
+            schemas.ApiKeyResponse(
+                api_key_id=item.api_key_id,
+                user_id=item.user_id,
+                name=item.name,
+                scope=item.scope,
+                status=item.status,
+                last_used_at=item.last_used_at,
+                created_at=item.created_at,
+            )
+            for item in items
+        ],
+        total=len(items),
+    )
+
+
+@router.get(
+    "/apikeys/me",
+    response_model=schemas.CurrentApiKeyResponse,
+    tags=["api-keys"],
+    summary="Get current API key info",
+    description="Returns information about the API key used for authentication.",
+    responses={
+        200: {"description": "API key info"},
+        401: {"description": "Missing or invalid API key"},
+    },
+)
+async def get_current_api_key_info(
+    current_api_key: CurrentApiKey = Depends(get_current_api_key),
+    request: Request = None,  # type: ignore[assignment]
+) -> schemas.CurrentApiKeyResponse:
+    from kingsec.application.ports import ApiKeyRepository
+    app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
+    repo = app.resolve(ApiKeyRepository)
+    key = repo.find_by_id(current_api_key.api_key_id)
+
+    return schemas.CurrentApiKeyResponse(
+        api_key_id=current_api_key.api_key_id,
+        user_id=current_api_key.user_id,
+        name=key.name if key else "",
+        scope=current_api_key.scope,
+        status=current_api_key.status,
+        last_used_at=key.last_used_at.isoformat() if key and key.last_used_at else None,
+        created_at=key.created_at.isoformat() if key else "",
+    )
+
+
+@router.delete(
+    "/apikeys/{api_key_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["api-keys"],
+    summary="Revoke API key",
+    description="Revoke an API key by its ID.",
+    responses={
+        204: {"description": "API key revoked"},
+        401: {"description": "Missing or invalid token"},
+        403: {"description": "Insufficient permissions or not the owner"},
+        404: {"description": "API key not found"},
+    },
+)
+async def revoke_api_key(
+    api_key_id: str,
+    current_user: CurrentUser = Depends(require_permission(Permission.DELETE_API_KEY)),
+    revoke_uc=Depends(_get_revoke_api_key_uc),
+) -> None:
+    from kingsec.application.dto import RevokeApiKeyRequest
+
+    request = RevokeApiKeyRequest(
+        api_key_id=api_key_id,
+        requesting_user_id=current_user.user_id,
+    )
+    revoke_uc.execute(request)
+
+
+@router.post(
+    "/apikeys/{api_key_id}/rotate",
+    response_model=schemas.RotateApiKeyResponse,
+    tags=["api-keys"],
+    summary="Rotate API key",
+    description="Rotate an API key — generates a new key and invalidates the old one.",
+    responses={
+        200: {"description": "API key rotated"},
+        401: {"description": "Missing or invalid token"},
+        403: {"description": "Insufficient permissions or not the owner"},
+        404: {"description": "API key not found"},
+    },
+)
+async def rotate_api_key(
+    api_key_id: str,
+    current_user: CurrentUser = Depends(require_permission(Permission.ROTATE_API_KEY)),
+    rotate_uc=Depends(_get_rotate_api_key_uc),
+) -> schemas.RotateApiKeyResponse:
+    from kingsec.application.dto import RotateApiKeyRequest
+
+    request = RotateApiKeyRequest(
+        api_key_id=api_key_id,
+        requesting_user_id=current_user.user_id,
+    )
+    result = rotate_uc.execute(request)
+    return schemas.RotateApiKeyResponse(
+        api_key_id=result.api_key_id,
+        name=result.name,
+        plaintext_key=result.plaintext_key,
+        scope=result.scope,
+        created_at=result.created_at,
+    )

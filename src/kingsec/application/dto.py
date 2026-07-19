@@ -20,6 +20,102 @@ if TYPE_CHECKING:
     from kingsec.domain.finding import Finding
 
 
+# ── API Key DTOs ────────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class CreateApiKeyRequest:
+    """Request to create a new API key."""
+
+    user_id: str
+    name: str
+    scope: str = "read_only"
+
+
+@dataclass(frozen=True)
+class CreateApiKeyResponse:
+    """Response from successful API key creation.
+
+    The ``plaintext_key`` is shown **only once** — it cannot be recovered later.
+    """
+
+    api_key_id: str
+    name: str
+    plaintext_key: str
+    scope: str
+    created_at: str
+
+
+@dataclass(frozen=True)
+class ApiKeyView:
+    """Public view of an API key (no sensitive data)."""
+
+    api_key_id: str
+    user_id: str
+    name: str
+    scope: str
+    status: str
+    last_used_at: str | None
+    created_at: str
+
+
+@dataclass(frozen=True)
+class ListApiKeysRequest:
+    """Request to list API keys for a user (admin can list all)."""
+
+    user_id: str
+    limit: int = 50
+    offset: int = 0
+
+
+@dataclass(frozen=True)
+class RevokeApiKeyRequest:
+    """Request to revoke (delete) an API key."""
+
+    api_key_id: str
+    requesting_user_id: str
+
+
+@dataclass(frozen=True)
+class RotateApiKeyRequest:
+    """Request to rotate an API key (generate a new key while replacing the old)."""
+
+    api_key_id: str
+    requesting_user_id: str
+
+
+@dataclass(frozen=True)
+class RotateApiKeyResponse:
+    """Response from successful API key rotation."""
+
+    api_key_id: str
+    name: str
+    plaintext_key: str
+    scope: str
+    created_at: str
+
+
+@dataclass(frozen=True)
+class ValidateApiKeyRequest:
+    """Request to validate a full API key token.
+
+    The ``api_key`` is the full token string (e.g. ``ks_<uuid>_<secret>``).
+    The ID is extracted from the token and used to look up the stored hash.
+    """
+
+    api_key: str
+
+
+@dataclass(frozen=True)
+class ValidateApiKeyResponse:
+    """Response from successful API key validation."""
+
+    api_key_id: str
+    user_id: str
+    scope: str
+    status: str
+
+
 # ── Authentication DTOs ───────────────────────────────────────────────────────
 
 

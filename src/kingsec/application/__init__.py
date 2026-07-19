@@ -3,11 +3,14 @@
 from .correlation import CorrelatedFinding, CorrelationEngine
 from .dto import (
     AdminChangePasswordRequest,
+    ApiKeyView,
     AssessmentSummary,
     AssessmentView,
     CancelAssessmentRequest,
     CancelAssessmentResponse,
     ChangePasswordRequest,
+    CreateApiKeyRequest,
+    CreateApiKeyResponse,
     CreateAssessmentRequest,
     CreateAssessmentResponse,
     DeleteAssessmentRequest,
@@ -16,6 +19,7 @@ from .dto import (
     GenerateReportRequest,
     GenerateReportResponse,
     GetAssessmentRequest,
+    ListApiKeysRequest,
     ListAssessmentsRequest,
     ListAssessmentsResponse,
     LoginRequest,
@@ -25,12 +29,17 @@ from .dto import (
     RegisterUserRequest,
     RegisterUserResponse,
     RenderedReport,
+    RevokeApiKeyRequest,
+    RotateApiKeyRequest,
+    RotateApiKeyResponse,
     SeverityCount,
     StartAssessmentRequest,
     StartAssessmentResponse,
     SubmitAssessmentRequest,
     SubmitAssessmentResponse,
     UserView,
+    ValidateApiKeyRequest,
+    ValidateApiKeyResponse,
 )
 from .enrichment import EnrichedFinding, FindingEnricher
 from .errors import (
@@ -68,6 +77,8 @@ from .jobs import (
 from .normalization import FindingNormalizer, NormalizedFinding
 from .ports import (
     AIPort,
+    ApiKeyHasher,
+    ApiKeyRepository,
     AssessmentRepository,
     Asset,
     AssetRepositoryPort,
@@ -100,6 +111,11 @@ from .services.persistent_job_service import PersistentJobService
 from .submit_assessment import SubmitAssessment
 from .unit_of_work import UnitOfWorkPort
 from .use_cases.cancel_assessment import CancelAssessment
+from .use_cases.create_api_key import ApiKeyError, CreateApiKey
+from .use_cases.list_api_keys import ListApiKeys
+from .use_cases.revoke_api_key import ApiKeyNotFoundError, ApiKeyUnauthorizedError, RevokeApiKey
+from .use_cases.rotate_api_key import RotateApiKey
+from .use_cases.validate_api_key import ValidateApiKey
 from .use_cases.change_password import ChangePassword, PasswordChangeError
 from .use_cases.create_assessment import CreateAssessment
 from .use_cases.delete_assessment import DeleteAssessment
@@ -121,6 +137,12 @@ __all__ = [
     "EVENT_REPORT_READY",
     "AIPort",
     "AdminChangePasswordRequest",
+    "ApiKeyError",
+    "ApiKeyHasher",
+    "ApiKeyNotFoundError",
+    "ApiKeyRepository",
+    "ApiKeyUnauthorizedError",
+    "ApiKeyView",
     "ApplicationError",
     "AssessmentEvent",
     "AssessmentNotFoundError",
@@ -138,6 +160,9 @@ __all__ = [
     "ChangePasswordRequest",
     "CorrelatedFinding",
     "CorrelationEngine",
+    "CreateApiKey",
+    "CreateApiKeyRequest",
+    "CreateApiKeyResponse",
     "CreateAssessment",
     "CreateAssessmentRequest",
     "CreateAssessmentResponse",
@@ -163,6 +188,8 @@ __all__ = [
     "JobRunner",
     "JobServicePort",
     "JobStatus",
+    "ListApiKeys",
+    "ListApiKeysRequest",
     "ListAssessments",
     "ListAssessmentsRequest",
     "ListAssessmentsResponse",
@@ -186,9 +213,14 @@ __all__ = [
     "ReportNotFoundError",
     "ReportRepository",
     "ReportServicePort",
+    "RevokeApiKey",
+    "RevokeApiKeyRequest",
     "RiskAssessment",
     "RiskFactor",
     "RiskScorer",
+    "RotateApiKey",
+    "RotateApiKeyRequest",
+    "RotateApiKeyResponse",
     "ScanJob",
     "ScanJobResult",
     "ScanRepositoryPort",
@@ -221,4 +253,7 @@ __all__ = [
     "UseCaseServiceAPI",
     "UserRepository",
     "UserView",
+    "ValidateApiKey",
+    "ValidateApiKeyRequest",
+    "ValidateApiKeyResponse",
 ]

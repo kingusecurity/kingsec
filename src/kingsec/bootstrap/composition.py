@@ -21,16 +21,20 @@ from typing import Any
 
 from kingsec.application import (
     AIPort,
+    ApiKeyHasher,
+    ApiKeyRepository,
     AssessmentRepository,
     AuditPublisher,
     CancelAssessment,
     ChangePassword,
+    CreateApiKey,
     CreateAssessment,
     DeleteAssessment,
     EventPublisher,
     GenerateReport,
     GetAssessment,
     JobRunner,
+    ListApiKeys,
     ListAssessments,
     Login,
     PasswordHasher,
@@ -38,6 +42,8 @@ from kingsec.application import (
     RegisterUser,
     ReportGeneratorPort,
     ReportRepository,
+    RevokeApiKey,
+    RotateApiKey,
     ScannerPort,
     ServiceAPI,
     StartAssessment,
@@ -45,10 +51,11 @@ from kingsec.application import (
     TokenService,
     UseCaseServiceAPI,
     UserRepository,
+    ValidateApiKey,
 )
 from kingsec.infrastructure.ai import register_ai
 from kingsec.infrastructure.audit.provisioning import register_audit
-from kingsec.infrastructure.auth.provisioning import register_auth, register_user_repository
+from kingsec.infrastructure.auth.provisioning import register_api_key_auth, register_auth, register_user_repository
 from kingsec.infrastructure.events.provisioning import register_events
 from kingsec.infrastructure.jobs import register_jobs
 from kingsec.infrastructure.persistence import (
@@ -134,6 +141,7 @@ def _register_adapters(
     # Auth: password hasher + JWT token service + user repository.
     register_auth(container, settings)
     register_user_repository(container, session_factory)
+    register_api_key_auth(container, session_factory)
 
     # Audit trail: append-only persistence for security events.
     register_audit(container, session_factory)
@@ -263,5 +271,36 @@ def _register_use_cases(container: Container) -> None:
             c.resolve(UserRepository),
             c.resolve(PasswordHasher),
             c.resolve(AuditPublisher),
+        ),
+    )
+
+    # API key use cases.
+    container.register_factory(
+        CreateApiKey,
+        lambda c: CreateApiKey(
+            c.resolve(ApiKeyRepository),
+            c.resolve(ApiKeyHasher),
+        ),
+    )
+    container.register_factory(
+        ListApiKeys,
+        lambda c: ListApiKeys(c.resolve(ApiKeyRepository)),
+    )
+    container.register_factory(
+        RevokeApiKey,
+        lambda c: RevokeApiKey(c.resolve(ApiKeyRepository)),
+    )
+    container.register_factory(
+        RotateApiKey,
+        lambda c: RotateApiKey(
+            c.resolve(ApiKeyRepository),
+            c.resolve(ApiKeyHasher),
+        ),
+    )
+    container.register_factory(
+        ValidateApiKey,
+        lambda c: ValidateApiKey(
+            c.resolve(ApiKeyRepository),
+            c.resolve(ApiKeyHasher),
         ),
     )

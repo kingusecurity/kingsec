@@ -29,6 +29,12 @@ class Permission(Enum):
     READ_SUMMARIES = "read_summaries"
     READ_HEALTH = "read_health"
 
+    # API Key management permissions (Phase 8.3)
+    CREATE_API_KEY = "create_api_key"
+    LIST_API_KEYS = "list_api_keys"
+    ROTATE_API_KEY = "rotate_api_key"
+    DELETE_API_KEY = "delete_api_key"
+
 
 ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
     Role.VIEWER: frozenset({
@@ -41,6 +47,10 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
         Permission.LIST_SCANS,
         Permission.VIEW_REPORTS,
         Permission.DOWNLOAD_REPORTS,
+        Permission.CREATE_API_KEY,
+        Permission.LIST_API_KEYS,
+        Permission.ROTATE_API_KEY,
+        Permission.DELETE_API_KEY,
     }),
     Role.ADMIN: frozenset(Permission),
 }
