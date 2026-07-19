@@ -8,6 +8,13 @@ of Work owns the transaction and commits (or rolls back) exactly once.
 Contrast with ``repositories.py``: those adapters own their transaction per call
 (autocommit) and are what Module 3.2's single-write use cases resolve today. The
 Unit of Work here is for use cases that must write several aggregates atomically.
+
+Two UoW styles coexist:
+    * ``SqlAlchemyUnitOfWork`` — legacy: owns a ``sessionmaker``, creates its own
+      session on ``__enter__``, implements the old ``UnitOfWork`` port.
+    * ``SQLAlchemyUnitOfWork`` — new: receives an existing ``Session``, implements
+      ``UnitOfWorkPort``, exposes all five repositories (assessment, report, scan,
+      job, asset) bound to the shared session.
 """
 
 from __future__ import annotations
@@ -24,10 +31,18 @@ from kingsec.application import (
     UnitOfWork,
     UnitOfWorkFactory,
 )
+from kingsec.application.unit_of_work import UnitOfWorkPort
 from kingsec.domain import Assessment, AssessmentId, Report
 from kingsec.infrastructure.logging import get_logger
 
 from . import _operations as ops
+from .repositories import (
+    SQLAlchemyAssessmentRepository,
+    SQLAlchemyAssetRepository,
+    SQLAlchemyJobRepository,
+    SQLAlchemyReportRepository,
+    SQLAlchemyScanRepository,
+)
 
 _logger = get_logger("kingsec.infrastructure.persistence")
 
@@ -212,3 +227,77 @@ def register_unit_of_work(
     register(UnitOfWorkFactory, factory)
     _logger.info("unit of work registered", backend="sqlite")
     return factory
+
+
+# ===========================================================================
+#  SQLAlchemyUnitOfWork  — new style, implements UnitOfWorkPort (Phase 7.4)
+# ===========================================================================
+
+
+class SQLAlchemyUnitOfWork(UnitOfWorkPort):
+    """Unit of Work backed by an injected SQLAlchemy :class:`Session`.
+
+    All five repositories share the same session, so writes performed through
+    one repository are immediately visible through any other inside the same
+    transaction.
+
+    Usage::
+
+        uow = SQLAlchemyUnitOfWork(session)
+        with uow:
+            uow.assessment_repository.save(assessment)
+            uow.report_repository.save(report)
+            uow.commit()
+    """
+
+    def __init__(self, session: Session) -> None:
+        super().__init__()
+        self._session = session
+        self._active = False
+
+    # -- repositories (lazy, all bound to self._session) ---------------------
+
+    @property
+    def assessment_repository(self) -> SQLAlchemyAssessmentRepository:
+        return SQLAlchemyAssessmentRepository(self._session)
+
+    @property
+    def report_repository(self) -> SQLAlchemyReportRepository:
+        return SQLAlchemyReportRepository(self._session)
+
+    @property
+    def scan_repository(self) -> SQLAlchemyScanRepository:
+        return SQLAlchemyScanRepository(self._session)
+
+    @property
+    def job_repository(self) -> SQLAlchemyJobRepository:
+        return SQLAlchemyJobRepository(self._session)
+
+    @property
+    def asset_repository(self) -> SQLAlchemyAssetRepository:
+        return SQLAlchemyAssetRepository(self._session)
+
+    # -- transaction lifecycle -----------------------------------------------
+
+    def begin(self) -> None:
+        if self._active:
+            raise RuntimeError("Unit of Work is already active — call commit or rollback first")
+        self._session.connection()  # ensure a connection/transaction is acquired
+        self._active = True
+
+    def commit(self) -> None:
+        if not self._active:
+            raise RuntimeError("Unit of Work is not active — call begin() first")
+        self._session.commit()
+        self._active = False
+        UnitOfWorkPort.commit(self)
+
+    def rollback(self) -> None:
+        if not self._active:
+            return
+        self._session.rollback()
+        self._active = False
+
+    def close(self) -> None:
+        self._session.close()
+        self._active = False

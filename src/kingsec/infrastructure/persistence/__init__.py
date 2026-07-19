@@ -47,7 +47,12 @@ from .repositories import (
     SqlAlchemyAssessmentRepository,
     SqlAlchemyReportRepository,
 )
-from .unit_of_work import SqlAlchemyUnitOfWork, SqlAlchemyUnitOfWorkFactory, register_unit_of_work
+from .unit_of_work import (
+    SQLAlchemyUnitOfWork,
+    SqlAlchemyUnitOfWork,
+    SqlAlchemyUnitOfWorkFactory,
+    register_unit_of_work,
+)
 
 __all__ = [
     "AssetModel",
@@ -67,6 +72,7 @@ __all__ = [
     "SQLAlchemyJobRepository",
     "SQLAlchemyReportRepository",
     "SQLAlchemyScanRepository",
+    "SQLAlchemyUnitOfWork",
     "SqlAlchemyAssessmentRepository",
     "SqlAlchemyAuditRepository",
     "SqlAlchemyReportRepository",
