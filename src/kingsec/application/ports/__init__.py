@@ -8,7 +8,14 @@ from .outbound.job_runner import JobRunner
 from .outbound.password_hasher import PasswordHasher
 from .outbound.token_service import TokenClaims, TokenExpiredError, TokenInvalidError, TokenService
 from .outbound.user_repository import UserRepository
-from .repositories import AssessmentRepository, ReportRepository
+from .repositories import (
+    Asset,
+    AssetRepositoryPort,
+    AssessmentRepository,
+    JobRepositoryPort,
+    ReportRepository,
+    ScanRepositoryPort,
+)
 from .report_service import ReportGenerationResult, ReportServicePort
 from .scanner_executor import ScannerExecutor
 from .scanner_plugin import ScannerPluginPort
@@ -18,9 +25,12 @@ from .unit_of_work import UnitOfWork, UnitOfWorkFactory
 
 __all__ = [
     "AIPort",
+    "Asset",
+    "AssetRepositoryPort",
     "AssessmentRepository",
     "AuditPublisher",
     "EventPublisher",
+    "JobRepositoryPort",
     "JobRunner",
     "JobServicePort",
     "PasswordHasher",
@@ -28,6 +38,7 @@ __all__ = [
     "ReportGeneratorPort",
     "ReportRepository",
     "ReportServicePort",
+    "ScanRepositoryPort",
     "ScannerExecutor",
     "ScannerPluginPort",
     "ScannerPluginRegistry",
