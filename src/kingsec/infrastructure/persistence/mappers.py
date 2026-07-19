@@ -39,6 +39,7 @@ from .models import (
     EvidenceORM,
     FindingModel,
     FindingORM,
+    JobModel,
     RecommendationORM,
     ReportORM,
     ScanModel,
@@ -282,4 +283,41 @@ def scan_result_to_domain(orm: ScanModel) -> ScannerResult:
         findings=tuple(scan_finding_to_domain(f) for f in orm.findings),
         raw_output="",
         duration_seconds=0.0,
+    )
+
+
+# ===========================================================================
+#  ScanJob ↔ JobModel  (Phase 7.3.4)
+# ===========================================================================
+
+
+def job_to_orm(job: ScanJob) -> JobModel:
+    """Build a JobModel row from a ScanJob record."""
+
+    return JobModel(
+        id=str(job.id),
+        status=job.status.value,
+        target=job.target,
+        created_at=job.created_at.isoformat(),
+        updated_at=job.updated_at.isoformat(),
+    )
+
+
+def job_to_domain(orm: JobModel) -> ScanJob:
+    """Rebuild a ScanJob from a JobModel row.
+
+    Note: ``config`` is not stored in the current ORM schema and is returned
+    as ``{}``.  A future migration can add a column for it.
+    """
+
+    from kingsec.application.job import JobId
+    from kingsec.application.jobs import JobStatus, ScanJob
+
+    return ScanJob(
+        id=JobId(orm.id),
+        target=orm.target,
+        config={},
+        status=JobStatus(orm.status),
+        created_at=datetime.fromisoformat(orm.created_at),
+        updated_at=datetime.fromisoformat(orm.updated_at),
     )
