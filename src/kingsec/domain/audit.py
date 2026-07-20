@@ -93,6 +93,14 @@ class AuditAction(str, Enum):
     AGENT_JOB_COMPLETED = "agent_job_completed"
     AGENT_JOB_FAILED = "agent_job_failed"
 
+    # Pipeline lifecycle
+    PIPELINE_STARTED = "pipeline_started"
+    PIPELINE_ADVANCED = "pipeline_advanced"
+    PIPELINE_CANCELLED = "pipeline_cancelled"
+    PIPELINE_PAUSED = "pipeline_paused"
+    PIPELINE_RESUMED = "pipeline_resumed"
+    PIPELINE_RETRIED = "pipeline_retried"
+
 
 @dataclass(frozen=True)
 class AuditEntry:

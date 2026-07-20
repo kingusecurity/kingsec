@@ -94,3 +94,11 @@ class AgentNotFoundError(ApplicationError):
 
 class QueueEntryNotFoundError(ApplicationError):
     """No queue entry exists for the requested identifier."""
+
+
+class PipelineNotFoundError(ApplicationError):
+    """No pipeline exists for the requested identifier."""
+
+
+class PipelineStateConflictError(ApplicationError):
+    """The pipeline is in a state that does not allow the requested operation."""

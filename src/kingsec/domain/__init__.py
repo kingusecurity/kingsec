@@ -36,6 +36,14 @@ from .enums import AssessmentStatus, FindingStatus, Role, Severity
 from .errors import DomainError, IllegalStateTransition, InvariantViolation
 from .secret import SecretId, SecretMetadata, SecretType
 from .mfa import MfaRecoveryCode, MfaSecret, MfaStatus, RecoveryCodeStatus
+from .pipeline import (
+    PIPELINE_ORDER,
+    PipelineExecution,
+    PipelineId,
+    PipelineResult,
+    PipelineStage,
+    PipelineState,
+)
 from .rate_limit import (
     AccountLockout,
     LockoutPolicy,
@@ -154,4 +162,10 @@ __all__ = [
     "ScheduleStatus",
     "ScheduleType",
     "ScanSchedule",
+    "PIPELINE_ORDER",
+    "PipelineExecution",
+    "PipelineId",
+    "PipelineResult",
+    "PipelineStage",
+    "PipelineState",
 ]

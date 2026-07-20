@@ -28,6 +28,8 @@ from .agent_repository import AgentRepositoryPort
 from .agent_dispatcher import AgentDispatcherPort
 from .queue_repository import QueueRepositoryPort
 from .scheduler_policy import SchedulerPolicyPort
+from .pipeline_repository import PipelineRepositoryPort
+from .pipeline_orchestrator import PipelineOrchestratorPort
 
 __all__ = [
     "AuditPublisher",
@@ -61,4 +63,6 @@ __all__ = [
     "AgentDispatcherPort",
     "QueueRepositoryPort",
     "SchedulerPolicyPort",
+    "PipelineRepositoryPort",
+    "PipelineOrchestratorPort",
 ]

@@ -46,6 +46,8 @@ from .errors import (
     ApplicationError,
     AssessmentNotFoundError,
     InputValidationError,
+    PipelineNotFoundError,
+    PipelineStateConflictError,
     ReportNotFoundError,
     ScannerConfigError,
     ScannerDuplicateError,
@@ -171,6 +173,18 @@ from .use_cases.schedule_dto import (
 )
 from .use_cases.trigger_schedule_now import TriggerScheduleNow
 from .use_cases.update_schedule import UpdateSchedule
+from .pipeline_service import PipelineService
+from .use_cases.pipeline import (
+    AdvancePipeline,
+    CancelPipeline,
+    GetPipeline,
+    ListPipelines,
+    PausePipeline,
+    PipelineDto,
+    ResumePipeline,
+    RetryPipeline,
+    StartPipeline,
+)
 from .use_cases.secret_dto import (
     DecryptSecretRequest,
     DecryptSecretResponse,

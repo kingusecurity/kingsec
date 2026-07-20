@@ -25,6 +25,8 @@ class TestAuditAction:
             "agent_registered", "agent_heartbeat", "agent_disabled",
             "agent_enabled", "agent_removed", "agent_job_assigned",
             "agent_job_completed", "agent_job_failed",
+            "pipeline_started", "pipeline_advanced", "pipeline_cancelled",
+            "pipeline_paused", "pipeline_resumed", "pipeline_retried",
         }
         actual = {a.value for a in AuditAction}
         assert actual == expected
