@@ -123,8 +123,7 @@ class SqlAlchemySessionRepository(SessionRepository):
             query = db.query(SessionORM).filter_by(user_id=user_id, status="active")
             if exclude_session_id:
                 query = query.filter(SessionORM.id != exclude_session_id)
-            for orm in query.all():
-                orm.status = "revoked"
+            query.update({"status": "revoked"}, synchronize_session=False)
             db.commit()
 
     def update_activity(self, session_id: str, last_activity: str) -> None:

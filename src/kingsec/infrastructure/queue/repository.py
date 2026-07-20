@@ -181,27 +181,41 @@ class SQLAlchemyQueueRepository(QueueRepositoryPort):
             session.commit()
 
     def statistics(self) -> QueueStatistics:
-        all_e = self.find_all()
         from datetime import UTC, datetime
+        from sqlalchemy import text
+
+        with self._session_factory() as session:
+            # Single GROUP BY query for state counts
+            state_rows = session.execute(
+                text("SELECT state, COUNT(*) as cnt FROM scan_queue GROUP BY state")
+            ).fetchall()
+            state_counts: dict[str, int] = {}
+            for r in state_rows:
+                state_counts[r.state] = r.cnt
+
+            # Compute wait times from created_at only (no full-row fetch)
+            ts_rows = session.execute(
+                text("SELECT created_at FROM scan_queue")
+            ).fetchall()
+
         now = datetime.now(UTC)
-        wait_times: list[float] = []
-        for e in all_e:
-            try:
-                created = datetime.fromisoformat(e.created_at)
-                wait_times.append((now - created).total_seconds())
-            except (ValueError, TypeError):
-                pass
+        wait_times: list[float] = [
+            (now - datetime.fromisoformat(r.created_at)).total_seconds()
+            for r in ts_rows
+            if r.created_at
+        ]
         avg_wait = sum(wait_times) / len(wait_times) if wait_times else 0.0
         longest = max(wait_times) if wait_times else 0.0
+
         return QueueStatistics(
-            total_entries=len(all_e),
-            waiting=sum(1 for e in all_e if e.state == QueueState.WAITING),
-            ready=sum(1 for e in all_e if e.state == QueueState.READY),
-            running=sum(1 for e in all_e if e.state == QueueState.RUNNING),
-            blocked=sum(1 for e in all_e if e.state == QueueState.BLOCKED),
-            completed=sum(1 for e in all_e if e.state == QueueState.COMPLETED),
-            failed=sum(1 for e in all_e if e.state == QueueState.FAILED),
-            cancelled=sum(1 for e in all_e if e.state == QueueState.CANCELLED),
+            total_entries=sum(state_counts.values()),
+            waiting=state_counts.get("waiting", 0),
+            ready=state_counts.get("ready", 0),
+            running=state_counts.get("running", 0),
+            blocked=state_counts.get("blocked", 0),
+            completed=state_counts.get("completed", 0),
+            failed=state_counts.get("failed", 0),
+            cancelled=state_counts.get("cancelled", 0),
             average_wait_time_seconds=avg_wait,
             longest_wait_time_seconds=longest,
             oldest_entry_age_seconds=longest,

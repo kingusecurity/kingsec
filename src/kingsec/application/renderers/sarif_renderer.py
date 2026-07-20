@@ -57,10 +57,11 @@ class SarifRenderer:
 
     def _build_sarif(self, report: Report) -> dict:
         entries = report.finding_section.entries
+        sorted_entries = tuple(sorted(entries, key=lambda e: e.correlation_id))
         recs_by_cid = self._build_recs_lookup(report.recommendation_section)
 
-        rules = self._build_rules(entries, recs_by_cid, report)
-        results = self._build_results(entries, recs_by_cid)
+        rules = self._build_rules(sorted_entries, recs_by_cid, report)
+        results = self._build_results(sorted_entries, recs_by_cid)
         artifacts = self._build_artifacts(entries)
 
         ts = report.created_at.astimezone(UTC).strftime(
@@ -116,13 +117,12 @@ class SarifRenderer:
 
     @staticmethod
     def _build_rules(
-        entries: tuple[FindingEntry, ...],
+        sorted_entries: tuple[FindingEntry, ...],
         recs_by_cid: dict[str, list[str]],
         report: Report,
     ) -> list[dict]:
         scanner_versions = report.appendix.scanner_versions
         rules: list[dict] = []
-        sorted_entries = sorted(entries, key=lambda e: e.correlation_id)
         for fe in sorted_entries:
             remediation = recs_by_cid.get(fe.correlation_id, [])
             scanners = sorted(fe.scanner_sources)
@@ -177,11 +177,10 @@ class SarifRenderer:
 
     @staticmethod
     def _build_results(
-        entries: tuple[FindingEntry, ...],
+        sorted_entries: tuple[FindingEntry, ...],
         recs_by_cid: dict[str, list[str]],
     ) -> list[dict]:
         results: list[dict] = []
-        sorted_entries = sorted(entries, key=lambda e: e.correlation_id)
         for rule_idx, fe in enumerate(sorted_entries):
             level = _SEVERITY_MAP.get(fe.severity.upper(), "note")
             remediation = recs_by_cid.get(fe.correlation_id, [])

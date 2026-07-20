@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from kingsec.application.ports.outbound import PipelineRepositoryPort
 from kingsec.domain.pipeline import (
     PipelineExecution,
@@ -51,8 +53,8 @@ class SQLAlchemyPipelineRepository(PipelineRepositoryPort):
                     {
                         "pipeline_id": execution.pipeline_id.value,
                         "state": execution.state.value,
-                        "stages": str([s.__dict__ for s in execution.stages]),
-                        "result": str(execution.result.__dict__),
+                        "stages": json.dumps([s.__dict__ for s in execution.stages], default=str),
+                        "result": json.dumps(execution.result.__dict__, default=str),
                         "updated_at": execution.updated_at,
                     },
                 )
@@ -70,8 +72,8 @@ class SQLAlchemyPipelineRepository(PipelineRepositoryPort):
                         "pipeline_id": execution.pipeline_id.value,
                         "target": execution.target,
                         "state": execution.state.value,
-                        "stages": str([s.__dict__ for s in execution.stages]),
-                        "result": str(execution.result.__dict__),
+                        "stages": json.dumps([s.__dict__ for s in execution.stages], default=str),
+                        "result": json.dumps(execution.result.__dict__, default=str),
                         "owner_user_id": execution.owner_user_id,
                         "scanner_ids": ",".join(execution.scanner_ids),
                         "priority": execution.priority,

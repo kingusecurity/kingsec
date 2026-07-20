@@ -353,10 +353,10 @@ class CorrelationEngine:
         category = sorted_by_sev[0].category
 
         # Generate a descriptive title
-        title = _derive_title(group, max_severity)
+        title = _derive_title(sorted_by_sev, max_severity)
 
         # Build description summary
-        description = _derive_description(group)
+        description = _derive_description(sorted_by_sev)
 
         # Merge affected assets
         all_assets: list[str] = []
@@ -410,26 +410,21 @@ class CorrelationEngine:
 
 
 def _derive_title(
-    group: list[NormalizedFinding], max_severity: Severity
+    sorted_by_sev: list[NormalizedFinding], max_severity: Severity
 ) -> str:
     """Derive a single descriptive title for a correlated finding."""
-    # Use the first CVE reference as the title anchor if available
-    for f in group:
+    for f in sorted_by_sev:
         for ref in f.references:
             if ref.upper().startswith("CVE-"):
                 return f"{ref} — {f.title}"
 
-    # Fall back to the title of the highest-severity finding
-    sorted_by_sev = sorted(group, key=lambda f: f.severity, reverse=True)
     return sorted_by_sev[0].title
 
 
 def _derive_description(
-    group: list[NormalizedFinding],
+    sorted_by_sev: list[NormalizedFinding],
 ) -> str:
     """Derive a consolidated description from grouped findings."""
-    sorted_by_sev = sorted(group, key=lambda f: f.severity, reverse=True)
-
     parts: list[str] = []
     parts.append(f"Correlated from {len(sorted_by_sev)} finding(s) "
                  f"across {len({f.scanner_id for f in sorted_by_sev})} scanner(s).")

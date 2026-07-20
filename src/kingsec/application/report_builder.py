@@ -70,8 +70,9 @@ class ReportBuilder:
         asset_summary = self._build_asset_summary(
             enriched_findings, risk_map,
         )
+        sorted_findings = sorted(enriched_findings, key=lambda x: x.correlation_id)
         finding_section = self._build_finding_section(
-            enriched_findings, risk_map,
+            sorted_findings, risk_map,
         )
         attack_path_section = AttackPathSection(
             total_paths=attack_graph.total_paths,
@@ -80,7 +81,7 @@ class ReportBuilder:
             graph=attack_graph,
         )
         recommendation_section = self._build_recommendation_section(
-            enriched_findings, risk_map,
+            sorted_findings, risk_map,
         )
         appendix = self._build_appendix(normalized_findings)
 
@@ -251,7 +252,7 @@ class ReportBuilder:
         risk_map: dict[str, RiskAssessment],
     ) -> FindingSection:
         entries: list[FindingEntry] = []
-        for f in sorted(enriched_findings, key=lambda x: x.correlation_id):
+        for f in enriched_findings:
             ra = risk_map.get(f.correlation_id)
             risk_score = ra.score if ra else 0
             risk_level = ra.risk_level if ra else "Unknown"
@@ -294,7 +295,7 @@ class ReportBuilder:
         risk_map: dict[str, RiskAssessment],
     ) -> RecommendationSection:
         entries: list[RecommendationEntry] = []
-        for f in sorted(enriched_findings, key=lambda x: x.correlation_id):
+        for f in enriched_findings:
             if not f.recommendations:
                 continue
             ra = risk_map.get(f.correlation_id)

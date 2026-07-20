@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import UTC
 
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 
 from kingsec.application.ports import UserRepository
 from kingsec.domain import Role, User
@@ -57,21 +57,15 @@ class SqlAlchemyUserRepository(UserRepository):
 
     def exists_by_username(self, username: str) -> bool:
         with self._session_factory() as session:
-            count = session.execute(
-                select(func.count()).select_from(UserORM).where(
-                    func.lower(UserORM.username) == username.lower()
-                )
-            ).scalar()
-            return count is not None and count > 0
+            return session.execute(
+                select(exists().where(func.lower(UserORM.username) == username.lower()))
+            ).scalar() or False
 
     def exists_by_email(self, email: str) -> bool:
         with self._session_factory() as session:
-            count = session.execute(
-                select(func.count()).select_from(UserORM).where(
-                    func.lower(UserORM.email) == email.lower()
-                )
-            ).scalar()
-            return count is not None and count > 0
+            return session.execute(
+                select(exists().where(func.lower(UserORM.email) == email.lower()))
+            ).scalar() or False
 
     def list_all(self, limit: int = 50, offset: int = 0) -> list[User]:
         with self._session_factory() as session:
