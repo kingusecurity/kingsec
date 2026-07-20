@@ -2,6 +2,7 @@
 
 from .inbound import ServiceAPI
 from .job_service import JobServicePort
+from .analytics_service import AnalyticsServicePort
 from .notification_service import NotificationServicePort
 from .outbound.api_key_hasher import ApiKeyHasher
 from .outbound.encryption_service import EncryptionServicePort
@@ -12,6 +13,8 @@ from .outbound.worker_service import WorkerServicePort
 from .outbound.notification_repository import NotificationRepositoryPort
 from .outbound.notification_sender import NotificationSenderPort
 from .outbound.template_renderer import TemplateRendererPort
+from .outbound.dashboard_repository import DashboardRepositoryPort
+from .outbound.metrics_calculator import MetricsCalculatorPort
 from .outbound.api_key_repository import ApiKeyRepository
 from .outbound.audit_event_repository import AuditEventRepository
 from .outbound.clock_port import ClockPort
@@ -89,4 +92,7 @@ __all__ = [
     "NotificationRepositoryPort",
     "NotificationSenderPort",
     "TemplateRendererPort",
+    "AnalyticsServicePort",
+    "DashboardRepositoryPort",
+    "MetricsCalculatorPort",
 ]

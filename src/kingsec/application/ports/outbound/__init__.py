@@ -18,6 +18,8 @@ from .worker_service import WorkerServicePort
 from .notification_repository import NotificationRepositoryPort
 from .notification_sender import NotificationSenderPort
 from .template_renderer import TemplateRendererPort
+from .dashboard_repository import DashboardRepositoryPort
+from .metrics_calculator import MetricsCalculatorPort
 
 __all__ = [
     "AuditPublisher",
@@ -29,6 +31,8 @@ __all__ = [
     "NotificationRepositoryPort",
     "NotificationSenderPort",
     "TemplateRendererPort",
+    "DashboardRepositoryPort",
+    "MetricsCalculatorPort",
     "ClockPort",
     "EventPublisher",
     "JobRunner",
