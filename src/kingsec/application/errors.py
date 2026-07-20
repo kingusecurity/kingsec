@@ -54,3 +54,7 @@ class JobNotFoundError(ApplicationError):
 
 class IllegalJobTransitionError(ApplicationError):
     """A job state transition is not allowed by the state machine."""
+
+
+class NotificationNotFoundError(ApplicationError):
+    """No notification exists for the requested identifier."""

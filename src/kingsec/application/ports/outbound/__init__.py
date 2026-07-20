@@ -15,6 +15,9 @@ from .scheduler_service import SchedulerServicePort
 from .secret_provider import SecretProviderPort
 from .user_repository import UserRepository
 from .worker_service import WorkerServicePort
+from .notification_repository import NotificationRepositoryPort
+from .notification_sender import NotificationSenderPort
+from .template_renderer import TemplateRendererPort
 
 __all__ = [
     "AuditPublisher",
@@ -23,6 +26,9 @@ __all__ = [
     "SchedulerServicePort",
     "SecretProviderPort",
     "WorkerServicePort",
+    "NotificationRepositoryPort",
+    "NotificationSenderPort",
+    "TemplateRendererPort",
     "ClockPort",
     "EventPublisher",
     "JobRunner",

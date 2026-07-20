@@ -24,6 +24,7 @@ from .schedule_routes import router as v1_schedule_router
 from .secret_routes import router as v1_secret_router
 from .session_routes import router as v1_sessions_router
 from .sse import router as v1_sse_router
+from .notification_routes import router as v1_notification_router
 
 
 def register_versioned_routes(app: FastAPI) -> None:
@@ -40,6 +41,7 @@ def register_versioned_routes(app: FastAPI) -> None:
     app.include_router(v1_schedule_router)
     app.include_router(v1_secret_router)
     app.include_router(v1_sessions_router)
+    app.include_router(v1_notification_router)
 
     # Future example:
     # from .routes_v2 import router as v2_router

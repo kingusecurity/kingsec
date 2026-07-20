@@ -67,6 +67,13 @@ class AuditAction(str, Enum):
     SCHEDULE_ENABLED = "schedule_enabled"
     SCHEDULE_DISABLED = "schedule_disabled"
 
+    # Notifications
+    NOTIFICATION_SENT = "notification_sent"
+    NOTIFICATION_FAILED = "notification_failed"
+    NOTIFICATION_RETRIED = "notification_retried"
+    NOTIFICATION_READ = "notification_read"
+    NOTIFICATION_DELETED = "notification_deleted"
+
 
 @dataclass(frozen=True)
 class AuditEntry:

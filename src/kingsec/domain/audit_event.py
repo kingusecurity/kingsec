@@ -46,6 +46,11 @@ class AuditAction(str, Enum):
     SECRET_DELETED = "secret_deleted"
     SECRET_ROTATED = "secret_rotated"
     SECRET_RETRIEVED = "secret_retrieved"
+    NOTIFICATION_SENT = "notification_sent"
+    NOTIFICATION_FAILED = "notification_failed"
+    NOTIFICATION_RETRIED = "notification_retried"
+    NOTIFICATION_READ = "notification_read"
+    NOTIFICATION_DELETED = "notification_deleted"
 
 
 class AuditSeverity(str, Enum):

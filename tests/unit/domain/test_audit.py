@@ -14,6 +14,11 @@ class TestAuditAction:
             "assessment_created", "assessment_started", "assessment_completed",
             "assessment_failed", "assessment_cancelled", "assessment_deleted",
             "assessment_submitted", "report_generated", "authorization_failure",
+            "schedule_created", "schedule_updated", "schedule_deleted",
+            "schedule_triggered", "schedule_paused", "schedule_resumed",
+            "schedule_enabled", "schedule_disabled",
+            "notification_sent", "notification_failed", "notification_retried",
+            "notification_read", "notification_deleted",
         }
         actual = {a.value for a in AuditAction}
         assert actual == expected
