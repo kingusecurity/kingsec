@@ -38,12 +38,19 @@ class Login:
         self._hasher = hasher
         self._tokens = tokens
         self._audit = audit
+        # Pre-compute a dummy hash so the "user not found" path takes the same
+        # time as the real verification path, preventing timing-based enumeration.
+        self._dummy_hash = hasher.hash("constant-time-dummy-password")
 
     def execute(self, request: LoginRequest) -> LoginResponse:
         # Step 1: Look up the user.
         user = self._users.find_by_username(request.username)
         if user is None:
-            # Generic message to prevent username enumeration.
+            # Constant-time comparison: always hash to prevent timing-based
+            # username enumeration.  The dummy verify runs the full KDF even
+            # though the user doesn't exist, so the response timing is
+            # indistinguishable from a real failed login.
+            self._hasher.verify(request.password, self._dummy_hash)
             self._publish_audit(
                 AuditEntry(
                     action=AuditAction.FAILED_LOGIN,

@@ -67,7 +67,8 @@ def create_app(
 
     @app.get("/version")
     async def version() -> dict:
-        return {"version": "0.6.0"}
+        from kingsec.infrastructure.config import get_settings
+        return {"version": get_settings().app.version}
 
     if registry is not None and scanner is not None:
         from kingsec.interfaces.api.routes.scan import create_scan_router
