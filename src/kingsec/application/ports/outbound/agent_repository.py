@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from kingsec.domain.agent import Agent, AgentId, AgentState
+from kingsec.domain.agent import Agent, AgentId
 
 
 class AgentRepositoryPort(ABC):

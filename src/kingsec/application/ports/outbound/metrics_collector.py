@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from kingsec.domain.system_health import ResourceUsage, SystemMetrics
+from kingsec.domain.system_health import ResourceUsage
 
 
 class MetricsCollectorPort(ABC):

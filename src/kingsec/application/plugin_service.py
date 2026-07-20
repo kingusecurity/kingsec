@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-import zipfile
 
 from kingsec.application.ports.outbound import (
     PluginInstallerPort,

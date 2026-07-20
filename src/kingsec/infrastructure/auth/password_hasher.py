@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import importlib.util
 import secrets
 from base64 import b64decode, b64encode
 
@@ -35,11 +36,7 @@ class Argon2PasswordHasher(PasswordHasher):
     @staticmethod
     def _check_argon2_available() -> bool:
         """Check if argon2-cffi is available."""
-        try:
-            import argon2
-            return True
-        except ImportError:
-            return False
+        return importlib.util.find_spec("argon2") is not None
 
     def hash(self, password: str) -> str:
         """Hash a password using argon2id or PBKDF2-SHA256."""
@@ -58,7 +55,7 @@ class Argon2PasswordHasher(PasswordHasher):
 
     def _hash_argon2(self, password: str) -> str:
         """Hash using argon2id."""
-        from argon2 import PasswordHasher as Argon2Hasher
+        from argon2 import PasswordHasher as Argon2Hasher, Type as Argon2Type
 
         hasher = Argon2Hasher(
             time_cost=3,
@@ -66,13 +63,13 @@ class Argon2PasswordHasher(PasswordHasher):
             parallelism=4,
             hash_len=32,
             salt_len=16,
-            type=argon2.Type.ID,
+            type=Argon2Type.ID,
         )
         return hasher.hash(password)
 
     def _verify_argon2(self, password: str, password_hash: str) -> bool:
         """Verify against argon2id hash."""
-        from argon2 import PasswordHasher as Argon2Hasher
+        from argon2 import PasswordHasher as Argon2Hasher, Type as Argon2Type
         from argon2.exceptions import InvalidHashError, VerifyMismatchError
 
         hasher = Argon2Hasher(
@@ -81,7 +78,7 @@ class Argon2PasswordHasher(PasswordHasher):
             parallelism=4,
             hash_len=32,
             salt_len=16,
-            type=argon2.Type.ID,
+            type=Argon2Type.ID,
         )
         try:
             hasher.verify(password_hash, password)

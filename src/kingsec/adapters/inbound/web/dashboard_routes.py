@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request
 
 from kingsec.application.ports.analytics_service import AnalyticsServicePort
 from kingsec.bootstrap.application import Application

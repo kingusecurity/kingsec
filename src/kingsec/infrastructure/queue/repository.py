@@ -4,13 +4,10 @@ from datetime import UTC, datetime
 
 from kingsec.application.ports.outbound import QueueRepositoryPort
 from kingsec.domain.queue import (
-    ConcurrencyPolicy,
     QueueEntry,
     QueuePriority,
     QueueState,
     QueueStatistics,
-    ResourceRequirements,
-    SchedulingStrategy,
 )
 
 

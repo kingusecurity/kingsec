@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from kingsec.domain.plugin_package import PluginHealth, PluginInstallStatus, PluginPackage
+from kingsec.domain.plugin_package import PluginPackage
 
 
 class PluginServicePort(ABC):

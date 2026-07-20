@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from kingsec.domain.queue import QueueEntry, QueuePriority, QueueStatistics
+from kingsec.domain.queue import QueueEntry, QueueStatistics
 
 
 class QueueServicePort(ABC):

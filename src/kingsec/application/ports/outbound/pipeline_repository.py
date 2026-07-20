@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from kingsec.domain.pipeline import PipelineExecution, PipelineId
+from kingsec.domain.pipeline import PipelineExecution
 
 
 class PipelineRepositoryPort(ABC):

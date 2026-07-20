@@ -17,7 +17,7 @@ from kingsec.application.use_cases.notifications import (
     SendBulkNotifications,
     SendNotification,
 )
-from kingsec.domain.notification import Notification, NotificationChannel, NotificationId, NotificationPriority, NotificationStatus
+from kingsec.domain.notification import Notification, NotificationId
 
 
 class NotificationService(NotificationServicePort):

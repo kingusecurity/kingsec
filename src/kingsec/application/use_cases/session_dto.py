@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from kingsec.domain.session import DeviceInfo, SessionStatus, SessionType
+from kingsec.domain.session import DeviceInfo, SessionType
 
 
 @dataclass(frozen=True)

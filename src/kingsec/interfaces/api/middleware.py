@@ -13,7 +13,6 @@ No business logic.  No scanner / renderer / report imports.
 
 from __future__ import annotations
 
-import logging
 import time
 import uuid
 
@@ -22,11 +21,13 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 
+from kingsec.infrastructure.logging import get_logger
+
 # ============================================================================
 # Logger
 # ============================================================================
 
-_request_logger = logging.getLogger("kingsec.api.request")
+_request_logger = get_logger("kingsec.api.request")
 
 
 # ============================================================================

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from kingsec.domain.notification import Notification, NotificationId, NotificationStatus
+from kingsec.domain.notification import Notification, NotificationId
 
 
 class NotificationServicePort(ABC):

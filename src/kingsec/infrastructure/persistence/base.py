@@ -1,4 +1,5 @@
 """SQLAlchemy DeclarativeBase — re-exported from :mod:`models`."""
 
-from .models import Base
+from .models import Base as Base
+
 

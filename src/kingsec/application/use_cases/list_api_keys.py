@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from ..dto import ApiKeyView, ListApiKeysRequest
-from ..errors import ApplicationError
 from ..ports import ApiKeyRepository
 
 

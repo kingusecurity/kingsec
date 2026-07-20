@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 
-from fastapi import Depends, HTTPException, Request, Response, status
+from fastapi import Depends, Request, Response
 
 from kingsec.application.use_cases.check_rate_limit import CheckRateLimit
 from kingsec.application.use_cases.rate_limit_dto import CheckRateLimitRequest
 from kingsec.bootstrap.application import Application
 from kingsec.domain.rate_limit import (
-    RateLimitExceeded,
     RateLimitGroup,
     RateLimitKeyType,
     RateLimitPolicy,

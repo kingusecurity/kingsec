@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Any
 
 from kingsec.application.ports.outbound.rate_limiter import RateLimiterPort
 from kingsec.domain.rate_limit import RateLimitDecision, RateLimitPolicy

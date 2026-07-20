@@ -1,3 +1,5 @@
+"""Backup domain model: backup types, backups, and snapshots."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

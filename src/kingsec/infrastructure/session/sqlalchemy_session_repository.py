@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 
 from kingsec.application.ports.outbound.session_repository import SessionRepository
 from kingsec.domain.session import (

@@ -83,7 +83,6 @@ class SQLAlchemyPipelineRepository(PipelineRepositoryPort):
 
     def find_by_id(self, pipeline_id: str) -> PipelineExecution | None:
         from sqlalchemy import text
-        from datetime import UTC, datetime
         with self._session_factory() as session:
             row = session.execute(
                 text("SELECT * FROM scan_pipeline WHERE pipeline_id = :pid"),

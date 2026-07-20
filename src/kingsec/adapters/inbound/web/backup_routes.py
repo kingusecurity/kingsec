@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from kingsec.application.errors import BackupNotFoundError, RestoreNotFoundError, SnapshotNotFoundError
+from kingsec.application.errors import BackupNotFoundError, SnapshotNotFoundError
 from kingsec.application.ports.backup_service import BackupServicePort
 from kingsec.bootstrap.application import Application
 from kingsec.domain import Role

@@ -1,3 +1,5 @@
+"""System health domain model: health status, metrics, and component state."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

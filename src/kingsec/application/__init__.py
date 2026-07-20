@@ -136,8 +136,6 @@ from .use_cases.session_dto import (
     SessionView,
     TerminateOtherSessionsRequest,
     TerminateOtherSessionsResponse,
-    ValidateSessionRequest,
-    ValidateSessionResponse,
 )
 from .use_cases.rate_limit_dto import (
     CheckRateLimitRequest,
@@ -176,8 +174,6 @@ from .use_cases.schedule_dto import (
 )
 from .use_cases.trigger_schedule_now import TriggerScheduleNow
 from .use_cases.update_schedule import UpdateSchedule
-from .backup_service import BackupService
-from .pipeline_service import PipelineService
 from .production_service import ProductionService
 from .use_cases.backup import (
     CleanupExpiredBackups,
@@ -490,6 +486,7 @@ __all__ = [
     "UnitOfWorkPort",
     "UseCaseServiceAPI",
     "UseRecoveryCode",
+    "ValidateSession",
     "UseRecoveryCodeRequest",
     "UseRecoveryCodeResponse",
     "UserRepository",

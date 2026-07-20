@@ -1,7 +1,8 @@
+"""Notification domain model: channels, priorities, and notification entities."""
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from dataclasses import dataclass
 from enum import Enum
 
 

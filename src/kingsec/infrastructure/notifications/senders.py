@@ -9,7 +9,6 @@ webhook URLs) is stored as instance attributes but never logged.
 from __future__ import annotations
 
 import json
-import logging
 from urllib.request import Request, urlopen
 
 from kingsec.infrastructure.logging import get_logger

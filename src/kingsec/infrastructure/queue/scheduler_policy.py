@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import heapq
 from datetime import UTC, datetime
 
 from kingsec.application.ports.outbound import SchedulerPolicyPort
-from kingsec.domain.agent import Agent, AgentCapability, AgentState
+from kingsec.domain.agent import Agent, AgentState
 from kingsec.domain.queue import QueueEntry, QueuePriority
 
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from kingsec.application.ports.outbound import AgentRepositoryPort
-from kingsec.domain.agent import Agent, AgentHealth, AgentId, AgentState, AgentStatistics
+from kingsec.domain.agent import Agent, AgentId, AgentState
 
 
 class InMemoryAgentRepository(AgentRepositoryPort):

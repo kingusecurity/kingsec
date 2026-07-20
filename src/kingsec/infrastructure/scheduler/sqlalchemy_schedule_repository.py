@@ -74,7 +74,6 @@ class SqlAlchemyScheduleRepository(ScheduleRepositoryPort):
 
     @staticmethod
     def _to_domain(orm: object) -> ScanSchedule:
-        from kingsec.infrastructure.persistence.models import ScheduleORM as ORM
 
         o = orm  # type: ORM
         return ScanSchedule(
@@ -105,7 +104,6 @@ class SqlAlchemyScheduleRepository(ScheduleRepositoryPort):
 
     @staticmethod
     def _update_orm(orm: object, s: ScanSchedule) -> None:
-        from kingsec.infrastructure.persistence.models import ScheduleORM as ORM
 
         o = orm  # type: ORM
         o.name = s.name

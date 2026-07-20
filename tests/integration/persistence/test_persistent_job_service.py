@@ -18,6 +18,7 @@ from kingsec.application.ports.job_service import JobServicePort
 from kingsec.application.services.persistent_job_service import PersistentJobService
 from kingsec.infrastructure.persistence import create_database_engine, create_schema
 from kingsec.infrastructure.persistence.repositories import SQLAlchemyJobRepository
+from tests.unit.interfaces.api.helpers import fake_get_current_user
 from kingsec.infrastructure.persistence.unit_of_work import SQLAlchemyUnitOfWork
 
 
@@ -389,7 +390,7 @@ class TestApiIntegration:
         session, _ = api_env
         uow = SQLAlchemyUnitOfWork(session)
         svc = PersistentJobService(uow)
-        app = create_app(job_service=svc)
+        app = create_app(job_service=svc, get_current_user=fake_get_current_user)
         client = TestClient(app)
 
         svc.submit_scan("api-test.com")
@@ -405,7 +406,7 @@ class TestApiIntegration:
         session, _ = api_env
         uow = SQLAlchemyUnitOfWork(session)
         svc = PersistentJobService(uow)
-        app = create_app(job_service=svc)
+        app = create_app(job_service=svc, get_current_user=fake_get_current_user)
         client = TestClient(app)
 
         response = client.post("/jobs", json={"target": "api-create.com"})
@@ -423,7 +424,7 @@ class TestApiIntegration:
         svc = PersistentJobService(uow)
         job = svc.submit_scan("api-get.com")
 
-        app = create_app(job_service=svc)
+        app = create_app(job_service=svc, get_current_user=fake_get_current_user)
         client = TestClient(app)
 
         response = client.get(f"/jobs/{job.id}")
@@ -439,7 +440,7 @@ class TestApiIntegration:
         svc = PersistentJobService(uow)
         job = svc.submit_scan("api-cancel.com")
 
-        app = create_app(job_service=svc)
+        app = create_app(job_service=svc, get_current_user=fake_get_current_user)
         client = TestClient(app)
 
         response = client.delete(f"/jobs/{job.id}")

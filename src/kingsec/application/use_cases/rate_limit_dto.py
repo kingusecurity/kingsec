@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from kingsec.domain.rate_limit import RateLimitGroup, RateLimitPolicy
+from kingsec.domain.rate_limit import RateLimitPolicy
 
 
 @dataclass(frozen=True)

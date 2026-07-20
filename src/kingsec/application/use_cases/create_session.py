@@ -9,11 +9,9 @@ from kingsec.application.use_cases.session_dto import (
     CreateSessionResponse,
 )
 from kingsec.domain.session import (
-    DeviceInfo,
     Session,
     SessionId,
     SessionStatus,
-    SessionType,
 )
 
 

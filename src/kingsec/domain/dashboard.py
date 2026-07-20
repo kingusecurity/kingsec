@@ -1,3 +1,5 @@
+"""Dashboard domain model: summary and statistics views."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

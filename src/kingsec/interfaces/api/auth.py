@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from functools import cache
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from kingsec.application.ports import TokenClaims, TokenExpiredError, TokenInvalidError

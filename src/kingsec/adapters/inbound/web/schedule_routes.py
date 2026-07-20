@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query, Request, status
+from fastapi import APIRouter, Depends, Path, Request, status
 
 from kingsec.application.use_cases.create_schedule import CreateSchedule
 from kingsec.application.use_cases.delete_schedule import DeleteSchedule
@@ -32,7 +32,7 @@ from kingsec.application.use_cases.update_schedule import UpdateSchedule
 from kingsec.bootstrap.application import Application
 from kingsec.domain import Role
 
-from .auth import CurrentUser, get_current_user, require_role
+from .auth import CurrentUser, require_role
 from .schedule_schemas import (
     CreateScheduleBody,
     CreateScheduleResponse,

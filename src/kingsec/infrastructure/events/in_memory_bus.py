@@ -22,14 +22,14 @@ Design decisions:
 
 from __future__ import annotations
 
-import logging
 import queue
 import threading
 
 from kingsec.application.events import AssessmentEvent
 from kingsec.application.ports.outbound.event_publisher import EventPublisher
+from kingsec.infrastructure.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class EventPublisherError(Exception):

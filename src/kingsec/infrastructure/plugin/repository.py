@@ -99,7 +99,6 @@ class SQLAlchemyPluginRepository(PluginRepositoryPort):
 
     def find_by_id(self, plugin_id: str) -> PluginPackage | None:
         from sqlalchemy import text
-        from kingsec.domain.plugin_package import PluginManifest, PluginVersion
         with self._session_factory() as session:
             row = session.execute(
                 text("SELECT * FROM plugins WHERE id = :id"),

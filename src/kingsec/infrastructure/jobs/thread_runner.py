@@ -15,14 +15,14 @@ Shutdown
 
 from __future__ import annotations
 
-import logging
 import threading
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any
 
 from kingsec.application.ports.outbound.job_runner import JobRunner
+from kingsec.infrastructure.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class JobRunnerError(Exception):

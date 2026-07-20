@@ -1,3 +1,5 @@
+"""Rate-limit domain model: key types, groups, and rate-limit configuration."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

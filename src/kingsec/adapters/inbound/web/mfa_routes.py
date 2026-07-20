@@ -7,8 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from kingsec.application.errors import ApplicationError
 from kingsec.application.use_cases.mfa_dto import (
-    GenerateRecoveryCodesRequest,
-    RotateRecoveryCodesRequest,
     UseRecoveryCodeRequest,
     VerifyMfaCodeRequest,
 )

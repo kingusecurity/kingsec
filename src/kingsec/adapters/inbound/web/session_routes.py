@@ -8,22 +8,18 @@ from kingsec.application.use_cases.list_user_sessions import ListUserSessions
 from kingsec.application.use_cases.revoke_all_sessions import RevokeAllSessions
 from kingsec.application.use_cases.revoke_session import RevokeSession
 from kingsec.application.use_cases.session_dto import (
-    CreateSessionRequest,
     ListUserSessionsRequest,
     RevokeAllSessionsRequest,
     RevokeSessionRequest,
     SessionView,
-    TerminateOtherSessionsRequest,
 )
 from kingsec.application.use_cases.terminate_other_sessions import (
     TerminateOtherSessions,
 )
 from kingsec.bootstrap.application import Application
-from kingsec.domain.session import DeviceInfo
 
 from . import schemas
 from .auth import CurrentUser, get_current_user
-from .dependencies import get_application
 
 router = APIRouter(prefix="/api/v1/sessions", tags=["sessions"])
 
@@ -113,7 +109,6 @@ async def revoke_session_by_id(
 ) -> None:
     session = repo.find_by_id(session_id)
     if session and session.user_id != current_user.user_id:
-        from .auth import require_admin
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="not authorized")
     revoke_uc.execute(RevokeSessionRequest(session_id=session_id))
 

@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from kingsec.application.ports.outbound.scheduler_service import SchedulerServicePort
-from kingsec.domain.schedule import ScheduleType, ScanSchedule
+from kingsec.domain.schedule import ScheduleType
 from kingsec.infrastructure.logging import get_logger
 
 from .cron_parser import CronParser

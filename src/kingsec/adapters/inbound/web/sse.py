@@ -33,7 +33,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import queue
 import uuid
 from collections.abc import AsyncGenerator
@@ -45,10 +44,11 @@ from starlette.background import BackgroundTask
 from kingsec.application.events import AssessmentEvent
 from kingsec.application.ports.outbound.event_publisher import EventPublisher
 from kingsec.bootstrap.application import Application
+from kingsec.infrastructure.logging import get_logger
 
 from .dependencies import get_application
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1")
 

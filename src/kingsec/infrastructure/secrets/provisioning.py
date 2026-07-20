@@ -10,7 +10,6 @@ from kingsec.infrastructure.config.errors import ConfigError
 from kingsec.infrastructure.config.settings import Settings
 
 from .encrypted_file_secret_provider import EncryptedFileSecretProvider
-from .environment_secret_provider import EnvironmentSecretProvider
 from .fernet_encryption_service import FernetEncryptionService
 
 
