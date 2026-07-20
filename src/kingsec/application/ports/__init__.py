@@ -4,6 +4,7 @@ from .inbound import ServiceAPI
 from .job_service import JobServicePort
 from .analytics_service import AnalyticsServicePort
 from .notification_service import NotificationServicePort
+from .agent_service import AgentServicePort
 from .plugin_service import PluginServicePort
 from .outbound.api_key_hasher import ApiKeyHasher
 from .outbound.encryption_service import EncryptionServicePort
@@ -95,6 +96,7 @@ __all__ = [
     "NotificationSenderPort",
     "TemplateRendererPort",
     "AnalyticsServicePort",
+    "AgentServicePort",
     "DashboardRepositoryPort",
     "MetricsCalculatorPort",
 ]

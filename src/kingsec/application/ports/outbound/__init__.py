@@ -24,6 +24,8 @@ from .plugin_repository import PluginRepositoryPort
 from .plugin_installer import PluginInstallerPort
 from .plugin_validator import PluginValidatorPort
 from .plugin_marketplace import PluginMarketplacePort
+from .agent_repository import AgentRepositoryPort
+from .agent_dispatcher import AgentDispatcherPort
 
 __all__ = [
     "AuditPublisher",
@@ -53,4 +55,6 @@ __all__ = [
     "TokenInvalidError",
     "TokenService",
     "UserRepository",
+    "AgentRepositoryPort",
+    "AgentDispatcherPort",
 ]

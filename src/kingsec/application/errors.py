@@ -86,3 +86,7 @@ class PluginChecksumError(ApplicationError):
 
 class PluginSignatureError(ApplicationError):
     """Plugin signature verification failed."""
+
+
+class AgentNotFoundError(ApplicationError):
+    """No agent exists for the requested identifier."""

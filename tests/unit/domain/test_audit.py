@@ -22,6 +22,9 @@ class TestAuditAction:
             "plugin_installed", "plugin_updated", "plugin_uninstalled",
             "plugin_enabled", "plugin_disabled", "plugin_validated",
             "plugin_rolled_back",
+            "agent_registered", "agent_heartbeat", "agent_disabled",
+            "agent_enabled", "agent_removed", "agent_job_assigned",
+            "agent_job_completed", "agent_job_failed",
         }
         actual = {a.value for a in AuditAction}
         assert actual == expected

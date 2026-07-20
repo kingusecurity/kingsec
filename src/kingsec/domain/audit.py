@@ -83,6 +83,16 @@ class AuditAction(str, Enum):
     PLUGIN_VALIDATED = "plugin_validated"
     PLUGIN_ROLLED_BACK = "plugin_rolled_back"
 
+    # Agent lifecycle
+    AGENT_REGISTERED = "agent_registered"
+    AGENT_HEARTBEAT = "agent_heartbeat"
+    AGENT_DISABLED = "agent_disabled"
+    AGENT_ENABLED = "agent_enabled"
+    AGENT_REMOVED = "agent_removed"
+    AGENT_JOB_ASSIGNED = "agent_job_assigned"
+    AGENT_JOB_COMPLETED = "agent_job_completed"
+    AGENT_JOB_FAILED = "agent_job_failed"
+
 
 @dataclass(frozen=True)
 class AuditEntry:
