@@ -26,7 +26,7 @@ def to_assessment_id(raw: str) -> AssessmentId:
         raise InputValidationError(f"invalid assessment id: {exc}") from exc
 
 
-def parse_target_type(raw: str) -> TargetType:
+def _parse_target_type(raw: str) -> TargetType:
     """Parse a target-type string into the enum, or raise InputValidationError."""
     try:
         return TargetType(raw)
@@ -39,7 +39,7 @@ def parse_target_type(raw: str) -> TargetType:
 
 def build_target(value: str, type_raw: str) -> Target:
     """Build a validated Target from raw primitives."""
-    target_type = parse_target_type(type_raw)
+    target_type = _parse_target_type(type_raw)
     try:
         return Target(value, target_type)
     except InvariantViolation as exc:

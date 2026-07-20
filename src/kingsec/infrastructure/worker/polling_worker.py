@@ -37,6 +37,7 @@ class PollingWorkerService(WorkerServicePort):
         self._jobs_failed = 0
         self._start_time: float | None = None
         self._stop_requested = False
+        self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
 
@@ -48,10 +49,12 @@ class PollingWorkerService(WorkerServicePort):
             self._stop_requested = False
             self._start_time = time.monotonic()
 
+        self._stop_event.clear()
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
 
     def stop_worker(self) -> None:
+        self._stop_event.set()
         with self._lock:
             self._stop_requested = True
             self._status = WorkerStatus.STOPPED
@@ -104,9 +107,9 @@ class PollingWorkerService(WorkerServicePort):
             return self._status
 
     def _run_loop(self) -> None:
-        while not self._stop_requested:
+        while not self._stop_event.is_set():
             for _ in range(self._max_jobs_per_run):
-                if self._stop_requested:
+                if self._stop_event.is_set():
                     break
                 self.execute_next_job()
-            time.sleep(self._poll_interval)
+            self._stop_event.wait(self._poll_interval)
