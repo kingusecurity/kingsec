@@ -45,6 +45,17 @@ from .backup import (
     RestoreOperation,
     RetentionPolicy,
 )
+from .system_health import (
+    DependencyHealth,
+    HealthCheck,
+    HealthStatus,
+    LivenessReport,
+    ReadinessReport,
+    ResourceUsage,
+    ServiceStatus,
+    StartupCheck,
+    SystemMetrics,
+)
 from .pipeline import (
     PIPELINE_ORDER,
     PipelineExecution,
@@ -184,4 +195,13 @@ __all__ = [
     "BackupType",
     "RestoreOperation",
     "RetentionPolicy",
+    "DependencyHealth",
+    "HealthCheck",
+    "HealthStatus",
+    "LivenessReport",
+    "ReadinessReport",
+    "ResourceUsage",
+    "ServiceStatus",
+    "StartupCheck",
+    "SystemMetrics",
 ]

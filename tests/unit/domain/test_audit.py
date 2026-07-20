@@ -30,6 +30,9 @@ class TestAuditAction:
             "backup_created", "backup_completed", "backup_failed",
             "backup_restored", "backup_deleted",
             "snapshot_created", "snapshot_restored",
+            "health_check", "liveness_check", "readiness_check",
+            "system_stopped", "system_restarted",
+            "metrics_collected", "startup_validated",
         }
         actual = {a.value for a in AuditAction}
         assert actual == expected

@@ -34,6 +34,11 @@ from .backup_repository import BackupRepositoryPort
 from .backup_storage import BackupStoragePort
 from .backup_encryption import BackupEncryptionPort
 from .backup_compression import BackupCompressionPort
+from .health_repository import HealthRepositoryPort
+from .metrics_collector import MetricsCollectorPort
+from .system_monitor import SystemMonitorPort
+from .logging_port import LoggingPort
+from .lifecycle_manager import LifecycleManagerPort
 
 __all__ = [
     "AuditPublisher",
@@ -73,4 +78,9 @@ __all__ = [
     "BackupStoragePort",
     "BackupEncryptionPort",
     "BackupCompressionPort",
+    "HealthRepositoryPort",
+    "MetricsCollectorPort",
+    "SystemMonitorPort",
+    "LoggingPort",
+    "LifecycleManagerPort",
 ]

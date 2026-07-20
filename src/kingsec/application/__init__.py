@@ -178,6 +178,7 @@ from .use_cases.trigger_schedule_now import TriggerScheduleNow
 from .use_cases.update_schedule import UpdateSchedule
 from .backup_service import BackupService
 from .pipeline_service import PipelineService
+from .production_service import ProductionService
 from .use_cases.backup import (
     CleanupExpiredBackups,
     CreateBackup,
@@ -243,6 +244,7 @@ from .ports import (
     LockoutRepository,
     MfaSecretRepository,
     PasswordHasher,
+    ProductionServicePort,
     RateLimiterPort,
     RecoveryCodeRepository,
     SessionRepository,
@@ -483,6 +485,8 @@ __all__ = [
     "EncryptSecretResponse",
     "EncryptionServicePort",
     "ListSecrets",
+    "ProductionService",
+    "ProductionServicePort",
     "ListSecretsRequest",
     "ListSecretsResponse",
     "RetrieveSecret",

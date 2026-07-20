@@ -110,6 +110,15 @@ class AuditAction(str, Enum):
     SNAPSHOT_CREATED = "snapshot_created"
     SNAPSHOT_RESTORED = "snapshot_restored"
 
+    # Production / Health
+    HEALTH_CHECK = "health_check"
+    LIVENESS_CHECK = "liveness_check"
+    READINESS_CHECK = "readiness_check"
+    SYSTEM_STOPPED = "system_stopped"
+    SYSTEM_RESTARTED = "system_restarted"
+    METRICS_COLLECTED = "metrics_collected"
+    STARTUP_VALIDATED = "startup_validated"
+
 
 @dataclass(frozen=True)
 class AuditEntry:

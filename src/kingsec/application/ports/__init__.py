@@ -8,6 +8,7 @@ from .agent_service import AgentServicePort
 from .plugin_service import PluginServicePort
 from .backup_service import BackupServicePort
 from .pipeline_service import PipelineServicePort
+from .production_service import ProductionServicePort
 from .outbound.api_key_hasher import ApiKeyHasher
 from .outbound.encryption_service import EncryptionServicePort
 from .outbound.schedule_repository import ScheduleRepositoryPort
@@ -103,4 +104,5 @@ __all__ = [
     "MetricsCalculatorPort",
     "BackupServicePort",
     "PipelineServicePort",
+    "ProductionServicePort",
 ]
