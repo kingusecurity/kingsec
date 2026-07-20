@@ -86,4 +86,4 @@ See [docs/FOUNDATION.md](docs/FOUNDATION.md) for the full blueprint.
 
 ## Questions?
 
-Open a discussion or issue on GitHub.
+Open a [discussion](https://github.com/kingusecurity/kingsec/discussions) or [issue](https://github.com/kingusecurity/kingsec/issues) on GitHub, or email **kingusecurity@gmail.com**.

@@ -16,7 +16,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Proprietary - All Rights Reserved" }
 authors = [
-  { name = "Huzaifa" },
+  { name = "Abdul Mannan" },
 ]
 keywords = ["security", "asm", "vulnerability-management", "defensive-security", "pentesting"]
 classifiers = [
@@ -48,11 +48,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://kingsec.example"
-Documentation = "https://kingsec.example/docs"
-Source = "https://github.com/huzaifa/kingsec"
-Issues = "https://github.com/huzaifa/kingsec/issues"
-Changelog = "https://github.com/huzaifa/kingsec/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/kingusecurity/kingsec"
+Documentation = "https://github.com/kingusecurity/kingsec"
+Source = "https://github.com/kingusecurity/kingsec"
+Issues = "https://github.com/kingusecurity/kingsec/issues"
+Changelog = "https://github.com/kingusecurity/kingsec/blob/main/CHANGELOG.md"
 
 # --- Development toolchain (PEP 735 dependency group; not shipped, not an extra) ---
 [dependency-groups]

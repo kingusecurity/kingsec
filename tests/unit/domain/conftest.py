@@ -34,7 +34,7 @@ def target() -> Target:
 
 @pytest.fixture
 def authorization() -> Authorization:
-    return Authorization("pentester@kingsec.io", utc(), scope="10.0.0.5")
+    return Authorization("pentester@kingusecurity.com", utc(), scope="10.0.0.5")
 
 
 @pytest.fixture

@@ -10,7 +10,7 @@ class MarketplaceClient(PluginMarketplacePort):
     Current implementation is a stub returning empty results for testing.
     """
 
-    def __init__(self, registry_url: str = "https://plugins.kingsec.io/api/v1") -> None:
+    def __init__(self, registry_url: str = "https://github.com/kingusecurity/kingsec-plugins") -> None:
         self._registry_url = registry_url
 
     def check_updates(self, plugin_id: str, current_version: str) -> list[dict]:

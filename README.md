@@ -122,8 +122,18 @@ alembic revision -m "description of changes"
 ## Layout
 See [`docs/FOUNDATION.md`](docs/FOUNDATION.md) sections 2-3 for the full folder tree and the rationale for each directory.
 
+## Author
+KingSec was created and is maintained by **Abdul Mannan**.
+
+## Support
+For support, feature requests, or general inquiries: **kingusecurity@gmail.com**
+
 ## Security
-Found a vulnerability? Please read [`SECURITY.md`](SECURITY.md).
+Found a vulnerability? Please read [`SECURITY.md`](SECURITY.md) or report it directly to **kingusecurity@gmail.com**.
 
 ## License
 Proprietary. All rights reserved. See [`LICENSE`](LICENSE).
+
+---
+
+*KingSec v1.0.0 — [GitHub](https://github.com/kingusecurity/kingsec)*

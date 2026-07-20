@@ -27,7 +27,7 @@
 | Readme: `README.md` | ✅ |
 | Requires-Python: `>=3.11` | ✅ |
 | License: `Proprietary - All Rights Reserved` | ✅ |
-| Authors: `Huzaifa` | ✅ |
+| Authors: `Abdul Mannan` | ✅ |
 | Keywords: security, asm, vulnerability-management, defensive-security, pentesting | ✅ |
 | Classifiers: 9 (Production/Stable, Security, IT, etc.) | ✅ |
 | Build system: hatchling | ✅ |
@@ -37,11 +37,11 @@
 
 | URL | Status |
 |---|---|
-| Homepage: `https://kingsec.example` | ✅ |
-| Documentation: `https://kingsec.example/docs` | ✅ |
-| Source: `https://github.com/huzaifa/kingsec` | ✅ |
-| Issues: `https://github.com/huzaifa/kingsec/issues` | ✅ |
-| Changelog: `https://github.com/huzaifa/kingsec/blob/main/CHANGELOG.md` | ✅ |
+| Homepage: `https://github.com/kingusecurity/kingsec` | ✅ |
+| Documentation: `https://github.com/kingusecurity/kingsec` | ✅ |
+| Source: `https://github.com/kingusecurity/kingsec` | ✅ |
+| Issues: `https://github.com/kingusecurity/kingsec/issues` | ✅ |
+| Changelog: `https://github.com/kingusecurity/kingsec/blob/main/CHANGELOG.md` | ✅ |
 
 ## 4. Dependencies
 

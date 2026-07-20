@@ -86,7 +86,7 @@ class TestFullHTTPFlow:
             json={
                 "target_value": "10.0.0.5",
                 "target_type": "ip_address",
-                "authorized_by": "pentester@kingsec.io",
+                "authorized_by": "pentester@kingusecurity.com",
                 "scope": "10.0.0.5",
             },
         )
