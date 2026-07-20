@@ -7,22 +7,30 @@ The API only:
 
 Business logic remains inside the Application Layer.
 """
-
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Callable
 
-from fastapi import APIRouter, Body, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 
 from kingsec.application import ReportServicePort
+from kingsec.application.errors import ReportNotFoundError
+
 
 # ---------------------------------------------------------------------------
 # Router factory
 # ---------------------------------------------------------------------------
 
 
-def create_report_router(service: ReportServicePort) -> APIRouter:
-    """Create an ``APIRouter`` with report endpoints wired to the given port."""
+def create_report_router(
+    service: ReportServicePort,
+    *,
+    get_current_user: Callable | None = None,
+) -> APIRouter:
+    """Create an ``APIRouter`` with report endpoints wired to the given port.
+
+    All endpoints require authentication via *get_current_user*.
+    """
     router = APIRouter(prefix="/report", tags=["report"])
 
     # ── POST /report ─────────────────────────────────────────────────────
@@ -30,6 +38,7 @@ def create_report_router(service: ReportServicePort) -> APIRouter:
     @router.post("")
     async def generate_report(
         body: Annotated[dict, Body()],
+        _user=Depends(get_current_user),
     ) -> dict:
         """Generate a report for a completed scan."""
         raw_id = _extract_scan_id(body)
@@ -44,7 +53,10 @@ def create_report_router(service: ReportServicePort) -> APIRouter:
     # ── GET /report/{report_id} ──────────────────────────────────────────
 
     @router.get("/{report_id}")
-    async def get_report(report_id: str) -> dict:
+    async def get_report(
+        report_id: str,
+        _user=Depends(get_current_user),
+    ) -> dict:
         """Return the native JSON report."""
         if not report_id or not report_id.strip():
             raise HTTPException(
@@ -53,7 +65,7 @@ def create_report_router(service: ReportServicePort) -> APIRouter:
             )
         try:
             return service.get_report(report_id.strip())
-        except Exception:
+        except ReportNotFoundError:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Report not found: {report_id}",
@@ -62,7 +74,10 @@ def create_report_router(service: ReportServicePort) -> APIRouter:
     # ── GET /report/{report_id}/summary ──────────────────────────────────
 
     @router.get("/{report_id}/summary")
-    async def get_summary(report_id: str) -> dict:
+    async def get_summary(
+        report_id: str,
+        _user=Depends(get_current_user),
+    ) -> dict:
         """Return executive summary + risk summary."""
         if not report_id or not report_id.strip():
             raise HTTPException(
@@ -71,7 +86,7 @@ def create_report_router(service: ReportServicePort) -> APIRouter:
             )
         try:
             return service.get_summary(report_id.strip())
-        except Exception:
+        except ReportNotFoundError:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Report not found: {report_id}",
@@ -80,7 +95,10 @@ def create_report_router(service: ReportServicePort) -> APIRouter:
     # ── GET /report/{report_id}/formats ──────────────────────────────────
 
     @router.get("/{report_id}/formats")
-    async def get_formats(report_id: str) -> list[str]:
+    async def get_formats(
+        report_id: str,
+        _user=Depends(get_current_user),
+    ) -> list[str]:
         """Return available output formats."""
         if not report_id or not report_id.strip():
             raise HTTPException(
@@ -89,7 +107,7 @@ def create_report_router(service: ReportServicePort) -> APIRouter:
             )
         try:
             return service.get_formats(report_id.strip())
-        except Exception:
+        except ReportNotFoundError:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Report not found: {report_id}",

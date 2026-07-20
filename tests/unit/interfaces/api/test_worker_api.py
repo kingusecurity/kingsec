@@ -6,8 +6,10 @@ from kingsec.application.jobs import InMemoryJobService
 from kingsec.infrastructure.worker.polling_worker import PollingWorkerService
 from kingsec.interfaces.api.app import create_app
 
+from .helpers import fake_get_current_user
+
 _WORKER = PollingWorkerService(job_service=InMemoryJobService())
-_APP = create_app(worker_service=_WORKER)
+_APP = create_app(worker_service=_WORKER, get_current_user=fake_get_current_user)
 _EMPTY_APP = create_app()
 
 
@@ -41,7 +43,7 @@ class TestWorkerExecute:
     def setup_method(self) -> None:
         self.job_service = InMemoryJobService()
         self.worker = PollingWorkerService(job_service=self.job_service)
-        self.app = create_app(worker_service=self.worker)
+        self.app = create_app(worker_service=self.worker, get_current_user=fake_get_current_user)
         self.client = TestClient(self.app)
 
     def test_execute_no_pending_returns_404(self) -> None:

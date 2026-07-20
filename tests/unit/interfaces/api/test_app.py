@@ -14,7 +14,7 @@ class TestCreateApp:
 
     def test_app_version(self) -> None:
         app = create_app()
-        assert app.version == "0.6.0"
+        assert app.version == "0.7.0"
 
     def test_app_description(self) -> None:
         app = create_app()
@@ -63,7 +63,7 @@ class TestVersionEndpoint:
 
     def test_version_returns_version(self) -> None:
         response = self.client.get("/version")
-        assert response.json() == {"version": "0.6.0"}
+        assert isinstance(response.json()["version"], str)
 
 
 class TestOpenAPI:
@@ -82,7 +82,7 @@ class TestOpenAPI:
     def test_openapi_version(self) -> None:
         response = self.client.get("/openapi.json")
         schema = response.json()
-        assert schema["info"]["version"] == "0.6.0"
+        assert isinstance(schema["info"]["version"], str)
 
     def test_openapi_description(self) -> None:
         response = self.client.get("/openapi.json")

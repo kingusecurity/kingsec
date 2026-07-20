@@ -11,7 +11,10 @@ from kingsec.application import (
     ReportGenerationResult,
     ReportServicePort,
 )
+from kingsec.application.errors import ReportNotFoundError
 from kingsec.interfaces.api.app import create_app
+
+from .helpers import fake_get_current_user
 
 # ---------------------------------------------------------------------------
 # Mock port
@@ -34,22 +37,22 @@ class _MockReportService(ReportServicePort):
 
     def get_report(self, report_id: str) -> dict:
         if report_id not in self._existing:
-            raise ValueError(f"Report not found: {report_id}")
+            raise ReportNotFoundError(f"Report not found: {report_id}")
         return {"report_id": report_id, "title": "Test"}
 
     def get_summary(self, report_id: str) -> dict:
         if report_id not in self._existing:
-            raise ValueError(f"Report not found: {report_id}")
+            raise ReportNotFoundError(f"Report not found: {report_id}")
         return {"executive_summary": {}, "risk_summary": {}}
 
     def get_formats(self, report_id: str) -> list[str]:
         if report_id not in self._existing:
-            raise ValueError(f"Report not found: {report_id}")
+            raise ReportNotFoundError(f"Report not found: {report_id}")
         return ["markdown", "html", "pdf", "json", "csv", "sarif"]
 
     def render_report(self, report_id: str, format_name: str) -> RenderedReport:
         if report_id not in self._existing:
-            raise ValueError(f"Report not found: {report_id}")
+            raise ReportNotFoundError(f"Report not found: {report_id}")
 
         content_map: dict[str, tuple[bytes, str, str]] = {
             "markdown": (
@@ -97,7 +100,7 @@ class _MockReportService(ReportServicePort):
 
 _REPORT_SERVICE = _MockReportService()
 
-_REPORT_APP = create_app(report_service=_REPORT_SERVICE)
+_REPORT_APP = create_app(report_service=_REPORT_SERVICE, get_current_user=fake_get_current_user)
 _BASE_APP = create_app()
 
 _EXPECTED_FORMATS: dict[str, tuple[str, str]] = {
@@ -275,7 +278,7 @@ class TestDependencyInjection:
         assert client.get("/").status_code == 200
 
     def test_create_app_with_port_serves_download(self) -> None:
-        app = create_app(report_service=_MockReportService())
+        app = create_app(report_service=_MockReportService(), get_current_user=fake_get_current_user)
         client = TestClient(app)
         assert client.get("/report/report-001/download/markdown").status_code == 200
         assert client.get("/report/report-001/download/html").status_code == 200

@@ -67,18 +67,17 @@ def create_app(
 
     @app.get("/version")
     async def version() -> dict:
-        from kingsec.infrastructure.config import get_settings
-        return {"version": get_settings().app.version}
+        return {"version": app.version}
 
     if registry is not None and scanner is not None:
         from kingsec.interfaces.api.routes.scan import create_scan_router
-        app.include_router(create_scan_router(registry, scanner))
+        app.include_router(create_scan_router(registry, scanner, get_current_user=get_current_user))
 
     if report_service is not None:
         from kingsec.interfaces.api.routes.download import create_download_router
         from kingsec.interfaces.api.routes.report import create_report_router
-        app.include_router(create_report_router(report_service))
-        app.include_router(create_download_router(report_service))
+        app.include_router(create_report_router(report_service, get_current_user=get_current_user))
+        app.include_router(create_download_router(report_service, get_current_user=get_current_user))
 
     if job_service is not None:
         from kingsec.interfaces.api.routes.jobs import create_jobs_router

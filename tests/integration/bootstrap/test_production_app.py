@@ -198,7 +198,7 @@ class TestApiRoutes:
     def test_jobs_endpoint_works(self, app: ProductionApplication) -> None:
         client = TestClient(app.fastapi_app)
         response = client.get("/jobs")
-        assert response.status_code in (200, 404)
+        assert response.status_code in (200, 401, 404)
 
     def test_api_has_middleware(self, app: ProductionApplication) -> None:
         assert len(app.fastapi_app.user_middleware) > 0

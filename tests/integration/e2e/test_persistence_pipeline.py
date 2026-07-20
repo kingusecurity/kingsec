@@ -139,6 +139,10 @@ def fresh_uow(fresh_session: Session) -> SQLAlchemyUnitOfWork:
     return SQLAlchemyUnitOfWork(fresh_session)
 
 
+async def _fake_auth():
+    return None
+
+
 @pytest.fixture
 def app(db_url: str) -> ProductionApplication:
     return create_production_application(
@@ -147,6 +151,7 @@ def app(db_url: str) -> ProductionApplication:
                 data_dir=Path(tempfile.mkdtemp()),
             ),
         ),
+        auth_dependency=_fake_auth,
     )
 
 

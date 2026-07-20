@@ -12,9 +12,9 @@ Business logic remains inside the Application Layer.
 from __future__ import annotations
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Callable
 
-from fastapi import APIRouter, Body, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 
 from kingsec.application import ScannerPluginRegistry, ScannerPort
 from kingsec.application.errors import ScannerPluginError
@@ -43,8 +43,13 @@ def _infer_target_type(value: str) -> TargetType:
 def create_scan_router(
     registry: ScannerPluginRegistry,
     scanner: ScannerPort,
+    *,
+    get_current_user: Callable | None = None,
 ) -> APIRouter:
-    """Create an ``APIRouter`` with scan endpoints wired to the given ports."""
+    """Create an ``APIRouter`` with scan endpoints wired to the given ports.
+
+    All endpoints require authentication via *get_current_user*.
+    """
     router = APIRouter(prefix="/scan", tags=["scan"])
 
     # ── POST /scan ───────────────────────────────────────────────────────
@@ -52,6 +57,7 @@ def create_scan_router(
     @router.post("")
     async def execute_scan(
         body: Annotated[dict, Body()],
+        _user=Depends(get_current_user),
     ) -> dict:
         """Run all compatible scanners against the given target."""
         raw_target = _extract_target(body)
@@ -72,6 +78,7 @@ def create_scan_router(
     @router.post("/custom")
     async def execute_custom_scan(
         body: Annotated[dict, Body()],
+        _user=Depends(get_current_user),
     ) -> dict:
         """Run specific scanners against the given target."""
         raw_target = _extract_target(body)
@@ -97,7 +104,9 @@ def create_scan_router(
     # ── GET /scanners ────────────────────────────────────────────────────
 
     @router.get("/scanners")
-    async def list_scanners() -> list[dict]:
+    async def list_scanners(
+        _user=Depends(get_current_user),
+    ) -> list[dict]:
         """Return metadata for every registered scanner plugin."""
         entries = registry.list_all()
         result: list[dict] = []

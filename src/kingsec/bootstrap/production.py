@@ -85,6 +85,8 @@ from kingsec.infrastructure.scanner import (
 )
 
 # ── API ────────────────────────────────────────────────────────────────────
+from collections.abc import Callable
+
 from kingsec.interfaces.api.app import create_app
 
 # ============================================================================
@@ -224,7 +226,8 @@ class ProductionReportService(ReportServicePort):
 
     def _ensure_report(self, report_id: str) -> None:
         if report_id not in self._reports:
-            raise ValueError(f"Report not found: {report_id}")
+            from kingsec.application.errors import ReportNotFoundError
+            raise ReportNotFoundError(f"Report not found: {report_id}")
 
 
 # ============================================================================
@@ -334,6 +337,8 @@ def _build_persistence(settings: Settings) -> tuple[Engine, sessionmaker[Session
 def create_production_application(
     settings: Settings | None = None,
     env_file: str | Path | None = None,
+    *,
+    auth_dependency: Callable | None = None,
 ) -> ProductionApplication:
     """Build and return a fully wired :class:`ProductionApplication`.
 
@@ -393,11 +398,16 @@ def create_production_application(
     )
 
     # --- API (pass all optional services) ---
+    if auth_dependency is None:
+        from kingsec.interfaces.api.auth import get_current_user as _get_current_user
+        auth_dependency = _get_current_user
+
     fastapi_app = create_app(
         registry=registry,
         scanner=orchestrator,
         report_service=report_service,
         job_service=job_service,
+        get_current_user=auth_dependency,
     )
 
     return ProductionApplication(

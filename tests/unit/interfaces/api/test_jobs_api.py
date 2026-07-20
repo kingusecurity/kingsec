@@ -11,12 +11,14 @@ from kingsec.application.jobs import (
 )
 from kingsec.interfaces.api.app import create_app
 
+from .helpers import fake_get_current_user
+
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
 
 _JOB_SERVICE = InMemoryJobService()
-_APP = create_app(job_service=_JOB_SERVICE)
+_APP = create_app(job_service=_JOB_SERVICE, get_current_user=fake_get_current_user)
 _EMPTY_APP = create_app()
 
 

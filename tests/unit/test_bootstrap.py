@@ -22,6 +22,11 @@ from kingsec.infrastructure.scanner import (
 )
 
 
+async def _fake_auth():
+    """Bypass real authentication — returns None (user object unused by routes)."""
+    return None
+
+
 # ===========================================================================
 # Top-level factory
 # ===========================================================================
@@ -217,7 +222,7 @@ class TestReportService:
 
 class TestAllRouters:
     def test_scan_routes_accessible(self) -> None:
-        app = create_production_application()
+        app = create_production_application(auth_dependency=_fake_auth)
         client = TestClient(app.fastapi_app)
         # POST /scan returns 422 for bad input (validation), not 404
         assert client.post("/scan", json={}).status_code == 422
@@ -229,7 +234,7 @@ class TestAllRouters:
         assert len(data) == 9
 
     def test_report_routes_accessible(self) -> None:
-        app = create_production_application()
+        app = create_production_application(auth_dependency=_fake_auth)
         client = TestClient(app.fastapi_app)
         # First generate a report
         resp = client.post("/report", json={"scan_id": "test"})
@@ -245,7 +250,7 @@ class TestAllRouters:
         assert len(resp.json()) == 6
 
     def test_download_routes_accessible(self) -> None:
-        app = create_production_application()
+        app = create_production_application(auth_dependency=_fake_auth)
         client = TestClient(app.fastapi_app)
         resp = client.post("/report", json={"scan_id": "test"})
         report_id = resp.json()["report_id"]
@@ -278,7 +283,7 @@ class TestDependencyGraph:
         assert len(resolved) > 0
 
     def test_app_wired_to_scanner_ports(self) -> None:
-        app = create_production_application()
+        app = create_production_application(auth_dependency=_fake_auth)
         client = TestClient(app.fastapi_app)
         # The scan endpoint uses scanner_orchestrator behind the scenes
         resp = client.get("/scan/scanners")
@@ -288,7 +293,7 @@ class TestDependencyGraph:
         assert "nuclei" in ids
 
     def test_app_wired_to_report_service(self) -> None:
-        app = create_production_application()
+        app = create_production_application(auth_dependency=_fake_auth)
         client = TestClient(app.fastapi_app)
         resp = client.post("/report", json={"scan_id": "check"})
         assert resp.status_code == 200
@@ -296,7 +301,7 @@ class TestDependencyGraph:
         assert data["status"] == "completed"
 
     def test_download_uses_report_service_renderers(self) -> None:
-        app = create_production_application()
+        app = create_production_application(auth_dependency=_fake_auth)
         client = TestClient(app.fastapi_app)
         resp = client.post("/report", json={"scan_id": "check"})
         report_id = resp.json()["report_id"]

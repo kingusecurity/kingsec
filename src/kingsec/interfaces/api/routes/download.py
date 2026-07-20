@@ -10,10 +10,13 @@ Business logic remains inside the Application Layer.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from typing import Callable
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
 
 from kingsec.application import ReportServicePort
+from kingsec.application.errors import ReportNotFoundError
 
 # Maps format names → (media_type, file_extension)
 _FORMAT_MAP: dict[str, tuple[str, str]] = {
@@ -33,12 +36,23 @@ _SUPPORTED_FORMATS = frozenset(_FORMAT_MAP)
 # ---------------------------------------------------------------------------
 
 
-def create_download_router(service: ReportServicePort) -> APIRouter:
-    """Create an ``APIRouter`` with report download endpoints."""
+def create_download_router(
+    service: ReportServicePort,
+    *,
+    get_current_user: Callable | None = None,
+) -> APIRouter:
+    """Create an ``APIRouter`` with report download endpoints.
+
+    All endpoints require authentication via *get_current_user*.
+    """
     router = APIRouter(prefix="/report", tags=["download"])
 
     @router.get("/{report_id}/download/{format_name}")
-    async def download_report(report_id: str, format_name: str) -> Response:
+    async def download_report(
+        report_id: str,
+        format_name: str,
+        _user=Depends(get_current_user),
+    ) -> Response:
         """Download a report in the specified format."""
         if format_name not in _SUPPORTED_FORMATS:
             raise HTTPException(
@@ -48,7 +62,7 @@ def create_download_router(service: ReportServicePort) -> APIRouter:
 
         try:
             rendered = service.render_report(report_id, format_name)
-        except Exception:
+        except ReportNotFoundError:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Report not found: {report_id}",

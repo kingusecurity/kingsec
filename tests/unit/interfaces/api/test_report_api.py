@@ -8,7 +8,10 @@ from fastapi.testclient import TestClient
 
 from kingsec.application import ReportGenerationResult, ReportServicePort
 from kingsec.application.dto import RenderedReport
+from kingsec.application.errors import ReportNotFoundError
 from kingsec.interfaces.api.app import create_app
+
+from .helpers import fake_get_current_user
 
 # ---------------------------------------------------------------------------
 # Mock port
@@ -76,22 +79,22 @@ class _MockReportService(ReportServicePort):
 
     def get_report(self, report_id: str) -> dict:
         if report_id not in self._reports:
-            raise ValueError(f"Report not found: {report_id}")
+            raise ReportNotFoundError(f"Report not found: {report_id}")
         return self._reports[report_id]
 
     def get_summary(self, report_id: str) -> dict:
         if report_id not in self._summaries:
-            raise ValueError(f"Report not found: {report_id}")
+            raise ReportNotFoundError(f"Report not found: {report_id}")
         return self._summaries[report_id]
 
     def get_formats(self, report_id: str) -> list[str]:
         if report_id not in self._reports:
-            raise ValueError(f"Report not found: {report_id}")
+            raise ReportNotFoundError(f"Report not found: {report_id}")
         return self._formats
 
     def render_report(self, report_id: str, format_name: str) -> RenderedReport:
         if report_id not in self._reports:
-            raise ValueError(f"Report not found: {report_id}")
+            raise ReportNotFoundError(f"Report not found: {report_id}")
         if format_name not in self._formats:
             raise ValueError(f"Unsupported format: {format_name}")
         content_map = {
@@ -108,7 +111,7 @@ class _MockReportService(ReportServicePort):
 
 _REPORT_SERVICE = _MockReportService()
 
-_REPORT_APP = create_app(report_service=_REPORT_SERVICE)
+_REPORT_APP = create_app(report_service=_REPORT_SERVICE, get_current_user=fake_get_current_user)
 _BASE_APP = create_app()
 
 
@@ -420,7 +423,7 @@ class TestDependencyInjection:
         assert client.get("/version").status_code == 200
 
     def test_create_app_with_port_serves_report(self) -> None:
-        app = create_app(report_service=_MockReportService())
+        app = create_app(report_service=_MockReportService(), get_current_user=fake_get_current_user)
         client = TestClient(app)
         assert client.post("/report", json={"scan_id": "x"}).status_code == 200
         assert client.get("/report/report-001").status_code == 200

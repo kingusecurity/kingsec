@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 
 from kingsec.application.ports.production_service import ProductionServicePort
+from kingsec.domain import Role
 from kingsec.domain.system_health import (
     DependencyHealth,
     HealthCheck,
@@ -12,6 +13,7 @@ from kingsec.domain.system_health import (
     SystemMetrics,
 )
 
+from .auth import require_role
 from .dependencies import get_application
 
 router = APIRouter(prefix="/api/v1", tags=["health"])
@@ -63,13 +65,13 @@ def resources(request: Request) -> SystemMetrics:
     return _get_service(request).get_system_resources()
 
 
-@router.post("/healthz/shutdown")
+@router.post("/healthz/shutdown", dependencies=[Depends(require_role(Role.ADMIN))])
 def shutdown(request: Request) -> dict:
     _get_service(request).shutdown()
     return {"status": "shutdown_initiated"}
 
 
-@router.post("/healthz/restart")
+@router.post("/healthz/restart", dependencies=[Depends(require_role(Role.ADMIN))])
 def restart(request: Request) -> dict:
     _get_service(request).restart()
     return {"status": "restart_initiated"}

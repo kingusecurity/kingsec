@@ -21,6 +21,8 @@ from kingsec.domain import (
 )
 from kingsec.interfaces.api.app import create_app
 
+from .helpers import fake_get_current_user
+
 # ---------------------------------------------------------------------------
 # Mock ports
 # ---------------------------------------------------------------------------
@@ -103,7 +105,7 @@ _REGISTRY = _MockRegistry()
 _SCANNER = _MockScanner()
 
 # App with scan routes wired
-_SCAN_APP = create_app(registry=_REGISTRY, scanner=_SCANNER)
+_SCAN_APP = create_app(registry=_REGISTRY, scanner=_SCANNER, get_current_user=fake_get_current_user)
 # App without scan routes (base only)
 _BASE_APP = create_app()
 
@@ -430,7 +432,7 @@ class TestDependencyInjection:
         assert client.get("/version").status_code == 200
 
     def test_create_app_with_ports_serves_scan_endpoints(self) -> None:
-        app = create_app(registry=_REGISTRY, scanner=_SCANNER)
+        app = create_app(registry=_REGISTRY, scanner=_SCANNER, get_current_user=fake_get_current_user)
         client = TestClient(app)
         assert client.post("/scan", json={"target": "x"}).status_code == 200
         assert client.get("/scan/scanners").status_code == 200
