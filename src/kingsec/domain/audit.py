@@ -74,6 +74,15 @@ class AuditAction(str, Enum):
     NOTIFICATION_READ = "notification_read"
     NOTIFICATION_DELETED = "notification_deleted"
 
+    # Plugin lifecycle
+    PLUGIN_INSTALLED = "plugin_installed"
+    PLUGIN_UPDATED = "plugin_updated"
+    PLUGIN_UNINSTALLED = "plugin_uninstalled"
+    PLUGIN_ENABLED = "plugin_enabled"
+    PLUGIN_DISABLED = "plugin_disabled"
+    PLUGIN_VALIDATED = "plugin_validated"
+    PLUGIN_ROLLED_BACK = "plugin_rolled_back"
+
 
 @dataclass(frozen=True)
 class AuditEntry:

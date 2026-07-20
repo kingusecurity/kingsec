@@ -58,3 +58,31 @@ class IllegalJobTransitionError(ApplicationError):
 
 class NotificationNotFoundError(ApplicationError):
     """No notification exists for the requested identifier."""
+
+
+class PluginNotFoundError(ApplicationError):
+    """No plugin exists for the requested identifier."""
+
+
+class PluginInstallError(ApplicationError):
+    """Plugin installation failed."""
+
+
+class PluginValidationError(ApplicationError):
+    """Plugin validation failed."""
+
+
+class PluginIncompatibleError(ApplicationError):
+    """Plugin is incompatible with this system."""
+
+
+class PluginDependencyError(ApplicationError):
+    """Plugin has unmet dependencies."""
+
+
+class PluginChecksumError(ApplicationError):
+    """Plugin checksum verification failed."""
+
+
+class PluginSignatureError(ApplicationError):
+    """Plugin signature verification failed."""

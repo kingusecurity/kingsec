@@ -19,6 +19,9 @@ class TestAuditAction:
             "schedule_enabled", "schedule_disabled",
             "notification_sent", "notification_failed", "notification_retried",
             "notification_read", "notification_deleted",
+            "plugin_installed", "plugin_updated", "plugin_uninstalled",
+            "plugin_enabled", "plugin_disabled", "plugin_validated",
+            "plugin_rolled_back",
         }
         actual = {a.value for a in AuditAction}
         assert actual == expected

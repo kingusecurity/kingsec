@@ -20,6 +20,10 @@ from .notification_sender import NotificationSenderPort
 from .template_renderer import TemplateRendererPort
 from .dashboard_repository import DashboardRepositoryPort
 from .metrics_calculator import MetricsCalculatorPort
+from .plugin_repository import PluginRepositoryPort
+from .plugin_installer import PluginInstallerPort
+from .plugin_validator import PluginValidatorPort
+from .plugin_marketplace import PluginMarketplacePort
 
 __all__ = [
     "AuditPublisher",
@@ -33,6 +37,10 @@ __all__ = [
     "TemplateRendererPort",
     "DashboardRepositoryPort",
     "MetricsCalculatorPort",
+    "PluginRepositoryPort",
+    "PluginInstallerPort",
+    "PluginValidatorPort",
+    "PluginMarketplacePort",
     "ClockPort",
     "EventPublisher",
     "JobRunner",
