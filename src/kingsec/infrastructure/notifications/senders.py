@@ -1,13 +1,23 @@
+"""Notification sender implementations for various channels.
+
+Each sender implements ``NotificationSenderPort`` and delivers notifications
+via its respective channel (webhook, Slack, Discord, Teams, email, in-app).
+All HTTP-based senders use ``urllib``. Sensitive configuration (SMTP password,
+webhook URLs) is stored as instance attributes but never logged.
+"""
+
 from __future__ import annotations
 
 import json
 import logging
 from urllib.request import Request, urlopen
 
+from kingsec.infrastructure.logging import get_logger
+
 from kingsec.application.ports.outbound import NotificationSenderPort
 from kingsec.domain.notification import Notification, NotificationChannel
 
-logger = logging.getLogger(__name__)
+logger = get_logger("kingsec.infrastructure.notifications.senders")
 
 
 class EmailSender(NotificationSenderPort):
@@ -42,7 +52,8 @@ class WebhookSender(NotificationSenderPort):
             }).encode()
             req = Request(url, data=payload, method="POST")
             req.add_header("Content-Type", "application/json")
-            urlopen(req, timeout=10)
+            with urlopen(req, timeout=10):
+                pass
             return None
         except Exception as exc:
             logger.warning("Webhook delivery failed: %s", exc)
@@ -66,7 +77,8 @@ class SlackSender(NotificationSenderPort):
             }).encode()
             req = Request(url, data=payload, method="POST")
             req.add_header("Content-Type", "application/json")
-            urlopen(req, timeout=10)
+            with urlopen(req, timeout=10):
+                pass
             return None
         except Exception as exc:
             logger.warning("Slack delivery failed: %s", exc)
@@ -90,7 +102,8 @@ class DiscordSender(NotificationSenderPort):
             }).encode()
             req = Request(url, data=payload, method="POST")
             req.add_header("Content-Type", "application/json")
-            urlopen(req, timeout=10)
+            with urlopen(req, timeout=10):
+                pass
             return None
         except Exception as exc:
             logger.warning("Discord delivery failed: %s", exc)
@@ -118,7 +131,8 @@ class TeamsSender(NotificationSenderPort):
             }).encode()
             req = Request(url, data=payload, method="POST")
             req.add_header("Content-Type", "application/json")
-            urlopen(req, timeout=10)
+            with urlopen(req, timeout=10):
+                pass
             return None
         except Exception as exc:
             logger.warning("Teams delivery failed: %s", exc)

@@ -14,6 +14,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from kingsec.application.errors import ScannerPluginError
+from kingsec.infrastructure.logging import get_logger
 from kingsec.application.ports.scanner_executor import ScannerExecutor
 from kingsec.application.ports.scanner_plugin import ScannerPluginPort
 from kingsec.application.ports.scanner_registry import ScannerPluginRegistry
@@ -25,6 +26,9 @@ from kingsec.domain import (
     ScannerResult,
     Target,
 )
+
+
+_logger = get_logger("kingsec.infrastructure.scanner.orchestrator")
 
 
 class ScannerOrchestrator(ScannerPort, ScannerExecutor):
@@ -124,4 +128,7 @@ class ScannerOrchestrator(ScannerPort, ScannerExecutor):
             try:
                 plugin.shutdown()
             except Exception:
-                pass
+                _logger.warning(
+                    "plugin shutdown failed",
+                    plugin_id=str(plugin_metadata.id),
+                )

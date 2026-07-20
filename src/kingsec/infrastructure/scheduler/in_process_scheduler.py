@@ -6,14 +6,16 @@ Single-process, no threading redesign, no Celery, no Redis.
 from __future__ import annotations
 
 import threading
-import time
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from kingsec.application.ports.outbound.scheduler_service import SchedulerServicePort
 from kingsec.domain.schedule import ScheduleType, ScanSchedule
+from kingsec.infrastructure.logging import get_logger
 
 from .cron_parser import CronParser
+
+_logger = get_logger("kingsec.infrastructure.scheduler.in_process_scheduler")
 
 if TYPE_CHECKING:
     from kingsec.application.ports.job_service import JobServicePort
@@ -73,6 +75,7 @@ class InProcessScheduler(SchedulerServicePort):
         try:
             tz = ZoneInfo(timezone)
         except Exception:
+            # Fall back to UTC for unknown/invalid timezone strings.
             tz = UTC
 
         base = datetime.fromisoformat(after) if after else datetime.now(UTC)
@@ -110,7 +113,7 @@ class InProcessScheduler(SchedulerServicePort):
             try:
                 self._poll_due_schedules()
             except Exception:
-                pass
+                _logger.exception("scheduler poll cycle failed")
             self._stop_event.wait(self._POLL_INTERVAL_SECONDS)
 
     def _poll_due_schedules(self) -> None:
@@ -138,4 +141,7 @@ class InProcessScheduler(SchedulerServicePort):
                 updated = schedule.with_run_completed(next_run=next_run, now=now_utc)
                 self._repository.save(updated)
             except Exception:
-                pass
+                _logger.exception(
+                    "failed to process due schedule",
+                    schedule_id=str(schedule.id),
+                )

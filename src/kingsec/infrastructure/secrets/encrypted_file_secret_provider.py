@@ -1,13 +1,13 @@
 """Secret provider that stores encrypted secrets in a local file.
 
-Secrets are hex-encoded ciphertexts stored as JSON. The file is locked
-with a simple file lock to prevent concurrent writes.
+Secrets are hex-encoded ciphertexts stored as JSON. This provider is
+intended for single-threaded use only; no file-level locking is implemented.
+Concurrent writes from multiple threads or processes will corrupt the file.
 """
 
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 from kingsec.application.ports.outbound.encryption_service import EncryptionServicePort
@@ -22,7 +22,6 @@ class EncryptedFileSecretProvider(SecretProviderPort):
     ) -> None:
         self._encryption_service = encryption_service
         self._file_path = Path(file_path)
-        self._lock_path = self._file_path.with_suffix(".lock")
         self._load()
 
     def _load(self) -> None:

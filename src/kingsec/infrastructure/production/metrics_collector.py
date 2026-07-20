@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-
 from kingsec.application.ports.outbound import MetricsCollectorPort
 from kingsec.domain.system_health import ResourceUsage
 

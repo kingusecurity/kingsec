@@ -110,7 +110,7 @@ class SubmitAssessment:
         try:
             self._events.publish(event)
         except Exception:
-            pass
+            pass  # Best-effort: event bus failure must not break the primary operation.
 
     def _publish_audit(self, entry: AuditEntry) -> None:
         """Publish an audit entry if a publisher is configured (best-effort)."""
@@ -119,7 +119,7 @@ class SubmitAssessment:
         try:
             self._audit.record(entry)
         except Exception:
-            pass
+            pass  # Best-effort: audit failure must not break the primary operation.
 
     @staticmethod
     def _make_background_fn(
@@ -193,7 +193,7 @@ def _execute_scan(
                 ),
             )
         except Exception:
-            pass
+            pass  # Best-effort: recovery failure must not propagate.
 
 
 def _enrich(finding: Finding, ai: AIPort | None) -> None:
@@ -211,10 +211,10 @@ def _publish_event(events: EventPublisher | None, event: AssessmentEvent) -> Non
     """Publish an event if a publisher is configured (best-effort)."""
     if events is None:
         return
-    try:
-        events.publish(event)
-    except Exception:
-        pass
+        try:
+            events.publish(event)
+        except Exception:
+            pass  # Best-effort: event bus failure must not break the primary operation.
 
 
 def _severity_counts(assessment: object) -> dict[str, int] | None:

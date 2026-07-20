@@ -7,6 +7,10 @@ from datetime import UTC, datetime
 from kingsec.application.ports.job_service import JobServicePort
 from kingsec.application.ports.outbound import WorkerServicePort
 from kingsec.domain.worker import WorkerHeartbeat, WorkerId, WorkerStatus
+from kingsec.infrastructure.logging import get_logger
+
+
+_logger = get_logger("kingsec.infrastructure.worker.polling_worker")
 
 
 class PollingWorkerService(WorkerServicePort):
@@ -68,6 +72,7 @@ class PollingWorkerService(WorkerServicePort):
         try:
             self._job_service.transition_job(job_id, "RUNNING")
         except Exception:
+            _logger.exception("failed to transition job to RUNNING", job_id=job_id)
             return None
 
         with self._lock:
@@ -76,6 +81,7 @@ class PollingWorkerService(WorkerServicePort):
         try:
             self._run_job(job_id)
         except Exception:
+            _logger.exception("job execution failed", job_id=job_id)
             with self._lock:
                 self._jobs_failed += 1
                 self._current_job_id = None
