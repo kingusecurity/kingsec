@@ -95,9 +95,11 @@ async def login(
     try:
         result = login_uc.execute(login_request)
     except AuthenticationError:
-        # Record failed login audit entry at the boundary (where we have HTTP context).
         _record_failed_login_audit(request, body.username)
         raise
+
+    _create_session_for_login(request, result)
+
     return schemas.LoginResponse(
         user_id=result.user_id,
         username=result.username,
@@ -107,6 +109,36 @@ async def login(
         token_type=result.token_type,
         expires_in=result.expires_in,
     )
+
+
+def _create_session_for_login(request: Request, result: object) -> None:
+    try:
+        app: Application = request.app.state.kingsec_app
+        from kingsec.application.use_cases.create_session import CreateSession
+        from kingsec.application.use_cases.session_dto import CreateSessionRequest
+        from kingsec.application.ports import TokenService
+        from kingsec.domain.session import DeviceInfo
+
+        token_svc: TokenService = app.resolve(TokenService)
+        access_claims = token_svc.verify_access_token(result.access_token)
+        refresh_claims = token_svc.verify_refresh_token(result.refresh_token)
+
+        ip = request.client.host if request.client else ""
+        ua = request.headers.get("user-agent", "")
+
+        create_uc: CreateSession = app.resolve(CreateSession)
+        create_uc.execute(
+            CreateSessionRequest(
+                user_id=result.user_id,
+                jti=access_claims.jti,
+                refresh_jti=refresh_claims.jti,
+                client_ip=ip,
+                user_agent=ua,
+                device_info=DeviceInfo(device_name="", platform="", browser=""),
+            )
+        )
+    except Exception:
+        pass
 
 
 def _record_failed_login_audit(request: Request, username: str) -> None:

@@ -36,6 +36,16 @@ class AuditAction(str, Enum):
     ACCOUNT_LOCKED = "account_locked"
     ACCOUNT_UNLOCKED = "account_unlocked"
     BRUTE_FORCE_DETECTED = "brute_force_detected"
+    SESSION_CREATED = "session_created"
+    SESSION_REFRESHED = "session_refreshed"
+    SESSION_REVOKED = "session_revoked"
+    LOGOUT_ALL = "logout_all"
+    CONCURRENT_SESSION_LIMIT_EXCEEDED = "concurrent_session_limit_exceeded"
+    REFRESH_TOKEN_REPLAY_DETECTED = "refresh_token_replay_detected"
+    SECRET_CREATED = "secret_created"
+    SECRET_DELETED = "secret_deleted"
+    SECRET_ROTATED = "secret_rotated"
+    SECRET_RETRIEVED = "secret_retrieved"
 
 
 class AuditSeverity(str, Enum):

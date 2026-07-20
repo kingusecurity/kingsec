@@ -3,6 +3,8 @@
 from .inbound import ServiceAPI
 from .job_service import JobServicePort
 from .outbound.api_key_hasher import ApiKeyHasher
+from .outbound.encryption_service import EncryptionServicePort
+from .outbound.secret_provider import SecretProviderPort
 from .outbound.api_key_repository import ApiKeyRepository
 from .outbound.audit_event_repository import AuditEventRepository
 from .outbound.clock_port import ClockPort
@@ -10,6 +12,7 @@ from .outbound.lockout_repository import LockoutRepository
 from .outbound.mfa_secret_repository import MfaSecretRepository
 from .outbound.rate_limiter import RateLimiterPort
 from .outbound.recovery_code_repository import RecoveryCodeRepository
+from .outbound.session_repository import SessionRepository
 from .outbound.totp_service import TotpServicePort
 from .outbound.audit_publisher import AuditPublisher
 from .outbound.event_publisher import EventPublisher
@@ -47,6 +50,7 @@ __all__ = [
     "MfaSecretRepository",
     "RateLimiterPort",
     "RecoveryCodeRepository",
+    "SessionRepository",
     "TotpServicePort",
     "JobRepositoryPort",
     "JobRunner",
@@ -69,4 +73,6 @@ __all__ = [
     "UnitOfWork",
     "UnitOfWorkFactory",
     "UserRepository",
+    "EncryptionServicePort",
+    "SecretProviderPort",
 ]

@@ -263,6 +263,34 @@ class MfaRecoveryCodeORM(Base):
     status: Mapped[str] = mapped_column(String, nullable=False, default="active")
 
 
+class SessionORM(Base):
+    """Persistent user session record.
+
+    Created on login, checked on every JWT validation, revoked on logout.
+    Refresh-token rotation updates refresh_jti; old refresh reuse revokes.
+    """
+
+    __tablename__ = "sessions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[str] = mapped_column(
+        String, nullable=False, index=True
+    )
+    session_type: Mapped[str] = mapped_column(String, nullable=False, default="user")
+    jti: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
+    refresh_jti: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
+    issued_at: Mapped[str] = mapped_column(String, nullable=False)
+    expires_at: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    last_activity: Mapped[str] = mapped_column(String, nullable=False)
+    client_ip: Mapped[str] = mapped_column(String, nullable=False, default="")
+    user_agent: Mapped[str] = mapped_column(String, nullable=False, default="")
+    device_name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    platform: Mapped[str] = mapped_column(String, nullable=False, default="")
+    browser: Mapped[str] = mapped_column(String, nullable=False, default="")
+    status: Mapped[str] = mapped_column(String, nullable=False, default="active", index=True)
+    idle_timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=1800)
+
+
 # ===========================================================================
 #  Scan-job / Asset models  (Phase 7.2)
 # ===========================================================================

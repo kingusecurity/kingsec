@@ -34,6 +34,7 @@ from .audit import AuditAction, AuditEntry
 from .authorization import Authorization
 from .enums import AssessmentStatus, FindingStatus, Role, Severity
 from .errors import DomainError, IllegalStateTransition, InvariantViolation
+from .secret import SecretId, SecretMetadata, SecretType
 from .mfa import MfaRecoveryCode, MfaSecret, MfaStatus, RecoveryCodeStatus
 from .rate_limit import (
     AccountLockout,
@@ -44,6 +45,13 @@ from .rate_limit import (
     RateLimitGroup,
     RateLimitKeyType,
     RateLimitPolicy,
+)
+from .session import (
+    DeviceInfo,
+    Session,
+    SessionId,
+    SessionStatus,
+    SessionType,
 )
 from .evidence import Evidence, Recommendation
 from .finding import Finding
@@ -117,6 +125,7 @@ __all__ = [
     "UserNotFoundError",
     "Verdict",
     "AccountLockout",
+    "DeviceInfo",
     "LockoutPolicy",
     "RateLimitBucket",
     "RateLimitDecision",
@@ -124,4 +133,11 @@ __all__ = [
     "RateLimitGroup",
     "RateLimitKeyType",
     "RateLimitPolicy",
+    "Session",
+    "SessionId",
+    "SessionStatus",
+    "SessionType",
+    "SecretId",
+    "SecretMetadata",
+    "SecretType",
 ]

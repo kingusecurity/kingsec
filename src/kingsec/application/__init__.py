@@ -110,6 +110,30 @@ from .use_cases.record_failed_authentication import RecordFailedAuthentication
 from .use_cases.record_successful_authentication import RecordSuccessfulAuthentication
 from .use_cases.check_account_lockout import CheckAccountLockout
 from .use_cases.reset_failed_attempts import ResetFailedAttempts
+from .use_cases.create_session import CreateSession
+from .use_cases.validate_session import ValidateSession
+from .use_cases.refresh_session import RefreshSession
+from .use_cases.revoke_session import RevokeSession
+from .use_cases.revoke_all_sessions import RevokeAllSessions
+from .use_cases.list_user_sessions import ListUserSessions
+from .use_cases.terminate_other_sessions import TerminateOtherSessions
+from .use_cases.session_dto import (
+    CreateSessionRequest,
+    CreateSessionResponse,
+    ListUserSessionsRequest,
+    ListUserSessionsResponse,
+    RefreshSessionRequest,
+    RefreshSessionResponse,
+    RevokeAllSessionsRequest,
+    RevokeAllSessionsResponse,
+    RevokeSessionRequest,
+    RevokeSessionResponse,
+    SessionView,
+    TerminateOtherSessionsRequest,
+    TerminateOtherSessionsResponse,
+    ValidateSessionRequest,
+    ValidateSessionResponse,
+)
 from .use_cases.rate_limit_dto import (
     CheckRateLimitRequest,
     CheckRateLimitResponse,
@@ -122,6 +146,33 @@ from .use_cases.rate_limit_dto import (
     ResetFailedAttemptsRequest,
     ResetFailedAttemptsResponse,
 )
+from .services.configuration_security_service import ConfigurationSecurityService
+from .use_cases.secret_dto import (
+    DecryptSecretRequest,
+    DecryptSecretResponse,
+    DeleteSecretRequest,
+    DeleteSecretResponse,
+    EncryptSecretRequest,
+    EncryptSecretResponse,
+    ListSecretsRequest,
+    ListSecretsResponse,
+    RetrieveSecretRequest,
+    RetrieveSecretResponse,
+    RotateSecretsRequest,
+    RotateSecretsResponse,
+    StoreSecretRequest,
+    StoreSecretResponse,
+    ValidateConfigurationRequest,
+    ValidateConfigurationResponse,
+)
+from .use_cases.decrypt_secret import DecryptSecret
+from .use_cases.delete_secret import DeleteSecret
+from .use_cases.encrypt_secret import EncryptSecret
+from .use_cases.list_secrets import ListSecrets
+from .use_cases.retrieve_secret import RetrieveSecret
+from .use_cases.rotate_secrets import RotateSecrets
+from .use_cases.store_secret import StoreSecret
+from .use_cases.validate_configuration import ValidateConfiguration
 from .ports import (
     AIPort,
     ApiKeyHasher,
@@ -140,6 +191,7 @@ from .ports import (
     PasswordHasher,
     RateLimiterPort,
     RecoveryCodeRepository,
+    SessionRepository,
     ReportGenerationResult,
     ReportGeneratorPort,
     ReportRepository,
@@ -154,6 +206,8 @@ from .ports import (
     TokenExpiredError,
     TokenInvalidError,
     TokenService,
+    EncryptionServicePort,
+    SecretProviderPort,
     TotpServicePort,
     UnitOfWork,
     UnitOfWorkFactory,
@@ -198,6 +252,9 @@ __all__ = [
     "CheckRateLimitRequest",
     "CheckRateLimitResponse",
     "ClockPort",
+    "CreateSession",
+    "CreateSessionRequest",
+    "CreateSessionResponse",
     "ApiKeyError",
     "ApiKeyHasher",
     "ApiKeyNotFoundError",
@@ -262,6 +319,9 @@ __all__ = [
     "ListApiKeys",
     "ListApiKeysRequest",
     "ListAssessments",
+    "ListUserSessions",
+    "ListUserSessionsRequest",
+    "ListUserSessionsResponse",
     "LockoutRepository",
     "MfaSecretRepository",
     "MfaStatusResponse",
@@ -274,6 +334,9 @@ __all__ = [
     "PasswordChangeError",
     "PasswordHasher",
     "PersistentJobService",
+    "RefreshSession",
+    "RefreshSessionRequest",
+    "RefreshSessionResponse",
     "RefreshToken",
     "RefreshTokenRequest",
     "RefreshTokenResponse",
@@ -297,8 +360,14 @@ __all__ = [
     "ReportNotFoundError",
     "ReportRepository",
     "ReportServicePort",
+    "RevokeAllSessions",
+    "RevokeAllSessionsRequest",
+    "RevokeAllSessionsResponse",
     "RevokeApiKey",
     "RevokeApiKeyRequest",
+    "RevokeSession",
+    "RevokeSessionRequest",
+    "RevokeSessionResponse",
     "RiskAssessment",
     "RiskFactor",
     "RiskScorer",
@@ -319,6 +388,8 @@ __all__ = [
     "ScannerUnavailableError",
     "ScannerVersionError",
     "ServiceAPI",
+    "SessionRepository",
+    "SessionView",
     "SeverityCount",
     "StartAssessment",
     "StartAssessmentRequest",
@@ -326,6 +397,9 @@ __all__ = [
     "SubmitAssessment",
     "SubmitAssessmentRequest",
     "SubmitAssessmentResponse",
+    "TerminateOtherSessions",
+    "TerminateOtherSessionsRequest",
+    "TerminateOtherSessionsResponse",
     "TokenClaims",
     "TokenExpiredError",
     "TokenInvalidError",
@@ -341,6 +415,33 @@ __all__ = [
     "UseRecoveryCodeResponse",
     "UserRepository",
     "UserView",
+    "ConfigurationSecurityService",
+    "DecryptSecret",
+    "DecryptSecretRequest",
+    "DecryptSecretResponse",
+    "DeleteSecret",
+    "DeleteSecretRequest",
+    "DeleteSecretResponse",
+    "EncryptSecret",
+    "EncryptSecretRequest",
+    "EncryptSecretResponse",
+    "EncryptionServicePort",
+    "ListSecrets",
+    "ListSecretsRequest",
+    "ListSecretsResponse",
+    "RetrieveSecret",
+    "RetrieveSecretRequest",
+    "RetrieveSecretResponse",
+    "RotateSecrets",
+    "RotateSecretsRequest",
+    "RotateSecretsResponse",
+    "SecretProviderPort",
+    "StoreSecret",
+    "StoreSecretRequest",
+    "StoreSecretResponse",
+    "ValidateConfiguration",
+    "ValidateConfigurationRequest",
+    "ValidateConfigurationResponse",
     "ValidateApiKey",
     "ValidateApiKeyRequest",
     "ValidateApiKeyResponse",

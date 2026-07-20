@@ -30,12 +30,18 @@ from kingsec.application import (
     ChangePassword,
     CheckAccountLockout,
     CheckRateLimit,
+    ClockPort,
+    ConfigurationSecurityService,
     CreateApiKey,
     CreateAssessment,
-    ClockPort,
+    CreateSession,
+    DecryptSecret,
     DeleteAssessment,
+    DeleteSecret,
     DisableMfa,
     EnableMfa,
+    EncryptSecret,
+    EncryptionServicePort,
     EventPublisher,
     GenerateRecoveryCodes,
     GenerateReport,
@@ -44,6 +50,8 @@ from kingsec.application import (
     JobRunner,
     ListApiKeys,
     ListAssessments,
+    ListSecrets,
+    ListUserSessions,
     LockoutRepository,
     Login,
     MfaSecretRepository,
@@ -53,31 +61,44 @@ from kingsec.application import (
     RecordFailedAuthentication,
     RecordSuccessfulAuthentication,
     RecoveryCodeRepository,
+    RefreshSession,
     RefreshToken,
     RegisterUser,
     ReportGeneratorPort,
     ReportRepository,
     ResetFailedAttempts,
+    RetrieveSecret,
+    RevokeAllSessions,
     RevokeApiKey,
+    RevokeSession,
     RotateApiKey,
     RotateRecoveryCodes,
+    RotateSecrets,
     ScannerPort,
     SearchAuditEvents,
+    SecretProviderPort,
     ServiceAPI,
+    SessionRepository,
     StartAssessment,
+    StoreSecret,
     SubmitAssessment,
+    TerminateOtherSessions,
     TokenService,
     TotpServicePort,
     UseCaseServiceAPI,
     UseRecoveryCode,
     UserRepository,
     ValidateApiKey,
+    ValidateConfiguration,
+    ValidateSession,
     VerifyMfaCode,
 )
 from kingsec.infrastructure.ai import register_ai
 from kingsec.infrastructure.audit.provisioning import register_audit, register_enterprise_audit
 from kingsec.infrastructure.mfa.provisioning import register_mfa
 from kingsec.infrastructure.rate_limit.provisioning import register_rate_limiter
+from kingsec.infrastructure.secrets.provisioning import register_secrets
+from kingsec.infrastructure.session.provisioning import register_sessions
 from kingsec.infrastructure.auth.provisioning import register_api_key_auth, register_auth, register_user_repository
 from kingsec.infrastructure.events.provisioning import register_events
 from kingsec.infrastructure.jobs import register_jobs
@@ -175,6 +196,12 @@ def _register_adapters(
 
     # Rate limiting infrastructure (in-memory, thread-safe).
     register_rate_limiter(container, settings)
+
+    # Secrets management infrastructure.
+    register_secrets(container, str(settings.storage.data_dir / "secrets.json"))
+
+    # Session management infrastructure.
+    register_sessions(container, session_factory)
 
     # Capability adapters. AI adds its own http-client.close shutdown hook.
     register_scanner(container, settings)
@@ -402,6 +429,42 @@ def _register_use_cases(container: Container) -> None:
         ),
     )
 
+    # Session management use cases.
+    container.register_factory(
+        CreateSession,
+        lambda c: CreateSession(
+            c.resolve(SessionRepository),
+            c.resolve(ClockPort),
+        ),
+    )
+    container.register_factory(
+        ValidateSession,
+        lambda c: ValidateSession(
+            c.resolve(SessionRepository),
+            c.resolve(ClockPort),
+        ),
+    )
+    container.register_factory(
+        RefreshSession,
+        lambda c: RefreshSession(c.resolve(SessionRepository)),
+    )
+    container.register_factory(
+        RevokeSession,
+        lambda c: RevokeSession(c.resolve(SessionRepository)),
+    )
+    container.register_factory(
+        RevokeAllSessions,
+        lambda c: RevokeAllSessions(c.resolve(SessionRepository)),
+    )
+    container.register_factory(
+        ListUserSessions,
+        lambda c: ListUserSessions(c.resolve(SessionRepository)),
+    )
+    container.register_factory(
+        TerminateOtherSessions,
+        lambda c: TerminateOtherSessions(c.resolve(SessionRepository)),
+    )
+
     # Rate limiting use cases.
     container.register_factory(
         CheckRateLimit,
@@ -427,4 +490,57 @@ def _register_use_cases(container: Container) -> None:
     container.register_factory(
         ResetFailedAttempts,
         lambda c: ResetFailedAttempts(c.resolve(LockoutRepository)),
+    )
+
+    # Secrets management use cases.
+    container.register_factory(
+        EncryptSecret,
+        lambda c: EncryptSecret(c.resolve(EncryptionServicePort)),
+    )
+    container.register_factory(
+        DecryptSecret,
+        lambda c: DecryptSecret(c.resolve(EncryptionServicePort)),
+    )
+    container.register_factory(
+        StoreSecret,
+        lambda c: StoreSecret(
+            c.resolve(EncryptionServicePort),
+            c.resolve(SecretProviderPort),
+        ),
+    )
+    container.register_factory(
+        RetrieveSecret,
+        lambda c: RetrieveSecret(
+            c.resolve(EncryptionServicePort),
+            c.resolve(SecretProviderPort),
+        ),
+    )
+    container.register_factory(
+        DeleteSecret,
+        lambda c: DeleteSecret(c.resolve(SecretProviderPort)),
+    )
+    container.register_factory(
+        ListSecrets,
+        lambda c: ListSecrets(c.resolve(SecretProviderPort)),
+    )
+    container.register_factory(
+        RotateSecrets,
+        lambda c: RotateSecrets(
+            c.resolve(EncryptionServicePort),
+            c.resolve(SecretProviderPort),
+        ),
+    )
+    container.register_factory(
+        ValidateConfiguration,
+        lambda c: ValidateConfiguration(
+            c.resolve(EncryptionServicePort),
+            c.resolve(SecretProviderPort),
+        ),
+    )
+    container.register_factory(
+        ConfigurationSecurityService,
+        lambda c: ConfigurationSecurityService(
+            c.resolve(EncryptionServicePort),
+            c.resolve(SecretProviderPort),
+        ),
     )
