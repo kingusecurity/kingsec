@@ -35,6 +35,16 @@ from .authorization import Authorization
 from .enums import AssessmentStatus, FindingStatus, Role, Severity
 from .errors import DomainError, IllegalStateTransition, InvariantViolation
 from .mfa import MfaRecoveryCode, MfaSecret, MfaStatus, RecoveryCodeStatus
+from .rate_limit import (
+    AccountLockout,
+    LockoutPolicy,
+    RateLimitBucket,
+    RateLimitDecision,
+    RateLimitExceeded,
+    RateLimitGroup,
+    RateLimitKeyType,
+    RateLimitPolicy,
+)
 from .evidence import Evidence, Recommendation
 from .finding import Finding
 from .identifiers import AssessmentId, FindingId
@@ -106,4 +116,12 @@ __all__ = [
     "UserError",
     "UserNotFoundError",
     "Verdict",
+    "AccountLockout",
+    "LockoutPolicy",
+    "RateLimitBucket",
+    "RateLimitDecision",
+    "RateLimitExceeded",
+    "RateLimitGroup",
+    "RateLimitKeyType",
+    "RateLimitPolicy",
 ]

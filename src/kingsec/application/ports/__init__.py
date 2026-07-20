@@ -5,7 +5,10 @@ from .job_service import JobServicePort
 from .outbound.api_key_hasher import ApiKeyHasher
 from .outbound.api_key_repository import ApiKeyRepository
 from .outbound.audit_event_repository import AuditEventRepository
+from .outbound.clock_port import ClockPort
+from .outbound.lockout_repository import LockoutRepository
 from .outbound.mfa_secret_repository import MfaSecretRepository
+from .outbound.rate_limiter import RateLimiterPort
 from .outbound.recovery_code_repository import RecoveryCodeRepository
 from .outbound.totp_service import TotpServicePort
 from .outbound.audit_publisher import AuditPublisher
@@ -38,8 +41,11 @@ __all__ = [
     "Asset",
     "AssetRepositoryPort",
     "AuditPublisher",
+    "ClockPort",
     "EventPublisher",
+    "LockoutRepository",
     "MfaSecretRepository",
+    "RateLimiterPort",
     "RecoveryCodeRepository",
     "TotpServicePort",
     "JobRepositoryPort",

@@ -28,8 +28,11 @@ from kingsec.application import (
     AuditPublisher,
     CancelAssessment,
     ChangePassword,
+    CheckAccountLockout,
+    CheckRateLimit,
     CreateApiKey,
     CreateAssessment,
+    ClockPort,
     DeleteAssessment,
     DisableMfa,
     EnableMfa,
@@ -41,15 +44,20 @@ from kingsec.application import (
     JobRunner,
     ListApiKeys,
     ListAssessments,
+    LockoutRepository,
     Login,
     MfaSecretRepository,
     PasswordHasher,
+    RateLimiterPort,
     RecordAuditEvent,
+    RecordFailedAuthentication,
+    RecordSuccessfulAuthentication,
     RecoveryCodeRepository,
     RefreshToken,
     RegisterUser,
     ReportGeneratorPort,
     ReportRepository,
+    ResetFailedAttempts,
     RevokeApiKey,
     RotateApiKey,
     RotateRecoveryCodes,
@@ -69,6 +77,7 @@ from kingsec.application import (
 from kingsec.infrastructure.ai import register_ai
 from kingsec.infrastructure.audit.provisioning import register_audit, register_enterprise_audit
 from kingsec.infrastructure.mfa.provisioning import register_mfa
+from kingsec.infrastructure.rate_limit.provisioning import register_rate_limiter
 from kingsec.infrastructure.auth.provisioning import register_api_key_auth, register_auth, register_user_repository
 from kingsec.infrastructure.events.provisioning import register_events
 from kingsec.infrastructure.jobs import register_jobs
@@ -163,6 +172,9 @@ def _register_adapters(
 
     # MFA (TOTP) infrastructure.
     register_mfa(container, session_factory)
+
+    # Rate limiting infrastructure (in-memory, thread-safe).
+    register_rate_limiter(container, settings)
 
     # Capability adapters. AI adds its own http-client.close shutdown hook.
     register_scanner(container, settings)
@@ -388,4 +400,31 @@ def _register_use_cases(container: Container) -> None:
             c.resolve(RecoveryCodeRepository),
             c.resolve(AuditEventRepository),
         ),
+    )
+
+    # Rate limiting use cases.
+    container.register_factory(
+        CheckRateLimit,
+        lambda c: CheckRateLimit(c.resolve(RateLimiterPort)),
+    )
+    container.register_factory(
+        RecordFailedAuthentication,
+        lambda c: RecordFailedAuthentication(
+            c.resolve(LockoutRepository),
+            c.resolve(ClockPort),
+        ),
+    )
+    container.register_factory(
+        RecordSuccessfulAuthentication,
+        lambda c: RecordSuccessfulAuthentication(c.resolve(LockoutRepository)),
+    )
+    container.register_factory(
+        CheckAccountLockout,
+        lambda c: CheckAccountLockout(
+            c.resolve(LockoutRepository), c.resolve(ClockPort)
+        ),
+    )
+    container.register_factory(
+        ResetFailedAttempts,
+        lambda c: ResetFailedAttempts(c.resolve(LockoutRepository)),
     )

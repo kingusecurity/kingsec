@@ -37,6 +37,7 @@ from kingsec.domain.errors import (
     IllegalStateTransition,
     InvariantViolation,
 )
+from kingsec.domain.rate_limit import RateLimitExceeded
 from kingsec.shared.errors import ErrorCode, KingSecError
 
 
@@ -93,6 +94,28 @@ async def handle_invariant_violation(
         422,
         ErrorCode.VALIDATION,
         "The request violates a business rule.",
+    )
+
+
+async def handle_rate_limit_exceeded(
+    _request: Request, exc: RateLimitExceeded
+) -> JSONResponse:
+    d = exc.decision
+    return JSONResponse(
+        status_code=429,
+        content={
+            "error_code": "KS-RATE-001",
+            "message": "rate limit exceeded, try again later",
+            "retry_after": d.reset_seconds,
+        },
+        headers={
+            "X-RateLimit-Limit": str(d.limit),
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": str(d.reset_seconds),
+            "Retry-After": str(d.reset_seconds),
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
     )
 
 
@@ -159,6 +182,9 @@ def register_error_handlers(app: object) -> None:
     app.exception_handler(InputValidationError)(handle_input_validation_error)
     app.exception_handler(AssessmentNotFoundError)(handle_assessment_not_found)
     app.exception_handler(ReportNotFoundError)(handle_report_not_found)
+
+    # Rate limiting.
+    app.exception_handler(RateLimitExceeded)(handle_rate_limit_exceeded)
 
     # Domain errors.
     app.exception_handler(IllegalStateTransition)(handle_illegal_state_transition)

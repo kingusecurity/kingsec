@@ -32,6 +32,10 @@ class AuditAction(str, Enum):
     ASSESSMENT_FAILED = "assessment_failed"
     ASSESSMENT_CANCELLED = "assessment_cancelled"
     ASSESSMENT_DELETED = "assessment_deleted"
+    RATE_LIMIT_EXCEEDED = "rate_limit_exceeded"
+    ACCOUNT_LOCKED = "account_locked"
+    ACCOUNT_UNLOCKED = "account_unlocked"
+    BRUTE_FORCE_DETECTED = "brute_force_detected"
 
 
 class AuditSeverity(str, Enum):

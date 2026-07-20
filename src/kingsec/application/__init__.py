@@ -105,6 +105,23 @@ from .use_cases.rotate_recovery_codes import RotateRecoveryCodes
 from .use_cases.search_audit_events import SearchAuditEvents
 from .use_cases.use_recovery_code import UseRecoveryCode
 from .use_cases.verify_mfa_code import VerifyMfaCode
+from .use_cases.check_rate_limit import CheckRateLimit
+from .use_cases.record_failed_authentication import RecordFailedAuthentication
+from .use_cases.record_successful_authentication import RecordSuccessfulAuthentication
+from .use_cases.check_account_lockout import CheckAccountLockout
+from .use_cases.reset_failed_attempts import ResetFailedAttempts
+from .use_cases.rate_limit_dto import (
+    CheckRateLimitRequest,
+    CheckRateLimitResponse,
+    RecordFailedAuthenticationRequest,
+    RecordFailedAuthenticationResponse,
+    RecordSuccessfulAuthenticationRequest,
+    RecordSuccessfulAuthenticationResponse,
+    CheckAccountLockoutRequest,
+    CheckAccountLockoutResponse,
+    ResetFailedAttemptsRequest,
+    ResetFailedAttemptsResponse,
+)
 from .ports import (
     AIPort,
     ApiKeyHasher,
@@ -114,11 +131,14 @@ from .ports import (
     Asset,
     AssetRepositoryPort,
     AuditPublisher,
+    ClockPort,
     EventPublisher,
     JobRepositoryPort,
     JobRunner,
+    LockoutRepository,
     MfaSecretRepository,
     PasswordHasher,
+    RateLimiterPort,
     RecoveryCodeRepository,
     ReportGenerationResult,
     ReportGeneratorPort,
@@ -171,6 +191,13 @@ __all__ = [
     "EVENT_REPORT_READY",
     "AIPort",
     "AdminChangePasswordRequest",
+    "CheckAccountLockout",
+    "CheckAccountLockoutRequest",
+    "CheckAccountLockoutResponse",
+    "CheckRateLimit",
+    "CheckRateLimitRequest",
+    "CheckRateLimitResponse",
+    "ClockPort",
     "ApiKeyError",
     "ApiKeyHasher",
     "ApiKeyNotFoundError",
@@ -235,6 +262,7 @@ __all__ = [
     "ListApiKeys",
     "ListApiKeysRequest",
     "ListAssessments",
+    "LockoutRepository",
     "MfaSecretRepository",
     "MfaStatusResponse",
     "ListAssessmentsRequest",
@@ -253,9 +281,19 @@ __all__ = [
     "RegisterUserRequest",
     "RegisterUserResponse",
     "RegistrationError",
+    "RateLimiterPort",
+    "RecordFailedAuthentication",
+    "RecordFailedAuthenticationRequest",
+    "RecordFailedAuthenticationResponse",
+    "RecordSuccessfulAuthentication",
+    "RecordSuccessfulAuthenticationRequest",
+    "RecordSuccessfulAuthenticationResponse",
     "RenderedReport",
     "ReportGenerationResult",
     "ReportGeneratorPort",
+    "ResetFailedAttempts",
+    "ResetFailedAttemptsRequest",
+    "ResetFailedAttemptsResponse",
     "ReportNotFoundError",
     "ReportRepository",
     "ReportServicePort",
