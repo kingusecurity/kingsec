@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from kingsec.application.ports.outbound.encryption_service import EncryptionServicePort
 from kingsec.application.ports.outbound.secret_provider import SecretProviderPort
@@ -10,9 +10,6 @@ from kingsec.application.ports.outbound.secret_provider import SecretProviderPor
 from .encrypted_file_secret_provider import EncryptedFileSecretProvider
 from .environment_secret_provider import EnvironmentSecretProvider
 from .fernet_encryption_service import FernetEncryptionService
-
-if TYPE_CHECKING:
-    from kingsec.bootstrap.container import Container
 
 
 def register_secrets(container: Any, secrets_file_path: str = "secrets.json") -> None:

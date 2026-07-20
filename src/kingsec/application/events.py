@@ -46,7 +46,6 @@ class AssessmentEvent:
 # --- Event type constants ---------------------------------------------------
 
 EVENT_ASSESSMENT_CREATED = "assessment.created"
-EVENT_ASSESSMENT_AUTHORIZED = "assessment.authorized"
 EVENT_ASSESSMENT_RUNNING = "assessment.running"
 EVENT_ASSESSMENT_COMPLETED = "assessment.completed"
 EVENT_ASSESSMENT_FAILED = "assessment.failed"

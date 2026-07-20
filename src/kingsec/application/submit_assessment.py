@@ -211,10 +211,10 @@ def _publish_event(events: EventPublisher | None, event: AssessmentEvent) -> Non
     """Publish an event if a publisher is configured (best-effort)."""
     if events is None:
         return
-        try:
-            events.publish(event)
-        except Exception:
-            pass  # Best-effort: event bus failure must not break the primary operation.
+    try:
+        events.publish(event)
+    except Exception:
+        pass  # Best-effort: event bus failure must not break the primary operation.
 
 
 def _severity_counts(assessment: object) -> dict[str, int] | None:

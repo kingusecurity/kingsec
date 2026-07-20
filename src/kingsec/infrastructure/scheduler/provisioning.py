@@ -23,10 +23,12 @@ def register_scheduler(container: Any, session_factory: sessionmaker) -> None:
         from kingsec.application.ports.job_service import JobServicePort
         from kingsec.application.ports.outbound.clock_port import ClockPort
 
-        return InProcessScheduler(
+        scheduler = InProcessScheduler(
             repository=c.resolve(ScheduleRepositoryPort),
             job_service=c.resolve(JobServicePort),
             clock=c.resolve(ClockPort),
         )
+        container.add_shutdown_hook(scheduler.stop)
+        return scheduler
 
     container.register_factory(SchedulerServicePort, _create_scheduler)

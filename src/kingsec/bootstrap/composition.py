@@ -219,6 +219,9 @@ def _register_adapters(
     # Session management infrastructure.
     register_sessions(container, session_factory)
 
+    # Job service: persistence-backed JobServicePort.
+    _register_job_service(container, session_factory)
+
     # Scheduled scan engine infrastructure.
     register_scheduler(container, session_factory)
 
@@ -228,6 +231,24 @@ def _register_adapters(
     register_reporting(container, output_format=report_format, brand_name=brand_name)
     register_jobs(container)
     register_events(container)
+
+
+def _register_job_service(container: Container, session_factory: Any) -> None:
+    """Register ``JobServicePort`` backed by a fresh Unit of Work per resolution.
+
+    Each resolution of ``JobServicePort`` creates a new ``PersistentJobService``
+    with its own ``SQLAlchemyUnitOfWork`` so that session lifecycle (close on
+    ``__exit__``) does not interfere across callers.
+    """
+    from kingsec.application.ports.job_service import JobServicePort
+    from kingsec.application.services.persistent_job_service import PersistentJobService
+    from kingsec.infrastructure.persistence.unit_of_work import SQLAlchemyUnitOfWork
+
+    def _factory(_c: Any) -> JobServicePort:
+        uow = SQLAlchemyUnitOfWork(session_factory())
+        return PersistentJobService(uow)
+
+    container.register_factory(JobServicePort, _factory)
 
 
 def _register_use_cases(container: Container) -> None:
