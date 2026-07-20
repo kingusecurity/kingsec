@@ -28,6 +28,7 @@ from .notification_routes import router as v1_notification_router
 from .dashboard_routes import router as v1_dashboard_router
 from .plugin_routes import router as v1_plugin_router
 from .agent_routes import router as v1_agent_router
+from .queue_routes import router as v1_queue_router
 
 
 def register_versioned_routes(app: FastAPI) -> None:
@@ -48,6 +49,7 @@ def register_versioned_routes(app: FastAPI) -> None:
     app.include_router(v1_dashboard_router)
     app.include_router(v1_plugin_router)
     app.include_router(v1_agent_router)
+    app.include_router(v1_queue_router)
 
     # Future example:
     # from .routes_v2 import router as v2_router

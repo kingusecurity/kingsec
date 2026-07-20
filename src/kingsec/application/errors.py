@@ -90,3 +90,7 @@ class PluginSignatureError(ApplicationError):
 
 class AgentNotFoundError(ApplicationError):
     """No agent exists for the requested identifier."""
+
+
+class QueueEntryNotFoundError(ApplicationError):
+    """No queue entry exists for the requested identifier."""

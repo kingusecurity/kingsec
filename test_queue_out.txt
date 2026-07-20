@@ -1,0 +1,23 @@
+﻿python : ERROR: file or directory not found: tests/unit/domain/test_queue.py
+At line:1 char:29
++ ... r\kingsec"; python -m pytest tests/unit/domain/test_queue.py tests/un ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ERROR: file or ...n/test_queue.py:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+============================= test session starts =============================
+platform win32 -- Python 3.14.4, pytest-9.1.1, pluggy-1.6.0
+rootdir: D:\New_folder\kingsec
+configfile: pyproject.toml
+plugins: anyio-4.14.2, asyncio-1.4.0, cov-7.1.0, timeout-2.4.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 0 items
+
+============================== warnings summary ===============================
+C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\_pytest\cacheprovider.py:469
+  C:\Users\Laptop Zone by JK\AppData\Roaming\Python\Python314\site-packages\_pytest\cacheprovider.py:469: PytestCacheWarning: could not create cache path D:\New_folder\kingsec\.pytest_cache\v\cache\nodeids: [WinError 183] Cannot create a file when that file already exists: 'D:\\New_folder\\kingsec\\.pytest_cache\\v\\cache'
+    config.cache.set("cache/nodeids", sorted(self.cached_nodeids))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================= 1 warning in 0.02s ==============================

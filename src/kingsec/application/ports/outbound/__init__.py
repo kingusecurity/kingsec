@@ -26,6 +26,8 @@ from .plugin_validator import PluginValidatorPort
 from .plugin_marketplace import PluginMarketplacePort
 from .agent_repository import AgentRepositoryPort
 from .agent_dispatcher import AgentDispatcherPort
+from .queue_repository import QueueRepositoryPort
+from .scheduler_policy import SchedulerPolicyPort
 
 __all__ = [
     "AuditPublisher",
@@ -57,4 +59,6 @@ __all__ = [
     "UserRepository",
     "AgentRepositoryPort",
     "AgentDispatcherPort",
+    "QueueRepositoryPort",
+    "SchedulerPolicyPort",
 ]
