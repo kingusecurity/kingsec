@@ -45,10 +45,13 @@ from .enrichment import EnrichedFinding, FindingEnricher
 from .errors import (
     ApplicationError,
     AssessmentNotFoundError,
+    BackupNotFoundError,
     InputValidationError,
     PipelineNotFoundError,
     PipelineStateConflictError,
     ReportNotFoundError,
+    RestoreNotFoundError,
+    SnapshotNotFoundError,
     ScannerConfigError,
     ScannerDuplicateError,
     ScannerPluginError,
@@ -173,7 +176,19 @@ from .use_cases.schedule_dto import (
 )
 from .use_cases.trigger_schedule_now import TriggerScheduleNow
 from .use_cases.update_schedule import UpdateSchedule
+from .backup_service import BackupService
 from .pipeline_service import PipelineService
+from .use_cases.backup import (
+    CleanupExpiredBackups,
+    CreateBackup,
+    CreateSnapshot,
+    DeleteBackup,
+    ListBackups,
+    RestoreBackup,
+    RestoreSnapshot,
+    ValidateBackup,
+    VerifyRestore,
+)
 from .use_cases.pipeline import (
     AdvancePipeline,
     CancelPipeline,

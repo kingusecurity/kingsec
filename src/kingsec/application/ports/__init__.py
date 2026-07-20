@@ -6,6 +6,7 @@ from .analytics_service import AnalyticsServicePort
 from .notification_service import NotificationServicePort
 from .agent_service import AgentServicePort
 from .plugin_service import PluginServicePort
+from .backup_service import BackupServicePort
 from .pipeline_service import PipelineServicePort
 from .outbound.api_key_hasher import ApiKeyHasher
 from .outbound.encryption_service import EncryptionServicePort
@@ -100,5 +101,6 @@ __all__ = [
     "AgentServicePort",
     "DashboardRepositoryPort",
     "MetricsCalculatorPort",
+    "BackupServicePort",
     "PipelineServicePort",
 ]

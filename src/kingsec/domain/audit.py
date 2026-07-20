@@ -101,6 +101,15 @@ class AuditAction(str, Enum):
     PIPELINE_RESUMED = "pipeline_resumed"
     PIPELINE_RETRIED = "pipeline_retried"
 
+    # Backup lifecycle
+    BACKUP_CREATED = "backup_created"
+    BACKUP_COMPLETED = "backup_completed"
+    BACKUP_FAILED = "backup_failed"
+    BACKUP_RESTORED = "backup_restored"
+    BACKUP_DELETED = "backup_deleted"
+    SNAPSHOT_CREATED = "snapshot_created"
+    SNAPSHOT_RESTORED = "snapshot_restored"
+
 
 @dataclass(frozen=True)
 class AuditEntry:

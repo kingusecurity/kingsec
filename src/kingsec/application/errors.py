@@ -102,3 +102,15 @@ class PipelineNotFoundError(ApplicationError):
 
 class PipelineStateConflictError(ApplicationError):
     """The pipeline is in a state that does not allow the requested operation."""
+
+
+class BackupNotFoundError(ApplicationError):
+    """No backup exists for the requested identifier."""
+
+
+class SnapshotNotFoundError(ApplicationError):
+    """No snapshot exists for the requested identifier."""
+
+
+class RestoreNotFoundError(ApplicationError):
+    """No restore operation exists for the requested identifier."""

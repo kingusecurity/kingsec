@@ -36,6 +36,15 @@ from .enums import AssessmentStatus, FindingStatus, Role, Severity
 from .errors import DomainError, IllegalStateTransition, InvariantViolation
 from .secret import SecretId, SecretMetadata, SecretType
 from .mfa import MfaRecoveryCode, MfaSecret, MfaStatus, RecoveryCodeStatus
+from .backup import (
+    BackupId,
+    BackupMetadata,
+    BackupSnapshot,
+    BackupStatus,
+    BackupType,
+    RestoreOperation,
+    RetentionPolicy,
+)
 from .pipeline import (
     PIPELINE_ORDER,
     PipelineExecution,
@@ -168,4 +177,11 @@ __all__ = [
     "PipelineResult",
     "PipelineStage",
     "PipelineState",
+    "BackupId",
+    "BackupMetadata",
+    "BackupSnapshot",
+    "BackupStatus",
+    "BackupType",
+    "RestoreOperation",
+    "RetentionPolicy",
 ]

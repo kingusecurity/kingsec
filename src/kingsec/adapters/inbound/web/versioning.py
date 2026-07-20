@@ -30,6 +30,7 @@ from .plugin_routes import router as v1_plugin_router
 from .agent_routes import router as v1_agent_router
 from .queue_routes import router as v1_queue_router
 from .pipeline_routes import router as v1_pipeline_router
+from .backup_routes import router as v1_backup_router
 
 
 def register_versioned_routes(app: FastAPI) -> None:
@@ -52,6 +53,7 @@ def register_versioned_routes(app: FastAPI) -> None:
     app.include_router(v1_agent_router)
     app.include_router(v1_queue_router)
     app.include_router(v1_pipeline_router)
+    app.include_router(v1_backup_router)
 
     # Future example:
     # from .routes_v2 import router as v2_router

@@ -30,6 +30,10 @@ from .queue_repository import QueueRepositoryPort
 from .scheduler_policy import SchedulerPolicyPort
 from .pipeline_repository import PipelineRepositoryPort
 from .pipeline_orchestrator import PipelineOrchestratorPort
+from .backup_repository import BackupRepositoryPort
+from .backup_storage import BackupStoragePort
+from .backup_encryption import BackupEncryptionPort
+from .backup_compression import BackupCompressionPort
 
 __all__ = [
     "AuditPublisher",
@@ -65,4 +69,8 @@ __all__ = [
     "SchedulerPolicyPort",
     "PipelineRepositoryPort",
     "PipelineOrchestratorPort",
+    "BackupRepositoryPort",
+    "BackupStoragePort",
+    "BackupEncryptionPort",
+    "BackupCompressionPort",
 ]
