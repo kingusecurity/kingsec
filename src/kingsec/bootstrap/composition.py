@@ -31,33 +31,44 @@ from kingsec.application import (
     CreateApiKey,
     CreateAssessment,
     DeleteAssessment,
+    DisableMfa,
+    EnableMfa,
     EventPublisher,
+    GenerateRecoveryCodes,
     GenerateReport,
     GetAssessment,
+    GetMfaStatus,
     JobRunner,
     ListApiKeys,
     ListAssessments,
     Login,
+    MfaSecretRepository,
     PasswordHasher,
     RecordAuditEvent,
+    RecoveryCodeRepository,
     RefreshToken,
     RegisterUser,
     ReportGeneratorPort,
     ReportRepository,
     RevokeApiKey,
     RotateApiKey,
+    RotateRecoveryCodes,
     ScannerPort,
     SearchAuditEvents,
     ServiceAPI,
     StartAssessment,
     SubmitAssessment,
     TokenService,
+    TotpServicePort,
     UseCaseServiceAPI,
+    UseRecoveryCode,
     UserRepository,
     ValidateApiKey,
+    VerifyMfaCode,
 )
 from kingsec.infrastructure.ai import register_ai
 from kingsec.infrastructure.audit.provisioning import register_audit, register_enterprise_audit
+from kingsec.infrastructure.mfa.provisioning import register_mfa
 from kingsec.infrastructure.auth.provisioning import register_api_key_auth, register_auth, register_user_repository
 from kingsec.infrastructure.events.provisioning import register_events
 from kingsec.infrastructure.jobs import register_jobs
@@ -149,6 +160,9 @@ def _register_adapters(
     # Audit trail: append-only persistence for security events.
     register_audit(container, session_factory)
     register_enterprise_audit(container, session_factory)
+
+    # MFA (TOTP) infrastructure.
+    register_mfa(container, session_factory)
 
     # Capability adapters. AI adds its own http-client.close shutdown hook.
     register_scanner(container, settings)
@@ -317,4 +331,61 @@ def _register_use_cases(container: Container) -> None:
     container.register_factory(
         SearchAuditEvents,
         lambda c: SearchAuditEvents(c.resolve(AuditEventRepository)),
+    )
+
+    # MFA use cases.
+    container.register_factory(
+        GetMfaStatus,
+        lambda c: GetMfaStatus(c.resolve(MfaSecretRepository)),
+    )
+    container.register_factory(
+        EnableMfa,
+        lambda c: EnableMfa(
+            c.resolve(MfaSecretRepository),
+            c.resolve(TotpServicePort),
+            c.resolve(AuditEventRepository),
+        ),
+    )
+    container.register_factory(
+        DisableMfa,
+        lambda c: DisableMfa(
+            c.resolve(MfaSecretRepository),
+            c.resolve(RecoveryCodeRepository),
+            c.resolve(AuditEventRepository),
+        ),
+    )
+    container.register_factory(
+        VerifyMfaCode,
+        lambda c: VerifyMfaCode(
+            c.resolve(UserRepository),
+            c.resolve(PasswordHasher),
+            c.resolve(TokenService),
+            c.resolve(MfaSecretRepository),
+            c.resolve(TotpServicePort),
+            c.resolve(AuditPublisher),
+            c.resolve(AuditEventRepository),
+        ),
+    )
+    container.register_factory(
+        GenerateRecoveryCodes,
+        lambda c: GenerateRecoveryCodes(c.resolve(RecoveryCodeRepository)),
+    )
+    container.register_factory(
+        UseRecoveryCode,
+        lambda c: UseRecoveryCode(
+            c.resolve(UserRepository),
+            c.resolve(PasswordHasher),
+            c.resolve(TokenService),
+            c.resolve(MfaSecretRepository),
+            c.resolve(RecoveryCodeRepository),
+            c.resolve(AuditPublisher),
+            c.resolve(AuditEventRepository),
+        ),
+    )
+    container.register_factory(
+        RotateRecoveryCodes,
+        lambda c: RotateRecoveryCodes(
+            c.resolve(RecoveryCodeRepository),
+            c.resolve(AuditEventRepository),
+        ),
     )

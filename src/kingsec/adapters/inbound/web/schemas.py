@@ -430,3 +430,34 @@ class CurrentApiKeyResponse(BaseModel):
     status: str
     last_used_at: str | None = None
     created_at: str
+
+
+# ── MFA schemas ──────────────────────────────────────────────────────────────
+
+
+class MfaStatusResponse(BaseModel):
+    """GET /api/v1/mfa/status response body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool
+
+
+class MfaVerifyBody(BaseModel):
+    """POST /api/v1/mfa/verify request body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    username: str = Field(..., min_length=3, max_length=64)
+    password: str = Field(..., min_length=1, max_length=128)
+    totp_code: str = Field(..., min_length=6, max_length=6, description="6-digit TOTP code")
+
+
+class MfaRecoveryBody(BaseModel):
+    """POST /api/v1/mfa/recovery request body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    username: str = Field(..., min_length=3, max_length=64)
+    password: str = Field(..., min_length=1, max_length=128)
+    recovery_code: str = Field(..., min_length=1, description="Recovery code")

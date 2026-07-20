@@ -34,6 +34,7 @@ from .audit import AuditAction, AuditEntry
 from .authorization import Authorization
 from .enums import AssessmentStatus, FindingStatus, Role, Severity
 from .errors import DomainError, IllegalStateTransition, InvariantViolation
+from .mfa import MfaRecoveryCode, MfaSecret, MfaStatus, RecoveryCodeStatus
 from .evidence import Evidence, Recommendation
 from .finding import Finding
 from .identifiers import AssessmentId, FindingId
@@ -81,7 +82,11 @@ __all__ = [
     "IllegalStateTransition",
     "InvalidCredentialsError",
     "InvariantViolation",
+    "MfaRecoveryCode",
+    "MfaSecret",
+    "MfaStatus",
     "OutputFormat",
+    "RecoveryCodeStatus",
     "PasswordValidationError",
     "PluginAvailability",
     "PluginConfig",

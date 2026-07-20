@@ -231,6 +231,38 @@ class AuditEventORM(Base):
     metadata_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
 
 
+class MfaSecretORM(Base):
+    """Per-user MFA TOTP secret.
+
+    Only the Base32-encoded secret key is stored. Never expose outside the
+    infrastructure layer unless returning it at enable-time (one-time view).
+    """
+
+    __tablename__ = "mfa_secrets"
+
+    user_id: Mapped[str] = mapped_column(String, primary_key=True)
+    secret_key: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="disabled")
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class MfaRecoveryCodeORM(Base):
+    """A single hashed recovery code for MFA fallback.
+
+    Only the SHA-256 hash is stored. Plaintext codes are shown once at
+    creation time and are never persisted.
+    """
+
+    __tablename__ = "mfa_recovery_codes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    code_hash: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="active")
+
+
 # ===========================================================================
 #  Scan-job / Asset models  (Phase 7.2)
 # ===========================================================================
