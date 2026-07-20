@@ -3,9 +3,50 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
+from pathlib import Path
 
 from kingsec.application.ports.outbound import PluginInstallerPort
 from kingsec.domain.plugin_package import PluginManifest
+
+
+class PathTraversalError(ValueError):
+    """Raised when an archive entry attempts path traversal."""
+
+
+def _sanitise_archive_path(dest: str, entry_path: str) -> str:
+    """Resolve *entry_path* inside *dest* and reject any traversal attempt.
+
+    Returns the resolved absolute path on success.
+
+    Raises:
+        PathTraversalError: If the entry path would escape *dest* (e.g.
+            ``../``, absolute paths, Windows drive letters, symlink escapes).
+    """
+    dest_resolved = Path(dest).resolve()
+    entry_resolved = (dest_resolved / entry_path).resolve()
+
+    # Reject absolute entry paths (e.g. /etc/passwd)
+    if os.path.isabs(entry_path):
+        raise PathTraversalError(
+            f"Archive entry {entry_path!r} is an absolute path"
+        )
+
+    # Reject Windows drive paths
+    entry_path_upper = entry_path.upper()
+    if ":" in entry_path_upper and any(
+        entry_path_upper.startswith(d) for d in [chr(c) + ":" for c in range(ord("A"), ord("Z") + 1)]
+    ):
+        raise PathTraversalError(
+            f"Archive entry {entry_path!r} contains a Windows drive path"
+        )
+
+    # Reject entries that escape the destination directory
+    if not str(entry_resolved).startswith(str(dest_resolved)):
+        raise PathTraversalError(
+            f"Archive entry {entry_path!r} would escape destination {dest!r}"
+        )
+
+    return str(entry_resolved)
 
 
 class PluginInstaller(PluginInstallerPort):
@@ -30,7 +71,14 @@ class PluginInstaller(PluginInstallerPort):
             os.rename(target, backup)
         os.makedirs(target, exist_ok=True)
         with zipfile.ZipFile(package_path, "r") as zf:
-            zf.extractall(target)
+            for entry in zf.infolist():
+                safe_path = _sanitise_archive_path(target, entry.filename)
+                if entry.is_dir():
+                    os.makedirs(safe_path, exist_ok=True)
+                else:
+                    os.makedirs(os.path.dirname(safe_path), exist_ok=True)
+                    with zf.open(entry) as src, open(safe_path, "wb") as dst:
+                        shutil.copyfileobj(src, dst)
         return target
 
     def uninstall(self, plugin_id: str) -> None:

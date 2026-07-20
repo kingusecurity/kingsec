@@ -42,6 +42,7 @@ from .models import (
     ScannerSettings,
     SecurityHeadersSettings,
     SecuritySettings,
+    SecretsSettings,
     SemgrepSettings,
     ServerSettings,
     StorageSettings,
@@ -95,4 +96,5 @@ class Settings(BaseSettings):
     security_headers: SecurityHeadersSettings = Field(default_factory=SecurityHeadersSettings)
     cors: CORSSettings = Field(default_factory=CORSSettings)
     rate_limit: RateLimitSettings = Field(default_factory=RateLimitSettings)
+    secrets: SecretsSettings = Field(default_factory=SecretsSettings)
     middleware: MiddlewareSettings = Field(default_factory=MiddlewareSettings)

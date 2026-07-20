@@ -26,12 +26,15 @@ from kingsec.bootstrap.application import Application
 from kingsec.bootstrap.container import Container
 from kingsec.domain import Role
 from kingsec.infrastructure.config import Settings, load_settings
+from cryptography.fernet import Fernet
+
 from kingsec.infrastructure.secrets.fernet_encryption_service import (
     FernetEncryptionService,
 )
 
 from .test_session_api import FakeTokenService, TokenClaims
 
+_TEST_FERNET_KEY = Fernet.generate_key()
 
 class InMemorySecretProvider(SecretProviderPort):
     def __init__(self) -> None:
@@ -74,7 +77,7 @@ async def override_get_current_user() -> CurrentUser:
 def app() -> FastAPI:
     container = Container()
 
-    encryption_service = FernetEncryptionService()
+    encryption_service = FernetEncryptionService(key=_TEST_FERNET_KEY)
     secret_provider = InMemorySecretProvider()
 
     container.register_instance(EncryptionServicePort, encryption_service)

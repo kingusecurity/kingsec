@@ -13,6 +13,7 @@ import logging
 from urllib.request import Request, urlopen
 
 from kingsec.infrastructure.logging import get_logger
+from kingsec.infrastructure.notifications.url_validator import SSRFError, validate_url
 
 from kingsec.application.ports.outbound import NotificationSenderPort
 from kingsec.domain.notification import Notification, NotificationChannel
@@ -44,6 +45,7 @@ class WebhookSender(NotificationSenderPort):
         if not url:
             return "Webhook endpoint not configured"
         try:
+            validate_url(url)
             payload = json.dumps({
                 "event": notification.event_type,
                 "title": notification.title,
@@ -55,6 +57,9 @@ class WebhookSender(NotificationSenderPort):
             with urlopen(req, timeout=10):
                 pass
             return None
+        except SSRFError:
+            logger.warning("SSRF block: %s", url)
+            return "URL blocked by SSRF protection"
         except Exception as exc:
             logger.warning("Webhook delivery failed: %s", exc)
             return str(exc)
@@ -72,6 +77,7 @@ class SlackSender(NotificationSenderPort):
         if not url:
             return "Slack webhook not configured"
         try:
+            validate_url(url)
             payload = json.dumps({
                 "text": f"*{notification.title}*\n{notification.message}",
             }).encode()
@@ -80,6 +86,9 @@ class SlackSender(NotificationSenderPort):
             with urlopen(req, timeout=10):
                 pass
             return None
+        except SSRFError:
+            logger.warning("SSRF block: %s", url)
+            return "URL blocked by SSRF protection"
         except Exception as exc:
             logger.warning("Slack delivery failed: %s", exc)
             return str(exc)
@@ -97,6 +106,7 @@ class DiscordSender(NotificationSenderPort):
         if not url:
             return "Discord webhook not configured"
         try:
+            validate_url(url)
             payload = json.dumps({
                 "content": f"**{notification.title}**\n{notification.message}",
             }).encode()
@@ -105,6 +115,9 @@ class DiscordSender(NotificationSenderPort):
             with urlopen(req, timeout=10):
                 pass
             return None
+        except SSRFError:
+            logger.warning("SSRF block: %s", url)
+            return "URL blocked by SSRF protection"
         except Exception as exc:
             logger.warning("Discord delivery failed: %s", exc)
             return str(exc)
@@ -122,6 +135,7 @@ class TeamsSender(NotificationSenderPort):
         if not url:
             return "Teams webhook not configured"
         try:
+            validate_url(url)
             payload = json.dumps({
                 "@type": "MessageCard",
                 "@context": "http://schema.org/extensions",
@@ -134,6 +148,9 @@ class TeamsSender(NotificationSenderPort):
             with urlopen(req, timeout=10):
                 pass
             return None
+        except SSRFError:
+            logger.warning("SSRF block: %s", url)
+            return "URL blocked by SSRF protection"
         except Exception as exc:
             logger.warning("Teams delivery failed: %s", exc)
             return str(exc)

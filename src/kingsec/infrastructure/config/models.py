@@ -504,6 +504,22 @@ class RateLimitSettings(BaseModel):
     burst_size: int = Field(default=30, ge=1)
 
 
+class SecretsSettings(BaseModel):
+    """Sensitive cryptographic secrets loaded from configuration.
+
+    All values are ``SecretStr`` so they are masked in logs and ``repr()``.
+    Production deployments MUST override these defaults.
+    """
+
+    model_config = _FROZEN
+
+    # HMAC pepper for API key hashing. MUST be overridden in production.
+    api_key_pepper: SecretStr = SecretStr("CHANGE-ME-IN-PRODUCTION-DO-NOT-USE-DEFAULT")
+    # Fernet symmetric encryption key (base64-urlsafe-encoded, 32 bytes).
+    # REQUIRED for secret persistence. Startup fails if absent.
+    encryption_key: SecretStr | None = None
+
+
 class MiddlewareSettings(BaseModel):
     """Middleware configuration."""
 

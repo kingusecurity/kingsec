@@ -11,11 +11,10 @@ from kingsec.application.ports.outbound.encryption_service import EncryptionServ
 
 
 class FernetEncryptionService(EncryptionServicePort):
-    def __init__(self, key: bytes | None = None) -> None:
-        if key is not None:
-            self._keys: list[bytes] = [key]
-        else:
-            self._keys: list[bytes] = [Fernet.generate_key()]
+    def __init__(self, key: bytes) -> None:
+        if not key:
+            raise ValueError("Fernet encryption key must not be empty")
+        self._keys: list[bytes] = [key]
         self._fernet = MultiFernet([Fernet(k) for k in self._keys])
 
     def encrypt(self, plaintext: str) -> bytes:

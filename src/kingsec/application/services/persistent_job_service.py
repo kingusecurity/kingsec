@@ -84,6 +84,33 @@ class PersistentJobService(JobServicePort):
             self._uow.commit()
         return updated
 
+    def transition_job(self, job_id: str, target_status: str) -> ScanJob:
+        target = JobStatus(target_status)
+        with self._uow:
+            job = self._uow.job_repository.get(job_id)
+            validate_transition(job.status, target)
+            now = datetime.now(UTC)
+            updated = ScanJob(
+                id=job.id,
+                target=job.target,
+                config=job.config,
+                status=target,
+                created_at=job.created_at,
+                updated_at=now,
+            )
+            self._uow.job_repository.save(updated)
+            self._uow.commit()
+        return updated
+
+    def find_oldest_pending(self) -> ScanJob | None:
+        with self._uow:
+            jobs = self._uow.job_repository.list()
+            self._uow.commit()
+        pending = [j for j in jobs if j.status == JobStatus.PENDING]
+        if not pending:
+            return None
+        return min(pending, key=lambda j: j.created_at)
+
     def get_job_result(self, job_id: str) -> ScanJobResult:
         with self._uow:
             job = self._uow.job_repository.get(job_id)

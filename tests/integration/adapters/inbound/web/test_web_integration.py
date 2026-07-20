@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from datetime import datetime, timezone
 
 import pytest
+from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 
 from kingsec.adapters.inbound.web.app import create_fastapi_app
@@ -19,6 +20,9 @@ from kingsec.domain import Finding, Severity, Target
 from kingsec.application.ports import ScannerPort
 from kingsec.infrastructure.persistence import create_database_engine, create_schema
 from kingsec.domain import Role
+
+
+_TEST_FERNET_KEY = Fernet.generate_key().decode()
 
 
 def _make_fake_user() -> CurrentUser:
@@ -49,6 +53,7 @@ class _StubScanner(ScannerPort):
 @pytest.fixture
 def wired_app(tmp_path, monkeypatch) -> Application:
     monkeypatch.setenv("KINGSEC_STORAGE__DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("KINGSEC_SECRETS__ENCRYPTION_KEY", _TEST_FERNET_KEY)
     app = create_wired_application(
         log_stream=io.StringIO(), ensure_directories=False, validate_migrations=False
     )

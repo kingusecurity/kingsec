@@ -98,6 +98,15 @@ class FakeJobService(JobServicePort):
     def cancel_job(self, job_id: str) -> ScanJob:
         raise NotImplementedError
 
+    def transition_job(self, job_id: str, target_status: str) -> ScanJob:
+        raise NotImplementedError
+
+    def find_oldest_pending(self) -> ScanJob | None:
+        pending = [j for j in self.jobs if j.status == JobStatus.PENDING]
+        if not pending:
+            return None
+        return min(pending, key=lambda j: j.created_at)
+
     def get_job_result(self, job_id: str) -> object:
         raise NotImplementedError
 

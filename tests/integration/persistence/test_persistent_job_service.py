@@ -171,6 +171,55 @@ class TestUpdateStatus:
         assert fetched.status == JobStatus.CANCELLED
 
 
+class TestTransitionJob:
+    def test_transition_to_running(self, service: PersistentJobService) -> None:
+        job = service.submit_scan("transition.com")
+        updated = service.transition_job(str(job.id), "RUNNING")
+        assert updated.status == JobStatus.RUNNING
+        assert updated.id == job.id
+
+    def test_transition_to_completed(self, service: PersistentJobService) -> None:
+        job = service.submit_scan("transition.com")
+        service.transition_job(str(job.id), "RUNNING")
+        updated = service.transition_job(str(job.id), "COMPLETED")
+        assert updated.status == JobStatus.COMPLETED
+
+    def test_transition_to_failed(self, service: PersistentJobService) -> None:
+        job = service.submit_scan("transition.com")
+        service.transition_job(str(job.id), "RUNNING")
+        updated = service.transition_job(str(job.id), "FAILED")
+        assert updated.status == JobStatus.FAILED
+
+    def test_transition_invalid_raises(self, service: PersistentJobService) -> None:
+        job = service.submit_scan("transition.com")
+        with pytest.raises(IllegalJobTransitionError):
+            service.transition_job(str(job.id), "COMPLETED")  # PENDING -> COMPLETED is invalid
+
+    def test_transition_nonexistent_raises(self, service: PersistentJobService) -> None:
+        with pytest.raises(JobNotFoundError):
+            service.transition_job("no-such-job", "RUNNING")
+
+
+class TestFindOldestPending:
+    def test_returns_none_when_empty(self, service: PersistentJobService) -> None:
+        assert service.find_oldest_pending() is None
+
+    def test_returns_oldest_pending(self, service: PersistentJobService) -> None:
+        job1 = service.submit_scan("first.com")
+        job2 = service.submit_scan("second.com")
+        oldest = service.find_oldest_pending()
+        assert oldest is not None
+        assert oldest.id == job1.id
+
+    def test_ignores_non_pending_jobs(self, service: PersistentJobService) -> None:
+        job = service.submit_scan("pending.com")
+        service.submit_scan("other.com")
+        service.transition_job(str(job.id), "RUNNING")
+        oldest = service.find_oldest_pending()
+        assert oldest is not None
+        assert oldest.id != job.id
+
+
 # ===========================================================================
 # Cancel — error cases
 # ===========================================================================

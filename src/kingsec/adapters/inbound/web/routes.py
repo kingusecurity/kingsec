@@ -26,8 +26,11 @@ from fastapi import APIRouter, Depends, Request, status
 
 from kingsec.application.ports.inbound.service_api import ServiceAPI
 from kingsec.bootstrap.application import Application
+from kingsec.infrastructure.logging import get_logger
 
 from . import schemas
+
+logger = get_logger("kingsec.adapters.inbound.web.routes")
 from .auth import CurrentApiKey, CurrentUser, get_current_api_key, require_analyst, require_permission, require_viewer
 from kingsec.application.auth import Permission
 from .dependencies import get_service
@@ -138,7 +141,7 @@ def _create_session_for_login(request: Request, result: object) -> None:
             )
         )
     except Exception:
-        pass
+        logger.warning("Failed to create session for login", exc_info=True)
 
 
 def _record_failed_login_audit(request: Request, username: str) -> None:
@@ -166,7 +169,7 @@ def _record_failed_login_audit(request: Request, username: str) -> None:
             )
         )
     except Exception:
-        pass
+        logger.warning("Failed to record failed login audit", exc_info=True)
 
 
 @router.post(

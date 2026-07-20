@@ -201,7 +201,7 @@ def _register_adapters(
     # Auth: password hasher + JWT token service + user repository.
     register_auth(container, settings)
     register_user_repository(container, session_factory)
-    register_api_key_auth(container, session_factory)
+    register_api_key_auth(container, session_factory, settings)
 
     # Audit trail: append-only persistence for security events.
     register_audit(container, session_factory)
@@ -214,7 +214,7 @@ def _register_adapters(
     register_rate_limiter(container, settings)
 
     # Secrets management infrastructure.
-    register_secrets(container, str(settings.storage.data_dir / "secrets.json"))
+    register_secrets(container, settings, str(settings.storage.data_dir / "secrets.json"))
 
     # Session management infrastructure.
     register_sessions(container, session_factory)

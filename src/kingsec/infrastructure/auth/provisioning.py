@@ -40,17 +40,19 @@ def register_user_repository(container: object, session_factory: callable) -> No
     container.register_instance(UserRepository, repo)
 
 
-def register_api_key_auth(container: object, session_factory: callable) -> None:
+def register_api_key_auth(container: object, session_factory: callable, settings: Settings | None = None) -> None:
     """Register API key hasher and repository on the container.
 
     Args:
         container: The DI container.
         session_factory: SQLAlchemy session factory.
+        settings: Application settings (contains secrets.* config).
     """
     from .api_key_hasher import HmacApiKeyHasher
     from ..persistence.api_key_repository import SqlAlchemyApiKeyRepository
 
-    hasher = HmacApiKeyHasher()
+    pepper = settings.secrets.api_key_pepper.get_secret_value() if settings else "CHANGE-ME-IN-PRODUCTION-DO-NOT-USE-DEFAULT"
+    hasher = HmacApiKeyHasher(pepper)
     container.register_instance(ApiKeyHasher, hasher)
 
     repo = SqlAlchemyApiKeyRepository(session_factory)
