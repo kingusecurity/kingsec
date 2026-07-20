@@ -3,7 +3,7 @@
 KingSec is a security product; we hold ourselves to the standard we ask of others.
 
 ## Reporting a vulnerability
-Please report suspected vulnerabilities privately to **security@kingsec.example** *(placeholder - replace with the real intake address before release)*.
+Please report suspected vulnerabilities privately by opening a vulnerability report at **https://github.com/huzaifa/kingsec/security/advisories/new** or emailing **security@kingsec.example**.
 
 - Do **not** open a public issue for security reports.
 - Include steps to reproduce, affected version/commit, and impact.

@@ -1,0 +1,46 @@
+# =============================================================================
+# KingSec — Docker Compose (Production)
+# =============================================================================
+# Usage:
+#   cp .env.example .env        # configure your environment
+#   docker compose up -d        # start
+#   docker compose logs -f      # follow logs
+#   docker compose down         # stop
+# =============================================================================
+
+services:
+  kingsec:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kingsec:1.0.0
+    container_name: kingsec
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    env_file:
+      - .env
+    environment:
+      # Override for container: bind to 0.0.0.0 inside the container
+      - KINGSEC_SERVER__HOST=0.0.0.0
+      - KINGSEC_SERVER__PORT=8765
+      - KINGSEC_APP__ENVIRONMENT=production
+      - KINGSEC_LOGGING__JSON_FORMAT=true
+    volumes:
+      - kingsec-data:/home/kingsec/.kingsec
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+volumes:
+  kingsec-data:
+    name: kingsec-data

@@ -23,6 +23,53 @@ make check
 ```
 Run `make help` to list all developer tasks.
 
+## Production deployment
+
+### Docker (recommended)
+```bash
+# 1. Build the image
+docker build -t kingsec:1.0.0 .
+
+# 2. Create a .env file from the template
+cp .env.example .env
+# Edit .env with your production values (especially KINGSEC_JWT__SECRET_KEY)
+
+# 3. Run the container
+docker run -d \
+  --name kingsec \
+  --env-file .env \
+  -p 8765:8765 \
+  -v kingsec-data:/home/kingsec/.kingsec \
+  kingsec:1.0.0
+```
+
+### Docker Compose
+```bash
+# 1. Create a .env file from the template
+cp .env.example .env
+
+# 2. Start the service
+docker compose up -d
+
+# 3. View logs
+docker compose logs -f
+```
+
+### Direct installation
+```bash
+# 1. Install via pip (once published)
+pip install kingsec
+
+# 2. Set required environment variables
+export KINGSEC_JWT__SECRET_KEY="your-production-secret"
+
+# 3. Run database migrations
+alembic upgrade head
+
+# 4. Start the server
+uvicorn kingsec.interfaces.api.app:create_app --host 127.0.0.1 --port 8765
+```
+
 ## Database Migrations (Alembic)
 
 KingSec uses Alembic for versioned database migrations. The migration chain is the source of truth for schema changes — never use `create_all()` in production.

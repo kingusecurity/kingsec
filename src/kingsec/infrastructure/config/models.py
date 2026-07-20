@@ -56,7 +56,7 @@ class AppSettings(BaseModel):
     model_config = _FROZEN
 
     name: str = "KingSec"
-    version: str = "0.7.0"
+    version: str = "1.0.0"
     environment: Environment = Environment.DEVELOPMENT
     # ``debug`` toggles verbose behaviour. It is intentionally False by default
     # and forbidden in production (see validator) so a leftover debug flag can
