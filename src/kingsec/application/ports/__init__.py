@@ -7,6 +7,7 @@ from .outbound.encryption_service import EncryptionServicePort
 from .outbound.schedule_repository import ScheduleRepositoryPort
 from .outbound.scheduler_service import SchedulerServicePort
 from .outbound.secret_provider import SecretProviderPort
+from .outbound.worker_service import WorkerServicePort
 from .outbound.api_key_repository import ApiKeyRepository
 from .outbound.audit_event_repository import AuditEventRepository
 from .outbound.clock_port import ClockPort
@@ -79,4 +80,5 @@ __all__ = [
     "ScheduleRepositoryPort",
     "SchedulerServicePort",
     "SecretProviderPort",
+    "WorkerServicePort",
 ]

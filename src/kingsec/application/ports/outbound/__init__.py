@@ -14,6 +14,7 @@ from .schedule_repository import ScheduleRepositoryPort
 from .scheduler_service import SchedulerServicePort
 from .secret_provider import SecretProviderPort
 from .user_repository import UserRepository
+from .worker_service import WorkerServicePort
 
 __all__ = [
     "AuditPublisher",
@@ -21,6 +22,7 @@ __all__ = [
     "ScheduleRepositoryPort",
     "SchedulerServicePort",
     "SecretProviderPort",
+    "WorkerServicePort",
     "ClockPort",
     "EventPublisher",
     "JobRunner",

@@ -83,3 +83,25 @@ class JobServicePort(ABC):
             IllegalJobTransitionError: If the job has not completed yet.
         """
         ...
+
+    @abstractmethod
+    def transition_job(self, job_id: str, target_status: str) -> ScanJob:
+        """Transition a job to the given status.
+
+        Args:
+            job_id: The job UUID string.
+            target_status: The target status (e.g. "RUNNING", "COMPLETED", "FAILED").
+
+        Returns:
+            The updated ``ScanJob``.
+
+        Raises:
+            JobNotFoundError: If no job exists for *job_id*.
+            IllegalJobTransitionError: If the transition is not allowed.
+        """
+        ...
+
+    @abstractmethod
+    def find_oldest_pending(self) -> ScanJob | None:
+        """Return the oldest PENDING job, or None if none exist."""
+        ...

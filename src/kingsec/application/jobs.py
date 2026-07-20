@@ -153,16 +153,11 @@ class InMemoryJobService(JobServicePort):
         return result
 
     # ------------------------------------------------------------------
-    # Helpers for testing / development
+    # Port interface (extensions for worker)
     # ------------------------------------------------------------------
 
-    def transition_job(self, job_id: str, target: JobStatus) -> ScanJob:
-        """Transition a job to *target* (raises if illegal).
-
-        This is intentionally NOT part of the port — it exists to support
-        testing and manual state machine exploration without a background
-        worker.
-        """
+    def transition_job(self, job_id: str, target_status: str) -> ScanJob:
+        target = JobStatus(target_status)
         with self._lock:
             job = self._jobs.get(job_id)
             if job is None:
@@ -179,6 +174,17 @@ class InMemoryJobService(JobServicePort):
             )
             self._jobs[job_id] = job
         return job
+
+    def find_oldest_pending(self) -> ScanJob | None:
+        pending: list[ScanJob] = []
+        with self._lock:
+            for job in self._jobs.values():
+                if job.status == JobStatus.PENDING:
+                    pending.append(job)
+        if not pending:
+            return None
+        pending.sort(key=lambda j: j.created_at)
+        return pending[0]
 
     def store_result(self, job_id: str, result: ScanJobResult) -> None:
         """Associate a result with a job.

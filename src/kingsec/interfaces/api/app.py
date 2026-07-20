@@ -16,6 +16,7 @@ if TYPE_CHECKING:
         ReportServicePort,
         ScannerPluginRegistry,
         ScannerPort,
+        WorkerServicePort,
     )
 
 
@@ -24,6 +25,7 @@ def create_app(
     scanner: ScannerPort | None = None,
     report_service: ReportServicePort | None = None,
     job_service: JobServicePort | None = None,
+    worker_service: WorkerServicePort | None = None,
     *,
     get_current_user: Callable | None = None,
     app_instance: Any | None = None,
@@ -80,6 +82,10 @@ def create_app(
     if job_service is not None:
         from kingsec.interfaces.api.routes.jobs import create_jobs_router
         app.include_router(create_jobs_router(job_service, get_current_user=get_current_user))
+
+    if worker_service is not None:
+        from kingsec.interfaces.api.routes.worker import create_worker_router
+        app.include_router(create_worker_router(worker_service, get_current_user=get_current_user))
 
     from kingsec.interfaces.api.errors import register_error_handlers
     register_error_handlers(app)
