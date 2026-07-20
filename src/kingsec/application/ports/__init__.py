@@ -4,6 +4,8 @@ from .inbound import ServiceAPI
 from .job_service import JobServicePort
 from .outbound.api_key_hasher import ApiKeyHasher
 from .outbound.encryption_service import EncryptionServicePort
+from .outbound.schedule_repository import ScheduleRepositoryPort
+from .outbound.scheduler_service import SchedulerServicePort
 from .outbound.secret_provider import SecretProviderPort
 from .outbound.api_key_repository import ApiKeyRepository
 from .outbound.audit_event_repository import AuditEventRepository
@@ -74,5 +76,7 @@ __all__ = [
     "UnitOfWorkFactory",
     "UserRepository",
     "EncryptionServicePort",
+    "ScheduleRepositoryPort",
+    "SchedulerServicePort",
     "SecretProviderPort",
 ]

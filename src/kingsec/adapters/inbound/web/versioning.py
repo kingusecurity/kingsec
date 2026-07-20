@@ -20,6 +20,7 @@ from .audit import router as v1_audit_router
 from .audit_events import router as v1_audit_events_router
 from .mfa_routes import router as v1_mfa_router
 from .routes import router as v1_router
+from .schedule_routes import router as v1_schedule_router
 from .secret_routes import router as v1_secret_router
 from .session_routes import router as v1_sessions_router
 from .sse import router as v1_sse_router
@@ -36,6 +37,7 @@ def register_versioned_routes(app: FastAPI) -> None:
     app.include_router(v1_audit_router)
     app.include_router(v1_audit_events_router)
     app.include_router(v1_mfa_router)
+    app.include_router(v1_schedule_router)
     app.include_router(v1_secret_router)
     app.include_router(v1_sessions_router)
 

@@ -57,6 +57,16 @@ class AuditAction(str, Enum):
     # Authorization failures
     AUTHORIZATION_FAILURE = "authorization_failure"
 
+    # Schedule lifecycle
+    SCHEDULE_CREATED = "schedule_created"
+    SCHEDULE_UPDATED = "schedule_updated"
+    SCHEDULE_DELETED = "schedule_deleted"
+    SCHEDULE_TRIGGERED = "schedule_triggered"
+    SCHEDULE_PAUSED = "schedule_paused"
+    SCHEDULE_RESUMED = "schedule_resumed"
+    SCHEDULE_ENABLED = "schedule_enabled"
+    SCHEDULE_DISABLED = "schedule_disabled"
+
 
 @dataclass(frozen=True)
 class AuditEntry:

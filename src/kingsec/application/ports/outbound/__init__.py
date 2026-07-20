@@ -10,12 +10,16 @@ from .rate_limiter import RateLimiterPort
 from .session_repository import SessionRepository
 from .token_service import TokenClaims, TokenExpiredError, TokenInvalidError, TokenService
 from .encryption_service import EncryptionServicePort
+from .schedule_repository import ScheduleRepositoryPort
+from .scheduler_service import SchedulerServicePort
 from .secret_provider import SecretProviderPort
 from .user_repository import UserRepository
 
 __all__ = [
     "AuditPublisher",
     "EncryptionServicePort",
+    "ScheduleRepositoryPort",
+    "SchedulerServicePort",
     "SecretProviderPort",
     "ClockPort",
     "EventPublisher",

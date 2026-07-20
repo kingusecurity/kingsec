@@ -388,3 +388,31 @@ class AssetModel(Base):
         foreign_keys=[FindingModel.asset_id],
         lazy="selectin",
     )
+
+
+class ScheduleORM(Base):
+    """Row representation of a scheduled scan."""
+
+    __tablename__ = "schedules"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(String, default="")
+    owner_user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    target: Mapped[str] = mapped_column(String, nullable=False)
+    scanner_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    config: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
+    schedule_type: Mapped[str] = mapped_column(String, nullable=False)
+    cron_expression: Mapped[str] = mapped_column(String, default="")
+    timezone: Mapped[str] = mapped_column(String, default="UTC")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    paused: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+    last_run: Mapped[str | None] = mapped_column(String, nullable=True)
+    next_run: Mapped[str | None] = mapped_column(String, nullable=True)
+    retry_strategy: Mapped[str] = mapped_column(String, default="no_retry")
+    max_retries: Mapped[int] = mapped_column(Integer, default=0)
+    retry_delay_seconds: Mapped[int] = mapped_column(Integer, default=0)
+    current_retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String, default="active")

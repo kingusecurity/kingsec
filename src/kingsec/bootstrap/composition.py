@@ -21,6 +21,21 @@ from typing import Any
 
 from kingsec.application import (
     AIPort,
+    CalculateNextRun,
+    JobServicePort,
+    CreateSchedule,
+    DeleteSchedule,
+    DisableSchedule,
+    EnableSchedule,
+    FindDueSchedules,
+    GetSchedule,
+    ListSchedules,
+    PauseSchedule,
+    ResumeSchedule,
+    ScheduleRepositoryPort,
+    SchedulerServicePort,
+    TriggerScheduleNow,
+    UpdateSchedule,
     ApiKeyHasher,
     ApiKeyRepository,
     AssessmentRepository,
@@ -97,6 +112,7 @@ from kingsec.infrastructure.ai import register_ai
 from kingsec.infrastructure.audit.provisioning import register_audit, register_enterprise_audit
 from kingsec.infrastructure.mfa.provisioning import register_mfa
 from kingsec.infrastructure.rate_limit.provisioning import register_rate_limiter
+from kingsec.infrastructure.scheduler.provisioning import register_scheduler
 from kingsec.infrastructure.secrets.provisioning import register_secrets
 from kingsec.infrastructure.session.provisioning import register_sessions
 from kingsec.infrastructure.auth.provisioning import register_api_key_auth, register_auth, register_user_repository
@@ -202,6 +218,9 @@ def _register_adapters(
 
     # Session management infrastructure.
     register_sessions(container, session_factory)
+
+    # Scheduled scan engine infrastructure.
+    register_scheduler(container, session_factory)
 
     # Capability adapters. AI adds its own http-client.close shutdown hook.
     register_scanner(container, settings)
@@ -543,4 +562,79 @@ def _register_use_cases(container: Container) -> None:
             c.resolve(EncryptionServicePort),
             c.resolve(SecretProviderPort),
         ),
+    )
+
+    # Scheduled scan use cases.
+    container.register_factory(
+        CreateSchedule,
+        lambda c: CreateSchedule(
+            c.resolve(ScheduleRepositoryPort),
+            c.resolve(AuditPublisher),
+        ),
+    )
+    container.register_factory(
+        UpdateSchedule,
+        lambda c: UpdateSchedule(
+            c.resolve(ScheduleRepositoryPort),
+            c.resolve(AuditPublisher),
+        ),
+    )
+    container.register_factory(
+        DeleteSchedule,
+        lambda c: DeleteSchedule(
+            c.resolve(ScheduleRepositoryPort),
+            c.resolve(AuditPublisher),
+        ),
+    )
+    container.register_factory(
+        PauseSchedule,
+        lambda c: PauseSchedule(
+            c.resolve(ScheduleRepositoryPort),
+            c.resolve(AuditPublisher),
+        ),
+    )
+    container.register_factory(
+        ResumeSchedule,
+        lambda c: ResumeSchedule(
+            c.resolve(ScheduleRepositoryPort),
+            c.resolve(AuditPublisher),
+        ),
+    )
+    container.register_factory(
+        EnableSchedule,
+        lambda c: EnableSchedule(
+            c.resolve(ScheduleRepositoryPort),
+            c.resolve(AuditPublisher),
+        ),
+    )
+    container.register_factory(
+        DisableSchedule,
+        lambda c: DisableSchedule(
+            c.resolve(ScheduleRepositoryPort),
+            c.resolve(AuditPublisher),
+        ),
+    )
+    container.register_factory(
+        TriggerScheduleNow,
+        lambda c: TriggerScheduleNow(
+            c.resolve(ScheduleRepositoryPort),
+            c.resolve(JobServicePort),
+            c.resolve(AuditPublisher),
+        ),
+    )
+    container.register_factory(
+        ListSchedules,
+        lambda c: ListSchedules(c.resolve(ScheduleRepositoryPort)),
+    )
+    container.register_factory(
+        GetSchedule,
+        lambda c: GetSchedule(c.resolve(ScheduleRepositoryPort)),
+    )
+    container.register_factory(
+        FindDueSchedules,
+        lambda c: FindDueSchedules(c.resolve(ScheduleRepositoryPort)),
+    )
+    container.register_factory(
+        CalculateNextRun,
+        lambda c: CalculateNextRun(c.resolve(SchedulerServicePort)),
     )

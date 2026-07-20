@@ -46,6 +46,14 @@ from .rate_limit import (
     RateLimitKeyType,
     RateLimitPolicy,
 )
+from .schedule import (
+    RetryPolicy,
+    RetryStrategy,
+    ScheduleId,
+    ScheduleStatus,
+    ScheduleType,
+    ScanSchedule,
+)
 from .session import (
     DeviceInfo,
     Session,
@@ -140,4 +148,10 @@ __all__ = [
     "SecretId",
     "SecretMetadata",
     "SecretType",
+    "RetryPolicy",
+    "RetryStrategy",
+    "ScheduleId",
+    "ScheduleStatus",
+    "ScheduleType",
+    "ScanSchedule",
 ]
