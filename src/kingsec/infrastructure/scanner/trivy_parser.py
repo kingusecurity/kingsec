@@ -42,9 +42,7 @@ def _map_severity(trivy_severity: str) -> Severity:
     return _SEVERITY_MAP.get(trivy_severity.upper(), Severity.INFORMATIONAL)
 
 
-def _parse_vulnerabilities(
-    vulns: list[dict[str, Any]], target: str
-) -> list[Finding]:
+def _parse_vulnerabilities(vulns: list[dict[str, Any]], target: str) -> list[Finding]:
     """Parse the Vulnerabilities array from a Trivy result."""
     findings: list[Finding] = []
 
@@ -88,9 +86,7 @@ def _parse_vulnerabilities(
     return findings
 
 
-def _parse_misconfigs(
-    misconfigs: list[dict[str, Any]], target: str
-) -> list[Finding]:
+def _parse_misconfigs(misconfigs: list[dict[str, Any]], target: str) -> list[Finding]:
     """Parse the Misconfigurations array from a Trivy result."""
     findings: list[Finding] = []
 
@@ -104,9 +100,7 @@ def _parse_misconfigs(
         severity = _map_severity(severity_str)
 
         finding_title = f"{misconfig_id} — {title}" if title else misconfig_id
-        finding_desc = (
-            f"misconfig: {misconfig_id} | severity: {severity_str} | target: {target}"
-        )
+        finding_desc = f"misconfig: {misconfig_id} | severity: {severity_str} | target: {target}"
         if message:
             finding_desc += f" | message: {message[:200]}"
 

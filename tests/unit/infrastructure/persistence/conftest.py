@@ -66,9 +66,7 @@ def completed_assessment() -> Assessment:
 
 @pytest.fixture(autouse=True)
 def quiet_logging() -> None:
-    configure_logging(
-        LoggingSettings(level="INFO", json_format=True), stream=io.StringIO()
-    )
+    configure_logging(LoggingSettings(level="INFO", json_format=True), stream=io.StringIO())
 
 
 @pytest.fixture

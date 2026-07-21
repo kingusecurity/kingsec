@@ -203,8 +203,6 @@ class TestValidateConfiguration:
         enc = InMemoryEncryptionService()
         prov = InMemorySecretProvider()
         uc = ValidateConfiguration(enc, prov)
-        result = uc.execute(
-            ValidateConfigurationRequest(required_secrets=["db_pass", "jwt_key"])
-        )
+        result = uc.execute(ValidateConfigurationRequest(required_secrets=["db_pass", "jwt_key"]))
         assert not result.valid
         assert len(result.missing_secrets) == 2

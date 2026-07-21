@@ -33,7 +33,9 @@ def _build_full_app() -> FastAPI:
     async def test_endpoint():
         return {"ok": True}
 
-    app.add_middleware(RateLimitMiddleware, settings=RateLimitSettings(enabled=True, api_requests_per_minute=100, burst_size=50))
+    app.add_middleware(
+        RateLimitMiddleware, settings=RateLimitSettings(enabled=True, api_requests_per_minute=100, burst_size=50)
+    )
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(CorrelationIDMiddleware)
     app.add_middleware(SecurityHeadersMiddleware, settings=SecurityHeadersSettings())
@@ -94,6 +96,7 @@ class TestMiddlewareStackIntegration:
         @app.get("/error")
         async def error_endpoint():
             from fastapi import HTTPException
+
             raise HTTPException(status_code=500, detail="internal error")
 
         app.add_middleware(SecurityHeadersMiddleware, settings=SecurityHeadersSettings())

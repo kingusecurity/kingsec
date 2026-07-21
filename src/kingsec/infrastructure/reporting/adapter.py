@@ -45,8 +45,7 @@ class ReportGeneratorAdapter(ReportGeneratorPort):
         fmt = output_format.lower()
         if fmt not in _FORMATS:
             raise ReportGenerationError(
-                f"unsupported report format {output_format!r}; "
-                f"supported: {', '.join(sorted(_FORMATS))}"
+                f"unsupported report format {output_format!r}; supported: {', '.join(sorted(_FORMATS))}"
             )
         self._format = fmt
         self._renderer = renderer or ReportRenderer(brand_name=brand_name)

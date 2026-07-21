@@ -105,9 +105,7 @@ def report_to_orm(report: Report) -> ReportORM:
         verdict_headline=report.verdict.headline,
         verdict_action_required=report.verdict.action_required,
         verdict_highest_severity=(
-            report.verdict.highest_severity.name
-            if report.verdict.highest_severity is not None
-            else None
+            report.verdict.highest_severity.name if report.verdict.highest_severity is not None else None
         ),
         entries=[
             {
@@ -120,9 +118,7 @@ def report_to_orm(report: Report) -> ReportORM:
             }
             for entry in report.entries
         ],
-        severity_counts=[
-            [severity.name, count] for severity, count in report.severity_counts
-        ],
+        severity_counts=[[severity.name, count] for severity, count in report.severity_counts],
     )
 
 
@@ -187,11 +183,7 @@ def assessment_to_domain(orm: AssessmentORM) -> Assessment:
 def report_to_domain(orm: ReportORM) -> Report:
     """Rebuild a domain Report snapshot from a ReportORM row."""
     verdict = Verdict(
-        highest_severity=(
-            Severity[orm.verdict_highest_severity]
-            if orm.verdict_highest_severity is not None
-            else None
-        ),
+        highest_severity=(Severity[orm.verdict_highest_severity] if orm.verdict_highest_severity is not None else None),
         headline=orm.verdict_headline,
         action_required=orm.verdict_action_required,
     )
@@ -206,9 +198,7 @@ def report_to_domain(orm: ReportORM) -> Report:
         )
         for entry in orm.entries
     )
-    severity_counts = tuple(
-        (Severity[name], count) for name, count in orm.severity_counts
-    )
+    severity_counts = tuple((Severity[name], count) for name, count in orm.severity_counts)
     return Report(
         assessment_id=orm.assessment_id,
         target=orm.target,

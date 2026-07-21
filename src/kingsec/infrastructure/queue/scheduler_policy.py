@@ -49,14 +49,18 @@ class DefaultSchedulingPolicy(SchedulerPolicyPort):
         candidates = [a for a in available_agents if a.state == AgentState.ONLINE]
         if entry.scanner_ids:
             candidates = [
-                a for a in candidates
+                a
+                for a in candidates
                 if any(s in a.capability.supported_scanners for s in entry.scanner_ids)
                 or not a.capability.supported_scanners
             ]
-        candidates.sort(key=lambda a: (
-            a.statistics.total_jobs_completed,
-            -a.health.cpu_usage_percent,
-        ), reverse=True)
+        candidates.sort(
+            key=lambda a: (
+                a.statistics.total_jobs_completed,
+                -a.health.cpu_usage_percent,
+            ),
+            reverse=True,
+        )
         return candidates[0] if candidates else None
 
     def calculate_priority(self, entry: QueueEntry) -> QueuePriority:

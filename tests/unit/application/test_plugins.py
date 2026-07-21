@@ -42,14 +42,20 @@ from kingsec.infrastructure.plugin.validator import PluginValidator
 def _create_plugin_zip(manifest: dict | None = None) -> str:
     fd, path = tempfile.mkstemp(suffix=".zip")
     with os.fdopen(fd, "wb") as f, zipfile.ZipFile(f, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("manifest.json", json.dumps(manifest or {
-            "id": "test-plugin",
-            "name": "Test Plugin",
-            "version": "1.0.0",
-            "author": "KingSec",
-            "license": "MIT",
-            "description": "Test plugin",
-        }))
+        zf.writestr(
+            "manifest.json",
+            json.dumps(
+                manifest
+                or {
+                    "id": "test-plugin",
+                    "name": "Test Plugin",
+                    "version": "1.0.0",
+                    "author": "KingSec",
+                    "license": "MIT",
+                    "description": "Test plugin",
+                }
+            ),
+        )
         zf.writestr("main.py", "print('hello')")
     return path
 
@@ -99,9 +105,11 @@ class TestInstallPlugin:
             os.unlink(path)
 
     def test_install_with_dependencies(self) -> None:
-        manifest = _create_manifest({
-            "dependencies": (PluginDependency("missing-dep", ">=1.0.0"),),
-        })
+        manifest = _create_manifest(
+            {
+                "dependencies": (PluginDependency("missing-dep", ">=1.0.0"),),
+            }
+        )
         path = _create_plugin_zip()
         try:
             with pytest.raises(PluginDependencyError):
@@ -178,7 +186,16 @@ class TestUpdatePlugin:
     def test_update_success(self) -> None:
         uc = UpdatePlugin(self.repo, self.installer, self.validator)
         manifest_v2 = _create_manifest({"version": PluginVersion(2, 0, 0)})
-        path = _create_plugin_zip({"id": "test-plugin", "name": "Test Plugin", "version": "2.0.0", "author": "KS", "license": "MIT", "description": ""})
+        path = _create_plugin_zip(
+            {
+                "id": "test-plugin",
+                "name": "Test Plugin",
+                "version": "2.0.0",
+                "author": "KS",
+                "license": "MIT",
+                "description": "",
+            }
+        )
         try:
             pkg = uc.execute("test-plugin", path, manifest_v2)
             assert str(pkg.manifest.version) == "2.0.0"
@@ -298,6 +315,7 @@ class TestExportPlugin:
         assert data is not None
         import io
         import zipfile
+
         with zipfile.ZipFile(io.BytesIO(data)) as zf:
             assert "manifest.json" in zf.namelist()
 
@@ -308,6 +326,7 @@ class TestCheckPluginUpdates:
 
     def test_check_updates_not_found(self) -> None:
         from kingsec.infrastructure.plugin.marketplace import MarketplaceClient
+
         uc = CheckPluginUpdates(self.repo, MarketplaceClient())
         with pytest.raises(PluginNotFoundError):
             uc.execute("nonexistent")

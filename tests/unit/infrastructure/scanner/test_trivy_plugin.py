@@ -23,47 +23,49 @@ from tests.unit.infrastructure.scanner.conftest import FakeRunner
 
 _TARGET = Target("/app", TargetType.HOSTNAME)
 
-_SAMPLE_JSONL = json.dumps({
-    "Results": [
-        {
-            "Target": "/app",
-            "Class": "lang-pkgs",
-            "Vulnerabilities": [
-                {
-                    "VulnerabilityID": "CVE-2024-1234",
-                    "PkgName": "openssl",
-                    "InstalledVersion": "1.1.1",
-                    "FixedVersion": "1.1.2",
-                    "Severity": "HIGH",
-                    "Title": "OpenSSL Vulnerability",
-                    "Description": "A vulnerability in OpenSSL",
-                },
-                {
-                    "VulnerabilityID": "CVE-2024-9999",
-                    "PkgName": "log4j",
-                    "InstalledVersion": "2.14.0",
-                    "FixedVersion": "2.17.0",
-                    "Severity": "CRITICAL",
-                    "Title": "Log4Shell",
-                    "Description": "Remote code execution",
-                },
-            ],
-        },
-        {
-            "Target": "/app/config.yaml",
-            "Class": "config",
-            "Misconfigurations": [
-                {
-                    "ID": "DS002",
-                    "Severity": "MEDIUM",
-                    "Title": "SSH Config",
-                    "Message": "SSH protocol 1 enabled",
-                    "Resolution": "Disable protocol 1",
-                },
-            ],
-        },
-    ]
-})
+_SAMPLE_JSONL = json.dumps(
+    {
+        "Results": [
+            {
+                "Target": "/app",
+                "Class": "lang-pkgs",
+                "Vulnerabilities": [
+                    {
+                        "VulnerabilityID": "CVE-2024-1234",
+                        "PkgName": "openssl",
+                        "InstalledVersion": "1.1.1",
+                        "FixedVersion": "1.1.2",
+                        "Severity": "HIGH",
+                        "Title": "OpenSSL Vulnerability",
+                        "Description": "A vulnerability in OpenSSL",
+                    },
+                    {
+                        "VulnerabilityID": "CVE-2024-9999",
+                        "PkgName": "log4j",
+                        "InstalledVersion": "2.14.0",
+                        "FixedVersion": "2.17.0",
+                        "Severity": "CRITICAL",
+                        "Title": "Log4Shell",
+                        "Description": "Remote code execution",
+                    },
+                ],
+            },
+            {
+                "Target": "/app/config.yaml",
+                "Class": "config",
+                "Misconfigurations": [
+                    {
+                        "ID": "DS002",
+                        "Severity": "MEDIUM",
+                        "Title": "SSH Config",
+                        "Message": "SSH protocol 1 enabled",
+                        "Resolution": "Disable protocol 1",
+                    },
+                ],
+            },
+        ]
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -130,6 +132,7 @@ class TestCapabilities:
 
     def test_structured_json_output(self) -> None:
         from kingsec.domain import OutputFormat
+
         caps = _make_plugin().capabilities()
         assert caps[0].output_format is OutputFormat.STRUCTURED_JSON
 
@@ -234,8 +237,10 @@ class TestProvisioning:
         register_scanner(container, Settings(), runner=runner)
 
         from kingsec.application import ScannerPort
+
         scanner = container.resolve(ScannerPort)
         from kingsec.infrastructure.scanner.orchestrator import ScannerOrchestrator
+
         assert isinstance(scanner, ScannerOrchestrator)
 
     def test_orchestrator_resolves_trivy(self) -> None:

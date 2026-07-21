@@ -243,20 +243,25 @@ class TestSeverityClassification:
 
     def test_unknown_script_is_low(self) -> None:
         from kingsec.infrastructure.scanner.nmap_parser import _classify_script_severity
+
         assert _classify_script_severity("some-random-script") is Severity.LOW
 
     def test_heartbleed_is_high(self) -> None:
         from kingsec.infrastructure.scanner.nmap_parser import _classify_script_severity
+
         assert _classify_script_severity("ssl-heartbleed") is Severity.HIGH
 
     def test_dh_params_is_high(self) -> None:
         from kingsec.infrastructure.scanner.nmap_parser import _classify_script_severity
+
         assert _classify_script_severity("ssl-dh-params") is Severity.HIGH
 
     def test_http_vuln_is_medium(self) -> None:
         from kingsec.infrastructure.scanner.nmap_parser import _classify_script_severity
+
         assert _classify_script_severity("http-vuln-cve2021-12345") is Severity.MEDIUM
 
     def test_smb_vuln_is_medium(self) -> None:
         from kingsec.infrastructure.scanner.nmap_parser import _classify_script_severity
+
         assert _classify_script_severity("smb-vuln-ms17-010") is Severity.MEDIUM

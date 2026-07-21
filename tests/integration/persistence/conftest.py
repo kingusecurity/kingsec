@@ -41,9 +41,7 @@ def completed_assessment() -> Assessment:
 
     finding = Finding.create("SQL Injection", "id param injectable", Severity.CRITICAL)
     finding.add_evidence(Evidence("payload", "' OR 1=1--", utc(2)))
-    finding.add_recommendation(
-        Recommendation("Parameterize queries", "Use bound params", Severity.CRITICAL)
-    )
+    finding.add_recommendation(Recommendation("Parameterize queries", "Use bound params", Severity.CRITICAL))
     finding.confirm()
     assessment.record_finding(finding)
 
@@ -56,9 +54,7 @@ def completed_assessment() -> Assessment:
 
 @pytest.fixture(autouse=True)
 def quiet_logging() -> None:
-    configure_logging(
-        LoggingSettings(level="INFO", json_format=True), stream=io.StringIO()
-    )
+    configure_logging(LoggingSettings(level="INFO", json_format=True), stream=io.StringIO())
 
 
 @pytest.fixture

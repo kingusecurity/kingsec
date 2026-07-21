@@ -11,12 +11,8 @@ class TerminateOtherSessions:
     def __init__(self, repo: SessionRepository) -> None:
         self._repo = repo
 
-    def execute(
-        self, request: TerminateOtherSessionsRequest
-    ) -> TerminateOtherSessionsResponse:
+    def execute(self, request: TerminateOtherSessionsRequest) -> TerminateOtherSessionsResponse:
         active = self._repo.find_active_by_user(request.user_id)
         count = len(active)
-        self._repo.revoke_all_by_user(
-            request.user_id, exclude_session_id=request.current_session_id
-        )
+        self._repo.revoke_all_by_user(request.user_id, exclude_session_id=request.current_session_id)
         return TerminateOtherSessionsResponse(terminated_count=count)

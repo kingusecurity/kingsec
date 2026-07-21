@@ -15,21 +15,25 @@ from kingsec.domain.pipeline import (
 
 
 class StartPipeline:
-    def __init__(self, repo: PipelineRepositoryPort, orchestrator: PipelineOrchestratorPort,
-                 audit: AuditPublisher) -> None:
+    def __init__(
+        self, repo: PipelineRepositoryPort, orchestrator: PipelineOrchestratorPort, audit: AuditPublisher
+    ) -> None:
         self._repo = repo
         self._orchestrator = orchestrator
         self._audit = audit
         self._counter = 0
 
-    def execute(self, target: str, owner_user_id: str = "",
-                scanner_ids: list[str] | None = None,
-                priority: str = "normal") -> PipelineExecution:
+    def execute(
+        self, target: str, owner_user_id: str = "", scanner_ids: list[str] | None = None, priority: str = "normal"
+    ) -> PipelineExecution:
         self._counter += 1
         pipeline_id = PipelineId(value=f"pl-{self._counter}")
         stages = tuple(
-            PipelineStage(name=s.value, status="completed" if s == PipelineState.QUEUED else "pending",
-                          started_at=datetime.now(UTC).isoformat() if s == PipelineState.QUEUED else "")
+            PipelineStage(
+                name=s.value,
+                status="completed" if s == PipelineState.QUEUED else "pending",
+                started_at=datetime.now(UTC).isoformat() if s == PipelineState.QUEUED else "",
+            )
             for s in PIPELINE_ORDER
         )
         execution = PipelineExecution(
@@ -42,13 +46,15 @@ class StartPipeline:
             priority=priority,
         )
         self._repo.save(execution)
-        self._audit.record(AuditEntry(
-            action=AuditAction.PIPELINE_STARTED,
-            resource_type="pipeline",
-            resource_id=pipeline_id.value,
-            success=True,
-            username=owner_user_id,
-        ))
+        self._audit.record(
+            AuditEntry(
+                action=AuditAction.PIPELINE_STARTED,
+                resource_type="pipeline",
+                resource_id=pipeline_id.value,
+                success=True,
+                username=owner_user_id,
+            )
+        )
         return execution
 
 
@@ -60,6 +66,7 @@ class GetPipeline:
         execution = self._repo.find_by_id(pipeline_id)
         if not execution:
             from kingsec.application.errors import PipelineNotFoundError
+
             raise PipelineNotFoundError(f"Pipeline '{pipeline_id}' not found")
         return execution
 
@@ -73,8 +80,9 @@ class ListPipelines:
 
 
 class CancelPipeline:
-    def __init__(self, repo: PipelineRepositoryPort, orchestrator: PipelineOrchestratorPort,
-                 audit: AuditPublisher) -> None:
+    def __init__(
+        self, repo: PipelineRepositoryPort, orchestrator: PipelineOrchestratorPort, audit: AuditPublisher
+    ) -> None:
         self._repo = repo
         self._orchestrator = orchestrator
         self._audit = audit
@@ -83,24 +91,29 @@ class CancelPipeline:
         execution = self._repo.find_by_id(pipeline_id)
         if not execution:
             from kingsec.application.errors import PipelineNotFoundError
+
             raise PipelineNotFoundError(f"Pipeline '{pipeline_id}' not found")
         if execution.state in (PipelineState.COMPLETED, PipelineState.CANCELLED):
             from kingsec.application.errors import PipelineStateConflictError
+
             raise PipelineStateConflictError(f"Cannot cancel pipeline in state '{execution.state.value}'")
         result = self._orchestrator.cancel(execution)
         self._repo.save(result)
-        self._audit.record(AuditEntry(
-            action=AuditAction.PIPELINE_CANCELLED,
-            resource_type="pipeline",
-            resource_id=pipeline_id,
-            success=True,
-        ))
+        self._audit.record(
+            AuditEntry(
+                action=AuditAction.PIPELINE_CANCELLED,
+                resource_type="pipeline",
+                resource_id=pipeline_id,
+                success=True,
+            )
+        )
         return result
 
 
 class RetryPipeline:
-    def __init__(self, repo: PipelineRepositoryPort, orchestrator: PipelineOrchestratorPort,
-                 audit: AuditPublisher) -> None:
+    def __init__(
+        self, repo: PipelineRepositoryPort, orchestrator: PipelineOrchestratorPort, audit: AuditPublisher
+    ) -> None:
         self._repo = repo
         self._orchestrator = orchestrator
         self._audit = audit
@@ -109,24 +122,29 @@ class RetryPipeline:
         execution = self._repo.find_by_id(pipeline_id)
         if not execution:
             from kingsec.application.errors import PipelineNotFoundError
+
             raise PipelineNotFoundError(f"Pipeline '{pipeline_id}' not found")
         if execution.state != PipelineState.FAILED:
             from kingsec.application.errors import PipelineStateConflictError
+
             raise PipelineStateConflictError(f"Cannot retry pipeline in state '{execution.state.value}'")
         result = self._orchestrator.retry(execution)
         self._repo.save(result)
-        self._audit.record(AuditEntry(
-            action=AuditAction.PIPELINE_RETRIED,
-            resource_type="pipeline",
-            resource_id=pipeline_id,
-            success=True,
-        ))
+        self._audit.record(
+            AuditEntry(
+                action=AuditAction.PIPELINE_RETRIED,
+                resource_type="pipeline",
+                resource_id=pipeline_id,
+                success=True,
+            )
+        )
         return result
 
 
 class ResumePipeline:
-    def __init__(self, repo: PipelineRepositoryPort, orchestrator: PipelineOrchestratorPort,
-                 audit: AuditPublisher) -> None:
+    def __init__(
+        self, repo: PipelineRepositoryPort, orchestrator: PipelineOrchestratorPort, audit: AuditPublisher
+    ) -> None:
         self._repo = repo
         self._orchestrator = orchestrator
         self._audit = audit
@@ -135,21 +153,25 @@ class ResumePipeline:
         execution = self._repo.find_by_id(pipeline_id)
         if not execution:
             from kingsec.application.errors import PipelineNotFoundError
+
             raise PipelineNotFoundError(f"Pipeline '{pipeline_id}' not found")
         result = self._orchestrator.resume(execution)
         self._repo.save(result)
-        self._audit.record(AuditEntry(
-            action=AuditAction.PIPELINE_RESUMED,
-            resource_type="pipeline",
-            resource_id=pipeline_id,
-            success=True,
-        ))
+        self._audit.record(
+            AuditEntry(
+                action=AuditAction.PIPELINE_RESUMED,
+                resource_type="pipeline",
+                resource_id=pipeline_id,
+                success=True,
+            )
+        )
         return result
 
 
 class PausePipeline:
-    def __init__(self, repo: PipelineRepositoryPort, orchestrator: PipelineOrchestratorPort,
-                 audit: AuditPublisher) -> None:
+    def __init__(
+        self, repo: PipelineRepositoryPort, orchestrator: PipelineOrchestratorPort, audit: AuditPublisher
+    ) -> None:
         self._repo = repo
         self._orchestrator = orchestrator
         self._audit = audit
@@ -158,21 +180,25 @@ class PausePipeline:
         execution = self._repo.find_by_id(pipeline_id)
         if not execution:
             from kingsec.application.errors import PipelineNotFoundError
+
             raise PipelineNotFoundError(f"Pipeline '{pipeline_id}' not found")
         result = self._orchestrator.pause(execution)
         self._repo.save(result)
-        self._audit.record(AuditEntry(
-            action=AuditAction.PIPELINE_PAUSED,
-            resource_type="pipeline",
-            resource_id=pipeline_id,
-            success=True,
-        ))
+        self._audit.record(
+            AuditEntry(
+                action=AuditAction.PIPELINE_PAUSED,
+                resource_type="pipeline",
+                resource_id=pipeline_id,
+                success=True,
+            )
+        )
         return result
 
 
 class AdvancePipeline:
-    def __init__(self, repo: PipelineRepositoryPort, orchestrator: PipelineOrchestratorPort,
-                 audit: AuditPublisher) -> None:
+    def __init__(
+        self, repo: PipelineRepositoryPort, orchestrator: PipelineOrchestratorPort, audit: AuditPublisher
+    ) -> None:
         self._repo = repo
         self._orchestrator = orchestrator
         self._audit = audit
@@ -181,17 +207,20 @@ class AdvancePipeline:
         execution = self._repo.find_by_id(pipeline_id)
         if not execution:
             from kingsec.application.errors import PipelineNotFoundError
+
             raise PipelineNotFoundError(f"Pipeline '{pipeline_id}' not found")
         result = self._orchestrator.advance(execution)
         self._repo.save(result)
         stage_name = result.state.value
-        self._audit.record(AuditEntry(
-            action=AuditAction.PIPELINE_ADVANCED,
-            resource_type="pipeline",
-            resource_id=pipeline_id,
-            success=True,
-            reason=f"Advanced to stage '{stage_name}'",
-        ))
+        self._audit.record(
+            AuditEntry(
+                action=AuditAction.PIPELINE_ADVANCED,
+                resource_type="pipeline",
+                resource_id=pipeline_id,
+                success=True,
+                reason=f"Advanced to stage '{stage_name}'",
+            )
+        )
         return result
 
 

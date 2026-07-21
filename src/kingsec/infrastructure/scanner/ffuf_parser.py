@@ -26,10 +26,22 @@ from kingsec.infrastructure.logging import get_logger
 _logger = get_logger("kingsec.infrastructure.scanner")
 
 # File extensions that indicate sensitive data exposure.
-_SENSITIVE_EXTENSIONS = frozenset({
-    ".git", ".env", ".bak", ".sql", ".zip", ".old",
-    ".dump", ".log", ".conf", ".config", ".key", ".pem",
-})
+_SENSITIVE_EXTENSIONS = frozenset(
+    {
+        ".git",
+        ".env",
+        ".bak",
+        ".sql",
+        ".zip",
+        ".old",
+        ".dump",
+        ".log",
+        ".conf",
+        ".config",
+        ".key",
+        ".pem",
+    }
+)
 
 # Path patterns that indicate admin/login areas.
 _ADMIN_PATH_RE = re.compile(r"(admin|login|dashboard|manage|panel)", re.IGNORECASE)
@@ -41,8 +53,7 @@ def _classify_severity(status: int, url: str) -> Severity:
     lower_url = url.lower()
     if any(lower_url.endswith(ext) for ext in _SENSITIVE_EXTENSIONS):
         return Severity.HIGH
-    if any(f"/{ext}" in lower_url or f"/{ext}?" in lower_url
-           for ext in _SENSITIVE_EXTENSIONS):
+    if any(f"/{ext}" in lower_url or f"/{ext}?" in lower_url for ext in _SENSITIVE_EXTENSIONS):
         return Severity.HIGH
 
     # Admin/login paths → MEDIUM
@@ -110,9 +121,7 @@ def parse_ffuf_json(output: str) -> list[Finding]:
 
         title = f"HTTP {status} — {url}"
         description = (
-            f"Status: {status} | Length: {length} | "
-            f"Words: {words} | Lines: {lines_count} | "
-            f"Fuzz: {fuzz_value}"
+            f"Status: {status} | Length: {length} | Words: {words} | Lines: {lines_count} | Fuzz: {fuzz_value}"
         )
 
         finding = Finding.create(title=title, description=description, severity=severity)

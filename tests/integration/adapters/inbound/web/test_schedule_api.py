@@ -103,24 +103,35 @@ def app() -> FastAPI:
     scheduler = InProcessScheduler(repo, job_service, clock)
     container.register_instance(SchedulerServicePort, scheduler)
 
-    container.register_factory(CreateSchedule, lambda c: CreateSchedule(
-        c.resolve(ScheduleRepositoryPort), c.resolve(AuditPublisher)))
-    container.register_factory(UpdateSchedule, lambda c: UpdateSchedule(
-        c.resolve(ScheduleRepositoryPort), c.resolve(AuditPublisher)))
-    container.register_factory(DeleteSchedule, lambda c: DeleteSchedule(
-        c.resolve(ScheduleRepositoryPort), c.resolve(AuditPublisher)))
+    container.register_factory(
+        CreateSchedule, lambda c: CreateSchedule(c.resolve(ScheduleRepositoryPort), c.resolve(AuditPublisher))
+    )
+    container.register_factory(
+        UpdateSchedule, lambda c: UpdateSchedule(c.resolve(ScheduleRepositoryPort), c.resolve(AuditPublisher))
+    )
+    container.register_factory(
+        DeleteSchedule, lambda c: DeleteSchedule(c.resolve(ScheduleRepositoryPort), c.resolve(AuditPublisher))
+    )
     container.register_factory(ListSchedules, lambda c: ListSchedules(c.resolve(ScheduleRepositoryPort)))
     container.register_factory(GetSchedule, lambda c: GetSchedule(c.resolve(ScheduleRepositoryPort)))
-    container.register_factory(PauseSchedule, lambda c: PauseSchedule(
-        c.resolve(ScheduleRepositoryPort), c.resolve(AuditPublisher)))
-    container.register_factory(ResumeSchedule, lambda c: ResumeSchedule(
-        c.resolve(ScheduleRepositoryPort), c.resolve(AuditPublisher)))
-    container.register_factory(EnableSchedule, lambda c: EnableSchedule(
-        c.resolve(ScheduleRepositoryPort), c.resolve(AuditPublisher)))
-    container.register_factory(DisableSchedule, lambda c: DisableSchedule(
-        c.resolve(ScheduleRepositoryPort), c.resolve(AuditPublisher)))
-    container.register_factory(TriggerScheduleNow, lambda c: TriggerScheduleNow(
-        c.resolve(ScheduleRepositoryPort), c.resolve(JobServicePort), c.resolve(AuditPublisher)))
+    container.register_factory(
+        PauseSchedule, lambda c: PauseSchedule(c.resolve(ScheduleRepositoryPort), c.resolve(AuditPublisher))
+    )
+    container.register_factory(
+        ResumeSchedule, lambda c: ResumeSchedule(c.resolve(ScheduleRepositoryPort), c.resolve(AuditPublisher))
+    )
+    container.register_factory(
+        EnableSchedule, lambda c: EnableSchedule(c.resolve(ScheduleRepositoryPort), c.resolve(AuditPublisher))
+    )
+    container.register_factory(
+        DisableSchedule, lambda c: DisableSchedule(c.resolve(ScheduleRepositoryPort), c.resolve(AuditPublisher))
+    )
+    container.register_factory(
+        TriggerScheduleNow,
+        lambda c: TriggerScheduleNow(
+            c.resolve(ScheduleRepositoryPort), c.resolve(JobServicePort), c.resolve(AuditPublisher)
+        ),
+    )
     container.register_factory(FindDueSchedules, lambda c: FindDueSchedules(c.resolve(ScheduleRepositoryPort)))
 
     settings = load_settings()
@@ -137,6 +148,7 @@ def app() -> FastAPI:
     fastapi_app.dependency_overrides[get_current_user] = override_get_current_user
 
     from kingsec.adapters.inbound.web.schedule_routes import router
+
     fastapi_app.include_router(router)
     register_error_handlers(fastapi_app)
 

@@ -37,9 +37,7 @@ def _make_assessment(
 
 
 class TestDeleteExistingAssessment:
-    def test_deletes_assessment(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_deletes_assessment(self, assessments: InMemoryAssessmentRepository) -> None:
         assessment = _make_assessment()
         assessments.save(assessment)
 
@@ -53,9 +51,7 @@ class TestDeleteExistingAssessment:
         with pytest.raises(AssessmentNotFoundError):
             assessments.get(assessment.id)
 
-    def test_deletes_assessment_with_findings(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_deletes_assessment_with_findings(self, assessments: InMemoryAssessmentRepository) -> None:
         assessment = _make_assessment(with_findings=True)
         assessments.save(assessment)
 
@@ -68,9 +64,7 @@ class TestDeleteExistingAssessment:
         with pytest.raises(AssessmentNotFoundError):
             assessments.get(assessment.id)
 
-    def test_deletes_only_target_assessment(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_deletes_only_target_assessment(self, assessments: InMemoryAssessmentRepository) -> None:
         assessment1 = _make_assessment(target_value="10.0.0.1")
         assessment2 = _make_assessment(target_value="10.0.0.2")
         assessments.save(assessment1)
@@ -88,17 +82,13 @@ class TestDeleteExistingAssessment:
 
 
 class TestDeleteMissingAssessment:
-    def test_nonexistent_assessment_raises(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_nonexistent_assessment_raises(self, assessments: InMemoryAssessmentRepository) -> None:
         use_case = DeleteAssessment(assessments)
 
         with pytest.raises(AssessmentNotFoundError):
             use_case.execute(DeleteAssessmentRequest("asmt-does-not-exist"))
 
-    def test_double_delete_raises(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_double_delete_raises(self, assessments: InMemoryAssessmentRepository) -> None:
         assessment = _make_assessment()
         assessments.save(assessment)
 
@@ -111,9 +101,7 @@ class TestDeleteMissingAssessment:
 
 
 class TestDeleteRepositoryBehavior:
-    def test_list_excludes_deleted_assessment(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_list_excludes_deleted_assessment(self, assessments: InMemoryAssessmentRepository) -> None:
         assessment1 = _make_assessment(target_value="10.0.0.1")
         assessment2 = _make_assessment(target_value="10.0.0.2")
         assessments.save(assessment1)
@@ -126,9 +114,7 @@ class TestDeleteRepositoryBehavior:
         assert len(remaining) == 1
         assert remaining[0].id == assessment2.id
 
-    def test_empty_repository_after_deleting_all(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_empty_repository_after_deleting_all(self, assessments: InMemoryAssessmentRepository) -> None:
         assessment = _make_assessment()
         assessments.save(assessment)
 

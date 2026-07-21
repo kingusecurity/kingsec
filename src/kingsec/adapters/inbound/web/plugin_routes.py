@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import os
 import tempfile
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 
@@ -21,13 +19,16 @@ router = APIRouter(prefix="/api/v1/plugins", tags=["plugins"])
 
 ADMIN_ONLY = Role.ADMIN
 
+
 def _get_service(request: Request) -> PluginServicePort:
     app: Application = get_application(request)
     return cast(PluginServicePort, app.resolve(PluginServicePort))
 
+
 def _require_admin(user: CurrentUser) -> None:
     if user.role != ADMIN_ONLY:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+
 
 async def _save_upload(file: UploadFile) -> str:
     suffix = ".zip" if file.filename and file.filename.endswith(".zip") else ".tmp"
@@ -40,6 +41,7 @@ async def _save_upload(file: UploadFile) -> str:
         os.unlink(path)
         raise
     return path
+
 
 @router.get("")
 async def list_plugins(
@@ -63,6 +65,7 @@ async def list_plugins(
         ]
     }
 
+
 @router.get("/updates")
 async def check_updates(
     request: Request,
@@ -73,6 +76,7 @@ async def check_updates(
     service = _get_service(request)
     updates = service.check_updates(plugin_id)
     return {"plugin_id": plugin_id, "updates": updates}
+
 
 @router.get("/{plugin_id}")
 async def get_plugin(
@@ -104,6 +108,7 @@ async def get_plugin(
         "tags": list(plugin.manifest.tags),
     }
 
+
 @router.post("/install")
 async def install_plugin(
     request: Request,
@@ -132,6 +137,7 @@ async def install_plugin(
         },
     }
 
+
 @router.post("/uninstall")
 async def uninstall_plugin(
     request: Request,
@@ -145,6 +151,7 @@ async def uninstall_plugin(
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return {"message": f"Plugin '{plugin_id}' uninstalled successfully"}
+
 
 @router.post("/enable")
 async def enable_plugin(
@@ -163,6 +170,7 @@ async def enable_plugin(
         "plugin": {"id": plugin.id, "status": plugin.status.value},
     }
 
+
 @router.post("/disable")
 async def disable_plugin(
     request: Request,
@@ -179,6 +187,7 @@ async def disable_plugin(
         "message": f"Plugin '{plugin_id}' disabled",
         "plugin": {"id": plugin.id, "status": plugin.status.value},
     }
+
 
 @router.post("/update")
 async def update_plugin(
@@ -208,6 +217,7 @@ async def update_plugin(
         },
     }
 
+
 @router.post("/rollback")
 async def rollback_plugin(
     request: Request,
@@ -222,8 +232,12 @@ async def rollback_plugin(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return {
         "message": f"Plugin '{plugin_id}' rolled back",
-        "plugin": {"id": plugin.id if plugin else plugin_id, "status": plugin.status.value if plugin else "rolled_back"},
+        "plugin": {
+            "id": plugin.id if plugin else plugin_id,
+            "status": plugin.status.value if plugin else "rolled_back",
+        },
     }
+
 
 @router.post("/validate")
 async def validate_plugin(
@@ -244,6 +258,7 @@ async def validate_plugin(
         if os.path.exists(path):
             os.unlink(path)
     return result
+
 
 @router.post("/import")
 async def import_plugin(
@@ -272,6 +287,7 @@ async def import_plugin(
             "status": plugin.status.value,
         },
     }
+
 
 @router.get("/export/{plugin_id}")
 async def export_plugin(

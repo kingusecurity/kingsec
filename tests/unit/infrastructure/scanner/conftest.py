@@ -40,6 +40,7 @@ class FakeRunner:
             return CommandResult(0, "", "", 0.0)
         return self._result
 
+
 _SAMPLE_JSONL = (
     '{"template-id":"CVE-2021-1","info":{"name":"Critical RCE",'
     '"severity":"critical","description":"remote code execution",'
@@ -51,19 +52,11 @@ _SAMPLE_JSONL = (
 
 _SCRIPTS: dict[str, str] = {
     # Emits two findings on stdout and exits 0.
-    "findings": (
-        "import sys\n"
-        f"sys.stdout.write({_SAMPLE_JSONL!r})\n"
-        "sys.exit(0)\n"
-    ),
+    "findings": (f"import sys\nsys.stdout.write({_SAMPLE_JSONL!r})\nsys.exit(0)\n"),
     # Emits nothing (no findings) and exits 0.
     "empty": "import sys\nsys.exit(0)\n",
     # Writes an error to stderr and exits non-zero.
-    "error": (
-        "import sys\n"
-        "sys.stderr.write('fatal: could not load templates\\n')\n"
-        "sys.exit(2)\n"
-    ),
+    "error": ("import sys\nsys.stderr.write('fatal: could not load templates\\n')\nsys.exit(2)\n"),
     # Sleeps longer than the test timeout to trigger a timeout.
     "slow": "import time\ntime.sleep(30)\n",
 }
@@ -71,9 +64,7 @@ _SCRIPTS: dict[str, str] = {
 
 @pytest.fixture(autouse=True)
 def quiet_logging() -> None:
-    configure_logging(
-        LoggingSettings(level="ERROR", json_format=True), stream=io.StringIO()
-    )
+    configure_logging(LoggingSettings(level="ERROR", json_format=True), stream=io.StringIO())
 
 
 @pytest.fixture

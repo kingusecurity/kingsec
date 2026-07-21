@@ -37,9 +37,7 @@ class InMemoryPluginRegistry(ScannerPluginRegistry):
         plugin_id = meta.id
 
         if plugin_id in self._plugins:
-            raise ScannerDuplicateError(
-                f"scanner plugin {plugin_id.value!r} is already registered"
-            )
+            raise ScannerDuplicateError(f"scanner plugin {plugin_id.value!r} is already registered")
 
         self._plugins[plugin_id] = plugin
 
@@ -55,9 +53,7 @@ class InMemoryPluginRegistry(ScannerPluginRegistry):
         try:
             return self._plugins[plugin_id]
         except KeyError:
-            raise ScannerPluginError(
-                f"no scanner plugin registered for {plugin_id.value!r}"
-            ) from None
+            raise ScannerPluginError(f"no scanner plugin registered for {plugin_id.value!r}") from None
 
     def resolve(self, target: Target) -> tuple[ScannerPluginPort, ...]:
         """Return all plugins capable of scanning this target type.
@@ -90,7 +86,4 @@ class InMemoryPluginRegistry(ScannerPluginRegistry):
         Returns:
             A tuple of (metadata, availability) pairs.
         """
-        return tuple(
-            (plugin.metadata(), plugin.is_available())
-            for plugin in self._plugins.values()
-        )
+        return tuple((plugin.metadata(), plugin.is_available()) for plugin in self._plugins.values())

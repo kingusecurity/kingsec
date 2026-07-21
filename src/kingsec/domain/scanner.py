@@ -80,9 +80,7 @@ class ScannerId:
     def __post_init__(self) -> None:
         ensure_non_empty(self.value, "ScannerId")
         if not _SCANNER_ID_PATTERN.match(self.value):
-            raise InvariantViolation(
-                "ScannerId must contain only lowercase letters, digits, and hyphens"
-            )
+            raise InvariantViolation("ScannerId must contain only lowercase letters, digits, and hyphens")
 
     def __str__(self) -> str:
         return self.value
@@ -110,13 +108,9 @@ class ScannerPluginMetadata:
         ensure_non_empty(self.author, "ScannerPluginMetadata author")
         ensure_non_empty(self.description, "ScannerPluginMetadata description")
         if not _SEMVER_PATTERN.match(self.version):
-            raise InvariantViolation(
-                "ScannerPluginMetadata version must be SemVer (e.g. '1.0.0')"
-            )
+            raise InvariantViolation("ScannerPluginMetadata version must be SemVer (e.g. '1.0.0')")
         if not _API_VERSION_PATTERN.match(self.api_version):
-            raise InvariantViolation(
-                "ScannerPluginMetadata api_version must be 'major.minor' (e.g. '1.0')"
-            )
+            raise InvariantViolation("ScannerPluginMetadata api_version must be 'major.minor' (e.g. '1.0')")
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,27 +127,17 @@ class ScannerCapability:
 
     def __post_init__(self) -> None:
         if not isinstance(self.target_types, frozenset) or not self.target_types:
-            raise InvariantViolation(
-                "ScannerCapability target_types must be a non-empty frozenset of TargetType"
-            )
+            raise InvariantViolation("ScannerCapability target_types must be a non-empty frozenset of TargetType")
         for tt in self.target_types:
             if not isinstance(tt, TargetType):
-                raise InvariantViolation(
-                    f"ScannerCapability target_types contains non-TargetType: {tt!r}"
-                )
+                raise InvariantViolation(f"ScannerCapability target_types contains non-TargetType: {tt!r}")
         if not isinstance(self.scan_categories, frozenset) or not self.scan_categories:
-            raise InvariantViolation(
-                "ScannerCapability scan_categories must be a non-empty frozenset of ScanCategory"
-            )
+            raise InvariantViolation("ScannerCapability scan_categories must be a non-empty frozenset of ScanCategory")
         for sc in self.scan_categories:
             if not isinstance(sc, ScanCategory):
-                raise InvariantViolation(
-                    f"ScannerCapability scan_categories contains non-ScanCategory: {sc!r}"
-                )
+                raise InvariantViolation(f"ScannerCapability scan_categories contains non-ScanCategory: {sc!r}")
         if not isinstance(self.output_format, OutputFormat):
-            raise InvariantViolation(
-                "ScannerCapability output_format must be an OutputFormat"
-            )
+            raise InvariantViolation("ScannerCapability output_format must be an OutputFormat")
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,8 +157,7 @@ class PluginConfig:
                 raise InvariantViolation("PluginConfig keys must be non-empty strings")
             if value is not None and not isinstance(value, str | int | float | bool):
                 raise InvariantViolation(
-                    f"PluginConfig value for {key!r} must be a primitive type, "
-                    f"got {type(value).__name__}"
+                    f"PluginConfig value for {key!r} must be a primitive type, got {type(value).__name__}"
                 )
 
 
@@ -188,14 +171,10 @@ class PluginAvailability:
 
     def __post_init__(self) -> None:
         if not self.available and self.reason is None:
-            raise InvariantViolation(
-                "PluginAvailability with available=False must provide a reason"
-            )
+            raise InvariantViolation("PluginAvailability with available=False must provide a reason")
         for dep in self.required_dependencies:
             if not isinstance(dep, str) or not dep.strip():
-                raise InvariantViolation(
-                    "PluginAvailability required_dependencies must be non-empty strings"
-                )
+                raise InvariantViolation("PluginAvailability required_dependencies must be non-empty strings")
 
 
 @dataclass(frozen=True, slots=True)
@@ -219,7 +198,4 @@ class ScannerResult:
         if not isinstance(self.findings, tuple):
             raise InvariantViolation("findings must be a tuple")
         if self.duration_seconds < 0:
-            raise InvariantViolation(
-                "duration_seconds must be non-negative, "
-                f"got {self.duration_seconds}"
-            )
+            raise InvariantViolation(f"duration_seconds must be non-negative, got {self.duration_seconds}")

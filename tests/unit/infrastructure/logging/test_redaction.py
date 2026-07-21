@@ -70,9 +70,7 @@ class TestRedactFreeText:
         self, configure: Callable[..., object], read_json: Callable[[], list[dict]]
     ) -> None:
         configure(json_format=True)
-        get_logger("kingsec.test").info(
-            "raw dump: sk-ABCDEFGHIJKLMNOPQRST and Bearer aabbccddee and api_key=leaky"
-        )
+        get_logger("kingsec.test").info("raw dump: sk-ABCDEFGHIJKLMNOPQRST and Bearer aabbccddee and api_key=leaky")
 
         (line,) = read_json()
         event = line["event"]

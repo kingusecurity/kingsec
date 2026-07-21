@@ -101,6 +101,7 @@ class TestAddAndGet:
         session.flush()
 
         from kingsec.infrastructure.persistence.models import AssetModel
+
         orm = session.get(AssetModel, "asset-1")
         assert orm is not None
         assert orm.hostname == "web01.example.com"

@@ -21,14 +21,12 @@ class TestRequiredFields:
         assert line["level"] == "info"
         assert line["logger"] == "kingsec.test"
         assert "timestamp" in line
-        assert line["correlation_id"] == "-"      # defaulted when unset
+        assert line["correlation_id"] == "-"  # defaulted when unset
         assert line["assessment_id"] == "-"
 
 
 class TestRenderers:
-    def test_console_renderer_contains_message(
-        self, configure: Callable[..., object], stream: io.StringIO
-    ) -> None:
+    def test_console_renderer_contains_message(self, configure: Callable[..., object], stream: io.StringIO) -> None:
         configure(json_format=False)
         get_logger("kingsec.test").info("hello console")
 
@@ -47,23 +45,19 @@ class TestRenderers:
 
 
 class TestLevelFiltering:
-    def test_below_threshold_is_dropped(
-        self, configure: Callable[..., object], stream: io.StringIO
-    ) -> None:
+    def test_below_threshold_is_dropped(self, configure: Callable[..., object], stream: io.StringIO) -> None:
         configure(level="WARNING", json_format=True)
         log = get_logger("kingsec.test")
 
         log.info("should be filtered")
-        assert stream.getvalue() == ""       # info < warning -> no output
+        assert stream.getvalue() == ""  # info < warning -> no output
 
         log.warning("should appear")
         assert "should appear" in stream.getvalue()
 
 
 class TestExceptionRendering:
-    def test_exc_info_is_rendered(
-        self, configure: Callable[..., object], read_json: Callable[[], list[dict]]
-    ) -> None:
+    def test_exc_info_is_rendered(self, configure: Callable[..., object], read_json: Callable[[], list[dict]]) -> None:
         configure(json_format=True)
         log = get_logger("kingsec.test")
 

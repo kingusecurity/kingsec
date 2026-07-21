@@ -88,6 +88,7 @@ class TestCapabilities:
 
     def test_raw_text_output(self) -> None:
         from kingsec.domain import OutputFormat
+
         caps = _make_plugin().capabilities()
         assert caps[0].output_format is OutputFormat.RAW_TEXT
 
@@ -193,8 +194,10 @@ class TestProvisioning:
         register_scanner(container, Settings(), runner=runner)
 
         from kingsec.application import ScannerPort
+
         scanner = container.resolve(ScannerPort)
         from kingsec.infrastructure.scanner.orchestrator import ScannerOrchestrator
+
         assert isinstance(scanner, ScannerOrchestrator)
 
     def test_orchestrator_resolves_gobuster(self) -> None:

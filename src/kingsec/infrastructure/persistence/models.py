@@ -87,9 +87,7 @@ class EvidenceORM(Base):
     __tablename__ = "evidence"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    finding_id: Mapped[str] = mapped_column(
-        ForeignKey("findings.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    finding_id: Mapped[str] = mapped_column(ForeignKey("findings.id", ondelete="CASCADE"), nullable=False, index=True)
     summary: Mapped[str] = mapped_column(String, nullable=False)
     detail: Mapped[str] = mapped_column(Text, nullable=False)
     collected_at: Mapped[str] = mapped_column(String, nullable=False)  # ISO-8601
@@ -103,9 +101,7 @@ class RecommendationORM(Base):
     __tablename__ = "recommendations"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    finding_id: Mapped[str] = mapped_column(
-        ForeignKey("findings.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    finding_id: Mapped[str] = mapped_column(ForeignKey("findings.id", ondelete="CASCADE"), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     priority: Mapped[str] = mapped_column(String, nullable=False)
@@ -164,9 +160,7 @@ class ApiKeyORM(Base):
     __tablename__ = "api_keys"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    user_id: Mapped[str] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
     key_hash: Mapped[str] = mapped_column(String, nullable=False)
     scope: Mapped[str] = mapped_column(String, nullable=False, default="read_only")
@@ -258,9 +252,7 @@ class MfaRecoveryCodeORM(Base):
     __tablename__ = "mfa_recovery_codes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[str] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     code_hash: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False, default="active")
 
@@ -275,9 +267,7 @@ class SessionORM(Base):
     __tablename__ = "sessions"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    user_id: Mapped[str] = mapped_column(
-        String, nullable=False, index=True
-    )
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     session_type: Mapped[str] = mapped_column(String, nullable=False, default="user")
     jti: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
     refresh_jti: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
@@ -355,9 +345,7 @@ class FindingModel(Base):
     __tablename__ = "scan_findings"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    scan_id: Mapped[str] = mapped_column(
-        ForeignKey("scan_results.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    scan_id: Mapped[str] = mapped_column(ForeignKey("scan_results.id", ondelete="CASCADE"), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     severity: Mapped[str] = mapped_column(String, nullable=False, index=True)
@@ -378,9 +366,7 @@ class ReportModel(Base):
     __tablename__ = "scan_reports"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    scan_id: Mapped[str] = mapped_column(
-        ForeignKey("scan_results.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    scan_id: Mapped[str] = mapped_column(ForeignKey("scan_results.id", ondelete="CASCADE"), nullable=False, index=True)
     format: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[str] = mapped_column(String, nullable=False)  # ISO-8601
     content: Mapped[str] = mapped_column(Text, nullable=False)

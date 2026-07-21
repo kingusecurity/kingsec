@@ -21,8 +21,10 @@ if TYPE_CHECKING:
 
 router = APIRouter(prefix="/api/v1/audit", tags=["audit_events"])
 
+
 def _get_app(request: Request) -> Application:
     return cast("Application", request.app.state.kingsec_app)
+
 
 @router.get(
     "/events",
@@ -58,20 +60,22 @@ async def list_audit_events(
     app = _get_app(request)
     use_case: SearchAuditEvents = app.resolve(SearchAuditEvents)
 
-    result = use_case.execute(SearchAuditEventsRequest(
-        actor_id=actor_id,
-        action=action,
-        severity=severity,
-        outcome=outcome,
-        resource_type=resource_type,
-        resource_id=resource_id,
-        since=since,
-        until=until,
-        limit=limit,
-        offset=offset,
-        sort_by=sort_by,
-        sort_order=sort_order,
-    ))
+    result = use_case.execute(
+        SearchAuditEventsRequest(
+            actor_id=actor_id,
+            action=action,
+            severity=severity,
+            outcome=outcome,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            since=since,
+            until=until,
+            limit=limit,
+            offset=offset,
+            sort_by=sort_by,
+            sort_order=sort_order,
+        )
+    )
 
     return {
         "items": [
@@ -96,6 +100,7 @@ async def list_audit_events(
         "limit": result.limit,
         "offset": result.offset,
     }
+
 
 @router.get(
     "/events/{event_id}",

@@ -22,9 +22,7 @@ class RecordFailedAuthentication:
         self._max_attempts = max_attempts
         self._lockout_duration = lockout_duration_seconds
 
-    def execute(
-        self, request: RecordFailedAuthenticationRequest
-    ) -> RecordFailedAuthenticationResponse:
+    def execute(self, request: RecordFailedAuthenticationRequest) -> RecordFailedAuthenticationResponse:
         now = self._clock.now()
 
         existing = self._lockout_repo.get(request.user_id)

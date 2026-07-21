@@ -35,9 +35,7 @@ def _finding() -> Finding:
 
 def _adapter(transport, settings: AISettings) -> AIProviderAdapter:
     client = AIClient(timeout=5, retry_count=0, retry_delay=0, transport=transport)
-    return AIProviderAdapter(
-        settings=settings, provider=resolve_provider(settings.provider), client=client
-    )
+    return AIProviderAdapter(settings=settings, provider=resolve_provider(settings.provider), client=client)
 
 
 class TestRecommend:
@@ -108,9 +106,7 @@ class TestDependencyInjection:
     def test_register_ai_binds_port(self) -> None:
         container = Container()
         transport = transport_from(lambda r: openai_response(VALID_ENRICHMENT))
-        settings = Settings(
-            ai=AISettings(provider="openai", api_key=SecretStr("k"), base_url="http://t")
-        )
+        settings = Settings(ai=AISettings(provider="openai", api_key=SecretStr("k"), base_url="http://t"))
 
         register_ai(container, settings, transport=transport)
 

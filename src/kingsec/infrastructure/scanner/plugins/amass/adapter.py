@@ -65,12 +65,8 @@ class AmassPlugin(ScannerPluginPort):
         """Declare Amass scanning capabilities."""
         return (
             ScannerCapability(
-                target_types=frozenset(
-                    {TargetType.HOSTNAME}
-                ),
-                scan_categories=frozenset(
-                    {ScanCategory.DISCOVERY, ScanCategory.INFORMATION}
-                ),
+                target_types=frozenset({TargetType.HOSTNAME}),
+                scan_categories=frozenset({ScanCategory.DISCOVERY, ScanCategory.INFORMATION}),
                 output_format=OutputFormat.STRUCTURED_JSON,
             ),
         )

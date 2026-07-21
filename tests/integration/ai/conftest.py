@@ -30,9 +30,7 @@ _ENRICHMENT = {
 
 @pytest.fixture(autouse=True)
 def quiet_logging() -> None:
-    configure_logging(
-        LoggingSettings(level="ERROR", json_format=True), stream=io.StringIO()
-    )
+    configure_logging(LoggingSettings(level="ERROR", json_format=True), stream=io.StringIO())
 
 
 class _State:
@@ -60,9 +58,7 @@ def _make_handler(state: _State) -> type[BaseHTTPRequestHandler]:
                 self.wfile.write(b"not-json-at-all")
                 return
 
-            body = json.dumps(
-                {"choices": [{"message": {"content": json.dumps(_ENRICHMENT)}}]}
-            ).encode()
+            body = json.dumps({"choices": [{"message": {"content": json.dumps(_ENRICHMENT)}}]}).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()

@@ -90,9 +90,7 @@ def logging_context(
         structlog.contextvars.reset_contextvars(**tokens)
 
 
-def ensure_context_fields(
-    logger: WrappedLogger, method_name: str, event_dict: EventDict
-) -> EventDict:
+def ensure_context_fields(logger: WrappedLogger, method_name: str, event_dict: EventDict) -> EventDict:
     """Processor: guarantee correlation_id and assessment_id always appear.
 
     Requirement 2.2 says these fields must be *included*. Rather than hope every

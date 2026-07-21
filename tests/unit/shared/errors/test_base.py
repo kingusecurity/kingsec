@@ -41,9 +41,7 @@ class TestContext:
 
 class TestSafeSerialisation:
     def test_to_dict_exposes_only_code_and_user_message(self) -> None:
-        exc = ValidationError(
-            "internal /var/lib detail", context={"secret_token": "abc"}
-        )
+        exc = ValidationError("internal /var/lib detail", context={"secret_token": "abc"})
         payload = exc.to_dict()
         assert payload == {
             "error_code": ErrorCode.VALIDATION,

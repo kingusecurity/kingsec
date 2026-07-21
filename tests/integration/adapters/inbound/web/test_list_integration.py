@@ -68,27 +68,25 @@ class _IntegrationService(ServiceAPI):
     def __init__(self) -> None:
         self._assessments: list[dict] = []
 
-    def create_assessment(
-        self, request: CreateAssessmentRequest
-    ) -> CreateAssessmentResponse:
+    def create_assessment(self, request: CreateAssessmentRequest) -> CreateAssessmentResponse:
         assessment_id = f"asmt-int-{len(self._assessments) + 1:03d}"
-        self._assessments.append({
-            "id": assessment_id,
-            "target": f"{request.target_value} ({request.target_type})",
-            "status": "authorized",
-            "is_authorized": True,
-            "created_at": "2026-01-01T00:00:00+00:00",
-            "findings_count": 0,
-        })
+        self._assessments.append(
+            {
+                "id": assessment_id,
+                "target": f"{request.target_value} ({request.target_type})",
+                "status": "authorized",
+                "is_authorized": True,
+                "created_at": "2026-01-01T00:00:00+00:00",
+                "findings_count": 0,
+            }
+        )
         return CreateAssessmentResponse(
             assessment_id=assessment_id,
             status="authorized",
             target=f"{request.target_value} ({request.target_type})",
         )
 
-    def start_assessment(
-        self, request: StartAssessmentRequest
-    ) -> StartAssessmentResponse:
+    def start_assessment(self, request: StartAssessmentRequest) -> StartAssessmentResponse:
         return StartAssessmentResponse(
             assessment_id=request.assessment_id,
             status="completed",
@@ -96,26 +94,20 @@ class _IntegrationService(ServiceAPI):
             highest_severity=None,
         )
 
-    def submit_assessment(
-        self, request: SubmitAssessmentRequest
-    ) -> SubmitAssessmentResponse:
+    def submit_assessment(self, request: SubmitAssessmentRequest) -> SubmitAssessmentResponse:
         return SubmitAssessmentResponse(
             assessment_id=request.assessment_id,
             status="running",
             job_id=request.assessment_id,
         )
 
-    def cancel_assessment(
-        self, request: CancelAssessmentRequest
-    ) -> CancelAssessmentResponse:
+    def cancel_assessment(self, request: CancelAssessmentRequest) -> CancelAssessmentResponse:
         return CancelAssessmentResponse(
             assessment_id=request.assessment_id,
             status="cancelled",
         )
 
-    def list_assessments(
-        self, request: ListAssessmentsRequest
-    ) -> ListAssessmentsResponse:
+    def list_assessments(self, request: ListAssessmentsRequest) -> ListAssessmentsResponse:
         items = tuple(
             AssessmentSummary(
                 assessment_id=a["id"],
@@ -125,7 +117,7 @@ class _IntegrationService(ServiceAPI):
                 created_at=a["created_at"],
                 findings_count=a["findings_count"],
             )
-            for a in self._assessments[request.offset:request.offset + request.limit]
+            for a in self._assessments[request.offset : request.offset + request.limit]
         )
         return ListAssessmentsResponse(
             items=items,
@@ -146,11 +138,10 @@ class _IntegrationService(ServiceAPI):
                     findings=(),
                 )
         from kingsec.application.errors import AssessmentNotFoundError
+
         raise AssessmentNotFoundError(request.assessment_id)
 
-    def generate_report(
-        self, request: GenerateReportRequest
-    ) -> GenerateReportResponse:
+    def generate_report(self, request: GenerateReportRequest) -> GenerateReportResponse:
         return GenerateReportResponse(
             assessment_id=request.assessment_id,
             verdict="No findings",
@@ -163,9 +154,7 @@ class _IntegrationService(ServiceAPI):
             artifact_bytes=512,
         )
 
-    def delete_assessment(
-        self, request: DeleteAssessmentRequest
-    ) -> DeleteAssessmentResponse:
+    def delete_assessment(self, request: DeleteAssessmentRequest) -> DeleteAssessmentResponse:
         return DeleteAssessmentResponse(
             assessment_id=request.assessment_id,
         )

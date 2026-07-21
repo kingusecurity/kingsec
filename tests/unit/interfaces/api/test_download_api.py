@@ -298,6 +298,7 @@ class TestNoInfrastructureLeaks:
         import inspect
 
         import kingsec.interfaces.api.routes.download as download_module
+
         source = inspect.getsource(download_module)
         assert "infrastructure" not in source.lower()
 
@@ -305,5 +306,6 @@ class TestNoInfrastructureLeaks:
         import inspect
 
         import kingsec.interfaces.api.app as app_module
+
         source = inspect.getsource(app_module)
         assert "infrastructure" not in source.lower()

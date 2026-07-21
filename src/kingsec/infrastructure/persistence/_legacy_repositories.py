@@ -55,9 +55,7 @@ class SqlAlchemyAssessmentRepository(AssessmentRepository):
                 ops.persist_assessment(session, assessment)
             _logger.debug("assessment saved", assessment_id=str(assessment.id))
         except SQLAlchemyError as exc:
-            ops.raise_persistence_error(
-                "failed to save assessment", exc, str(assessment.id)
-            )
+            ops.raise_persistence_error("failed to save assessment", exc, str(assessment.id))
 
     def get(self, assessment_id: AssessmentId) -> Assessment:
         """Load an assessment aggregate by id.
@@ -76,9 +74,7 @@ class SqlAlchemyAssessmentRepository(AssessmentRepository):
             with self._session_factory() as session:
                 return ops.load_assessment(session, assessment_id)
         except SQLAlchemyError as exc:
-            ops.raise_persistence_error(
-                "failed to load assessment", exc, assessment_id.value
-            )
+            ops.raise_persistence_error("failed to load assessment", exc, assessment_id.value)
 
     def list(
         self,
@@ -98,9 +94,7 @@ class SqlAlchemyAssessmentRepository(AssessmentRepository):
         clamped_limit = min(max(limit, 1), 200)
         try:
             with self._session_factory() as session:
-                return ops.list_assessments(
-                    session, limit=clamped_limit, offset=max(offset, 0)
-                )
+                return ops.list_assessments(session, limit=clamped_limit, offset=max(offset, 0))
         except SQLAlchemyError as exc:
             ops.raise_persistence_error("failed to list assessments", exc, "-")
 
@@ -119,9 +113,7 @@ class SqlAlchemyAssessmentRepository(AssessmentRepository):
                 ops.delete_assessment(session, assessment_id)
             _logger.debug("assessment deleted", assessment_id=assessment_id.value)
         except SQLAlchemyError as exc:
-            ops.raise_persistence_error(
-                "failed to delete assessment", exc, assessment_id.value
-            )
+            ops.raise_persistence_error("failed to delete assessment", exc, assessment_id.value)
 
 
 class SqlAlchemyReportRepository(ReportRepository):
@@ -149,9 +141,7 @@ class SqlAlchemyReportRepository(ReportRepository):
                 ops.persist_report(session, report)
             _logger.debug("report saved", assessment_id=report.assessment_id)
         except SQLAlchemyError as exc:
-            ops.raise_persistence_error(
-                "failed to save report", exc, report.assessment_id
-            )
+            ops.raise_persistence_error("failed to save report", exc, report.assessment_id)
 
     def get(self, assessment_id: AssessmentId) -> Report:
         """Load a report snapshot by assessment id.
@@ -170,6 +160,4 @@ class SqlAlchemyReportRepository(ReportRepository):
             with self._session_factory() as session:
                 return ops.load_report(session, assessment_id)
         except SQLAlchemyError as exc:
-            ops.raise_persistence_error(
-                "failed to load report", exc, assessment_id.value
-            )
+            ops.raise_persistence_error("failed to load report", exc, assessment_id.value)

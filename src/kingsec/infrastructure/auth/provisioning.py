@@ -50,7 +50,9 @@ def register_user_repository(container: ContainerProtocol, session_factory: Call
     container.register_instance(UserRepository, repo)
 
 
-def register_api_key_auth(container: ContainerProtocol, session_factory: Callable[..., Any], settings: Settings | None = None) -> None:
+def register_api_key_auth(
+    container: ContainerProtocol, session_factory: Callable[..., Any], settings: Settings | None = None
+) -> None:
     """Register API key hasher and repository on the container.
 
     Args:
@@ -62,7 +64,9 @@ def register_api_key_auth(container: ContainerProtocol, session_factory: Callabl
 
     from .api_key_hasher import HmacApiKeyHasher
 
-    pepper = settings.secrets.api_key_pepper.get_secret_value() if settings else "CHANGE-ME-IN-PRODUCTION-DO-NOT-USE-DEFAULT"
+    pepper = (
+        settings.secrets.api_key_pepper.get_secret_value() if settings else "CHANGE-ME-IN-PRODUCTION-DO-NOT-USE-DEFAULT"
+    )
     hasher = HmacApiKeyHasher(pepper)
     container.register_instance(ApiKeyHasher, hasher)
 

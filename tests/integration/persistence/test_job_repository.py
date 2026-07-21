@@ -106,6 +106,7 @@ class TestSaveAndGet:
         session.flush()
 
         from kingsec.infrastructure.persistence.models import JobModel
+
         orm = session.get(JobModel, "job-1")
         assert orm is not None
         assert orm.status == "PENDING"

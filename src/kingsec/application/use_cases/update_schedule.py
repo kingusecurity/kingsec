@@ -22,6 +22,7 @@ class UpdateSchedule:
         existing = self._repository.find_by_id(request.schedule_id)
         if existing is None:
             from kingsec.application.errors import ApplicationError
+
             raise ApplicationError(f"schedule '{request.schedule_id}' not found")
 
         stype = existing.schedule_type

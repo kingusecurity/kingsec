@@ -27,8 +27,4 @@ class EnvironmentSecretProvider(SecretProviderPort):
 
     def list(self) -> list[str]:
         prefix_len = len(self._PREFIX)
-        return [
-            key[prefix_len:]
-            for key in os.environ
-            if key.startswith(self._PREFIX)
-        ]
+        return [key[prefix_len:] for key in os.environ if key.startswith(self._PREFIX)]

@@ -96,9 +96,7 @@ class TestCreateJob:
         assert response.status_code == 422
 
     def test_create_invalid_config_returns_422(self) -> None:
-        response = self.client.post(
-            "/jobs", json={"target": "example.com", "config": "not-a-dict"}
-        )
+        response = self.client.post("/jobs", json={"target": "example.com", "config": "not-a-dict"})
         assert response.status_code == 422
 
 

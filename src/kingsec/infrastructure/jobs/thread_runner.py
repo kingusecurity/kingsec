@@ -57,9 +57,7 @@ class ThreadJobRunner(JobRunner):
             if job_id in self._futures:
                 future = self._futures[job_id]
                 if not future.done():
-                    raise JobRunnerError(
-                        f"job {job_id!r} is already running"
-                    )
+                    raise JobRunnerError(f"job {job_id!r} is already running")
 
             def _wrapper() -> None:
                 logger.info("job started", job_id=job_id)

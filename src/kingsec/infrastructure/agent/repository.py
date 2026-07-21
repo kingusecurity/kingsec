@@ -29,10 +29,7 @@ class InMemoryAgentRepository(AgentRepositoryPort):
         return [a for a in self._agents.values() if a.state == AgentState.ONLINE]
 
     def find_idle(self) -> list[Agent]:
-        return [
-            a for a in self._agents.values()
-            if a.state == AgentState.ONLINE and a.current_job_id is None
-        ]
+        return [a for a in self._agents.values() if a.state == AgentState.ONLINE and a.current_job_id is None]
 
 
 class SQLAlchemyAgentRepository(AgentRepositoryPort):
@@ -41,6 +38,7 @@ class SQLAlchemyAgentRepository(AgentRepositoryPort):
 
     def register(self, agent: Agent) -> None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             session.execute(
                 text("""
@@ -66,6 +64,7 @@ class SQLAlchemyAgentRepository(AgentRepositoryPort):
 
     def update(self, agent: Agent) -> None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             session.execute(
                 text("""
@@ -88,36 +87,37 @@ class SQLAlchemyAgentRepository(AgentRepositoryPort):
 
     def find_by_id(self, agent_id: AgentId) -> Agent | None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
-            row = session.execute(
-                text("SELECT * FROM agents WHERE id = :id"), {"id": agent_id.value}
-            ).fetchone()
+            row = session.execute(text("SELECT * FROM agents WHERE id = :id"), {"id": agent_id.value}).fetchone()
             if not row:
                 return None
             return self._row_to_agent(row._mapping)
 
     def find_all(self) -> list[Agent]:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             rows = session.execute(text("SELECT * FROM agents")).fetchall()
             return [self._row_to_agent(r._mapping) for r in rows]
 
     def delete(self, agent_id: AgentId) -> None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             session.execute(text("DELETE FROM agents WHERE id = :id"), {"id": agent_id.value})
             session.commit()
 
     def find_online(self) -> list[Agent]:
         from sqlalchemy import text
+
         with self._session_factory() as session:
-            rows = session.execute(
-                text("SELECT * FROM agents WHERE state = 'online'")
-            ).fetchall()
+            rows = session.execute(text("SELECT * FROM agents WHERE state = 'online'")).fetchall()
             return [self._row_to_agent(r._mapping) for r in rows]
 
     def find_idle(self) -> list[Agent]:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             rows = session.execute(
                 text("SELECT * FROM agents WHERE state = 'online' AND current_job_id IS NULL")
@@ -133,6 +133,7 @@ class SQLAlchemyAgentRepository(AgentRepositoryPort):
             AgentState,
             AgentStatistics,
         )
+
         return Agent(
             id=AgentId(row["id"]),
             name=row.get("name", ""),

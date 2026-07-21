@@ -19,6 +19,7 @@ class InMemoryAgentDispatcher(AgentDispatcherPort):
         agent = self._agents.get(agent_id.value)
         if agent:
             from kingsec.domain.agent import AgentState
+
             updated = Agent(
                 id=agent.id,
                 name=agent.name,

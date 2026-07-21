@@ -151,10 +151,12 @@ class TestRevokeApiKey:
         revoke_uc = RevokeApiKey(repo)
 
         created = create_uc.execute(CreateApiKeyRequest(user_id="user-1", name="My Key"))
-        revoke_uc.execute(RevokeApiKeyRequest(
-            api_key_id=created.api_key_id,
-            requesting_user_id="user-1",
-        ))
+        revoke_uc.execute(
+            RevokeApiKeyRequest(
+                api_key_id=created.api_key_id,
+                requesting_user_id="user-1",
+            )
+        )
 
         stored = repo.find_by_id(created.api_key_id)
         assert stored is not None
@@ -168,20 +170,24 @@ class TestRevokeApiKey:
 
         created = create_uc.execute(CreateApiKeyRequest(user_id="user-1", name="My Key"))
         with pytest.raises(ApiKeyUnauthorizedError):
-            revoke_uc.execute(RevokeApiKeyRequest(
-                api_key_id=created.api_key_id,
-                requesting_user_id="user-2",
-            ))
+            revoke_uc.execute(
+                RevokeApiKeyRequest(
+                    api_key_id=created.api_key_id,
+                    requesting_user_id="user-2",
+                )
+            )
 
     def test_revoke_nonexistent_key_raises_error(self) -> None:
         repo = StubApiKeyRepository()
         revoke_uc = RevokeApiKey(repo)
 
         with pytest.raises(ApiKeyNotFoundError):
-            revoke_uc.execute(RevokeApiKeyRequest(
-                api_key_id="nonexistent",
-                requesting_user_id="user-1",
-            ))
+            revoke_uc.execute(
+                RevokeApiKeyRequest(
+                    api_key_id="nonexistent",
+                    requesting_user_id="user-1",
+                )
+            )
 
 
 class TestRotateApiKey:
@@ -194,10 +200,12 @@ class TestRotateApiKey:
         created = create_uc.execute(CreateApiKeyRequest(user_id="user-1", name="My Key"))
         original_hash = repo.find_by_id(created.api_key_id).key_hash
 
-        result = rotate_uc.execute(RotateApiKeyRequest(
-            api_key_id=created.api_key_id,
-            requesting_user_id="user-1",
-        ))
+        result = rotate_uc.execute(
+            RotateApiKeyRequest(
+                api_key_id=created.api_key_id,
+                requesting_user_id="user-1",
+            )
+        )
 
         assert result.api_key_id == created.api_key_id
         assert result.plaintext_key.startswith("ks_")
@@ -215,10 +223,12 @@ class TestRotateApiKey:
 
         created = create_uc.execute(CreateApiKeyRequest(user_id="user-1", name="My Key"))
         with pytest.raises(ApiKeyUnauthorizedError):
-            rotate_uc.execute(RotateApiKeyRequest(
-                api_key_id=created.api_key_id,
-                requesting_user_id="user-2",
-            ))
+            rotate_uc.execute(
+                RotateApiKeyRequest(
+                    api_key_id=created.api_key_id,
+                    requesting_user_id="user-2",
+                )
+            )
 
 
 class TestValidateApiKey:
@@ -244,10 +254,12 @@ class TestValidateApiKey:
         validate_uc = ValidateApiKey(repo, hasher)
 
         created = create_uc.execute(CreateApiKeyRequest(user_id="user-1", name="My Key"))
-        revoke_uc.execute(RevokeApiKeyRequest(
-            api_key_id=created.api_key_id,
-            requesting_user_id="user-1",
-        ))
+        revoke_uc.execute(
+            RevokeApiKeyRequest(
+                api_key_id=created.api_key_id,
+                requesting_user_id="user-1",
+            )
+        )
 
         with pytest.raises(ApplicationError, match="revoked"):
             validate_uc.execute(ValidateApiKeyRequest(api_key=created.plaintext_key))

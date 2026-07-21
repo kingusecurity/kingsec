@@ -31,12 +31,12 @@ class TestResolution:
             return _ServiceA()
 
         container.register_factory(_ServiceA, factory)
-        assert calls["n"] == 0                     # not built until resolved
+        assert calls["n"] == 0  # not built until resolved
 
         first = container.resolve(_ServiceA)
         second = container.resolve(_ServiceA)
-        assert first is second                     # singleton cache
-        assert calls["n"] == 1                      # built exactly once
+        assert first is second  # singleton cache
+        assert calls["n"] == 1  # built exactly once
 
     def test_missing_registration_raises_bootstrap_error(self) -> None:
         container = Container()
@@ -59,7 +59,7 @@ class TestShutdownHooks:
         container.add_shutdown_hook(lambda: order.append(3))
 
         container.run_shutdown_hooks()
-        assert order == [3, 2, 1]                   # reverse registration order
+        assert order == [3, 2, 1]  # reverse registration order
 
     def test_failing_hook_does_not_stop_others(self) -> None:
         container = Container()

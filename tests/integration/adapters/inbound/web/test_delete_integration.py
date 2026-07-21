@@ -69,9 +69,7 @@ class _IntegrationService(ServiceAPI):
         self._assessments: dict[str, dict] = {}
         self._counter = 0
 
-    def create_assessment(
-        self, request: CreateAssessmentRequest
-    ) -> CreateAssessmentResponse:
+    def create_assessment(self, request: CreateAssessmentRequest) -> CreateAssessmentResponse:
         self._counter += 1
         assessment_id = f"asmt-int-{self._counter:03d}"
         self._assessments[assessment_id] = {
@@ -88,9 +86,7 @@ class _IntegrationService(ServiceAPI):
             target=f"{request.target_value} ({request.target_type})",
         )
 
-    def start_assessment(
-        self, request: StartAssessmentRequest
-    ) -> StartAssessmentResponse:
+    def start_assessment(self, request: StartAssessmentRequest) -> StartAssessmentResponse:
         return StartAssessmentResponse(
             assessment_id=request.assessment_id,
             status="completed",
@@ -98,26 +94,20 @@ class _IntegrationService(ServiceAPI):
             highest_severity=None,
         )
 
-    def submit_assessment(
-        self, request: SubmitAssessmentRequest
-    ) -> SubmitAssessmentResponse:
+    def submit_assessment(self, request: SubmitAssessmentRequest) -> SubmitAssessmentResponse:
         return SubmitAssessmentResponse(
             assessment_id=request.assessment_id,
             status="running",
             job_id=request.assessment_id,
         )
 
-    def cancel_assessment(
-        self, request: CancelAssessmentRequest
-    ) -> CancelAssessmentResponse:
+    def cancel_assessment(self, request: CancelAssessmentRequest) -> CancelAssessmentResponse:
         return CancelAssessmentResponse(
             assessment_id=request.assessment_id,
             status="cancelled",
         )
 
-    def list_assessments(
-        self, request: ListAssessmentsRequest
-    ) -> ListAssessmentsResponse:
+    def list_assessments(self, request: ListAssessmentsRequest) -> ListAssessmentsResponse:
         items = tuple(
             AssessmentSummary(
                 assessment_id=a["id"],
@@ -127,7 +117,7 @@ class _IntegrationService(ServiceAPI):
                 created_at=a["created_at"],
                 findings_count=a["findings_count"],
             )
-            for a in list(self._assessments.values())[request.offset:request.offset + request.limit]
+            for a in list(self._assessments.values())[request.offset : request.offset + request.limit]
         )
         return ListAssessmentsResponse(
             items=items,
@@ -140,6 +130,7 @@ class _IntegrationService(ServiceAPI):
         a = self._assessments.get(request.assessment_id)
         if a is None:
             from kingsec.application.errors import AssessmentNotFoundError
+
             raise AssessmentNotFoundError(request.assessment_id)
         return AssessmentView(
             assessment_id=a["id"],
@@ -150,9 +141,7 @@ class _IntegrationService(ServiceAPI):
             findings=(),
         )
 
-    def generate_report(
-        self, request: GenerateReportRequest
-    ) -> GenerateReportResponse:
+    def generate_report(self, request: GenerateReportRequest) -> GenerateReportResponse:
         return GenerateReportResponse(
             assessment_id=request.assessment_id,
             verdict="No findings",
@@ -165,11 +154,10 @@ class _IntegrationService(ServiceAPI):
             artifact_bytes=512,
         )
 
-    def delete_assessment(
-        self, request: DeleteAssessmentRequest
-    ) -> DeleteAssessmentResponse:
+    def delete_assessment(self, request: DeleteAssessmentRequest) -> DeleteAssessmentResponse:
         if request.assessment_id not in self._assessments:
             from kingsec.application.errors import AssessmentNotFoundError
+
             raise AssessmentNotFoundError(request.assessment_id)
         del self._assessments[request.assessment_id]
         return DeleteAssessmentResponse(assessment_id=request.assessment_id)

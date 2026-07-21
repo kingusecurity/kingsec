@@ -53,7 +53,7 @@ class TestVerdict:
         low = make_finding(Severity.LOW)
         running.record_finding(critical)
         running.record_finding(low)
-        critical.mark_false_positive()   # dismiss the worst one
+        critical.mark_false_positive()  # dismiss the worst one
         running.complete()
 
         report = Report.from_assessment(running)

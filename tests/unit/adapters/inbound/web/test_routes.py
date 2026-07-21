@@ -75,9 +75,7 @@ class StubServiceAPI(ServiceAPI):
         self.report_called = False
         self.delete_called = False
 
-    def create_assessment(
-        self, request: CreateAssessmentRequest
-    ) -> CreateAssessmentResponse:
+    def create_assessment(self, request: CreateAssessmentRequest) -> CreateAssessmentResponse:
         self.create_called = True
         return CreateAssessmentResponse(
             assessment_id="asmt-test-001",
@@ -85,9 +83,7 @@ class StubServiceAPI(ServiceAPI):
             target=f"{request.target_value} ({request.target_type})",
         )
 
-    def start_assessment(
-        self, request: StartAssessmentRequest
-    ) -> StartAssessmentResponse:
+    def start_assessment(self, request: StartAssessmentRequest) -> StartAssessmentResponse:
         self.start_called = True
         return StartAssessmentResponse(
             assessment_id=request.assessment_id,
@@ -96,9 +92,7 @@ class StubServiceAPI(ServiceAPI):
             highest_severity="critical",
         )
 
-    def submit_assessment(
-        self, request: SubmitAssessmentRequest
-    ) -> SubmitAssessmentResponse:
+    def submit_assessment(self, request: SubmitAssessmentRequest) -> SubmitAssessmentResponse:
         self.submit_called = True
         return SubmitAssessmentResponse(
             assessment_id=request.assessment_id,
@@ -106,18 +100,14 @@ class StubServiceAPI(ServiceAPI):
             job_id=request.assessment_id,
         )
 
-    def cancel_assessment(
-        self, request: CancelAssessmentRequest
-    ) -> CancelAssessmentResponse:
+    def cancel_assessment(self, request: CancelAssessmentRequest) -> CancelAssessmentResponse:
         self.cancel_called = True
         return CancelAssessmentResponse(
             assessment_id=request.assessment_id,
             status="cancelled",
         )
 
-    def list_assessments(
-        self, request: ListAssessmentsRequest
-    ) -> ListAssessmentsResponse:
+    def list_assessments(self, request: ListAssessmentsRequest) -> ListAssessmentsResponse:
         self.list_called = True
         return ListAssessmentsResponse(
             items=(
@@ -155,9 +145,7 @@ class StubServiceAPI(ServiceAPI):
             ),
         )
 
-    def generate_report(
-        self, request: GenerateReportRequest
-    ) -> GenerateReportResponse:
+    def generate_report(self, request: GenerateReportRequest) -> GenerateReportResponse:
         self.report_called = True
         return GenerateReportResponse(
             assessment_id=request.assessment_id,
@@ -174,9 +162,7 @@ class StubServiceAPI(ServiceAPI):
             artifact_bytes=1024,
         )
 
-    def delete_assessment(
-        self, request: DeleteAssessmentRequest
-    ) -> DeleteAssessmentResponse:
+    def delete_assessment(self, request: DeleteAssessmentRequest) -> DeleteAssessmentResponse:
         self.delete_called = True
         return DeleteAssessmentResponse(
             assessment_id=request.assessment_id,
@@ -403,23 +389,17 @@ class TestErrorHandling:
             def start_assessment(self, r):
                 from kingsec.domain.errors import IllegalStateTransition
 
-                raise IllegalStateTransition(
-                    "not authorized", current="draft", attempted="start"
-                )
+                raise IllegalStateTransition("not authorized", current="draft", attempted="start")
 
             def submit_assessment(self, r):
                 from kingsec.domain.errors import IllegalStateTransition
 
-                raise IllegalStateTransition(
-                    "not authorized", current="draft", attempted="start"
-                )
+                raise IllegalStateTransition("not authorized", current="draft", attempted="start")
 
             def cancel_assessment(self, r):
                 from kingsec.domain.errors import IllegalStateTransition
 
-                raise IllegalStateTransition(
-                    "already completed", current="completed", attempted="cancelled"
-                )
+                raise IllegalStateTransition("already completed", current="completed", attempted="cancelled")
 
             def list_assessments(self, r):  # type: ignore[override]
                 pass

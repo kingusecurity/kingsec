@@ -70,7 +70,10 @@ class TestGetPipeline:
         pid = PipelineId(value="pl-1")
         stages = (PipelineStage(name="queued", status="completed"),)
         expected = PipelineExecution(
-            pipeline_id=pid, target="10.0.0.1", state=PipelineState.QUEUED, stages=stages,
+            pipeline_id=pid,
+            target="10.0.0.1",
+            state=PipelineState.QUEUED,
+            stages=stages,
         )
         repo.find_by_id.return_value = expected
         uc = GetPipeline(repo)
@@ -105,11 +108,17 @@ class TestCancelPipeline:
         pid = PipelineId(value="pl-1")
         stages = (PipelineStage(name="queued", status="completed"),)
         existing = PipelineExecution(
-            pipeline_id=pid, target="a", state=PipelineState.RUNNING, stages=stages,
+            pipeline_id=pid,
+            target="a",
+            state=PipelineState.RUNNING,
+            stages=stages,
         )
         repo.find_by_id.return_value = existing
         cancelled = PipelineExecution(
-            pipeline_id=pid, target="a", state=PipelineState.CANCELLED, stages=stages,
+            pipeline_id=pid,
+            target="a",
+            state=PipelineState.CANCELLED,
+            stages=stages,
         )
         orchestrator.cancel.return_value = cancelled
         uc = CancelPipeline(repo, orchestrator, audit)
@@ -122,7 +131,10 @@ class TestCancelPipeline:
         pid = PipelineId(value="pl-1")
         stages = (PipelineStage(name="queued", status="completed"),)
         existing = PipelineExecution(
-            pipeline_id=pid, target="a", state=PipelineState.COMPLETED, stages=stages,
+            pipeline_id=pid,
+            target="a",
+            state=PipelineState.COMPLETED,
+            stages=stages,
         )
         repo.find_by_id.return_value = existing
         uc = CancelPipeline(repo, orchestrator, audit)
@@ -141,11 +153,17 @@ class TestRetryPipeline:
         pid = PipelineId(value="pl-1")
         stages = (PipelineStage(name="queued", status="completed"),)
         existing = PipelineExecution(
-            pipeline_id=pid, target="a", state=PipelineState.FAILED, stages=stages,
+            pipeline_id=pid,
+            target="a",
+            state=PipelineState.FAILED,
+            stages=stages,
         )
         repo.find_by_id.return_value = existing
         retried = PipelineExecution(
-            pipeline_id=pid, target="a", state=PipelineState.FAILED, stages=stages,
+            pipeline_id=pid,
+            target="a",
+            state=PipelineState.FAILED,
+            stages=stages,
         )
         orchestrator.retry.return_value = retried
         uc = RetryPipeline(repo, orchestrator, audit)
@@ -157,7 +175,10 @@ class TestRetryPipeline:
         pid = PipelineId(value="pl-1")
         stages = (PipelineStage(name="queued", status="completed"),)
         existing = PipelineExecution(
-            pipeline_id=pid, target="a", state=PipelineState.RUNNING, stages=stages,
+            pipeline_id=pid,
+            target="a",
+            state=PipelineState.RUNNING,
+            stages=stages,
         )
         repo.find_by_id.return_value = existing
         uc = RetryPipeline(repo, orchestrator, audit)
@@ -170,7 +191,10 @@ class TestPausePipeline:
         pid = PipelineId(value="pl-1")
         stages = (PipelineStage(name="queued", status="completed"),)
         existing = PipelineExecution(
-            pipeline_id=pid, target="a", state=PipelineState.RUNNING, stages=stages,
+            pipeline_id=pid,
+            target="a",
+            state=PipelineState.RUNNING,
+            stages=stages,
         )
         repo.find_by_id.return_value = existing
         orchestrator.pause.return_value = existing
@@ -185,7 +209,10 @@ class TestResumePipeline:
         pid = PipelineId(value="pl-1")
         stages = (PipelineStage(name="queued", status="completed"),)
         existing = PipelineExecution(
-            pipeline_id=pid, target="a", state=PipelineState.RUNNING, stages=stages,
+            pipeline_id=pid,
+            target="a",
+            state=PipelineState.RUNNING,
+            stages=stages,
         )
         repo.find_by_id.return_value = existing
         orchestrator.resume.return_value = existing

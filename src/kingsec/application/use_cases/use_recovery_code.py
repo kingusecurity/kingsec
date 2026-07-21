@@ -1,4 +1,5 @@
 """Use case: authenticate with password + recovery code when MFA device is lost."""
+
 from __future__ import annotations
 
 import hashlib
@@ -48,26 +49,30 @@ class UseRecoveryCode:
 
         user = self._users.find_by_username(request.username)
         if user is None:
-            self._publish_legacy(AuditEntry(
-                action=LegacyAuditAction.FAILED_LOGIN,
-                resource_type="user",
-                success=False,
-                reason="invalid credentials",
-                username=request.username,
-            ))
+            self._publish_legacy(
+                AuditEntry(
+                    action=LegacyAuditAction.FAILED_LOGIN,
+                    resource_type="user",
+                    success=False,
+                    reason="invalid credentials",
+                    username=request.username,
+                )
+            )
             raise ApplicationError("invalid username or password")
 
         if not self._hasher.verify(request.password, user.password_hash):
-            self._publish_legacy(AuditEntry(
-                action=LegacyAuditAction.FAILED_LOGIN,
-                resource_type="user",
-                resource_id=user.id,
-                success=False,
-                reason="invalid credentials",
-                user_id=user.id,
-                username=user.username,
-                role=user.role.label,
-            ))
+            self._publish_legacy(
+                AuditEntry(
+                    action=LegacyAuditAction.FAILED_LOGIN,
+                    resource_type="user",
+                    resource_id=user.id,
+                    success=False,
+                    reason="invalid credentials",
+                    user_id=user.id,
+                    username=user.username,
+                    role=user.role.label,
+                )
+            )
             raise ApplicationError("invalid username or password")
 
         if not user.is_active:
@@ -90,7 +95,52 @@ class UseRecoveryCode:
                 break
 
         if not matched:
-            self._publish_event(AuditEvent(
+            self._publish_event(
+                AuditEvent(
+                    id=AuditEventId(str(uuid.uuid4())),
+                    timestamp=datetime.now(UTC).isoformat(),
+                    actor_id=user.id,
+                    actor_type="user",
+                    username=user.username,
+                    ip_address="",
+                    user_agent="",
+                    request_id="",
+                    action=AuditAction.AUTHENTICATION_FAILURE,
+                    resource_type="mfa",
+                    resource_id=user.id,
+                    outcome=AuditOutcome.FAILURE,
+                    severity=AuditSeverity.WARNING,
+                    message="Invalid or used recovery code",
+                )
+            )
+            raise ApplicationError("invalid recovery code")
+
+        access_token = self._tokens.create_access_token(
+            user_id=user.id,
+            username=user.username,
+            role=user.role.label,
+        )
+        refresh_token = self._tokens.create_refresh_token(
+            user_id=user.id,
+            username=user.username,
+            role=user.role.label,
+        )
+        user.record_login()
+        self._users.save(user)
+
+        self._publish_legacy(
+            AuditEntry(
+                action=LegacyAuditAction.LOGIN,
+                resource_type="user",
+                resource_id=user.id,
+                success=True,
+                user_id=user.id,
+                username=user.username,
+                role=user.role.label,
+            )
+        )
+        self._publish_event(
+            AuditEvent(
                 id=AuditEventId(str(uuid.uuid4())),
                 timestamp=datetime.now(UTC).isoformat(),
                 actor_id=user.id,
@@ -99,49 +149,14 @@ class UseRecoveryCode:
                 ip_address="",
                 user_agent="",
                 request_id="",
-                action=AuditAction.AUTHENTICATION_FAILURE,
+                action=AuditAction.LOGIN_SUCCESS,
                 resource_type="mfa",
                 resource_id=user.id,
-                outcome=AuditOutcome.FAILURE,
-                severity=AuditSeverity.WARNING,
-                message="Invalid or used recovery code",
-            ))
-            raise ApplicationError("invalid recovery code")
-
-        access_token = self._tokens.create_access_token(
-            user_id=user.id, username=user.username, role=user.role.label,
+                outcome=AuditOutcome.SUCCESS,
+                severity=AuditSeverity.INFO,
+                message="Recovery code used for login",
+            )
         )
-        refresh_token = self._tokens.create_refresh_token(
-            user_id=user.id, username=user.username, role=user.role.label,
-        )
-        user.record_login()
-        self._users.save(user)
-
-        self._publish_legacy(AuditEntry(
-            action=LegacyAuditAction.LOGIN,
-            resource_type="user",
-            resource_id=user.id,
-            success=True,
-            user_id=user.id,
-            username=user.username,
-            role=user.role.label,
-        ))
-        self._publish_event(AuditEvent(
-            id=AuditEventId(str(uuid.uuid4())),
-            timestamp=datetime.now(UTC).isoformat(),
-            actor_id=user.id,
-            actor_type="user",
-            username=user.username,
-            ip_address="",
-            user_agent="",
-            request_id="",
-            action=AuditAction.LOGIN_SUCCESS,
-            resource_type="mfa",
-            resource_id=user.id,
-            outcome=AuditOutcome.SUCCESS,
-            severity=AuditSeverity.INFO,
-            message="Recovery code used for login",
-        ))
 
         return UseRecoveryCodeResponse(
             user_id=user.id,

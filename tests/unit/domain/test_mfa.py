@@ -1,4 +1,5 @@
 """Tests for MFA domain entities and enums."""
+
 from __future__ import annotations
 
 from kingsec.domain.mfa import MfaRecoveryCode, MfaSecret, MfaStatus, RecoveryCodeStatus

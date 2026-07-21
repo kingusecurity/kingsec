@@ -12,6 +12,7 @@ Verifies:
 9. POST /api/v1/mfa/verify rejects when MFA not enabled
 10. Unauthenticated requests return 401
 """
+
 from __future__ import annotations
 
 from fastapi import FastAPI
@@ -130,7 +131,9 @@ def _build_app() -> tuple[FastAPI, StubUserRepo, StubTokenService, StubMfaSecret
             if service_type == GenerateRecoveryCodes:
                 return GenerateRecoveryCodes(recovery_repo)
             if service_type == UseRecoveryCode:
-                return UseRecoveryCode(user_repo, hasher, token_service, mfa_secret_repo, recovery_repo, None, audit_repo)
+                return UseRecoveryCode(
+                    user_repo, hasher, token_service, mfa_secret_repo, recovery_repo, None, audit_repo
+                )
             if service_type == RotateRecoveryCodes:
                 return RotateRecoveryCodes(recovery_repo, audit_repo)
             raise ValueError(f"Unknown service: {service_type}")
@@ -149,7 +152,10 @@ def _build_app() -> tuple[FastAPI, StubUserRepo, StubTokenService, StubMfaSecret
 
 
 def _register_and_login(client: TestClient, username: str = "testuser", role: str = "ADMIN") -> str:
-    resp = client.post("/api/v1/auth/register", json={"username": username, "email": f"{username}@example.com", "password": "Passw0rd!", "role": role})
+    resp = client.post(
+        "/api/v1/auth/register",
+        json={"username": username, "email": f"{username}@example.com", "password": "Passw0rd!", "role": role},
+    )
     assert resp.status_code in (200, 201)
     login_resp = client.post("/api/v1/auth/login", json={"username": username, "password": "Passw0rd!"})
     assert login_resp.status_code == 200
@@ -194,7 +200,9 @@ class TestMfaIntegration:
 
         client.post("/api/v1/mfa/enable", headers={"Authorization": f"Bearer {token}"})
 
-        resp = client.post("/api/v1/mfa/verify", json={"username": "user4", "password": "Passw0rd!", "totp_code": "123456"})
+        resp = client.post(
+            "/api/v1/mfa/verify", json={"username": "user4", "password": "Passw0rd!", "totp_code": "123456"}
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert "access_token" in data
@@ -207,7 +215,9 @@ class TestMfaIntegration:
         token = _register_and_login(client, username="user5")
         client.post("/api/v1/mfa/enable", headers={"Authorization": f"Bearer {token}"})
 
-        resp = client.post("/api/v1/mfa/verify", json={"username": "user5", "password": "Passw0rd!", "totp_code": "999999"})
+        resp = client.post(
+            "/api/v1/mfa/verify", json={"username": "user5", "password": "Passw0rd!", "totp_code": "999999"}
+        )
         assert resp.status_code == 401
 
     def test_verify_wrong_password(self) -> None:
@@ -217,7 +227,9 @@ class TestMfaIntegration:
         token = _register_and_login(client, username="user6")
         client.post("/api/v1/mfa/enable", headers={"Authorization": f"Bearer {token}"})
 
-        resp = client.post("/api/v1/mfa/verify", json={"username": "user6", "password": "wrongpass", "totp_code": "123456"})
+        resp = client.post(
+            "/api/v1/mfa/verify", json={"username": "user6", "password": "wrongpass", "totp_code": "123456"}
+        )
         assert resp.status_code == 401
 
     def test_disable_mfa(self) -> None:
@@ -258,7 +270,9 @@ class TestMfaIntegration:
         gen_resp = client.post("/api/v1/mfa/recovery/generate", headers={"Authorization": f"Bearer {token}"})
         recovery_code = gen_resp.json()["codes"][0]
 
-        resp = client.post("/api/v1/mfa/recovery", json={"username": "user8", "password": "Passw0rd!", "recovery_code": recovery_code})
+        resp = client.post(
+            "/api/v1/mfa/recovery", json={"username": "user8", "password": "Passw0rd!", "recovery_code": recovery_code}
+        )
         assert resp.status_code == 200
         assert "access_token" in resp.json()
 
@@ -273,11 +287,15 @@ class TestMfaIntegration:
         recovery_code = gen_resp.json()["codes"][0]
 
         # First use succeeds
-        resp1 = client.post("/api/v1/mfa/recovery", json={"username": "user9", "password": "Passw0rd!", "recovery_code": recovery_code})
+        resp1 = client.post(
+            "/api/v1/mfa/recovery", json={"username": "user9", "password": "Passw0rd!", "recovery_code": recovery_code}
+        )
         assert resp1.status_code == 200
 
         # Second use fails
-        resp2 = client.post("/api/v1/mfa/recovery", json={"username": "user9", "password": "Passw0rd!", "recovery_code": recovery_code})
+        resp2 = client.post(
+            "/api/v1/mfa/recovery", json={"username": "user9", "password": "Passw0rd!", "recovery_code": recovery_code}
+        )
         assert resp2.status_code == 401
 
     def test_recovery_rotate(self) -> None:

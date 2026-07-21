@@ -15,7 +15,9 @@ from kingsec.infrastructure.production.health_checks import DatabaseHealthCheck,
 
 
 class SystemHealthMonitor(SystemMonitorPort):
-    def __init__(self, db_check: DatabaseHealthCheck | None = None, fs_check: FilesystemHealthCheck | None = None) -> None:
+    def __init__(
+        self, db_check: DatabaseHealthCheck | None = None, fs_check: FilesystemHealthCheck | None = None
+    ) -> None:
         self._db_check = db_check
         self._fs_check = fs_check
         self._started_at = datetime.now(UTC)

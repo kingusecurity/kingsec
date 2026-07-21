@@ -24,12 +24,12 @@ from __future__ import annotations
 class ErrorCode:
     """Namespace of stable error-code constants. Do not renumber existing codes."""
 
-    UNEXPECTED = "KS-ERR-000"          # the catch-all base; something unforeseen
-    CONFIGURATION = "KS-CFG-001"       # invalid or missing configuration
-    VALIDATION = "KS-VAL-001"          # caller-supplied input failed validation
-    AUTHORIZATION = "KS-AUTHZ-001"     # action not permitted / not authorized
-    NOT_FOUND = "KS-RES-001"           # a requested resource does not exist
-    EXTERNAL_SERVICE = "KS-EXT-001"    # a downstream/external dependency failed
-    EXTERNAL_TIMEOUT = "KS-EXT-002"    # a downstream/external dependency timed out
-    SCANNER = "KS-SCAN-001"            # a scan/plugin could not complete
-    PERSISTENCE = "KS-STORE-001"       # a storage/persistence operation failed
+    UNEXPECTED = "KS-ERR-000"  # the catch-all base; something unforeseen
+    CONFIGURATION = "KS-CFG-001"  # invalid or missing configuration
+    VALIDATION = "KS-VAL-001"  # caller-supplied input failed validation
+    AUTHORIZATION = "KS-AUTHZ-001"  # action not permitted / not authorized
+    NOT_FOUND = "KS-RES-001"  # a requested resource does not exist
+    EXTERNAL_SERVICE = "KS-EXT-001"  # a downstream/external dependency failed
+    EXTERNAL_TIMEOUT = "KS-EXT-002"  # a downstream/external dependency timed out
+    SCANNER = "KS-SCAN-001"  # a scan/plugin could not complete
+    PERSISTENCE = "KS-STORE-001"  # a storage/persistence operation failed

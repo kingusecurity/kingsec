@@ -1,4 +1,5 @@
 """Use case: rotate (replace) recovery codes for a user."""
+
 from __future__ import annotations
 
 from kingsec.application.ports.outbound.audit_event_repository import AuditEventRepository

@@ -39,12 +39,7 @@ class SQLAlchemyJobRepository(JobRepositoryPort):
         limit: int = 50,
         offset: int = 0,
     ) -> list[ScanJob]:
-        stmt = (
-            select(JobModel)
-            .order_by(JobModel.created_at.desc())
-            .offset(offset)
-            .limit(limit)
-        )
+        stmt = select(JobModel).order_by(JobModel.created_at.desc()).offset(offset).limit(limit)
         orms = self._session.execute(stmt).scalars().all()
         return [job_to_domain(o) for o in orms]
 

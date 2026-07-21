@@ -136,19 +136,11 @@ def validate_schema_version(engine: Engine) -> None:
     inspector = inspect(engine)
 
     if "alembic_version" not in inspector.get_table_names():
-        raise RuntimeError(
-            "Database schema is not up to date.\n"
-            "Run:\n"
-            "  alembic upgrade head"
-        )
+        raise RuntimeError("Database schema is not up to date.\nRun:\n  alembic upgrade head")
 
     with engine.connect() as conn:
         result = conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1"))
         row = result.fetchone()
 
     if row is None:
-        raise RuntimeError(
-            "Database schema is not up to date.\n"
-            "Run:\n"
-            "  alembic upgrade head"
-        )
+        raise RuntimeError("Database schema is not up to date.\nRun:\n  alembic upgrade head")

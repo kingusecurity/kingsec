@@ -145,8 +145,9 @@ class TestSeverityClassification:
 
     def test_rce_is_critical(self) -> None:
         findings = parse_nikto_output(_RCE_OUTPUT)
-        rce = [f for f in findings if "remote code execution" in f.title.lower()
-               or "command injection" in f.title.lower()]
+        rce = [
+            f for f in findings if "remote code execution" in f.title.lower() or "command injection" in f.title.lower()
+        ]
         assert len(rce) == 2
         for f in rce:
             assert f.severity is Severity.CRITICAL
@@ -159,8 +160,7 @@ class TestSeverityClassification:
 
     def test_admin_directory_is_medium(self) -> None:
         findings = parse_nikto_output(_FULL_SCAN_OUTPUT)
-        admin = [f for f in findings if "admin" in f.title.lower()
-                 and "OSVDB" not in f.title]
+        admin = [f for f in findings if "admin" in f.title.lower() and "OSVDB" not in f.title]
         assert len(admin) == 1
         assert admin[0].severity is Severity.MEDIUM
 

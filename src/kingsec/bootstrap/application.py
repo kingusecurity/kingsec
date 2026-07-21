@@ -105,9 +105,7 @@ class Application:
         self._logger.info("application stopping")
         # Best-effort teardown; a failing hook is logged, not fatal.
         self._container.run_shutdown_hooks(
-            on_error=lambda exc: self._logger.error(
-                "shutdown hook failed", error_type=type(exc).__name__
-            )
+            on_error=lambda exc: self._logger.error("shutdown hook failed", error_type=type(exc).__name__)
         )
         if self._restore_excepthooks is not None:
             self._restore_excepthooks()
@@ -151,7 +149,7 @@ def create_application(
         Whether ``start()`` should create the configured data directory.
     """
     # Lazy imports: keep infrastructure out of module-level graph.
-    from kingsec.infrastructure.config import load_settings
+    from kingsec.infrastructure.config import Settings, load_settings
     from kingsec.infrastructure.logging import configure_logging, get_logger
 
     # 1. Config first — fail fast before any subsystem exists.

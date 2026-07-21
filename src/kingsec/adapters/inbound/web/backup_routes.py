@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
@@ -21,13 +19,16 @@ router = APIRouter(prefix="/api/v1", tags=["backups"])
 
 ADMIN_ONLY = Role.ADMIN
 
+
 def _get_service(request: Request) -> BackupServicePort:
     app: Application = get_application(request)
     return cast(BackupServicePort, app.resolve(BackupServicePort))
 
+
 def _require_admin(user: CurrentUser) -> None:
     if user.role != ADMIN_ONLY:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+
 
 def _backup_to_dict(backup: BackupMetadata) -> dict[str, Any]:
     return {
@@ -45,6 +46,7 @@ def _backup_to_dict(backup: BackupMetadata) -> dict[str, Any]:
         "error_message": backup.error_message,
     }
 
+
 @router.get("/backups")
 async def list_backups(
     request: Request,
@@ -53,6 +55,7 @@ async def list_backups(
     service = _get_service(request)
     backups = service.list_backups()
     return {"backups": [_backup_to_dict(b) for b in backups], "total": len(backups)}
+
 
 @router.post("/backups")
 async def create_backup(
@@ -74,6 +77,7 @@ async def create_backup(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return {"message": "Backup created", "backup": _backup_to_dict(backup)}
 
+
 @router.get("/backups/{backup_id}")
 async def get_backup(
     backup_id: str,
@@ -86,6 +90,7 @@ async def get_backup(
         if b.backup_id.value == backup_id:
             return _backup_to_dict(b)
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Backup '{backup_id}' not found")
+
 
 @router.delete("/backups/{backup_id}")
 async def delete_backup(
@@ -100,6 +105,7 @@ async def delete_backup(
     except BackupNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return {"message": f"Backup '{backup_id}' deleted"}
+
 
 @router.post("/backups/{backup_id}/restore")
 async def restore_backup(
@@ -120,6 +126,7 @@ async def restore_backup(
         "status": operation.status.value,
     }
 
+
 @router.post("/backups/{backup_id}/verify")
 async def verify_backup(
     backup_id: str,
@@ -134,6 +141,7 @@ async def verify_backup(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return {"backup_id": backup_id, "valid": valid}
 
+
 @router.post("/backups/cleanup")
 async def cleanup_backups(
     request: Request,
@@ -143,6 +151,7 @@ async def cleanup_backups(
     service = _get_service(request)
     deleted = service.cleanup_expired()
     return {"message": f"Cleaned up {deleted} expired backups", "deleted": deleted}
+
 
 @router.get("/snapshots")
 async def list_snapshots(
@@ -164,6 +173,7 @@ async def list_snapshots(
         ],
         "total": len(snapshots),
     }
+
 
 @router.post("/snapshots")
 async def create_snapshot(
@@ -188,6 +198,7 @@ async def create_snapshot(
             "created_at": snapshot.created_at,
         },
     }
+
 
 @router.post("/snapshots/{snapshot_id}/restore")
 async def restore_snapshot(

@@ -24,6 +24,7 @@ class RetrieveSecret:
         stored = self._secret_provider.get(request.name)
         if stored is None:
             from kingsec.application.errors import ApplicationError
+
             raise ApplicationError(f"secret '{request.name}' not found")
 
         ciphertext = bytes.fromhex(stored)

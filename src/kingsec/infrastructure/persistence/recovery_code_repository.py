@@ -1,4 +1,5 @@
 """SQLAlchemy recovery code repository."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -28,10 +29,7 @@ class SqlAlchemyRecoveryCodeRepository(RecoveryCodeRepository):
             with self._session_factory() as session:
                 stmt = select(MfaRecoveryCodeORM).where(MfaRecoveryCodeORM.user_id == user_id)
                 orms = session.execute(stmt).scalars().all()
-                return [
-                    MfaRecoveryCode(code_hash=o.code_hash, status=RecoveryCodeStatus(o.status))
-                    for o in orms
-                ]
+                return [MfaRecoveryCode(code_hash=o.code_hash, status=RecoveryCodeStatus(o.status)) for o in orms]
         except SQLAlchemyError as exc:
             error = PersistenceError("failed to find recovery codes", context={"user_id": user_id}, cause=exc)
             log_exception(_logger, error)
@@ -40,9 +38,11 @@ class SqlAlchemyRecoveryCodeRepository(RecoveryCodeRepository):
     def save_batch(self, user_id: str, codes: Sequence[MfaRecoveryCode]) -> None:
         try:
             with self._session_factory.begin() as session:
-                old = session.execute(
-                    select(MfaRecoveryCodeORM).where(MfaRecoveryCodeORM.user_id == user_id)
-                ).scalars().all()
+                old = (
+                    session.execute(select(MfaRecoveryCodeORM).where(MfaRecoveryCodeORM.user_id == user_id))
+                    .scalars()
+                    .all()
+                )
                 for o in old:
                     session.delete(o)
                 for code in codes:
@@ -77,9 +77,11 @@ class SqlAlchemyRecoveryCodeRepository(RecoveryCodeRepository):
     def delete_by_user_id(self, user_id: str) -> None:
         try:
             with self._session_factory.begin() as session:
-                old = session.execute(
-                    select(MfaRecoveryCodeORM).where(MfaRecoveryCodeORM.user_id == user_id)
-                ).scalars().all()
+                old = (
+                    session.execute(select(MfaRecoveryCodeORM).where(MfaRecoveryCodeORM.user_id == user_id))
+                    .scalars()
+                    .all()
+                )
                 for o in old:
                     session.delete(o)
             _logger.debug("recovery codes deleted", user_id=user_id)

@@ -15,11 +15,9 @@ Security considerations:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Annotated, Any, cast
+from typing import TYPE_CHECKING, Annotated, Any, cast
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -35,10 +33,12 @@ if TYPE_CHECKING:
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
+
 def _get_token_service(request: Request) -> TokenService:
     """Resolve the TokenService from the DI container."""
     app: Application = request.app.state.kingsec_app
     return cast(TokenService, app.resolve(TokenService))
+
 
 @dataclass(frozen=True)
 class CurrentUser:
@@ -48,6 +48,7 @@ class CurrentUser:
     username: str
     role: Role
     claims: TokenClaims
+
 
 async def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
@@ -92,6 +93,7 @@ async def get_current_user(
         claims=claims,
     )
 
+
 def require_role(minimum_role: Role) -> Callable[..., Any]:
     """Dependency factory that enforces a minimum role.
 
@@ -104,21 +106,21 @@ def require_role(minimum_role: Role) -> Callable[..., Any]:
         if not current_user.role.has_permission(minimum_role):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=(
-                    f"insufficient permissions: {current_user.role.label} "
-                    f"requires {minimum_role.label} or higher"
-                ),
+                detail=(f"insufficient permissions: {current_user.role.label} requires {minimum_role.label} or higher"),
             )
         return current_user
 
     return _check
 
+
 # ── Permission-based dependency ─────────────────────────────────────────────
+
 
 def _get_authz_service(request: Request) -> AuthorizationService:
     """Resolve the ``AuthorizationService`` from the DI container."""
     app: Application = request.app.state.kingsec_app
     return cast(AuthorizationService, app.resolve(AuthorizationService))
+
 
 def require_permission(permission: Permission) -> Callable[..., Any]:
     """Dependency factory that checks for a specific permission.
@@ -136,16 +138,15 @@ def require_permission(permission: Permission) -> Callable[..., Any]:
         if not authz.has_permission(current_user.role, permission):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=(
-                    f"insufficient permissions: {current_user.role.label} "
-                    f"requires '{permission.value}'"
-                ),
+                detail=(f"insufficient permissions: {current_user.role.label} requires '{permission.value}'"),
             )
         return current_user
 
     return _check
 
+
 # ── Multi-role dependency ───────────────────────────────────────────────────
+
 
 def require_any_role(*roles: Role) -> Callable[..., Any]:
     """Dependency factory that allows any of the given roles.
@@ -164,22 +165,22 @@ def require_any_role(*roles: Role) -> Callable[..., Any]:
             role_labels = ", ".join(r.label for r in roles)
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=(
-                    f"insufficient permissions: {current_user.role.label} "
-                    f"requires one of [{role_labels}]"
-                ),
+                detail=(f"insufficient permissions: {current_user.role.label} requires one of [{role_labels}]"),
             )
         return current_user
 
     return _check
 
+
 # ── Ownership check (admin bypass) ─────────────────────────────────────────
+
 
 class NotAuthorizedError(Exception):
     """Raised when a user is not authorized for an operation.
 
     Caught by the web adapter and translated to HTTP 403.
     """
+
 
 def require_self_or_admin(resource_owner_id: str) -> Callable[..., Any]:
     """Dependency factory that enforces resource ownership.
@@ -197,12 +198,10 @@ def require_self_or_admin(resource_owner_id: str) -> Callable[..., Any]:
         if current_user.role == Role.ADMIN:
             return
         if current_user.user_id != resource_owner_id:
-            raise NotAuthorizedError(
-                f"user {current_user.user_id} does not own resource "
-                f"(owner={resource_owner_id})"
-            )
+            raise NotAuthorizedError(f"user {current_user.user_id} does not own resource (owner={resource_owner_id})")
 
     return _check
+
 
 # ── Pre-built role dependencies for common use.
 require_admin = require_role(Role.ADMIN)
@@ -210,6 +209,7 @@ require_analyst = require_role(Role.ANALYST)
 require_viewer = require_role(Role.VIEWER)
 
 # ── API Key Authentication ────────────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class CurrentApiKey:
@@ -220,11 +220,14 @@ class CurrentApiKey:
     scope: str
     status: str
 
+
 def _get_validate_api_key_use_case(request: Request) -> Any:
     """Resolve the ``ValidateApiKey`` use case from the DI container."""
     app: Application = request.app.state.kingsec_app
     from kingsec.application import ValidateApiKey
+
     return app.resolve(ValidateApiKey)
+
 
 async def get_current_api_key(
     request: Request,

@@ -21,9 +21,7 @@ class RefreshSession:
         if matching:
             session = matching[0]
             self._repo.update_refresh_jti(str(session.id), request.new_refresh_jti)
-            now_iso = datetime.fromtimestamp(
-                datetime.now(UTC).timestamp(), tz=UTC
-            ).isoformat()
+            now_iso = datetime.fromtimestamp(datetime.now(UTC).timestamp(), tz=UTC).isoformat()
             self._repo.update_activity(str(session.id), now_iso)
             return RefreshSessionResponse(valid=True, replay_detected=False)
 

@@ -14,6 +14,7 @@ class TestAESBackupEncryptionService:
 
     def test_with_custom_key(self) -> None:
         from cryptography.fernet import Fernet
+
         key = Fernet.generate_key()
         svc = AESBackupEncryptionService(key=key)
         original = b"test data"

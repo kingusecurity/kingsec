@@ -51,9 +51,7 @@ class SqlAlchemyApiKeyRepository(ApiKeyRepository):
                 existing.key_hash = key.key_hash
                 existing.scope = key.scope.value
                 existing.status = key.status.value
-                existing.last_used_at = (
-                    key.last_used_at.isoformat() if key.last_used_at else None
-                )
+                existing.last_used_at = key.last_used_at.isoformat() if key.last_used_at else None
             else:
                 session.add(_to_orm(key))
             session.commit()
@@ -68,9 +66,7 @@ class SqlAlchemyApiKeyRepository(ApiKeyRepository):
     def count_by_user(self, user_id: str) -> int:
         with self._session_factory() as session:
             count = session.execute(
-                select(func.count())
-                .select_from(ApiKeyORM)
-                .where(ApiKeyORM.user_id == user_id)
+                select(func.count()).select_from(ApiKeyORM).where(ApiKeyORM.user_id == user_id)
             ).scalar()
             return count if count else 0
 

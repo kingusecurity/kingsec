@@ -117,6 +117,7 @@ class TestCreateAndRead:
 
         # Verify directly via SQLAlchemy (bypass repo)
         from kingsec.infrastructure.persistence.models import AssessmentORM
+
         orm = session.get(AssessmentORM, str(assessment.id))
         assert orm is not None
         assert orm.target_value == "example.com"
@@ -211,6 +212,7 @@ class TestDelete:
         session.flush()
 
         from kingsec.infrastructure.persistence.models import AssessmentORM
+
         orm = session.get(AssessmentORM, str(assessment.id))
         assert orm is None
 
@@ -330,7 +332,9 @@ class TestMapping:
         loaded = repo.get(assessment.id)
         assert loaded.target.value == "über-unicod€.com"
 
-    def test_round_trips_evidence_and_recommendations(self, repo: SQLAlchemyAssessmentRepository, session: Session) -> None:
+    def test_round_trips_evidence_and_recommendations(
+        self, repo: SQLAlchemyAssessmentRepository, session: Session
+    ) -> None:
         assessment = make_assessment()
         assessment.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=UTC), scope="*"))
         assessment.start()
@@ -368,7 +372,9 @@ class TestEdgeCases:
         loaded = repo.get(assessment.id)
         assert loaded.id == assessment.id
 
-    def test_new_session_reads_persisted_data(self, engine, repo: SQLAlchemyAssessmentRepository, session: Session) -> None:
+    def test_new_session_reads_persisted_data(
+        self, engine, repo: SQLAlchemyAssessmentRepository, session: Session
+    ) -> None:
         assessment = make_assessment()
         repo.save(assessment)
         session.commit()

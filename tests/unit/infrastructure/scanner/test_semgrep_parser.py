@@ -78,13 +78,17 @@ _RESULT_INFO = _make_result(
     confidence="LOW",
 )
 
-_FULL_OUTPUT = json.dumps({
-    "results": [_RESULT_ERROR, _RESULT_WARNING, _RESULT_INFO],
-})
+_FULL_OUTPUT = json.dumps(
+    {
+        "results": [_RESULT_ERROR, _RESULT_WARNING, _RESULT_INFO],
+    }
+)
 
-_SINGLE_RESULT_OUTPUT = json.dumps({
-    "results": [_RESULT_ERROR],
-})
+_SINGLE_RESULT_OUTPUT = json.dumps(
+    {
+        "results": [_RESULT_ERROR],
+    }
+)
 
 _MALFORMED_JSON = "this is not json"
 

@@ -35,9 +35,7 @@ def _make_assessment(
 
 
 class TestHappyPath:
-    def test_returns_empty_list_when_no_assessments(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_returns_empty_list_when_no_assessments(self, assessments: InMemoryAssessmentRepository) -> None:
         use_case = ListAssessments(assessments)
         response = use_case.execute(ListAssessmentsRequest())
 
@@ -45,9 +43,7 @@ class TestHappyPath:
         assert response.items == ()
         assert response.total == 0
 
-    def test_returns_assessments_ordered_by_created_at_desc(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_returns_assessments_ordered_by_created_at_desc(self, assessments: InMemoryAssessmentRepository) -> None:
         old = _make_assessment(target_value="10.0.0.1", day=1)
         assessments.save(old)
         new = _make_assessment(target_value="10.0.0.2", day=5)
@@ -63,9 +59,7 @@ class TestHappyPath:
         assert response.items[1].target == "10.0.0.3 (ip_address)"
         assert response.items[2].target == "10.0.0.1 (ip_address)"
 
-    def test_assessment_summary_fields(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_assessment_summary_fields(self, assessments: InMemoryAssessmentRepository) -> None:
         assessment = _make_assessment(target_value="192.168.1.1", day=1)
         assessments.save(assessment)
 
@@ -82,9 +76,7 @@ class TestHappyPath:
 
 
 class TestPagination:
-    def test_limit_controls_page_size(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_limit_controls_page_size(self, assessments: InMemoryAssessmentRepository) -> None:
         for i in range(5):
             assessments.save(_make_assessment(target_value=f"10.0.0.{i}", day=i + 1))
 
@@ -95,9 +87,7 @@ class TestPagination:
         assert response.limit == 2
         assert response.offset == 0
 
-    def test_offset_skips_results(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_offset_skips_results(self, assessments: InMemoryAssessmentRepository) -> None:
         for i in range(5):
             assessments.save(_make_assessment(target_value=f"10.0.0.{i}", day=i + 1))
 
@@ -106,25 +96,19 @@ class TestPagination:
 
         assert len(response.items) == 2
 
-    def test_limit_clamped_to_max_200(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_limit_clamped_to_max_200(self, assessments: InMemoryAssessmentRepository) -> None:
         use_case = ListAssessments(assessments)
         response = use_case.execute(ListAssessmentsRequest(limit=999))
 
         assert response.limit == 200
 
-    def test_limit_clamped_to_min_1(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_limit_clamped_to_min_1(self, assessments: InMemoryAssessmentRepository) -> None:
         use_case = ListAssessments(assessments)
         response = use_case.execute(ListAssessmentsRequest(limit=0))
 
         assert response.limit == 1
 
-    def test_offset_negative_becomes_zero(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_offset_negative_becomes_zero(self, assessments: InMemoryAssessmentRepository) -> None:
         assessments.save(_make_assessment(target_value="10.0.0.1", day=1))
 
         use_case = ListAssessments(assessments)
@@ -133,9 +117,7 @@ class TestPagination:
         assert response.offset == 0
         assert len(response.items) == 1
 
-    def test_offset_beyond_total_returns_empty(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_offset_beyond_total_returns_empty(self, assessments: InMemoryAssessmentRepository) -> None:
         assessments.save(_make_assessment(target_value="10.0.0.1", day=1))
 
         use_case = ListAssessments(assessments)

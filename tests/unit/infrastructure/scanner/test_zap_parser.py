@@ -98,16 +98,16 @@ _ALERT_INFO = _make_alert(
     param="",
 )
 
-_FULL_OUTPUT = json.dumps({
-    "site": [
-        _make_site("http://example.com", "example.com", [_ALERT_HIGH, _ALERT_LOW]),
-        _make_site("http://example.com/api", "example.com", [_ALERT_MEDIUM]),
-    ]
-})
+_FULL_OUTPUT = json.dumps(
+    {
+        "site": [
+            _make_site("http://example.com", "example.com", [_ALERT_HIGH, _ALERT_LOW]),
+            _make_site("http://example.com/api", "example.com", [_ALERT_MEDIUM]),
+        ]
+    }
+)
 
-_SINGLE_ALERT_OUTPUT = json.dumps({
-    "site": [_make_site("http://example.com", "example.com", [_ALERT_HIGH])]
-})
+_SINGLE_ALERT_OUTPUT = json.dumps({"site": [_make_site("http://example.com", "example.com", [_ALERT_HIGH])]})
 
 _MALFORMED_JSON = "this is not json"
 

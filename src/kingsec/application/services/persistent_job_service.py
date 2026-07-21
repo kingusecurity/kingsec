@@ -117,9 +117,7 @@ class PersistentJobService(JobServicePort):
             job = self._uow.job_repository.get(job_id)
             self._uow.commit()
         if job.status != JobStatus.COMPLETED:
-            raise IllegalJobTransitionError(
-                f"Job {job_id} has status {job.status.value}, not COMPLETED"
-            )
+            raise IllegalJobTransitionError(f"Job {job_id} has status {job.status.value}, not COMPLETED")
         return ScanJobResult(
             job_id=job_id,
             completed_at=job.updated_at,

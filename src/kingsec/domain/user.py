@@ -96,9 +96,7 @@ class User:
         if len(username) > 64:
             raise InvariantViolation("username must be at most 64 characters")
         if not all(c.isalnum() or c == "_" for c in username):
-            raise InvariantViolation(
-                "username must contain only alphanumeric characters and underscores"
-            )
+            raise InvariantViolation("username must contain only alphanumeric characters and underscores")
 
     @staticmethod
     def _validate_email(email: str) -> None:

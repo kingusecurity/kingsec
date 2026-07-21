@@ -60,40 +60,26 @@ class UseCaseServiceAPI(ServiceAPI):
         self._generate = generate_report
         self._delete = delete_assessment
 
-    def create_assessment(
-        self, request: CreateAssessmentRequest
-    ) -> CreateAssessmentResponse:
+    def create_assessment(self, request: CreateAssessmentRequest) -> CreateAssessmentResponse:
         return self._create.execute(request)
 
-    def start_assessment(
-        self, request: StartAssessmentRequest
-    ) -> StartAssessmentResponse:
+    def start_assessment(self, request: StartAssessmentRequest) -> StartAssessmentResponse:
         return self._start.execute(request)
 
-    def submit_assessment(
-        self, request: SubmitAssessmentRequest
-    ) -> SubmitAssessmentResponse:
+    def submit_assessment(self, request: SubmitAssessmentRequest) -> SubmitAssessmentResponse:
         return self._submit.execute(request)
 
-    def cancel_assessment(
-        self, request: CancelAssessmentRequest
-    ) -> CancelAssessmentResponse:
+    def cancel_assessment(self, request: CancelAssessmentRequest) -> CancelAssessmentResponse:
         return self._cancel.execute(request)
 
-    def list_assessments(
-        self, request: ListAssessmentsRequest
-    ) -> ListAssessmentsResponse:
+    def list_assessments(self, request: ListAssessmentsRequest) -> ListAssessmentsResponse:
         return self._list.execute(request)
 
     def get_assessment(self, request: GetAssessmentRequest) -> AssessmentView:
         return self._get.execute(request)
 
-    def generate_report(
-        self, request: GenerateReportRequest
-    ) -> GenerateReportResponse:
+    def generate_report(self, request: GenerateReportRequest) -> GenerateReportResponse:
         return self._generate.execute(request)
 
-    def delete_assessment(
-        self, request: DeleteAssessmentRequest
-    ) -> DeleteAssessmentResponse:
+    def delete_assessment(self, request: DeleteAssessmentRequest) -> DeleteAssessmentResponse:
         return self._delete.execute(request)

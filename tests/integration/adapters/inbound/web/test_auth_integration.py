@@ -27,6 +27,7 @@ class StubTokenService(TokenService):
 
     def create_access_token(self, user_id: str, username: str, role: str) -> str:
         import uuid
+
         jti = uuid.uuid4().hex
         token = f"access-{jti}"
         self._tokens[token] = TokenClaims(
@@ -42,6 +43,7 @@ class StubTokenService(TokenService):
 
     def create_refresh_token(self, user_id: str, username: str, role: str) -> str:
         import uuid
+
         jti = uuid.uuid4().hex
         token = f"refresh-{jti}"
         self._tokens[token] = TokenClaims(
@@ -105,7 +107,7 @@ class StubUserRepo:
         return any(u.email.lower() == email.lower() for u in self._users.values())
 
     def list_all(self, limit: int = 50, offset: int = 0) -> list[User]:
-        return list(self._users.values())[offset:offset + limit]
+        return list(self._users.values())[offset : offset + limit]
 
     def count(self) -> int:
         return len(self._users)
@@ -132,6 +134,7 @@ def _build_app() -> tuple[FastAPI, StubTokenService, StubUserRepo]:
     class _StubApp:
         def resolve(self, service_type: type):
             from kingsec.application.ports import PasswordHasher, TokenService, UserRepository
+
             if service_type == TokenService:
                 return token_service
             if service_type == UserRepository:

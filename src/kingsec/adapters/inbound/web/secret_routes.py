@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from fastapi import APIRouter, Depends, Request, status
 
@@ -35,25 +33,31 @@ from .secret_schemas import (
 
 router = APIRouter(prefix="/api/v1/admin", dependencies=[Depends(require_admin)])
 
+
 def _get_store_secret_uc(request: Request) -> StoreSecret:
     app: Application = request.app.state.kingsec_app
     return cast(StoreSecret, app.resolve(StoreSecret))
+
 
 def _get_list_secrets_uc(request: Request) -> ListSecrets:
     app: Application = request.app.state.kingsec_app
     return cast(ListSecrets, app.resolve(ListSecrets))
 
+
 def _get_delete_secret_uc(request: Request) -> DeleteSecret:
     app: Application = request.app.state.kingsec_app
     return cast(DeleteSecret, app.resolve(DeleteSecret))
+
 
 def _get_rotate_secrets_uc(request: Request) -> RotateSecrets:
     app: Application = request.app.state.kingsec_app
     return cast(RotateSecrets, app.resolve(RotateSecrets))
 
+
 def _get_config_security_service(request: Request) -> ConfigurationSecurityService:
     app: Application = request.app.state.kingsec_app
     return cast(ConfigurationSecurityService, app.resolve(ConfigurationSecurityService))
+
 
 @router.get(
     "/secrets",
@@ -85,6 +89,7 @@ async def list_secrets(
         ],
     )
 
+
 @router.get(
     "/secrets/status",
     response_model=SecretStatusResponse,
@@ -107,6 +112,7 @@ async def get_secrets_status(
         stored_secrets_count=status_data["stored_secrets_count"],
         encryption_version=status_data["encryption_version"],
     )
+
 
 @router.post(
     "/secrets",
@@ -142,6 +148,7 @@ async def store_secret(
         masked_value=result.metadata.masked_value,
     )
 
+
 @router.delete(
     "/secrets/{name}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -160,6 +167,7 @@ async def delete_secret(
     delete_uc: DeleteSecret = Depends(_get_delete_secret_uc),
 ) -> None:
     delete_uc.execute(DeleteSecretRequest(name=name))
+
 
 @router.post(
     "/secrets/rotate",

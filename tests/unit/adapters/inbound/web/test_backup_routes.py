@@ -24,13 +24,14 @@ def app(mock_service: MagicMock) -> TestClient:
 
         app = FastAPI()
         from kingsec.adapters.inbound.web.backup_routes import router
+
         app.include_router(router)
         app.state.kingsec_app = app_instance
 
         from kingsec.adapters.inbound.web.auth import get_current_user
+
         app.dependency_overrides[get_current_user] = lambda: type(
-            "User", (), {"user_id": "admin", "username": "admin",
-                         "role": Role.ADMIN, "claims": None}
+            "User", (), {"user_id": "admin", "username": "admin", "role": Role.ADMIN, "claims": None}
         )()
         return TestClient(app)
 
@@ -81,6 +82,7 @@ class TestBackupRoutes:
 
     def test_delete_backup_not_found(self, app: TestClient, mock_service: MagicMock) -> None:
         from kingsec.application.errors import BackupNotFoundError
+
         mock_service.delete_backup.side_effect = BackupNotFoundError("not found")
         resp = app.delete("/api/v1/backups/bkp-missing")
         assert resp.status_code == 404
@@ -133,9 +135,9 @@ class TestBackupRoutes:
 
     def test_unauthorized_without_admin(self, app: TestClient, mock_service: MagicMock) -> None:
         from kingsec.adapters.inbound.web.auth import get_current_user
+
         app.app.dependency_overrides[get_current_user] = lambda: type(
-            "User", (), {"user_id": "viewer", "username": "viewer",
-                         "role": Role.VIEWER, "claims": None}
+            "User", (), {"user_id": "viewer", "username": "viewer", "role": Role.VIEWER, "claims": None}
         )()
         resp = app.post("/api/v1/backups", json={"backup_type": "full"})
         assert resp.status_code == 403

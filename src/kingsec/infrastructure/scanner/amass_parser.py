@@ -25,23 +25,67 @@ from kingsec.infrastructure.logging import get_logger
 _logger = get_logger("kingsec.infrastructure.scanner")
 
 # Cloud / infrastructure hostnames → LOW
-_LOW_NAMES = frozenset({
-    "admin", "vpn", "dev", "stage", "staging", "internal",
-    "api", "mail", "git", "jenkins", "kibana", "grafana",
-    "cloud", "aws", "azure", "gcp", "cdn", "static",
-    "ci", "cd", "gitlab", "bitbucket",
-    "prometheus", "monitor", "metrics",
-    "k8s", "kubernetes", "docker", "registry",
-    "s3", "blob", "storage",
-})
+_LOW_NAMES = frozenset(
+    {
+        "admin",
+        "vpn",
+        "dev",
+        "stage",
+        "staging",
+        "internal",
+        "api",
+        "mail",
+        "git",
+        "jenkins",
+        "kibana",
+        "grafana",
+        "cloud",
+        "aws",
+        "azure",
+        "gcp",
+        "cdn",
+        "static",
+        "ci",
+        "cd",
+        "gitlab",
+        "bitbucket",
+        "prometheus",
+        "monitor",
+        "metrics",
+        "k8s",
+        "kubernetes",
+        "docker",
+        "registry",
+        "s3",
+        "blob",
+        "storage",
+    }
+)
 
 # Sensitive / administrative hostnames → MEDIUM
-_MEDIUM_NAMES = frozenset({
-    "secret", "backup", "prod-admin", "database", "db",
-    "password", "credentials", "keys", "vault", "consul",
-    "etcd", "zookeeper", "redis", "mongo", "mysql", "postgres",
-    "elastic", "kibana-admin", "grafana-admin",
-})
+_MEDIUM_NAMES = frozenset(
+    {
+        "secret",
+        "backup",
+        "prod-admin",
+        "database",
+        "db",
+        "password",
+        "credentials",
+        "keys",
+        "vault",
+        "consul",
+        "etcd",
+        "zookeeper",
+        "redis",
+        "mongo",
+        "mysql",
+        "postgres",
+        "elastic",
+        "kibana-admin",
+        "grafana-admin",
+    }
+)
 
 
 def _classify_severity(name: str) -> Severity:
@@ -107,10 +151,7 @@ def parse_amass_json(output: str) -> list[Finding]:
         source_str = ", ".join(sources) if sources else "unknown"
 
         title = f"Subdomain: {name}"
-        description = (
-            f"name: {name} | domain: {domain} | addresses: {address_str} | "
-            f"sources: {source_str} | tag: {tag}"
-        )
+        description = f"name: {name} | domain: {domain} | addresses: {address_str} | sources: {source_str} | tag: {tag}"
 
         finding = Finding.create(title=title, description=description, severity=severity)
         finding.add_evidence(

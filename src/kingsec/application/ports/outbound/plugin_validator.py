@@ -31,7 +31,9 @@ class PluginValidatorPort(ABC):
 
     @abstractmethod
     def validate_dependencies(
-        self, manifest: PluginManifest, installed: list[PluginManifest],
+        self,
+        manifest: PluginManifest,
+        installed: list[PluginManifest],
     ) -> list[str]:
         """Check all dependency constraints are met. Returns list of missing plugin IDs."""
         ...

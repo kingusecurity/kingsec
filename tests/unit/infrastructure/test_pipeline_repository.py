@@ -31,42 +31,70 @@ class TestInMemoryPipelineRepository:
 
     def test_find_all(self) -> None:
         repo = InMemoryPipelineRepository()
-        repo.save(PipelineExecution(
-            pipeline_id=PipelineId(value="pl-1"), target="a", state=PipelineState.QUEUED,
-        ))
-        repo.save(PipelineExecution(
-            pipeline_id=PipelineId(value="pl-2"), target="b", state=PipelineState.RUNNING,
-        ))
+        repo.save(
+            PipelineExecution(
+                pipeline_id=PipelineId(value="pl-1"),
+                target="a",
+                state=PipelineState.QUEUED,
+            )
+        )
+        repo.save(
+            PipelineExecution(
+                pipeline_id=PipelineId(value="pl-2"),
+                target="b",
+                state=PipelineState.RUNNING,
+            )
+        )
         assert len(repo.find_all()) == 2
 
     def test_find_by_state(self) -> None:
         repo = InMemoryPipelineRepository()
-        repo.save(PipelineExecution(
-            pipeline_id=PipelineId(value="pl-1"), target="a", state=PipelineState.QUEUED,
-        ))
-        repo.save(PipelineExecution(
-            pipeline_id=PipelineId(value="pl-2"), target="b", state=PipelineState.RUNNING,
-        ))
+        repo.save(
+            PipelineExecution(
+                pipeline_id=PipelineId(value="pl-1"),
+                target="a",
+                state=PipelineState.QUEUED,
+            )
+        )
+        repo.save(
+            PipelineExecution(
+                pipeline_id=PipelineId(value="pl-2"),
+                target="b",
+                state=PipelineState.RUNNING,
+            )
+        )
         results = repo.find_by_state("queued")
         assert len(results) == 1
         assert results[0].pipeline_id.value == "pl-1"
 
     def test_delete(self) -> None:
         repo = InMemoryPipelineRepository()
-        repo.save(PipelineExecution(
-            pipeline_id=PipelineId(value="pl-1"), target="a", state=PipelineState.QUEUED,
-        ))
+        repo.save(
+            PipelineExecution(
+                pipeline_id=PipelineId(value="pl-1"),
+                target="a",
+                state=PipelineState.QUEUED,
+            )
+        )
         repo.delete("pl-1")
         assert repo.find_by_id("pl-1") is None
 
     def test_save_overwrites(self) -> None:
         repo = InMemoryPipelineRepository()
-        repo.save(PipelineExecution(
-            pipeline_id=PipelineId(value="pl-1"), target="a", state=PipelineState.QUEUED,
-        ))
-        repo.save(PipelineExecution(
-            pipeline_id=PipelineId(value="pl-1"), target="b", state=PipelineState.RUNNING,
-        ))
+        repo.save(
+            PipelineExecution(
+                pipeline_id=PipelineId(value="pl-1"),
+                target="a",
+                state=PipelineState.QUEUED,
+            )
+        )
+        repo.save(
+            PipelineExecution(
+                pipeline_id=PipelineId(value="pl-1"),
+                target="b",
+                state=PipelineState.RUNNING,
+            )
+        )
         found = repo.find_by_id("pl-1")
         assert found is not None
         assert found.target == "b"

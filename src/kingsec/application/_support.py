@@ -32,9 +32,7 @@ def _parse_target_type(raw: str) -> TargetType:
         return TargetType(raw)
     except ValueError as exc:
         allowed = ", ".join(t.value for t in TargetType)
-        raise InputValidationError(
-            f"invalid target type {raw!r}; expected one of: {allowed}"
-        ) from exc
+        raise InputValidationError(f"invalid target type {raw!r}; expected one of: {allowed}") from exc
 
 
 def build_target(value: str, type_raw: str) -> Target:

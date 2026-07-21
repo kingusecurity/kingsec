@@ -69,6 +69,7 @@ class SQLAlchemyPluginRepository(PluginRepositoryPort):
 
     def save(self, plugin: PluginPackage) -> None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             session.execute(
                 text("""
@@ -101,6 +102,7 @@ class SQLAlchemyPluginRepository(PluginRepositoryPort):
 
     def find_by_id(self, plugin_id: str) -> PluginPackage | None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             row = session.execute(
                 text("SELECT * FROM plugins WHERE id = :id"),
@@ -112,18 +114,21 @@ class SQLAlchemyPluginRepository(PluginRepositoryPort):
 
     def find_all(self) -> list[PluginPackage]:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             rows = session.execute(text("SELECT * FROM plugins")).fetchall()
             return [self._row_to_package(r._mapping) for r in rows]
 
     def delete(self, plugin_id: str) -> None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             session.execute(text("DELETE FROM plugins WHERE id = :id"), {"id": plugin_id})
             session.commit()
 
     def update_status(self, plugin_id: str, status: PluginInstallStatus) -> None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             session.execute(
                 text("UPDATE plugins SET status = :status WHERE id = :id"),
@@ -133,6 +138,7 @@ class SQLAlchemyPluginRepository(PluginRepositoryPort):
 
     def update_health(self, plugin_id: str, health: str, error_message: str) -> None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             session.execute(
                 text("UPDATE plugins SET health = :health, error_message = :error_message WHERE id = :id"),
@@ -147,6 +153,7 @@ class SQLAlchemyPluginRepository(PluginRepositoryPort):
             PluginManifest,
             PluginVersion,
         )
+
         manifest = PluginManifest(
             id=row["id"],
             name=row.get("name", ""),

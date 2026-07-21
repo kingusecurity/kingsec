@@ -57,6 +57,7 @@ class TestPluginValidator:
 
     def test_validate_checksum(self) -> None:
         import hashlib
+
         fd, path = tempfile.mkstemp()
         content = b"test data for checksum"
         with os.fdopen(fd, "wb") as f:
@@ -74,14 +75,18 @@ class TestPluginValidator:
 
     def test_validate_compatibility_compatible(self) -> None:
         m = PluginManifest(
-            id="p1", name="Test", version=PluginVersion(1, 0, 0),
+            id="p1",
+            name="Test",
+            version=PluginVersion(1, 0, 0),
             compatibility=PluginCompatibility(min_api_version="0.5.0", max_api_version="2.0.0"),
         )
         assert self.validator.validate_compatibility(m) is True
 
     def test_validate_compatibility_incompatible(self) -> None:
         m = PluginManifest(
-            id="p1", name="Test", version=PluginVersion(1, 0, 0),
+            id="p1",
+            name="Test",
+            version=PluginVersion(1, 0, 0),
             compatibility=PluginCompatibility(min_api_version="2.0.0", max_api_version="3.0.0"),
         )
         assert self.validator.validate_compatibility(m) is False
@@ -92,7 +97,9 @@ class TestPluginValidator:
 
     def test_validate_dependencies_met(self) -> None:
         m = PluginManifest(
-            id="p1", name="Test", version=PluginVersion(1, 0, 0),
+            id="p1",
+            name="Test",
+            version=PluginVersion(1, 0, 0),
             dependencies=(PluginDependency("core", ">=1.0.0"),),
         )
         core = PluginManifest(id="core", name="Core", version=PluginVersion(1, 5, 0))
@@ -100,7 +107,9 @@ class TestPluginValidator:
 
     def test_validate_dependencies_missing(self) -> None:
         m = PluginManifest(
-            id="p1", name="Test", version=PluginVersion(1, 0, 0),
+            id="p1",
+            name="Test",
+            version=PluginVersion(1, 0, 0),
             dependencies=(PluginDependency("missing", ">=1.0.0"),),
         )
         missing = self.validator.validate_dependencies(m, [])
@@ -108,7 +117,9 @@ class TestPluginValidator:
 
     def test_validate_dependencies_version_mismatch(self) -> None:
         m = PluginManifest(
-            id="p1", name="Test", version=PluginVersion(1, 0, 0),
+            id="p1",
+            name="Test",
+            version=PluginVersion(1, 0, 0),
             dependencies=(PluginDependency("core", ">=2.0.0"),),
         )
         core = PluginManifest(id="core", name="Core", version=PluginVersion(1, 0, 0))

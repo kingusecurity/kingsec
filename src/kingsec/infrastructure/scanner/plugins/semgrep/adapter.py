@@ -66,9 +66,7 @@ class SemgrepPlugin(ScannerPluginPort):
         return (
             ScannerCapability(
                 target_types=frozenset({TargetType.HOSTNAME}),
-                scan_categories=frozenset(
-                    {ScanCategory.VULNERABILITY, ScanCategory.INFORMATION}
-                ),
+                scan_categories=frozenset({ScanCategory.VULNERABILITY, ScanCategory.INFORMATION}),
                 output_format=OutputFormat.STRUCTURED_JSON,
             ),
         )

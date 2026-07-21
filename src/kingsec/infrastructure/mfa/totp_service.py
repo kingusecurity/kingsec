@@ -3,6 +3,7 @@
 Uses only stdlib (hmac, hashlib, struct, time, os) for compatibility
 with Google Authenticator, Microsoft Authenticator, Authy, etc.
 """
+
 from __future__ import annotations
 
 import base64

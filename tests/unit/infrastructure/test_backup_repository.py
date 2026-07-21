@@ -23,12 +23,20 @@ class TestInMemoryBackupRepository:
 
     def test_find_all_backups(self) -> None:
         repo = InMemoryBackupRepository()
-        repo.save_backup(BackupMetadata(
-            backup_id=BackupId(value="bkp-1"), backup_type=BackupType.FULL, status=BackupStatus.COMPLETED,
-        ))
-        repo.save_backup(BackupMetadata(
-            backup_id=BackupId(value="bkp-2"), backup_type=BackupType.INCREMENTAL, status=BackupStatus.PENDING,
-        ))
+        repo.save_backup(
+            BackupMetadata(
+                backup_id=BackupId(value="bkp-1"),
+                backup_type=BackupType.FULL,
+                status=BackupStatus.COMPLETED,
+            )
+        )
+        repo.save_backup(
+            BackupMetadata(
+                backup_id=BackupId(value="bkp-2"),
+                backup_type=BackupType.INCREMENTAL,
+                status=BackupStatus.PENDING,
+            )
+        )
         assert len(repo.find_all_backups()) == 2
 
     def test_delete_backup(self) -> None:

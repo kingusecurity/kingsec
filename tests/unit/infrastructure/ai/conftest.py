@@ -15,16 +15,12 @@ from kingsec.infrastructure.logging import configure_logging
 
 @pytest.fixture(autouse=True)
 def quiet_logging() -> None:
-    configure_logging(
-        LoggingSettings(level="ERROR", json_format=True), stream=io.StringIO()
-    )
+    configure_logging(LoggingSettings(level="ERROR", json_format=True), stream=io.StringIO())
 
 
 def openai_response(enrichment: dict) -> httpx.Response:
     """An OpenAI-compatible 200 response wrapping an enrichment JSON string."""
-    return httpx.Response(
-        200, json={"choices": [{"message": {"content": json.dumps(enrichment)}}]}
-    )
+    return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps(enrichment)}}]})
 
 
 VALID_ENRICHMENT = {

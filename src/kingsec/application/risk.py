@@ -161,54 +161,66 @@ class RiskScorer:
 
         # 1. Severity
         severity_pts = _SEVERITY_CONTRIBUTION.get(finding.severity, 0)
-        factors.append(RiskFactor(
-            name="severity",
-            weight=30,
-            contribution=severity_pts,
-            description=f"Severity is {finding.severity.name}",
-        ))
+        factors.append(
+            RiskFactor(
+                name="severity",
+                weight=30,
+                contribution=severity_pts,
+                description=f"Severity is {finding.severity.name}",
+            )
+        )
 
         # 2. Confidence
         confidence_pts = int(finding.confidence * 15)
-        factors.append(RiskFactor(
-            name="confidence",
-            weight=15,
-            contribution=confidence_pts,
-            description=f"Confidence is {finding.confidence:.2f}",
-        ))
+        factors.append(
+            RiskFactor(
+                name="confidence",
+                weight=15,
+                contribution=confidence_pts,
+                description=f"Confidence is {finding.confidence:.2f}",
+            )
+        )
 
         # 3. Exploit likelihood
-        likelihood_pts = _EXPLOIT_LIKELIHOOD_CONTRIBUTION.get(
-            finding.exploit_likelihood, 0
-        ) if finding.exploit_likelihood is not None else 0
-        factors.append(RiskFactor(
-            name="exploit_likelihood",
-            weight=15,
-            contribution=likelihood_pts,
-            description=f"Exploit likelihood is {finding.exploit_likelihood or 'unknown'}",
-        ))
+        likelihood_pts = (
+            _EXPLOIT_LIKELIHOOD_CONTRIBUTION.get(finding.exploit_likelihood, 0)
+            if finding.exploit_likelihood is not None
+            else 0
+        )
+        factors.append(
+            RiskFactor(
+                name="exploit_likelihood",
+                weight=15,
+                contribution=likelihood_pts,
+                description=f"Exploit likelihood is {finding.exploit_likelihood or 'unknown'}",
+            )
+        )
 
         # 4. Business impact
-        impact_pts = _BUSINESS_IMPACT_CONTRIBUTION.get(
-            finding.business_impact, 0
-        ) if finding.business_impact is not None else 0
-        factors.append(RiskFactor(
-            name="business_impact",
-            weight=15,
-            contribution=impact_pts,
-            description=f"Business impact is {finding.business_impact or 'unknown'}",
-        ))
+        impact_pts = (
+            _BUSINESS_IMPACT_CONTRIBUTION.get(finding.business_impact, 0) if finding.business_impact is not None else 0
+        )
+        factors.append(
+            RiskFactor(
+                name="business_impact",
+                weight=15,
+                contribution=impact_pts,
+                description=f"Business impact is {finding.business_impact or 'unknown'}",
+            )
+        )
 
         # 5. Attack surface
-        surface_pts = _ATTACK_SURFACE_CONTRIBUTION.get(
-            finding.attack_surface, 0
-        ) if finding.attack_surface is not None else 0
-        factors.append(RiskFactor(
-            name="attack_surface",
-            weight=10,
-            contribution=surface_pts,
-            description=f"Attack surface is {finding.attack_surface or 'unknown'}",
-        ))
+        surface_pts = (
+            _ATTACK_SURFACE_CONTRIBUTION.get(finding.attack_surface, 0) if finding.attack_surface is not None else 0
+        )
+        factors.append(
+            RiskFactor(
+                name="attack_surface",
+                weight=10,
+                contribution=surface_pts,
+                description=f"Attack surface is {finding.attack_surface or 'unknown'}",
+            )
+        )
 
         # 6. Scanner count
         scanner_count = len(finding.scanner_sources)
@@ -217,12 +229,14 @@ class RiskScorer:
             if scanner_count >= threshold:
                 scanner_pts = pts
                 break
-        factors.append(RiskFactor(
-            name="scanner_count",
-            weight=10,
-            contribution=scanner_pts,
-            description=f"Detected by {scanner_count} scanner(s)",
-        ))
+        factors.append(
+            RiskFactor(
+                name="scanner_count",
+                weight=10,
+                contribution=scanner_pts,
+                description=f"Detected by {scanner_count} scanner(s)",
+            )
+        )
 
         # 7. Risk factor count
         risk_count = len(finding.risk_factors)
@@ -231,12 +245,14 @@ class RiskScorer:
             if risk_count >= threshold:
                 risk_pts = pts
                 break
-        factors.append(RiskFactor(
-            name="risk_factors",
-            weight=5,
-            contribution=risk_pts,
-            description=f"{risk_count} risk factor(s) identified",
-        ))
+        factors.append(
+            RiskFactor(
+                name="risk_factors",
+                weight=5,
+                contribution=risk_pts,
+                description=f"{risk_count} risk factor(s) identified",
+            )
+        )
 
         factors_tuple = tuple(factors)
 

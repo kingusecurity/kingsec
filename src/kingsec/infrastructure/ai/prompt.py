@@ -30,7 +30,7 @@ SYSTEM_PROMPT = (
     "You are KingSec's security-analysis assistant. You enrich exactly one "
     "vulnerability finding.\n"
     "Rules you must always follow:\n"
-    '- Respond with ONLY a JSON object. No prose, no markdown fences.\n'
+    "- Respond with ONLY a JSON object. No prose, no markdown fences.\n"
     '- JSON keys: "title" (string), "explanation" (string), '
     '"business_impact" (string), "remediation" (string), '
     '"references" (array of strings), "confidence" (number between 0 and 1).\n'
@@ -69,9 +69,9 @@ _SECRET_RES: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._\-]+"),
     re.compile(r"\bsk-[A-Za-z0-9]{12,}\b"),
     re.compile(r"(?i)\b(api[_-]?key|token|password|secret)\s*[=:]\s*\S+"),
-    re.compile(r"\b[A-Z][A-Z0-9_]{3,}=\S+"),            # ENV_VAR=value
+    re.compile(r"\b[A-Z][A-Z0-9_]{3,}=\S+"),  # ENV_VAR=value
     re.compile(r"(?:^|\s)(/(?:etc|home|root|var|usr|opt)/[^\s]*)"),  # unix paths
-    re.compile(r"[A-Za-z]:\\[^\s]+"),                    # windows paths
+    re.compile(r"[A-Za-z]:\\[^\s]+"),  # windows paths
     re.compile(r"(?im)^\s*File\s+\".*\",\s+line\s+\d+"),  # python traceback frame
     re.compile(r"(?i)\btraceback\s+\(most\s+recent\s+call\s+last\)"),
 )

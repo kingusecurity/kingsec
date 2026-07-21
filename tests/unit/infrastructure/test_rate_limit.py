@@ -36,6 +36,7 @@ class TestTokenBucket:
 
     def test_refill_tokens(self) -> None:
         import time
+
         bucket = _TokenBucket(capacity=2, refill_rate=10.0)
         bucket.consume()
         bucket.consume()

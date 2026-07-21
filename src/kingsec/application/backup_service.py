@@ -31,10 +31,15 @@ from kingsec.domain.backup import (
 
 
 class BackupService(BackupServicePort):
-    def __init__(self, repo: BackupRepositoryPort, storage: BackupStoragePort,
-                 encryption: BackupEncryptionPort, compression: BackupCompressionPort,
-                 audit: AuditPublisher,
-                 policy: RetentionPolicy | None = None) -> None:
+    def __init__(
+        self,
+        repo: BackupRepositoryPort,
+        storage: BackupStoragePort,
+        encryption: BackupEncryptionPort,
+        compression: BackupCompressionPort,
+        audit: AuditPublisher,
+        policy: RetentionPolicy | None = None,
+    ) -> None:
         self._create_uc = CreateBackup(repo, storage, encryption, compression, audit)
         self._restore_uc = RestoreBackup(repo, storage, encryption, compression, audit)
         self._list_uc = ListBackups(repo)
@@ -46,10 +51,14 @@ class BackupService(BackupServicePort):
         self._verify_uc = VerifyRestore(repo)
         self._cleanup_uc = CleanupExpiredBackups(repo, storage, audit, policy)
 
-    def create_backup(self, backup_type: str, owner_user_id: str = "",
-                      includes: list[str] | None = None,
-                      encrypt: bool = True,
-                      compress: bool = True) -> BackupMetadata:
+    def create_backup(
+        self,
+        backup_type: str,
+        owner_user_id: str = "",
+        includes: list[str] | None = None,
+        encrypt: bool = True,
+        compress: bool = True,
+    ) -> BackupMetadata:
         return self._create_uc.execute(backup_type, owner_user_id, includes, encrypt, compress)
 
     def restore_backup(self, backup_id: str, target_path: str = "") -> RestoreOperation:
@@ -64,16 +73,19 @@ class BackupService(BackupServicePort):
     def validate_backup(self, backup_id: str) -> bool:
         return self._validate_uc.execute(backup_id)
 
-    def create_snapshot(self, label: str = "",
-                        backup_ids: list[str] | None = None) -> BackupSnapshot:
+    def create_snapshot(self, label: str = "", backup_ids: list[str] | None = None) -> BackupSnapshot:
         return self._create_snap_uc.execute(label, backup_ids)
 
     def restore_snapshot(self, snapshot_id: str) -> RestoreOperation:
         ops = self._restore_snap_uc.execute(snapshot_id)
-        return ops[0] if ops else RestoreOperation(
-            restore_id=BackupId(value=""),
-            backup_id="",
-            status=BackupStatus.FAILED,
+        return (
+            ops[0]
+            if ops
+            else RestoreOperation(
+                restore_id=BackupId(value=""),
+                backup_id="",
+                status=BackupStatus.FAILED,
+            )
         )
 
     def verify_restore(self, restore_id: str) -> bool:

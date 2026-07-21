@@ -27,7 +27,7 @@ class ConfigurationSecurityService:
 
     def validate_configuration(self, required_secrets: list[str] | None = None) -> dict[str, object]:
         missing: list[str] = []
-        for secret_name in (required_secrets or []):
+        for secret_name in required_secrets or []:
             if not self._secret_provider.exists(secret_name):
                 missing.append(secret_name)
 

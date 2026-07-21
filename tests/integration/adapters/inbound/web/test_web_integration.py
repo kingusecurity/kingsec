@@ -55,9 +55,7 @@ class _StubScanner(ScannerPort):
 def wired_app(tmp_path, monkeypatch) -> Application:
     monkeypatch.setenv("KINGSEC_STORAGE__DATA_DIR", str(tmp_path))
     monkeypatch.setenv("KINGSEC_SECRETS__ENCRYPTION_KEY", _TEST_FERNET_KEY)
-    app = create_wired_application(
-        log_stream=io.StringIO(), ensure_directories=False, validate_migrations=False
-    )
+    app = create_wired_application(log_stream=io.StringIO(), ensure_directories=False, validate_migrations=False)
     # Create schema on a separate engine so tables exist for the app's engine.
     engine = create_database_engine(settings=app.settings)
     create_schema(engine)
@@ -96,9 +94,7 @@ class TestFullHTTPFlow:
         assert created["status"] == "authorized"
 
         # 2. Start assessment (returns 202, background job runs async)
-        resp = integration_client.post(
-            f"/api/v1/assessments/{assessment_id}/start"
-        )
+        resp = integration_client.post(f"/api/v1/assessments/{assessment_id}/start")
         assert resp.status_code == 202
         started = resp.json()
         assert started["status"] == "running"
@@ -106,6 +102,7 @@ class TestFullHTTPFlow:
 
         # 3. Poll until background job completes
         import time
+
         for _ in range(50):
             resp = integration_client.get(f"/api/v1/assessments/{assessment_id}")
             if resp.json()["status"] == "completed":
@@ -124,9 +121,7 @@ class TestFullHTTPFlow:
         assert view["findings"][0]["severity"].lower() == "critical"
 
         # 5. Generate report (may fail if WeasyPrint system deps are missing)
-        resp = integration_client.post(
-            f"/api/v1/assessments/{assessment_id}/report"
-        )
+        resp = integration_client.post(f"/api/v1/assessments/{assessment_id}/report")
         if resp.status_code == 200:
             report = resp.json()
             assert report["total_findings"] == 1
@@ -137,17 +132,13 @@ class TestFullHTTPFlow:
             # WeasyPrint unavailable on this platform — verify endpoint works
             assert resp.status_code in (400, 500)
 
-    def test_get_nonexistent_returns_404(
-        self, integration_client: TestClient
-    ) -> None:
+    def test_get_nonexistent_returns_404(self, integration_client: TestClient) -> None:
         resp = integration_client.get("/api/v1/assessments/asmt-does-not-exist")
         assert resp.status_code == 404
         body = resp.json()
         assert body["error_code"] == "KS-RES-001"
 
-    def test_start_unauthorized_returns_409(
-        self, integration_client: TestClient
-    ) -> None:
+    def test_start_unauthorized_returns_409(self, integration_client: TestClient) -> None:
         """An assessment that was never authorized cannot be started."""
         resp = integration_client.post(
             "/api/v1/assessments",
@@ -161,13 +152,12 @@ class TestFullHTTPFlow:
         assessment_id = resp.json()["assessment_id"]
 
         # First start succeeds (202 Accepted, background job)
-        resp = integration_client.post(
-            f"/api/v1/assessments/{assessment_id}/start"
-        )
+        resp = integration_client.post(f"/api/v1/assessments/{assessment_id}/start")
         assert resp.status_code == 202
 
         # Wait for background job to complete before second start
         import time
+
         for _ in range(50):
             resp = integration_client.get(f"/api/v1/assessments/{assessment_id}")
             if resp.json()["status"] == "completed":
@@ -175,14 +165,10 @@ class TestFullHTTPFlow:
             time.sleep(0.1)
 
         # Second start fails (already completed)
-        resp = integration_client.post(
-            f"/api/v1/assessments/{assessment_id}/start"
-        )
+        resp = integration_client.post(f"/api/v1/assessments/{assessment_id}/start")
         assert resp.status_code == 409
 
-    def test_report_for_incomplete_returns_409(
-        self, integration_client: TestClient
-    ) -> None:
+    def test_report_for_incomplete_returns_409(self, integration_client: TestClient) -> None:
         resp = integration_client.post(
             "/api/v1/assessments",
             json={
@@ -195,9 +181,7 @@ class TestFullHTTPFlow:
         assessment_id = resp.json()["assessment_id"]
 
         # Report on an authorized-but-not-started assessment → 409
-        resp = integration_client.post(
-            f"/api/v1/assessments/{assessment_id}/report"
-        )
+        resp = integration_client.post(f"/api/v1/assessments/{assessment_id}/report")
         assert resp.status_code == 409
 
     def test_health(self, integration_client: TestClient) -> None:
@@ -213,17 +197,13 @@ class TestFullHTTPFlow:
         assert "/api/v1/assessments" in schema["paths"]
         assert "/api/v1/health" in schema["paths"]
 
-    def test_validation_error_returns_400_body(
-        self, integration_client: TestClient
-    ) -> None:
+    def test_validation_error_returns_400_body(self, integration_client: TestClient) -> None:
         resp = integration_client.post(
             "/api/v1/assessments",
             json={"target_value": ""},
         )
         assert resp.status_code == 422
 
-    def test_unknown_route_returns_404(
-        self, integration_client: TestClient
-    ) -> None:
+    def test_unknown_route_returns_404(self, integration_client: TestClient) -> None:
         resp = integration_client.get("/api/v1/nonexistent")
         assert resp.status_code == 404

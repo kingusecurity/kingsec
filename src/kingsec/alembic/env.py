@@ -56,6 +56,7 @@ metadata = _models_module.Base.metadata
 # Database URL resolution
 # ---------------------------------------------------------------------------
 
+
 def _resolve_database_url() -> str:
     """Build a SQLAlchemy URL from KingSec settings.
 
@@ -125,6 +126,7 @@ def _enable_sqlite_foreign_keys(dbapi_connection: Any, _connection_record: Any) 
 # ---------------------------------------------------------------------------
 # Alembic hooks
 # ---------------------------------------------------------------------------
+
 
 def run_migrations_offline() -> None:
     """Emit SQL to stdout without connecting to the database.

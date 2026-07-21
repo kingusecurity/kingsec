@@ -32,16 +32,18 @@ def _make_record(
     return json.dumps(record)
 
 
-_FULL_ENUM_OUTPUT = "\n".join([
-    _make_record("www.example.com", "example.com", [{"ip": "10.0.0.1"}], ["DNS"], "subdomain"),
-    _make_record("mail.example.com", "example.com", [{"ip": "10.0.0.2"}], ["DNS", "Cert"], "subdomain"),
-    _make_record("admin.example.com", "example.com", [{"ip": "10.0.0.3"}], ["DNS"], "subdomain"),
-    _make_record("vpn.example.com", "example.com", [{"ip": "10.0.0.4"}], ["DNS"], "subdomain"),
-    _make_record("api.example.com", "example.com", [{"ip": "10.0.0.5"}], ["DNS"], "subdomain"),
-    _make_record("backup.example.com", "example.com", [{"ip": "10.0.0.6"}], ["DNS"], "subdomain"),
-    _make_record("secret.example.com", "example.com", [{"ip": "10.0.0.7"}], ["DNS"], "subdomain"),
-    _make_record("jenkins.example.com", "example.com", [{"ip": "10.0.0.8"}], ["DNS"], "subdomain"),
-])
+_FULL_ENUM_OUTPUT = "\n".join(
+    [
+        _make_record("www.example.com", "example.com", [{"ip": "10.0.0.1"}], ["DNS"], "subdomain"),
+        _make_record("mail.example.com", "example.com", [{"ip": "10.0.0.2"}], ["DNS", "Cert"], "subdomain"),
+        _make_record("admin.example.com", "example.com", [{"ip": "10.0.0.3"}], ["DNS"], "subdomain"),
+        _make_record("vpn.example.com", "example.com", [{"ip": "10.0.0.4"}], ["DNS"], "subdomain"),
+        _make_record("api.example.com", "example.com", [{"ip": "10.0.0.5"}], ["DNS"], "subdomain"),
+        _make_record("backup.example.com", "example.com", [{"ip": "10.0.0.6"}], ["DNS"], "subdomain"),
+        _make_record("secret.example.com", "example.com", [{"ip": "10.0.0.7"}], ["DNS"], "subdomain"),
+        _make_record("jenkins.example.com", "example.com", [{"ip": "10.0.0.8"}], ["DNS"], "subdomain"),
+    ]
+)
 
 _SINGLE_RECORD_OUTPUT = _make_record("dev.example.com", "example.com")
 
@@ -49,24 +51,28 @@ _NO_NAME_RECORD = json.dumps({"domain": "example.com", "addresses": [], "sources
 
 _MALFORMED_LINE = "this is not json"
 
-_MULTI_ADDRESS_RECORD = json.dumps({
-    "name": "multi.example.com",
-    "domain": "example.com",
-    "addresses": [
-        {"ip": "10.0.0.1", "cidr": "10.0.0.0/24"},
-        {"ip": "10.0.0.2", "cidr": "10.0.0.0/24"},
-    ],
-    "sources": ["DNS", "Cert"],
-    "tag": "subdomain",
-})
+_MULTI_ADDRESS_RECORD = json.dumps(
+    {
+        "name": "multi.example.com",
+        "domain": "example.com",
+        "addresses": [
+            {"ip": "10.0.0.1", "cidr": "10.0.0.0/24"},
+            {"ip": "10.0.0.2", "cidr": "10.0.0.0/24"},
+        ],
+        "sources": ["DNS", "Cert"],
+        "tag": "subdomain",
+    }
+)
 
-_EMPTY_ADDRESSES_RECORD = json.dumps({
-    "name": "orphan.example.com",
-    "domain": "example.com",
-    "addresses": [],
-    "sources": [],
-    "tag": "subdomain",
-})
+_EMPTY_ADDRESSES_RECORD = json.dumps(
+    {
+        "name": "orphan.example.com",
+        "domain": "example.com",
+        "addresses": [],
+        "sources": [],
+        "tag": "subdomain",
+    }
+)
 
 
 # ===========================================================================

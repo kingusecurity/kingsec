@@ -63,12 +63,19 @@ class FakeSessionRepository(SessionRepository):
         s = self.sessions.get(session_id)
         if s:
             self.sessions[str(s.id)] = Session(
-                id=s.id, user_id=s.user_id, session_type=s.session_type,
-                jti=s.jti, refresh_jti=s.refresh_jti,
-                issued_at=s.issued_at, expires_at=s.expires_at,
-                last_activity=s.last_activity, client_ip=s.client_ip,
-                user_agent=s.user_agent, device_info=s.device_info,
-                status=SessionStatus.REVOKED, idle_timeout_seconds=s.idle_timeout_seconds,
+                id=s.id,
+                user_id=s.user_id,
+                session_type=s.session_type,
+                jti=s.jti,
+                refresh_jti=s.refresh_jti,
+                issued_at=s.issued_at,
+                expires_at=s.expires_at,
+                last_activity=s.last_activity,
+                client_ip=s.client_ip,
+                user_agent=s.user_agent,
+                device_info=s.device_info,
+                status=SessionStatus.REVOKED,
+                idle_timeout_seconds=s.idle_timeout_seconds,
             )
 
     def revoke_all_by_user(self, user_id: str, exclude_session_id: str | None = None) -> None:
@@ -85,12 +92,19 @@ class FakeSessionRepository(SessionRepository):
         s = self.sessions.get(session_id)
         if s:
             self.sessions[str(s.id)] = Session(
-                id=s.id, user_id=s.user_id, session_type=s.session_type,
-                jti=s.jti, refresh_jti=new_refresh_jti,
-                issued_at=s.issued_at, expires_at=s.expires_at,
-                last_activity=s.last_activity, client_ip=s.client_ip,
-                user_agent=s.user_agent, device_info=s.device_info,
-                status=s.status, idle_timeout_seconds=s.idle_timeout_seconds,
+                id=s.id,
+                user_id=s.user_id,
+                session_type=s.session_type,
+                jti=s.jti,
+                refresh_jti=new_refresh_jti,
+                issued_at=s.issued_at,
+                expires_at=s.expires_at,
+                last_activity=s.last_activity,
+                client_ip=s.client_ip,
+                user_agent=s.user_agent,
+                device_info=s.device_info,
+                status=s.status,
+                idle_timeout_seconds=s.idle_timeout_seconds,
             )
 
     def delete_expired(self, before: str) -> int:

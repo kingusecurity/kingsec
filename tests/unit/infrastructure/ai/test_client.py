@@ -33,18 +33,14 @@ class TestSuccess:
 
 class TestRetry:
     def test_retries_then_succeeds_on_503(self) -> None:
-        transport = sequence_transport(
-            [httpx.Response(503), httpx.Response(503), _OK]
-        )
+        transport = sequence_transport([httpx.Response(503), httpx.Response(503), _OK])
         client = _client(transport, retry_count=2)
         assert client.post_json("http://x", {}, {}) == {"ok": True}
         assert transport.calls["n"] == 3  # 2 retries + success
         client.close()
 
     def test_retries_then_succeeds_after_transport_error(self) -> None:
-        transport = sequence_transport(
-            [httpx.ConnectError("boom"), _OK]
-        )
+        transport = sequence_transport([httpx.ConnectError("boom"), _OK])
         client = _client(transport, retry_count=1)
         assert client.post_json("http://x", {}, {}) == {"ok": True}
         client.close()
@@ -87,9 +83,7 @@ class TestErrorTranslation:
         client.close()
 
     def test_invalid_json_body_raises_response_error(self) -> None:
-        transport = sequence_transport(
-            [httpx.Response(200, content=b"not json")]
-        )
+        transport = sequence_transport([httpx.Response(200, content=b"not json")])
         client = _client(transport, retry_count=0)
         with pytest.raises(AIResponseError):
             client.post_json("http://x", {}, {})

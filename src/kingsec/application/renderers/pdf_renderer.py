@@ -222,9 +222,7 @@ def _make_table(
 
     for i in range(1, len(data)):
         if i % 2 == 0:
-            style_cmds.append(
-                ("BACKGROUND", (0, i), (-1, i), colors.HexColor("#f8f9fa"))
-            )
+            style_cmds.append(("BACKGROUND", (0, i), (-1, i), colors.HexColor("#f8f9fa")))
 
     t.setStyle(TableStyle(style_cmds))
     return t
@@ -333,40 +331,44 @@ class PDFReportRenderer:
     @staticmethod
     def _cover_page(story: list[object], report: Report) -> None:
         story.append(Spacer(1, 6 * cm))
-        story.append(HRFlowable(
-            width="60%",
-            thickness=3,
-            color=colors.HexColor("#1e3a5f"),
-            spaceAfter=20,
-            spaceBefore=0,
-            hAlign="CENTER",
-        ))
+        story.append(
+            HRFlowable(
+                width="60%",
+                thickness=3,
+                color=colors.HexColor("#1e3a5f"),
+                spaceAfter=20,
+                spaceBefore=0,
+                hAlign="CENTER",
+            )
+        )
         story.append(Paragraph(report.title, _COVER_TITLE))
         story.append(Spacer(1, 0.8 * cm))
 
-        ts = report.created_at.astimezone(UTC).strftime(
-            "%Y-%m-%d %H:%M:%S UTC"
-        )
+        ts = report.created_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
         story.append(Paragraph(f"Generated: {ts}", _COVER_SUBTITLE))
         story.append(Paragraph(f"Report ID: {report.report_id}", _COVER_SUBTITLE))
         story.append(Spacer(1, 3 * cm))
-        story.append(HRFlowable(
-            width="30%",
-            thickness=1,
-            color=colors.HexColor("#cccccc"),
-            spaceAfter=10,
-            spaceBefore=0,
-            hAlign="CENTER",
-        ))
-        story.append(Paragraph(
-            "KingSec Security Assessment Report",
-            ParagraphStyle(
-                "CoverOrg",
-                parent=_COVER_SUBTITLE,
-                fontSize=11,
-                textColor=colors.HexColor("#999999"),
-            ),
-        ))
+        story.append(
+            HRFlowable(
+                width="30%",
+                thickness=1,
+                color=colors.HexColor("#cccccc"),
+                spaceAfter=10,
+                spaceBefore=0,
+                hAlign="CENTER",
+            )
+        )
+        story.append(
+            Paragraph(
+                "KingSec Security Assessment Report",
+                ParagraphStyle(
+                    "CoverOrg",
+                    parent=_COVER_SUBTITLE,
+                    fontSize=11,
+                    textColor=colors.HexColor("#999999"),
+                ),
+            )
+        )
 
     # ------------------------------------------------------------------
     # Executive Summary
@@ -376,10 +378,14 @@ class PDFReportRenderer:
     def _executive_summary(story: list[object], report: Report) -> None:
         es: ExecutiveSummary = report.executive_summary
         story.append(Paragraph("Executive Summary", _SECTION_HEADING))
-        story.append(HRFlowable(
-            width="100%", thickness=2, color=colors.HexColor("#1e3a5f"),
-            spaceAfter=12,
-        ))
+        story.append(
+            HRFlowable(
+                width="100%",
+                thickness=2,
+                color=colors.HexColor("#1e3a5f"),
+                spaceAfter=12,
+            )
+        )
         story.append(Paragraph(es.summary_text, _BODY))
         story.append(Spacer(1, 6))
 
@@ -430,17 +436,21 @@ class PDFReportRenderer:
             repeatRows=1,
             hAlign="LEFT",
         )
-        metrics_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e3a5f")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ("LEFTPADDING", (0, 0), (-1, -1), 8),
-            ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
-        ]))
+        metrics_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e3a5f")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                    ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
+                ]
+            )
+        )
         story.append(metrics_table)
 
     # ------------------------------------------------------------------
@@ -451,10 +461,14 @@ class PDFReportRenderer:
     def _risk_summary(story: list[object], report: Report) -> None:
         rs: RiskSummary = report.risk_summary
         story.append(Paragraph("Risk Summary", _SECTION_HEADING))
-        story.append(HRFlowable(
-            width="100%", thickness=2, color=colors.HexColor("#1e3a5f"),
-            spaceAfter=12,
-        ))
+        story.append(
+            HRFlowable(
+                width="100%",
+                thickness=2,
+                color=colors.HexColor("#1e3a5f"),
+                spaceAfter=12,
+            )
+        )
 
         score_data: list[list[str]] = [
             ["Average Score", f"{rs.average_score:.1f} / 100"],
@@ -467,17 +481,21 @@ class PDFReportRenderer:
             repeatRows=1,
             hAlign="LEFT",
         )
-        score_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e3a5f")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ("LEFTPADDING", (0, 0), (-1, -1), 8),
-            ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
-        ]))
+        score_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e3a5f")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                    ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
+                ]
+            )
+        )
         story.append(score_table)
         story.append(Spacer(1, 6))
 
@@ -494,17 +512,21 @@ class PDFReportRenderer:
                 repeatRows=1,
                 hAlign="LEFT",
             )
-            dist_table.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e3a5f")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
-            ]))
+            dist_table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e3a5f")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("TOPPADDING", (0, 0), (-1, -1), 6),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                        ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
+                    ]
+                )
+            )
             story.append(dist_table)
             story.append(Spacer(1, 6))
 
@@ -522,10 +544,14 @@ class PDFReportRenderer:
     def _technical_findings(story: list[object], report: Report) -> None:
         fs: FindingSection = report.finding_section
         story.append(Paragraph("Technical Findings", _SECTION_HEADING))
-        story.append(HRFlowable(
-            width="100%", thickness=2, color=colors.HexColor("#1e3a5f"),
-            spaceAfter=12,
-        ))
+        story.append(
+            HRFlowable(
+                width="100%",
+                thickness=2,
+                color=colors.HexColor("#1e3a5f"),
+                spaceAfter=12,
+            )
+        )
 
         if fs.total_count == 0:
             story.append(Paragraph("No findings were identified.", _BODY))
@@ -537,14 +563,18 @@ class PDFReportRenderer:
         rows: list[list[str]] = []
         for fe in fs.entries:
             assets_str = ", ".join(fe.affected_assets) if fe.affected_assets else "—"
-            severity_text = f'<font color="{_SEVERITY_COLORS.get(fe.severity.upper(), "#666666").hexval()}">{fe.severity}</font>'
-            rows.append([
-                fe.correlation_id,
-                fe.title,
-                severity_text,
-                str(fe.risk_score),
-                assets_str,
-            ])
+            severity_text = (
+                f'<font color="{_SEVERITY_COLORS.get(fe.severity.upper(), "#666666").hexval()}">{fe.severity}</font>'
+            )
+            rows.append(
+                [
+                    fe.correlation_id,
+                    fe.title,
+                    severity_text,
+                    str(fe.risk_score),
+                    assets_str,
+                ]
+            )
 
         t = _make_table(headers, rows, col_widths)
         story.append(t)
@@ -557,10 +587,14 @@ class PDFReportRenderer:
     def _attack_paths(story: list[object], report: Report) -> None:
         aps: AttackPathSection = report.attack_path_section
         story.append(Paragraph("Attack Paths", _SECTION_HEADING))
-        story.append(HRFlowable(
-            width="100%", thickness=2, color=colors.HexColor("#1e3a5f"),
-            spaceAfter=12,
-        ))
+        story.append(
+            HRFlowable(
+                width="100%",
+                thickness=2,
+                color=colors.HexColor("#1e3a5f"),
+                spaceAfter=12,
+            )
+        )
 
         if aps.total_paths == 0:
             story.append(Paragraph("No attack paths were identified.", _BODY))
@@ -578,26 +612,32 @@ class PDFReportRenderer:
             repeatRows=1,
             hAlign="LEFT",
         )
-        m_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e3a5f")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ("LEFTPADDING", (0, 0), (-1, -1), 8),
-            ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
-        ]))
+        m_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e3a5f")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                    ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
+                ]
+            )
+        )
         story.append(m_table)
         story.append(Spacer(1, 8))
 
         # Individual paths
         for i, path in enumerate(aps.graph.paths):
-            story.append(Paragraph(
-                f"Attack Path {i + 1}: {path.path_id}",
-                _SUB_HEADING,
-            ))
+            story.append(
+                Paragraph(
+                    f"Attack Path {i + 1}: {path.path_id}",
+                    _SUB_HEADING,
+                )
+            )
 
             path_metrics = [
                 ["Score", str(path.attack_score)],
@@ -612,17 +652,21 @@ class PDFReportRenderer:
                 repeatRows=1,
                 hAlign="LEFT",
             )
-            pm_table.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#374151")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
-            ]))
+            pm_table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#374151")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("TOPPADDING", (0, 0), (-1, -1), 4),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                        ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
+                    ]
+                )
+            )
             story.append(pm_table)
             story.append(Spacer(1, 4))
 
@@ -630,12 +674,14 @@ class PDFReportRenderer:
             path_rows: list[list[str]] = []
             for n in path.nodes:
                 sev_col = _SEVERITY_COLORS.get(n.severity.upper(), colors.HexColor("#666666"))
-                path_rows.append([
-                    n.title,
-                    f'<font color="{sev_col.hexval()}">{n.severity}</font>',
-                    str(n.risk_score),
-                    n.asset or "—",
-                ])
+                path_rows.append(
+                    [
+                        n.title,
+                        f'<font color="{sev_col.hexval()}">{n.severity}</font>',
+                        str(n.risk_score),
+                        n.asset or "—",
+                    ]
+                )
 
             if path_rows:
                 node_table = _make_table(
@@ -646,9 +692,12 @@ class PDFReportRenderer:
                 story.append(node_table)
 
             if path.reasoning:
-                story.append(Paragraph(
-                    f"<b>Reasoning:</b> {path.reasoning}", _BODY,
-                ))
+                story.append(
+                    Paragraph(
+                        f"<b>Reasoning:</b> {path.reasoning}",
+                        _BODY,
+                    )
+                )
 
             if path.recommendations:
                 story.append(Paragraph("<b>Recommendations:</b>", _BODY_BOLD))
@@ -666,10 +715,14 @@ class PDFReportRenderer:
     def _assets(story: list[object], report: Report) -> None:
         asset_summary = report.asset_summary
         story.append(Paragraph("Assets", _SECTION_HEADING))
-        story.append(HRFlowable(
-            width="100%", thickness=2, color=colors.HexColor("#1e3a5f"),
-            spaceAfter=12,
-        ))
+        story.append(
+            HRFlowable(
+                width="100%",
+                thickness=2,
+                color=colors.HexColor("#1e3a5f"),
+                spaceAfter=12,
+            )
+        )
 
         if asset_summary.total_assets == 0:
             story.append(Paragraph("No assets were identified.", _BODY))
@@ -679,12 +732,14 @@ class PDFReportRenderer:
         col_widths = [5 * cm, 3 * cm, 3 * cm, 3 * cm]
         rows: list[list[str]] = []
         for ae in asset_summary.entries:
-            rows.append([
-                ae.asset,
-                str(ae.finding_count),
-                str(ae.highest_risk_score),
-                f"{ae.average_risk_score:.1f}",
-            ])
+            rows.append(
+                [
+                    ae.asset,
+                    str(ae.finding_count),
+                    str(ae.highest_risk_score),
+                    f"{ae.average_risk_score:.1f}",
+                ]
+            )
 
         story.append(_make_table(headers, rows, col_widths))
 
@@ -696,10 +751,14 @@ class PDFReportRenderer:
     def _recommendations(story: list[object], report: Report) -> None:
         recs: RecommendationSection = report.recommendation_section
         story.append(Paragraph("Recommendations", _SECTION_HEADING))
-        story.append(HRFlowable(
-            width="100%", thickness=2, color=colors.HexColor("#1e3a5f"),
-            spaceAfter=12,
-        ))
+        story.append(
+            HRFlowable(
+                width="100%",
+                thickness=2,
+                color=colors.HexColor("#1e3a5f"),
+                spaceAfter=12,
+            )
+        )
 
         if recs.total_recommendations == 0:
             story.append(Paragraph("No recommendations available.", _BODY))
@@ -709,16 +768,16 @@ class PDFReportRenderer:
         col_widths = [4 * cm, 2 * cm, 1.5 * cm, 7.5 * cm]
         rows: list[list[str]] = []
         for re in recs.entries:
-            sev_col = _SEVERITY_COLORS.get(
-                re.severity.upper(), colors.HexColor("#666666")
-            )
+            sev_col = _SEVERITY_COLORS.get(re.severity.upper(), colors.HexColor("#666666"))
             recs_text = "; ".join(re.recommendations)
-            rows.append([
-                re.finding_title,
-                f'<font color="{sev_col.hexval()}">{re.severity}</font>',
-                str(re.risk_score),
-                recs_text,
-            ])
+            rows.append(
+                [
+                    re.finding_title,
+                    f'<font color="{sev_col.hexval()}">{re.severity}</font>',
+                    str(re.risk_score),
+                    recs_text,
+                ]
+            )
 
         story.append(_make_table(headers, rows, col_widths))
 
@@ -730,21 +789,29 @@ class PDFReportRenderer:
     def _appendix(story: list[object], report: Report) -> None:
         appx = report.appendix
         story.append(Paragraph("Appendix", _SECTION_HEADING))
-        story.append(HRFlowable(
-            width="100%", thickness=2, color=colors.HexColor("#1e3a5f"),
-            spaceAfter=12,
-        ))
-
-        story.append(Paragraph(
-            f"Generated by: {appx.generated_by}", _BODY,
-        ))
-        ts = appx.generated_at.astimezone(UTC).strftime(
-            "%Y-%m-%d %H:%M:%S UTC"
+        story.append(
+            HRFlowable(
+                width="100%",
+                thickness=2,
+                color=colors.HexColor("#1e3a5f"),
+                spaceAfter=12,
+            )
         )
+
+        story.append(
+            Paragraph(
+                f"Generated by: {appx.generated_by}",
+                _BODY,
+            )
+        )
+        ts = appx.generated_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
         story.append(Paragraph(f"Generated at: {ts}", _BODY))
-        story.append(Paragraph(
-            f"Total plugins: {appx.total_plugins}", _BODY,
-        ))
+        story.append(
+            Paragraph(
+                f"Total plugins: {appx.total_plugins}",
+                _BODY,
+            )
+        )
         story.append(Spacer(1, 6))
 
         if appx.scanner_versions:
@@ -760,15 +827,19 @@ class PDFReportRenderer:
                 repeatRows=1,
                 hAlign="LEFT",
             )
-            s_table.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e3a5f")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
-            ]))
+            s_table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e3a5f")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("TOPPADDING", (0, 0), (-1, -1), 6),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                        ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8f9fa")),
+                    ]
+                )
+            )
             story.append(s_table)

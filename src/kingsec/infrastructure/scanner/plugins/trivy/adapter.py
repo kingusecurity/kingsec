@@ -66,9 +66,7 @@ class TrivyPlugin(ScannerPluginPort):
         return (
             ScannerCapability(
                 target_types=frozenset({TargetType.HOSTNAME}),
-                scan_categories=frozenset(
-                    {ScanCategory.VULNERABILITY, ScanCategory.CONFIGURATION}
-                ),
+                scan_categories=frozenset({ScanCategory.VULNERABILITY, ScanCategory.CONFIGURATION}),
                 output_format=OutputFormat.STRUCTURED_JSON,
             ),
         )

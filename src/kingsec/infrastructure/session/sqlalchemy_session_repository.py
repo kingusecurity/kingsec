@@ -96,11 +96,7 @@ class SqlAlchemySessionRepository(SessionRepository):
 
     def find_active_by_user(self, user_id: str) -> list[Session]:
         with self._session_factory() as db:
-            orms = (
-                db.query(SessionORM)
-                .filter_by(user_id=user_id, status="active")
-                .all()
-            )
+            orms = db.query(SessionORM).filter_by(user_id=user_id, status="active").all()
             return [self._to_domain(o) for o in orms]
 
     def count_active_by_user(self, user_id: str) -> int:
@@ -114,9 +110,7 @@ class SqlAlchemySessionRepository(SessionRepository):
                 orm.status = "revoked"
                 db.commit()
 
-    def revoke_all_by_user(
-        self, user_id: str, exclude_session_id: str | None = None
-    ) -> None:
+    def revoke_all_by_user(self, user_id: str, exclude_session_id: str | None = None) -> None:
         with self._session_factory() as db:
             query = db.query(SessionORM).filter_by(user_id=user_id, status="active")
             if exclude_session_id:
@@ -140,10 +134,6 @@ class SqlAlchemySessionRepository(SessionRepository):
 
     def delete_expired(self, before: str) -> int:
         with self._session_factory() as db:
-            count = (
-                db.query(SessionORM)
-                .filter(SessionORM.expires_at < before)
-                .delete()
-            )
+            count = db.query(SessionORM).filter(SessionORM.expires_at < before).delete()
             db.commit()
             return cast(int, count)

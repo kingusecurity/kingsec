@@ -191,7 +191,4 @@ class Finding:
         return hash(self._id)
 
     def __repr__(self) -> str:
-        return (
-            f"Finding(id={self._id.value!r}, severity={self._severity.name}, "
-            f"status={self._status.value})"
-        )
+        return f"Finding(id={self._id.value!r}, severity={self._severity.name}, status={self._status.value})"

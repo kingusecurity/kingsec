@@ -65,8 +65,9 @@ def audit() -> MagicMock:
 
 
 @pytest.fixture
-def orchestrator(job_service, queue_service, agent_dispatcher,
-                 report_service, notification_service, audit) -> PipelineOrchestrator:
+def orchestrator(
+    job_service, queue_service, agent_dispatcher, report_service, notification_service, audit
+) -> PipelineOrchestrator:
     return PipelineOrchestrator(
         job_service=job_service,
         queue_service=queue_service,
@@ -85,8 +86,7 @@ def _make_execution(state: PipelineState) -> PipelineExecution:
     stages = tuple(
         PipelineStage(
             name=s.value,
-            status="completed" if PIPELINE_ORDER.index(s) < state_idx else
-                   "running" if s == state else "pending",
+            status="completed" if PIPELINE_ORDER.index(s) < state_idx else "running" if s == state else "pending",
             started_at="2025-01-01T00:00:00",
             completed_at="2025-01-01T00:00:00" if PIPELINE_ORDER.index(s) < state_idx else "",
         )
@@ -172,8 +172,7 @@ class TestAdvance:
             target=exec_.target,
             state=exec_.state,
             stages=exec_.stages,
-            result=PipelineResult(job_id="job-1", queue_entry_id="q-1",
-                                   findings_count=3, report_id="report-1"),
+            result=PipelineResult(job_id="job-1", queue_entry_id="q-1", findings_count=3, report_id="report-1"),
             owner_user_id=exec_.owner_user_id,
             scanner_ids=exec_.scanner_ids,
             priority=exec_.priority,
@@ -190,9 +189,13 @@ class TestAdvance:
             target=exec_.target,
             state=exec_.state,
             stages=exec_.stages,
-            result=PipelineResult(job_id="job-1", queue_entry_id="q-1",
-                                   findings_count=3, report_id="report-1",
-                                   notification_ids=("notif-1",)),
+            result=PipelineResult(
+                job_id="job-1",
+                queue_entry_id="q-1",
+                findings_count=3,
+                report_id="report-1",
+                notification_ids=("notif-1",),
+            ),
             owner_user_id=exec_.owner_user_id,
             scanner_ids=exec_.scanner_ids,
             priority=exec_.priority,

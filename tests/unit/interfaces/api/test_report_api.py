@@ -150,6 +150,7 @@ class TestGenerateReport:
         response = self.client.post("/report", json={"scan_id": "scan-001"})
         data = response.json()
         from datetime import datetime
+
         datetime.fromisoformat(data["generated_at"])
 
     def test_generate_multiple_reports(self) -> None:
@@ -441,6 +442,7 @@ class TestNoInfrastructureLeaks:
         import inspect
 
         import kingsec.interfaces.api.routes.report as report_module
+
         source = inspect.getsource(report_module)
         assert "infrastructure" not in source.lower()
 
@@ -448,5 +450,6 @@ class TestNoInfrastructureLeaks:
         import inspect
 
         import kingsec.interfaces.api.app as app_module
+
         source = inspect.getsource(app_module)
         assert "infrastructure" not in source.lower()

@@ -30,7 +30,9 @@ _NOW = datetime(2026, 7, 17, tzinfo=UTC)
 
 def _make_factor(name: str = "severity", contribution: int = 22) -> RiskFactor:
     return RiskFactor(
-        name=name, weight=30, contribution=contribution,
+        name=name,
+        weight=30,
+        contribution=contribution,
         description=f"{name} contributed {contribution}",
     )
 
@@ -141,12 +143,14 @@ def _make_graph_with_paths(
         nodes.append(node)
     edges = []
     for i in range(len(nodes) - 1):
-        edges.append(AttackEdge(
-            source_id=nodes[i].node_id,
-            target_id=nodes[i + 1].node_id,
-            relationship="same_asset",
-            confidence=0.8,
-        ))
+        edges.append(
+            AttackEdge(
+                source_id=nodes[i].node_id,
+                target_id=nodes[i + 1].node_id,
+                relationship="same_asset",
+                confidence=0.8,
+            )
+        )
     p = AttackPath(
         path_id="path-1",
         nodes=tuple(nodes),
@@ -235,58 +239,94 @@ class TestExecutiveSummaryDataclass:
             total_affected_assets=2,
             attack_path_count=1,
             highest_attack_path_score=80,
-            top_security_concerns=(), key_observations=(),
-            executive_recommendations=(), prioritized_remediation_items=(),
+            top_security_concerns=(),
+            key_observations=(),
+            executive_recommendations=(),
+            prioritized_remediation_items=(),
         )
         assert es.total_severe == 7
 
     def test_negative_total_raises(self) -> None:
         with pytest.raises(ValueError, match="total_findings"):
             ExecutiveSummary(
-                overall_security_posture="Good", total_findings=-1,
-                critical_count=0, high_count=0, medium_count=0,
-                low_count=0, informational_count=0,
-                overall_risk_level="Low", highest_risk_score=0,
-                average_risk_score=0.0, total_affected_assets=0,
-                attack_path_count=0, highest_attack_path_score=0,
-                top_security_concerns=(), key_observations=(),
-                executive_recommendations=(), prioritized_remediation_items=(),
+                overall_security_posture="Good",
+                total_findings=-1,
+                critical_count=0,
+                high_count=0,
+                medium_count=0,
+                low_count=0,
+                informational_count=0,
+                overall_risk_level="Low",
+                highest_risk_score=0,
+                average_risk_score=0.0,
+                total_affected_assets=0,
+                attack_path_count=0,
+                highest_attack_path_score=0,
+                top_security_concerns=(),
+                key_observations=(),
+                executive_recommendations=(),
+                prioritized_remediation_items=(),
             )
 
     def test_highest_score_out_of_range(self) -> None:
         with pytest.raises(ValueError, match="highest_risk_score"):
             ExecutiveSummary(
-                overall_security_posture="Good", total_findings=0,
-                critical_count=0, high_count=0, medium_count=0,
-                low_count=0, informational_count=0,
-                overall_risk_level="Low", highest_risk_score=200,
-                average_risk_score=0.0, total_affected_assets=0,
-                attack_path_count=0, highest_attack_path_score=0,
-                top_security_concerns=(), key_observations=(),
-                executive_recommendations=(), prioritized_remediation_items=(),
+                overall_security_posture="Good",
+                total_findings=0,
+                critical_count=0,
+                high_count=0,
+                medium_count=0,
+                low_count=0,
+                informational_count=0,
+                overall_risk_level="Low",
+                highest_risk_score=200,
+                average_risk_score=0.0,
+                total_affected_assets=0,
+                attack_path_count=0,
+                highest_attack_path_score=0,
+                top_security_concerns=(),
+                key_observations=(),
+                executive_recommendations=(),
+                prioritized_remediation_items=(),
             )
 
     def test_attack_path_score_out_of_range(self) -> None:
         with pytest.raises(ValueError, match="highest_attack_path_score"):
             ExecutiveSummary(
-                overall_security_posture="Good", total_findings=0,
-                critical_count=0, high_count=0, medium_count=0,
-                low_count=0, informational_count=0,
-                overall_risk_level="Low", highest_risk_score=0,
-                average_risk_score=0.0, total_affected_assets=0,
-                attack_path_count=0, highest_attack_path_score=150,
-                top_security_concerns=(), key_observations=(),
-                executive_recommendations=(), prioritized_remediation_items=(),
+                overall_security_posture="Good",
+                total_findings=0,
+                critical_count=0,
+                high_count=0,
+                medium_count=0,
+                low_count=0,
+                informational_count=0,
+                overall_risk_level="Low",
+                highest_risk_score=0,
+                average_risk_score=0.0,
+                total_affected_assets=0,
+                attack_path_count=0,
+                highest_attack_path_score=150,
+                top_security_concerns=(),
+                key_observations=(),
+                executive_recommendations=(),
+                prioritized_remediation_items=(),
             )
 
     def test_equality(self) -> None:
         kw = dict(
-            overall_security_posture="Good", total_findings=1,
-            critical_count=0, high_count=0, medium_count=0,
-            low_count=1, informational_count=0,
-            overall_risk_level="Low", highest_risk_score=10,
-            average_risk_score=10.0, total_affected_assets=1,
-            attack_path_count=0, highest_attack_path_score=0,
+            overall_security_posture="Good",
+            total_findings=1,
+            critical_count=0,
+            high_count=0,
+            medium_count=0,
+            low_count=1,
+            informational_count=0,
+            overall_risk_level="Low",
+            highest_risk_score=10,
+            average_risk_score=10.0,
+            total_affected_assets=1,
+            attack_path_count=0,
+            highest_attack_path_score=0,
             top_security_concerns=("Low issue",),
             key_observations=("Minor",),
             executive_recommendations=("Monitor",),
@@ -296,12 +336,19 @@ class TestExecutiveSummaryDataclass:
 
     def test_hashable(self) -> None:
         es = ExecutiveSummary(
-            overall_security_posture="Excellent", total_findings=0,
-            critical_count=0, high_count=0, medium_count=0,
-            low_count=0, informational_count=0,
-            overall_risk_level="Informational", highest_risk_score=0,
-            average_risk_score=0.0, total_affected_assets=0,
-            attack_path_count=0, highest_attack_path_score=0,
+            overall_security_posture="Excellent",
+            total_findings=0,
+            critical_count=0,
+            high_count=0,
+            medium_count=0,
+            low_count=0,
+            informational_count=0,
+            overall_risk_level="Informational",
+            highest_risk_score=0,
+            average_risk_score=0.0,
+            total_affected_assets=0,
+            attack_path_count=0,
+            highest_attack_path_score=0,
             top_security_concerns=("None",),
             key_observations=("Clean",),
             executive_recommendations=("Keep up",),
@@ -393,15 +440,20 @@ class TestGeneratorMultipleSeverities:
         ]
         n1 = _make_node("corr-001", 95)
         n2 = _make_node("corr-002", 75)
-        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002",
-                        relationship="same_asset", confidence=0.8)
-        p = AttackPath(path_id="path-1", nodes=(n1, n2), edges=(e,),
-                       attack_score=87, confidence=0.8,
-                       estimated_impact="Severe", attack_complexity="Moderate",
-                       likelihood="High", reasoning="Multi-step.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=87,
-                         average_score=87.0, metadata={})
+        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002", relationship="same_asset", confidence=0.8)
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1, n2),
+            edges=(e,),
+            attack_score=87,
+            confidence=0.8,
+            estimated_impact="Severe",
+            attack_complexity="Moderate",
+            likelihood="High",
+            reasoning="Multi-step.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=87, average_score=87.0, metadata={})
         es = _GENERATOR.generate(ras, ag, efs)
         assert es.critical_count == 1
         assert es.high_count == 1
@@ -449,15 +501,20 @@ class TestGeneratorAverages:
         ]
         n1 = _make_node("corr-001", 80)
         n2 = _make_node("corr-002", 40)
-        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002",
-                        relationship="same_asset", confidence=0.8)
-        p = AttackPath(path_id="path-1", nodes=(n1, n2), edges=(e,),
-                       attack_score=64, confidence=0.8,
-                       estimated_impact="High", attack_complexity="Moderate",
-                       likelihood="Medium", reasoning="Multi-step.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=64,
-                         average_score=64.0, metadata={})
+        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002", relationship="same_asset", confidence=0.8)
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1, n2),
+            edges=(e,),
+            attack_score=64,
+            confidence=0.8,
+            estimated_impact="High",
+            attack_complexity="Moderate",
+            likelihood="Medium",
+            reasoning="Multi-step.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=64, average_score=64.0, metadata={})
         es = _GENERATOR.generate(ras, ag, efs)
         assert es.average_risk_score == 60.0
 
@@ -472,15 +529,20 @@ class TestGeneratorAverages:
         ]
         n1 = _make_node("corr-001", 90)
         n2 = _make_node("corr-002", 30)
-        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002",
-                        relationship="same_asset", confidence=0.8)
-        p = AttackPath(path_id="path-1", nodes=(n1, n2), edges=(e,),
-                       attack_score=66, confidence=0.8,
-                       estimated_impact="High", attack_complexity="Moderate",
-                       likelihood="Medium", reasoning="Multi-step.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=66,
-                         average_score=66.0, metadata={})
+        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002", relationship="same_asset", confidence=0.8)
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1, n2),
+            edges=(e,),
+            attack_score=66,
+            confidence=0.8,
+            estimated_impact="High",
+            attack_complexity="Moderate",
+            likelihood="Medium",
+            reasoning="Multi-step.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=66, average_score=66.0, metadata={})
         es = _GENERATOR.generate(ras, ag, efs)
         assert es.highest_risk_score == 90
 
@@ -560,15 +622,20 @@ class TestGeneratorRecommendations:
         ]
         n1 = _make_node("corr-001", 95)
         n2 = _make_node("corr-002", 50)
-        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002",
-                        relationship="same_asset", confidence=0.8)
-        p = AttackPath(path_id="path-1", nodes=(n1, n2), edges=(e,),
-                       attack_score=77, confidence=0.8,
-                       estimated_impact="Severe", attack_complexity="Moderate",
-                       likelihood="High", reasoning="Multi-step.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=77,
-                         average_score=77.0, metadata={})
+        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002", relationship="same_asset", confidence=0.8)
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1, n2),
+            edges=(e,),
+            attack_score=77,
+            confidence=0.8,
+            estimated_impact="Severe",
+            attack_complexity="Moderate",
+            likelihood="High",
+            reasoning="Multi-step.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=77, average_score=77.0, metadata={})
         es = _GENERATOR.generate(ras, ag, efs)
         assert len(es.executive_recommendations) >= 3
 
@@ -590,22 +657,25 @@ class TestGeneratorRecommendations:
             _make_assessment(correlation_id="corr-002", score=30),
         ]
         efs = [
-            _make_enriched(correlation_id="corr-001", severity=Severity.CRITICAL,
-                           recommendations=("Critical fix",)),
-            _make_enriched(correlation_id="corr-002", severity=Severity.LOW,
-                           recommendations=("Low fix",)),
+            _make_enriched(correlation_id="corr-001", severity=Severity.CRITICAL, recommendations=("Critical fix",)),
+            _make_enriched(correlation_id="corr-002", severity=Severity.LOW, recommendations=("Low fix",)),
         ]
         n1 = _make_node("corr-001", 90)
         n2 = _make_node("corr-002", 30)
-        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002",
-                        relationship="same_asset", confidence=0.8)
-        p = AttackPath(path_id="path-1", nodes=(n1, n2), edges=(e,),
-                       attack_score=66, confidence=0.8,
-                       estimated_impact="High", attack_complexity="Moderate",
-                       likelihood="Medium", reasoning="Multi-step.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=66,
-                         average_score=66.0, metadata={})
+        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002", relationship="same_asset", confidence=0.8)
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1, n2),
+            edges=(e,),
+            attack_score=66,
+            confidence=0.8,
+            estimated_impact="High",
+            attack_complexity="Moderate",
+            likelihood="Medium",
+            reasoning="Multi-step.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=66, average_score=66.0, metadata={})
         es = _GENERATOR.generate(ras, ag, efs)
         assert es.prioritized_remediation_items[0] == "Critical fix"
         assert es.prioritized_remediation_items[1] == "Low fix"
@@ -638,17 +708,21 @@ class TestGeneratorObservations:
         n1 = _make_node("corr-001", 95)
         n2 = _make_node("corr-002", 75)
         n3 = _make_node("corr-003", 50)
-        e1 = AttackEdge(source_id="node-corr-001", target_id="node-corr-002",
-                         relationship="same_asset", confidence=0.8)
-        e2 = AttackEdge(source_id="node-corr-002", target_id="node-corr-003",
-                         relationship="same_asset", confidence=0.8)
-        p = AttackPath(path_id="path-1", nodes=(n1, n2, n3), edges=(e1, e2),
-                       attack_score=73, confidence=0.8,
-                       estimated_impact="Severe", attack_complexity="Moderate",
-                       likelihood="High", reasoning="Multi-step.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=73,
-                         average_score=73.0, metadata={})
+        e1 = AttackEdge(source_id="node-corr-001", target_id="node-corr-002", relationship="same_asset", confidence=0.8)
+        e2 = AttackEdge(source_id="node-corr-002", target_id="node-corr-003", relationship="same_asset", confidence=0.8)
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1, n2, n3),
+            edges=(e1, e2),
+            attack_score=73,
+            confidence=0.8,
+            estimated_impact="Severe",
+            attack_complexity="Moderate",
+            likelihood="High",
+            reasoning="Multi-step.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=73, average_score=73.0, metadata={})
         es = _GENERATOR.generate(ras, ag, efs)
         assert any("67%" in o for o in es.key_observations)
 
@@ -658,22 +732,25 @@ class TestGeneratorObservations:
             _make_assessment(correlation_id="corr-002", score=50, risk_level="Medium"),
         ]
         efs = [
-            _make_enriched(correlation_id="corr-001", severity=Severity.HIGH,
-                           category="vulnerability"),
-            _make_enriched(correlation_id="corr-002", severity=Severity.MEDIUM,
-                           category="vulnerability"),
+            _make_enriched(correlation_id="corr-001", severity=Severity.HIGH, category="vulnerability"),
+            _make_enriched(correlation_id="corr-002", severity=Severity.MEDIUM, category="vulnerability"),
         ]
         n1 = _make_node("corr-001", 75)
         n2 = _make_node("corr-002", 50)
-        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002",
-                        relationship="same_asset", confidence=0.8)
-        p = AttackPath(path_id="path-1", nodes=(n1, n2), edges=(e,),
-                       attack_score=65, confidence=0.8,
-                       estimated_impact="High", attack_complexity="Moderate",
-                       likelihood="Medium", reasoning="Multi-step.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=65,
-                         average_score=65.0, metadata={})
+        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002", relationship="same_asset", confidence=0.8)
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1, n2),
+            edges=(e,),
+            attack_score=65,
+            confidence=0.8,
+            estimated_impact="High",
+            attack_complexity="Moderate",
+            likelihood="Medium",
+            reasoning="Multi-step.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=65, average_score=65.0, metadata={})
         es = _GENERATOR.generate(ras, ag, efs)
         assert any("vulnerability" in o for o in es.key_observations)
 

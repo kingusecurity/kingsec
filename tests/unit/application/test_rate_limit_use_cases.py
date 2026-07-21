@@ -139,9 +139,7 @@ class TestRecordFailedAuthentication:
         lockout_repo = FakeLockoutRepository()
         clock = FakeClock()
         use_case = RecordFailedAuthentication(lockout_repo, clock, max_attempts=3)
-        req = RecordFailedAuthenticationRequest(
-            user_id="u1", ip_address="1.2.3.4", username="alice"
-        )
+        req = RecordFailedAuthenticationRequest(user_id="u1", ip_address="1.2.3.4", username="alice")
         result = use_case.execute(req)
         assert not result.locked
         assert result.failed_attempts == 1
@@ -150,12 +148,8 @@ class TestRecordFailedAuthentication:
     def test_locks_after_max_attempts(self) -> None:
         lockout_repo = FakeLockoutRepository()
         clock = FakeClock()
-        use_case = RecordFailedAuthentication(
-            lockout_repo, clock, max_attempts=3, lockout_duration_seconds=900
-        )
-        req = RecordFailedAuthenticationRequest(
-            user_id="u2", ip_address="1.2.3.4", username="bob"
-        )
+        use_case = RecordFailedAuthentication(lockout_repo, clock, max_attempts=3, lockout_duration_seconds=900)
+        req = RecordFailedAuthenticationRequest(user_id="u2", ip_address="1.2.3.4", username="bob")
         for _ in range(2):
             use_case.execute(req)
         result = use_case.execute(req)
@@ -167,15 +161,9 @@ class TestRecordFailedAuthentication:
     def test_rejects_when_already_locked(self) -> None:
         lockout_repo = FakeLockoutRepository()
         clock = FakeClock()
-        lockout_repo.save(
-            AccountLockout(user_id="u3", locked_until=2000.0, failed_attempts=5)
-        )
-        use_case = RecordFailedAuthentication(
-            lockout_repo, clock, max_attempts=3, lockout_duration_seconds=900
-        )
-        req = RecordFailedAuthenticationRequest(
-            user_id="u3", ip_address="1.2.3.4", username="charlie"
-        )
+        lockout_repo.save(AccountLockout(user_id="u3", locked_until=2000.0, failed_attempts=5))
+        use_case = RecordFailedAuthentication(lockout_repo, clock, max_attempts=3, lockout_duration_seconds=900)
+        req = RecordFailedAuthenticationRequest(user_id="u3", ip_address="1.2.3.4", username="charlie")
         result = use_case.execute(req)
         assert result.locked
         # failed_attempts should not have increased
@@ -184,15 +172,9 @@ class TestRecordFailedAuthentication:
     def test_increments_after_lock_expired(self) -> None:
         lockout_repo = FakeLockoutRepository()
         clock = FakeClock(_now=1000.0)
-        lockout_repo.save(
-            AccountLockout(user_id="u4", locked_until=500.0, failed_attempts=3)
-        )
-        use_case = RecordFailedAuthentication(
-            lockout_repo, clock, max_attempts=3, lockout_duration_seconds=900
-        )
-        req = RecordFailedAuthenticationRequest(
-            user_id="u4", ip_address="1.2.3.4", username="dave"
-        )
+        lockout_repo.save(AccountLockout(user_id="u4", locked_until=500.0, failed_attempts=3))
+        use_case = RecordFailedAuthentication(lockout_repo, clock, max_attempts=3, lockout_duration_seconds=900)
+        req = RecordFailedAuthenticationRequest(user_id="u4", ip_address="1.2.3.4", username="dave")
         result = use_case.execute(req)
         # Lock expired (500 < 1000), so it increments: 3 + 1 = 4
         assert result.locked  # 4 >= 3 so locked again
@@ -202,9 +184,7 @@ class TestRecordFailedAuthentication:
 class TestRecordSuccessfulAuthentication:
     def test_resets_failed_attempts(self) -> None:
         lockout_repo = FakeLockoutRepository()
-        lockout_repo.save(
-            AccountLockout(user_id="u1", locked_until=2000.0, failed_attempts=5)
-        )
+        lockout_repo.save(AccountLockout(user_id="u1", locked_until=2000.0, failed_attempts=5))
         use_case = RecordSuccessfulAuthentication(lockout_repo)
         req = RecordSuccessfulAuthenticationRequest(user_id="u1")
         result = use_case.execute(req)
@@ -232,9 +212,7 @@ class TestCheckAccountLockout:
     def test_locked(self) -> None:
         lockout_repo = FakeLockoutRepository()
         clock = FakeClock(_now=1000.0)
-        lockout_repo.save(
-            AccountLockout(user_id="u1", locked_until=2000.0, failed_attempts=5)
-        )
+        lockout_repo.save(AccountLockout(user_id="u1", locked_until=2000.0, failed_attempts=5))
         use_case = CheckAccountLockout(lockout_repo, clock)
         req = CheckAccountLockoutRequest(user_id="u1")
         result = use_case.execute(req)
@@ -245,9 +223,7 @@ class TestCheckAccountLockout:
     def test_auto_unlock_after_expiry(self) -> None:
         lockout_repo = FakeLockoutRepository()
         clock = FakeClock(_now=1000.0)
-        lockout_repo.save(
-            AccountLockout(user_id="u1", locked_until=500.0, failed_attempts=5)
-        )
+        lockout_repo.save(AccountLockout(user_id="u1", locked_until=500.0, failed_attempts=5))
         use_case = CheckAccountLockout(lockout_repo, clock)
         req = CheckAccountLockoutRequest(user_id="u1")
         result = use_case.execute(req)
@@ -259,9 +235,7 @@ class TestCheckAccountLockout:
 class TestResetFailedAttempts:
     def test_resets_lockout(self) -> None:
         lockout_repo = FakeLockoutRepository()
-        lockout_repo.save(
-            AccountLockout(user_id="u1", locked_until=2000.0, failed_attempts=5)
-        )
+        lockout_repo.save(AccountLockout(user_id="u1", locked_until=2000.0, failed_attempts=5))
         use_case = ResetFailedAttempts(lockout_repo)
         req = ResetFailedAttemptsRequest(user_id="u1")
         result = use_case.execute(req)

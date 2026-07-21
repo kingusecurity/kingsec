@@ -102,6 +102,7 @@ class TestAgent:
             api_key_hash="hash",
         )
         import pytest
+
         with pytest.raises(AttributeError):
             a.state = AgentState.BUSY  # type: ignore
 

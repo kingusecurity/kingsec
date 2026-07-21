@@ -17,8 +17,9 @@ from kingsec.domain.pipeline import PipelineExecution
 
 
 class PipelineService(PipelineServicePort):
-    def __init__(self, repo: PipelineRepositoryPort, orchestrator: PipelineOrchestratorPort,
-                 audit: AuditPublisher) -> None:
+    def __init__(
+        self, repo: PipelineRepositoryPort, orchestrator: PipelineOrchestratorPort, audit: AuditPublisher
+    ) -> None:
         self._start_uc = StartPipeline(repo, orchestrator, audit)
         self._get_uc = GetPipeline(repo)
         self._list_uc = ListPipelines(repo)
@@ -28,9 +29,9 @@ class PipelineService(PipelineServicePort):
         self._pause_uc = PausePipeline(repo, orchestrator, audit)
         self._advance_uc = AdvancePipeline(repo, orchestrator, audit)
 
-    def start_pipeline(self, target: str, owner_user_id: str = "",
-                       scanner_ids: list[str] | None = None,
-                       priority: str = "normal") -> PipelineExecution:
+    def start_pipeline(
+        self, target: str, owner_user_id: str = "", scanner_ids: list[str] | None = None, priority: str = "normal"
+    ) -> PipelineExecution:
         return self._start_uc.execute(target, owner_user_id, scanner_ids, priority)
 
     def get_pipeline(self, pipeline_id: str) -> PipelineExecution:

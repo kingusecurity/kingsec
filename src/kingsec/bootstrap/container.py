@@ -44,9 +44,7 @@ class Container:
         """Register an already-constructed singleton under its type."""
         self._instances[service_type] = instance
 
-    def register_factory(
-        self, service_type: type[Any], factory: Callable[[Container], T]
-    ) -> None:
+    def register_factory(self, service_type: type[Any], factory: Callable[[Container], T]) -> None:
         """Register a lazy factory; the result is cached as a singleton."""
         self._factories[service_type] = factory
 
@@ -58,9 +56,7 @@ class Container:
             instance = self._factories[service_type](self)
             self._instances[service_type] = instance
             return instance
-        raise BootstrapError(
-            f"no registration found for dependency {service_type.__name__!r}"
-        )
+        raise BootstrapError(f"no registration found for dependency {service_type.__name__!r}")
 
     def has(self, service_type: type) -> bool:
         """True if a service (instance or factory) is registered for the type."""
@@ -70,9 +66,7 @@ class Container:
         """Register a zero-arg callback to run at shutdown (LIFO order)."""
         self._shutdown_hooks.append(hook)
 
-    def run_shutdown_hooks(
-        self, on_error: Callable[[BaseException], None] | None = None
-    ) -> None:
+    def run_shutdown_hooks(self, on_error: Callable[[BaseException], None] | None = None) -> None:
         """Run shutdown hooks in reverse order, best-effort.
 
         Teardown must be resilient: one failing hook must not prevent the rest

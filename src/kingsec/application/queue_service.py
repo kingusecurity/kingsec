@@ -21,8 +21,7 @@ from kingsec.domain.queue import QueueEntry, QueueStatistics
 
 
 class QueueService(QueueServicePort):
-    def __init__(self, repo: QueueRepositoryPort, policy: SchedulerPolicyPort,
-                 agent_repo: Any = None) -> None:
+    def __init__(self, repo: QueueRepositoryPort, policy: SchedulerPolicyPort, agent_repo: Any = None) -> None:
         self._enqueue_uc = EnqueueJob(repo)
         self._dequeue_uc = DequeueJob(repo)
         self._cancel_uc = CancelQueuedJob(repo)
@@ -35,12 +34,18 @@ class QueueService(QueueServicePort):
         self._assign_uc = AssignBestAgent(repo, policy, agent_repo) if agent_repo else None
         self._next_uc = GetNextJob(repo, policy)
 
-    def enqueue(self, payload: str, target: str, priority: str = "normal",
-                scanner_ids: list[str] | None = None,
-                owner_user_id: str = "",
-                estimated_duration_seconds: int = 300) -> QueueEntry:
-        return self._enqueue_uc.execute(payload, target, priority, scanner_ids,
-                                         owner_user_id, estimated_duration_seconds)
+    def enqueue(
+        self,
+        payload: str,
+        target: str,
+        priority: str = "normal",
+        scanner_ids: list[str] | None = None,
+        owner_user_id: str = "",
+        estimated_duration_seconds: int = 300,
+    ) -> QueueEntry:
+        return self._enqueue_uc.execute(
+            payload, target, priority, scanner_ids, owner_user_id, estimated_duration_seconds
+        )
 
     def dequeue(self, entry_id: str) -> QueueEntry:
         return self._dequeue_uc.execute(entry_id)

@@ -39,6 +39,7 @@ class SQLAlchemyPipelineRepository(PipelineRepositoryPort):
 
     def save(self, execution: PipelineExecution) -> None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             existing = session.execute(
                 text("SELECT pipeline_id FROM scan_pipeline WHERE pipeline_id = :pid"),
@@ -86,6 +87,7 @@ class SQLAlchemyPipelineRepository(PipelineRepositoryPort):
 
     def find_by_id(self, pipeline_id: str) -> PipelineExecution | None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             row = session.execute(
                 text("SELECT * FROM scan_pipeline WHERE pipeline_id = :pid"),
@@ -97,12 +99,14 @@ class SQLAlchemyPipelineRepository(PipelineRepositoryPort):
 
     def find_all(self) -> list[PipelineExecution]:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             rows = session.execute(text("SELECT * FROM scan_pipeline ORDER BY created_at DESC")).fetchall()
             return [self._row_to_execution(r._mapping) for r in rows]
 
     def find_by_state(self, state: str) -> list[PipelineExecution]:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             rows = session.execute(
                 text("SELECT * FROM scan_pipeline WHERE state = :state ORDER BY created_at DESC"),
@@ -112,6 +116,7 @@ class SQLAlchemyPipelineRepository(PipelineRepositoryPort):
 
     def delete(self, pipeline_id: str) -> None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             session.execute(
                 text("DELETE FROM scan_pipeline WHERE pipeline_id = :pid"),
@@ -121,6 +126,7 @@ class SQLAlchemyPipelineRepository(PipelineRepositoryPort):
 
     def _row_to_execution(self, row: Any) -> PipelineExecution:
         import json
+
         stages_raw = row.get("stages_json", "[]")
         result_raw = row.get("result_json", "{}")
         try:

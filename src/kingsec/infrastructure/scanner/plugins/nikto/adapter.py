@@ -65,9 +65,7 @@ class NiktoPlugin(ScannerPluginPort):
         """Declare Nikto's scanning capabilities."""
         return (
             ScannerCapability(
-                target_types=frozenset(
-                    {TargetType.HOSTNAME, TargetType.URL}
-                ),
+                target_types=frozenset({TargetType.HOSTNAME, TargetType.URL}),
                 scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                 output_format=OutputFormat.RAW_TEXT,
             ),

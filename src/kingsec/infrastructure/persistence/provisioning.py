@@ -76,12 +76,8 @@ def register_persistence(
         validate_schema_version(engine)
     session_factory = create_session_factory(engine)
 
-    container.register_instance(
-        AssessmentRepository, SqlAlchemyAssessmentRepository(session_factory)
-    )
-    container.register_instance(
-        ReportRepository, SqlAlchemyReportRepository(session_factory)
-    )
+    container.register_instance(AssessmentRepository, SqlAlchemyAssessmentRepository(session_factory))
+    container.register_instance(ReportRepository, SqlAlchemyReportRepository(session_factory))
     # Connection lifecycle: dispose the pool on shutdown (runs LIFO).
     container.add_shutdown_hook(engine.dispose)
 

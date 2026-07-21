@@ -112,9 +112,7 @@ class TestCreateSchedule:
         repo = InMemoryScheduleRepo()
         audit = FakeAuditPublisher()
         uc = CreateSchedule(repo, audit)
-        result = uc.execute(
-            CreateScheduleRequest(name="Nightly", target="10.0.0.1", owner_user_id="u1")
-        )
+        result = uc.execute(CreateScheduleRequest(name="Nightly", target="10.0.0.1", owner_user_id="u1"))
         assert result.schedule.name == "Nightly"
         assert result.schedule.target == "10.0.0.1"
         assert result.schedule.enabled is True
@@ -128,15 +126,11 @@ class TestUpdateSchedule:
         repo = InMemoryScheduleRepo()
         audit = FakeAuditPublisher()
         create_uc = CreateSchedule(repo, audit)
-        create_uc.execute(
-            CreateScheduleRequest(name="Old Name", target="10.0.0.1", owner_user_id="u1")
-        )
+        create_uc.execute(CreateScheduleRequest(name="Old Name", target="10.0.0.1", owner_user_id="u1"))
         sid = next(iter(repo._schedules.keys()))
 
         update_uc = UpdateSchedule(repo, audit)
-        result = update_uc.execute(
-            UpdateScheduleRequest(schedule_id=sid, name="New Name")
-        )
+        result = update_uc.execute(UpdateScheduleRequest(schedule_id=sid, name="New Name"))
         assert result.schedule.name == "New Name"
 
     def test_update_not_found(self) -> None:
@@ -307,14 +301,24 @@ class TestFindDueSchedules:
         sid = next(iter(repo._schedules.keys()))
         existing = repo._schedules[sid]
         repo._schedules[sid] = ScanSchedule(
-            id=existing.id, name=existing.name, description=existing.description,
-            owner_user_id=existing.owner_user_id, target=existing.target,
-            scanner_ids=existing.scanner_ids, config=existing.config,
-            schedule_type=existing.schedule_type, cron_expression=existing.cron_expression,
-            timezone=existing.timezone, enabled=existing.enabled, paused=existing.paused,
-            created_at=existing.created_at, updated_at=existing.updated_at,
-            last_run=existing.last_run, next_run="2020-01-01T00:00:00",
-            retry_policy=existing.retry_policy, current_retry_count=existing.current_retry_count,
+            id=existing.id,
+            name=existing.name,
+            description=existing.description,
+            owner_user_id=existing.owner_user_id,
+            target=existing.target,
+            scanner_ids=existing.scanner_ids,
+            config=existing.config,
+            schedule_type=existing.schedule_type,
+            cron_expression=existing.cron_expression,
+            timezone=existing.timezone,
+            enabled=existing.enabled,
+            paused=existing.paused,
+            created_at=existing.created_at,
+            updated_at=existing.updated_at,
+            last_run=existing.last_run,
+            next_run="2020-01-01T00:00:00",
+            retry_policy=existing.retry_policy,
+            current_retry_count=existing.current_retry_count,
             status=existing.status,
         )
 

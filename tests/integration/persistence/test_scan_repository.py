@@ -61,10 +61,7 @@ def make_result(
     num_findings: int = 1,
 ) -> ScannerResult:
     """Build a ScannerResult with sensible defaults."""
-    findings = tuple(
-        Finding.create(f"Vuln-{i}", f"Description {i}", Severity.MEDIUM)
-        for i in range(num_findings)
-    )
+    findings = tuple(Finding.create(f"Vuln-{i}", f"Description {i}", Severity.MEDIUM) for i in range(num_findings))
     return ScannerResult(
         scanner_id=ScannerId(scanner_id),
         findings=findings,
@@ -107,6 +104,7 @@ class TestSaveAndGet:
         session.flush()
 
         from kingsec.infrastructure.persistence.models import ScanModel
+
         orm = session.get(ScanModel, "scan-1")
         assert orm is not None
         assert orm.id == "scan-1"
@@ -157,17 +155,22 @@ class TestDelete:
         session.flush()
 
         from kingsec.infrastructure.persistence.models import FindingModel
-        before = session.execute(
-            __import__("sqlalchemy").select(FindingModel).where(FindingModel.scan_id == "scan-1")
-        ).scalars().all()
+
+        before = (
+            session.execute(__import__("sqlalchemy").select(FindingModel).where(FindingModel.scan_id == "scan-1"))
+            .scalars()
+            .all()
+        )
         assert len(before) == 2
 
         repo.delete("scan-1")
         session.flush()
 
-        after = session.execute(
-            __import__("sqlalchemy").select(FindingModel).where(FindingModel.scan_id == "scan-1")
-        ).scalars().all()
+        after = (
+            session.execute(__import__("sqlalchemy").select(FindingModel).where(FindingModel.scan_id == "scan-1"))
+            .scalars()
+            .all()
+        )
         assert len(after) == 0
 
 

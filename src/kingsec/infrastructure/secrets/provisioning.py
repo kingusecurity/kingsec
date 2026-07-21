@@ -18,7 +18,7 @@ def register_secrets(container: Any, settings: Settings, secrets_file_path: str 
     if encryption_key_setting is None:
         raise ConfigError(
             "KINGSEC_SECRETS__ENCRYPTION_KEY is not set. "
-            "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+            'Generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
         )
     encryption_key = encryption_key_setting.get_secret_value().encode("utf-8")
     encryption_service = FernetEncryptionService(encryption_key)

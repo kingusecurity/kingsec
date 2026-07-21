@@ -63,9 +63,7 @@ class SqlAlchemyScheduleRepository(ScheduleRepositoryPort):
                 select(ScheduleORM)
                 .where(ScheduleORM.enabled == True)  # noqa: E712
                 .where(ScheduleORM.paused == False)  # noqa: E712
-                .where(
-                    (ScheduleORM.next_run.is_(None)) | (ScheduleORM.next_run <= now_utc_str)
-                )
+                .where((ScheduleORM.next_run.is_(None)) | (ScheduleORM.next_run <= now_utc_str))
                 .order_by(ScheduleORM.created_at)
             )
             return [self._to_domain(orm) for orm in session.execute(stmt).scalars().all()]
@@ -82,6 +80,7 @@ class SqlAlchemyScheduleRepository(ScheduleRepositoryPort):
     @staticmethod
     def _to_domain(orm: object) -> ScanSchedule:
         from typing import Any
+
         o: Any = orm
         return ScanSchedule(
             id=ScheduleId(value=o.id),
@@ -112,6 +111,7 @@ class SqlAlchemyScheduleRepository(ScheduleRepositoryPort):
     @staticmethod
     def _update_orm(orm: object, s: ScanSchedule) -> None:
         from typing import Any
+
         o: Any = orm
         o.name = s.name
         o.description = s.description

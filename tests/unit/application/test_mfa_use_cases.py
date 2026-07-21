@@ -1,4 +1,5 @@
 """Tests for MFA use cases."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -94,7 +95,7 @@ class StubUserRepo:
         return any(u.email.lower() == email.lower() for u in self._users.values())
 
     def list_all(self, limit: int = 50, offset: int = 0) -> list[User]:
-        return list(self._users.values())[offset:offset + limit]
+        return list(self._users.values())[offset : offset + limit]
 
     def count(self) -> int:
         return len(self._users)
@@ -141,7 +142,10 @@ class StubRecoveryCodeRepo(RecoveryCodeRepository):
         codes = self._codes.get(user_id, [])
         for c in codes:
             if c.code_hash == code_hash:
-                self._codes[user_id] = [MfaRecoveryCode(code_hash=c.code_hash, status=RecoveryCodeStatus.USED) if i == codes.index(c) else c for i, c in enumerate(codes)]
+                self._codes[user_id] = [
+                    MfaRecoveryCode(code_hash=c.code_hash, status=RecoveryCodeStatus.USED) if i == codes.index(c) else c
+                    for i, c in enumerate(codes)
+                ]
                 return
 
     def delete_by_user_id(self, user_id: str) -> None:
@@ -239,7 +243,13 @@ class TestVerifyMfaCode:
         secret_repo = StubMfaSecretRepo()
         totp = StubTotpService()
 
-        user = User(id="user-1", username="testuser", email="test@example.com", password_hash=hasher.hash("pass123"), role=Role.VIEWER)
+        user = User(
+            id="user-1",
+            username="testuser",
+            email="test@example.com",
+            password_hash=hasher.hash("pass123"),
+            role=Role.VIEWER,
+        )
         users.save(user)
         secret_repo.save(MfaSecret(user_id="user-1", secret_key="JBSWY3DPEHPK3PXP", status=MfaStatus.ENABLED))
 
@@ -274,7 +284,13 @@ class TestVerifyMfaCode:
         secret_repo = StubMfaSecretRepo()
         totp = StubTotpService()
 
-        user = User(id="user-2", username="nomfa", email="nomfa@example.com", password_hash=hasher.hash("pass"), role=Role.VIEWER)
+        user = User(
+            id="user-2",
+            username="nomfa",
+            email="nomfa@example.com",
+            password_hash=hasher.hash("pass"),
+            role=Role.VIEWER,
+        )
         users.save(user)
 
         uc = VerifyMfaCode(users, hasher, tokens, secret_repo, totp)
@@ -312,7 +328,13 @@ class TestUseRecoveryCode:
         secret_repo = StubMfaSecretRepo()
         recovery_repo = StubRecoveryCodeRepo()
 
-        user = User(id="user-1", username="testuser", email="test@example.com", password_hash=hasher.hash("pass"), role=Role.ADMIN)
+        user = User(
+            id="user-1",
+            username="testuser",
+            email="test@example.com",
+            password_hash=hasher.hash("pass"),
+            role=Role.ADMIN,
+        )
         users.save(user)
         secret_repo.save(MfaSecret(user_id="user-1", secret_key="secret", status=MfaStatus.ENABLED))
 
@@ -320,7 +342,9 @@ class TestUseRecoveryCode:
         gen_result = uc_gen.execute(GenerateRecoveryCodesRequest(user_id="user-1"))
 
         uc_use = UseRecoveryCode(users, hasher, tokens, secret_repo, recovery_repo)
-        result = uc_use.execute(UseRecoveryCodeRequest(username="testuser", password="pass", recovery_code=gen_result.codes[0]))
+        result = uc_use.execute(
+            UseRecoveryCodeRequest(username="testuser", password="pass", recovery_code=gen_result.codes[0])
+        )
         assert result.access_token == "access:user-1"
 
     def test_used_code_cannot_be_reused(self) -> None:
@@ -330,7 +354,13 @@ class TestUseRecoveryCode:
         secret_repo = StubMfaSecretRepo()
         recovery_repo = StubRecoveryCodeRepo()
 
-        user = User(id="user-1", username="testuser", email="test@example.com", password_hash=hasher.hash("pass"), role=Role.ADMIN)
+        user = User(
+            id="user-1",
+            username="testuser",
+            email="test@example.com",
+            password_hash=hasher.hash("pass"),
+            role=Role.ADMIN,
+        )
         users.save(user)
         secret_repo.save(MfaSecret(user_id="user-1", secret_key="secret", status=MfaStatus.ENABLED))
 
@@ -341,7 +371,9 @@ class TestUseRecoveryCode:
         uc_use.execute(UseRecoveryCodeRequest(username="testuser", password="pass", recovery_code=gen_result.codes[0]))
 
         with pytest.raises(ApplicationError, match="invalid recovery code"):
-            uc_use.execute(UseRecoveryCodeRequest(username="testuser", password="pass", recovery_code=gen_result.codes[0]))
+            uc_use.execute(
+                UseRecoveryCodeRequest(username="testuser", password="pass", recovery_code=gen_result.codes[0])
+            )
 
     def test_invalid_password_raises_error(self) -> None:
         users = StubUserRepo()
@@ -350,7 +382,13 @@ class TestUseRecoveryCode:
         secret_repo = StubMfaSecretRepo()
         recovery_repo = StubRecoveryCodeRepo()
 
-        user = User(id="user-1", username="testuser", email="test@example.com", password_hash=hasher.hash("pass"), role=Role.ADMIN)
+        user = User(
+            id="user-1",
+            username="testuser",
+            email="test@example.com",
+            password_hash=hasher.hash("pass"),
+            role=Role.ADMIN,
+        )
         users.save(user)
         secret_repo.save(MfaSecret(user_id="user-1", secret_key="secret", status=MfaStatus.ENABLED))
 

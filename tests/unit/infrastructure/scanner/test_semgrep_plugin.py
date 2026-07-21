@@ -23,43 +23,45 @@ from tests.unit.infrastructure.scanner.conftest import FakeRunner
 
 _TARGET = Target("/app/src", TargetType.HOSTNAME)
 
-_SAMPLE_JSONL = json.dumps({
-    "results": [
-        {
-            "check_id": "python.lang.security.audit.hardcoded-password",
-            "path": "config.py",
-            "start": {"line": 5, "col": 1},
-            "end": {"line": 5, "col": 30},
-            "extra": {
-                "message": "Hardcoded password",
-                "severity": "ERROR",
-                "metadata": {"category": "security", "confidence": "HIGH"},
+_SAMPLE_JSONL = json.dumps(
+    {
+        "results": [
+            {
+                "check_id": "python.lang.security.audit.hardcoded-password",
+                "path": "config.py",
+                "start": {"line": 5, "col": 1},
+                "end": {"line": 5, "col": 30},
+                "extra": {
+                    "message": "Hardcoded password",
+                    "severity": "ERROR",
+                    "metadata": {"category": "security", "confidence": "HIGH"},
+                },
             },
-        },
-        {
-            "check_id": "python.lang.security.audit.dangerous-system-call",
-            "path": "utils.py",
-            "start": {"line": 12, "col": 1},
-            "end": {"line": 12, "col": 40},
-            "extra": {
-                "message": "Dangerous system call",
-                "severity": "WARNING",
-                "metadata": {"category": "security", "confidence": "MEDIUM"},
+            {
+                "check_id": "python.lang.security.audit.dangerous-system-call",
+                "path": "utils.py",
+                "start": {"line": 12, "col": 1},
+                "end": {"line": 12, "col": 40},
+                "extra": {
+                    "message": "Dangerous system call",
+                    "severity": "WARNING",
+                    "metadata": {"category": "security", "confidence": "MEDIUM"},
+                },
             },
-        },
-        {
-            "check_id": "python.best-practice.use-logging",
-            "path": "main.py",
-            "start": {"line": 8, "col": 1},
-            "end": {"line": 8, "col": 20},
-            "extra": {
-                "message": "Use logging",
-                "severity": "INFO",
-                "metadata": {"category": "best-practice", "confidence": "LOW"},
+            {
+                "check_id": "python.best-practice.use-logging",
+                "path": "main.py",
+                "start": {"line": 8, "col": 1},
+                "end": {"line": 8, "col": 20},
+                "extra": {
+                    "message": "Use logging",
+                    "severity": "INFO",
+                    "metadata": {"category": "best-practice", "confidence": "LOW"},
+                },
             },
-        },
-    ]
-})
+        ]
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -126,6 +128,7 @@ class TestCapabilities:
 
     def test_structured_json_output(self) -> None:
         from kingsec.domain import OutputFormat
+
         caps = _make_plugin().capabilities()
         assert caps[0].output_format is OutputFormat.STRUCTURED_JSON
 
@@ -237,8 +240,10 @@ class TestProvisioning:
         register_scanner(container, Settings(), runner=runner)
 
         from kingsec.application import ScannerPort
+
         scanner = container.resolve(ScannerPort)
         from kingsec.infrastructure.scanner.orchestrator import ScannerOrchestrator
+
         assert isinstance(scanner, ScannerOrchestrator)
 
     def test_orchestrator_resolves_semgrep(self) -> None:

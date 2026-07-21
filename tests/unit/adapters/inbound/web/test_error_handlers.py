@@ -86,9 +86,7 @@ class TestApplicationErrorHandlers:
 class TestDomainErrorHandlers:
     @pytest.mark.asyncio
     async def test_illegal_state_transition_returns_409(self) -> None:
-        exc = IllegalStateTransition(
-            "cannot start", current="draft", attempted="start"
-        )
+        exc = IllegalStateTransition("cannot start", current="draft", attempted="start")
         resp = await handle_illegal_state_transition(None, exc)
         assert resp.status_code == 409
         import json

@@ -57,6 +57,7 @@ class TestOpenAPI:
 class TestVersionRouting:
     def test_v1_routes_accessible(self) -> None:
         from kingsec.adapters.inbound.web.routes import router
+
         app = FastAPI()
         app.include_router(router)
         client = TestClient(app, raise_server_exceptions=False)
@@ -65,6 +66,7 @@ class TestVersionRouting:
 
     def test_v1_prefix_correct(self) -> None:
         from kingsec.adapters.inbound.web.routes import router
+
         assert router.prefix == "/api/v1"
 
 

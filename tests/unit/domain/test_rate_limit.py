@@ -83,17 +83,13 @@ class TestRateLimitDecision:
 
 class TestRateLimitExceeded:
     def test_carries_decision(self) -> None:
-        decision = RateLimitDecision(
-            allowed=False, limit=5, remaining=0, reset_seconds=60
-        )
+        decision = RateLimitDecision(allowed=False, limit=5, remaining=0, reset_seconds=60)
         exc = RateLimitExceeded(decision)
         assert exc.decision == decision
         assert str(exc) == "rate limit exceeded"
 
     def test_is_exception(self) -> None:
-        decision = RateLimitDecision(
-            allowed=False, limit=5, remaining=0, reset_seconds=60
-        )
+        decision = RateLimitDecision(allowed=False, limit=5, remaining=0, reset_seconds=60)
         exc = RateLimitExceeded(decision)
         assert isinstance(exc, Exception)
 

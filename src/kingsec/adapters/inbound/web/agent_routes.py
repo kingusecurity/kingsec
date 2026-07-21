@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
@@ -29,13 +27,16 @@ router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
 
 ADMIN_ONLY = Role.ADMIN
 
+
 def _get_service(request: Request) -> AgentServicePort:
     app: Application = get_application(request)
     return cast(AgentServicePort, app.resolve(AgentServicePort))
 
+
 def _require_admin(user: CurrentUser) -> None:
     if user.role != ADMIN_ONLY:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+
 
 @router.post("/register")
 async def register_agent(
@@ -75,6 +76,7 @@ async def register_agent(
         },
     }
 
+
 @router.post("/heartbeat")
 async def agent_heartbeat(
     request: Request,
@@ -103,6 +105,7 @@ async def agent_heartbeat(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return {"message": "Heartbeat received"}
 
+
 @router.get("")
 async def list_agents(
     request: Request,
@@ -128,6 +131,7 @@ async def list_agents(
             for a in agents
         ]
     }
+
 
 @router.get("/{agent_id}")
 async def get_agent(
@@ -159,6 +163,7 @@ async def get_agent(
         "error_message": agent.health.error_message,
     }
 
+
 @router.post("/{agent_id}/disable")
 async def disable_agent(
     agent_id: str,
@@ -172,6 +177,7 @@ async def disable_agent(
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return {"message": f"Agent '{agent_id}' disabled", "state": agent.state.value}
+
 
 @router.post("/{agent_id}/enable")
 async def enable_agent(
@@ -187,6 +193,7 @@ async def enable_agent(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return {"message": f"Agent '{agent_id}' enabled", "state": agent.state.value}
 
+
 @router.delete("/{agent_id}")
 async def remove_agent(
     agent_id: str,
@@ -200,6 +207,7 @@ async def remove_agent(
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return {"message": f"Agent '{agent_id}' removed"}
+
 
 @router.post("/jobs/next")
 async def assign_next_job(
@@ -215,6 +223,7 @@ async def assign_next_job(
         return {"message": "No job available", "job_id": None}
     return {"message": f"Job {job_id} assigned", "job_id": job_id}
 
+
 @router.post("/jobs/progress")
 async def report_job_progress(
     request: Request,
@@ -229,6 +238,7 @@ async def report_job_progress(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return {"message": "Progress reported"}
 
+
 @router.post("/jobs/complete")
 async def complete_job(
     request: Request,
@@ -242,6 +252,7 @@ async def complete_job(
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return {"message": "Job completed"}
+
 
 @router.post("/jobs/fail")
 async def fail_job(

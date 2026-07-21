@@ -62,16 +62,13 @@ class SQLAlchemyNotificationRepository(NotificationRepositoryPort):
     def find_all(self, limit: int = 50, offset: int = 0) -> tuple[list[Notification], int]:
         count_stmt = select(func.count()).select_from(NotificationORM)
         total = self._session.execute(count_stmt).scalar() or 0
-        stmt = (
-            select(NotificationORM)
-            .order_by(NotificationORM.created_at.desc())
-            .offset(offset)
-            .limit(limit)
-        )
+        stmt = select(NotificationORM).order_by(NotificationORM.created_at.desc()).offset(offset).limit(limit)
         orms: Sequence[NotificationORM] = self._session.execute(stmt).scalars().all()
         return [_to_domain(o) for o in orms], total
 
-    def update_status(self, notification_id: NotificationId, status: NotificationStatus, error_message: str | None = None) -> None:
+    def update_status(
+        self, notification_id: NotificationId, status: NotificationStatus, error_message: str | None = None
+    ) -> None:
         stmt = select(NotificationORM).where(NotificationORM.id == str(notification_id))
         orm = self._session.execute(stmt).scalar_one_or_none()
         if orm is None:
@@ -80,6 +77,7 @@ class SQLAlchemyNotificationRepository(NotificationRepositoryPort):
         orm.error_message = error_message
         if status == NotificationStatus.READ:
             from datetime import UTC, datetime
+
             orm.read_at = datetime.now(UTC).isoformat()
 
     def delete(self, notification_id: NotificationId) -> None:

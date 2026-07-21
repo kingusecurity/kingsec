@@ -14,8 +14,8 @@ if TYPE_CHECKING:
 
 
 # revision identifiers, used by Alembic.
-revision: str = '4a789fe2fed1'
-down_revision: str | None = 'a245ff1963f0'
+revision: str = "4a789fe2fed1"
+down_revision: str | None = "a245ff1963f0"
 branch_labels: str | None = None
 depends_on: str | None = None
 

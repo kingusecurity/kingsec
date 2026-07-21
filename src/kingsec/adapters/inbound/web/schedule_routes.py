@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from typing import Annotated, cast
+from typing import TYPE_CHECKING, Annotated, cast
 
 from fastapi import APIRouter, Depends, Path, Request, status
 
@@ -54,49 +52,61 @@ from .schedule_schemas import (
 
 router = APIRouter(prefix="/api/v1")
 
+
 def _get_create_schedule_uc(request: Request) -> CreateSchedule:
     app: Application = request.app.state.kingsec_app
     return cast(CreateSchedule, app.resolve(CreateSchedule))
+
 
 def _get_update_schedule_uc(request: Request) -> UpdateSchedule:
     app: Application = request.app.state.kingsec_app
     return cast(UpdateSchedule, app.resolve(UpdateSchedule))
 
+
 def _get_delete_schedule_uc(request: Request) -> DeleteSchedule:
     app: Application = request.app.state.kingsec_app
     return cast(DeleteSchedule, app.resolve(DeleteSchedule))
+
 
 def _get_pause_schedule_uc(request: Request) -> PauseSchedule:
     app: Application = request.app.state.kingsec_app
     return cast(PauseSchedule, app.resolve(PauseSchedule))
 
+
 def _get_resume_schedule_uc(request: Request) -> ResumeSchedule:
     app: Application = request.app.state.kingsec_app
     return cast(ResumeSchedule, app.resolve(ResumeSchedule))
+
 
 def _get_enable_schedule_uc(request: Request) -> EnableSchedule:
     app: Application = request.app.state.kingsec_app
     return cast(EnableSchedule, app.resolve(EnableSchedule))
 
+
 def _get_disable_schedule_uc(request: Request) -> DisableSchedule:
     app: Application = request.app.state.kingsec_app
     return cast(DisableSchedule, app.resolve(DisableSchedule))
+
 
 def _get_trigger_schedule_uc(request: Request) -> TriggerScheduleNow:
     app: Application = request.app.state.kingsec_app
     return cast(TriggerScheduleNow, app.resolve(TriggerScheduleNow))
 
+
 def _get_list_schedules_uc(request: Request) -> ListSchedules:
     app: Application = request.app.state.kingsec_app
     return cast(ListSchedules, app.resolve(ListSchedules))
+
 
 def _get_get_schedule_uc(request: Request) -> GetSchedule:
     app: Application = request.app.state.kingsec_app
     return cast(GetSchedule, app.resolve(GetSchedule))
 
+
 def _get_find_due_uc(request: Request) -> FindDueSchedules:
     app: Application = request.app.state.kingsec_app
     return cast(FindDueSchedules, app.resolve(FindDueSchedules))
+
 
 @router.get(
     "/schedules",
@@ -116,19 +126,36 @@ async def list_schedules(
         )
     )
     return ListSchedulesResponse(
-        items=[ScheduleViewResponse(**{
-            "id": s.id, "name": s.name, "description": s.description,
-            "owner_user_id": s.owner_user_id, "target": s.target,
-            "scanner_ids": list(s.scanner_ids), "config": dict(s.config),
-            "schedule_type": s.schedule_type, "cron_expression": s.cron_expression,
-            "timezone": s.timezone, "enabled": s.enabled, "paused": s.paused,
-            "status": s.status, "created_at": s.created_at, "updated_at": s.updated_at,
-            "last_run": s.last_run, "next_run": s.next_run,
-            "retry_strategy": s.retry_strategy, "max_retries": s.max_retries,
-            "retry_delay_seconds": s.retry_delay_seconds,
-            "current_retry_count": s.current_retry_count,
-        }) for s in result.schedules]
+        items=[
+            ScheduleViewResponse(
+                **{
+                    "id": s.id,
+                    "name": s.name,
+                    "description": s.description,
+                    "owner_user_id": s.owner_user_id,
+                    "target": s.target,
+                    "scanner_ids": list(s.scanner_ids),
+                    "config": dict(s.config),
+                    "schedule_type": s.schedule_type,
+                    "cron_expression": s.cron_expression,
+                    "timezone": s.timezone,
+                    "enabled": s.enabled,
+                    "paused": s.paused,
+                    "status": s.status,
+                    "created_at": s.created_at,
+                    "updated_at": s.updated_at,
+                    "last_run": s.last_run,
+                    "next_run": s.next_run,
+                    "retry_strategy": s.retry_strategy,
+                    "max_retries": s.max_retries,
+                    "retry_delay_seconds": s.retry_delay_seconds,
+                    "current_retry_count": s.current_retry_count,
+                }
+            )
+            for s in result.schedules
+        ]
     )
+
 
 @router.get(
     "/schedules/due",
@@ -143,19 +170,36 @@ async def find_due_schedules(
 ) -> ListSchedulesResponse:
     result = find_uc.execute()
     return ListSchedulesResponse(
-        items=[ScheduleViewResponse(**{
-            "id": s.id, "name": s.name, "description": s.description,
-            "owner_user_id": s.owner_user_id, "target": s.target,
-            "scanner_ids": list(s.scanner_ids), "config": dict(s.config),
-            "schedule_type": s.schedule_type, "cron_expression": s.cron_expression,
-            "timezone": s.timezone, "enabled": s.enabled, "paused": s.paused,
-            "status": s.status, "created_at": s.created_at, "updated_at": s.updated_at,
-            "last_run": s.last_run, "next_run": s.next_run,
-            "retry_strategy": s.retry_strategy, "max_retries": s.max_retries,
-            "retry_delay_seconds": s.retry_delay_seconds,
-            "current_retry_count": s.current_retry_count,
-        }) for s in result.schedules]
+        items=[
+            ScheduleViewResponse(
+                **{
+                    "id": s.id,
+                    "name": s.name,
+                    "description": s.description,
+                    "owner_user_id": s.owner_user_id,
+                    "target": s.target,
+                    "scanner_ids": list(s.scanner_ids),
+                    "config": dict(s.config),
+                    "schedule_type": s.schedule_type,
+                    "cron_expression": s.cron_expression,
+                    "timezone": s.timezone,
+                    "enabled": s.enabled,
+                    "paused": s.paused,
+                    "status": s.status,
+                    "created_at": s.created_at,
+                    "updated_at": s.updated_at,
+                    "last_run": s.last_run,
+                    "next_run": s.next_run,
+                    "retry_strategy": s.retry_strategy,
+                    "max_retries": s.max_retries,
+                    "retry_delay_seconds": s.retry_delay_seconds,
+                    "current_retry_count": s.current_retry_count,
+                }
+            )
+            for s in result.schedules
+        ]
     )
+
 
 @router.post(
     "/schedules",
@@ -189,18 +233,30 @@ async def create_schedule(
     s = result.schedule
     return CreateScheduleResponse(
         schedule=ScheduleViewResponse(
-            id=s.id, name=s.name, description=s.description,
-            owner_user_id=s.owner_user_id, target=s.target,
-            scanner_ids=list(s.scanner_ids), config=dict(s.config),
-            schedule_type=s.schedule_type, cron_expression=s.cron_expression,
-            timezone=s.timezone, enabled=s.enabled, paused=s.paused,
-            status=s.status, created_at=s.created_at, updated_at=s.updated_at,
-            last_run=s.last_run, next_run=s.next_run,
-            retry_strategy=s.retry_strategy, max_retries=s.max_retries,
+            id=s.id,
+            name=s.name,
+            description=s.description,
+            owner_user_id=s.owner_user_id,
+            target=s.target,
+            scanner_ids=list(s.scanner_ids),
+            config=dict(s.config),
+            schedule_type=s.schedule_type,
+            cron_expression=s.cron_expression,
+            timezone=s.timezone,
+            enabled=s.enabled,
+            paused=s.paused,
+            status=s.status,
+            created_at=s.created_at,
+            updated_at=s.updated_at,
+            last_run=s.last_run,
+            next_run=s.next_run,
+            retry_strategy=s.retry_strategy,
+            max_retries=s.max_retries,
             retry_delay_seconds=s.retry_delay_seconds,
             current_retry_count=s.current_retry_count,
         )
     )
+
 
 @router.get(
     "/schedules/{schedule_id}",
@@ -218,18 +274,30 @@ async def get_schedule(
     s = result.schedule
     return CreateScheduleResponse(
         schedule=ScheduleViewResponse(
-            id=s.id, name=s.name, description=s.description,
-            owner_user_id=s.owner_user_id, target=s.target,
-            scanner_ids=list(s.scanner_ids), config=dict(s.config),
-            schedule_type=s.schedule_type, cron_expression=s.cron_expression,
-            timezone=s.timezone, enabled=s.enabled, paused=s.paused,
-            status=s.status, created_at=s.created_at, updated_at=s.updated_at,
-            last_run=s.last_run, next_run=s.next_run,
-            retry_strategy=s.retry_strategy, max_retries=s.max_retries,
+            id=s.id,
+            name=s.name,
+            description=s.description,
+            owner_user_id=s.owner_user_id,
+            target=s.target,
+            scanner_ids=list(s.scanner_ids),
+            config=dict(s.config),
+            schedule_type=s.schedule_type,
+            cron_expression=s.cron_expression,
+            timezone=s.timezone,
+            enabled=s.enabled,
+            paused=s.paused,
+            status=s.status,
+            created_at=s.created_at,
+            updated_at=s.updated_at,
+            last_run=s.last_run,
+            next_run=s.next_run,
+            retry_strategy=s.retry_strategy,
+            max_retries=s.max_retries,
             retry_delay_seconds=s.retry_delay_seconds,
             current_retry_count=s.current_retry_count,
         )
     )
+
 
 @router.put(
     "/schedules/{schedule_id}",
@@ -263,18 +331,30 @@ async def update_schedule(
     s = result.schedule
     return UpdateScheduleResponse(
         schedule=ScheduleViewResponse(
-            id=s.id, name=s.name, description=s.description,
-            owner_user_id=s.owner_user_id, target=s.target,
-            scanner_ids=list(s.scanner_ids), config=dict(s.config),
-            schedule_type=s.schedule_type, cron_expression=s.cron_expression,
-            timezone=s.timezone, enabled=s.enabled, paused=s.paused,
-            status=s.status, created_at=s.created_at, updated_at=s.updated_at,
-            last_run=s.last_run, next_run=s.next_run,
-            retry_strategy=s.retry_strategy, max_retries=s.max_retries,
+            id=s.id,
+            name=s.name,
+            description=s.description,
+            owner_user_id=s.owner_user_id,
+            target=s.target,
+            scanner_ids=list(s.scanner_ids),
+            config=dict(s.config),
+            schedule_type=s.schedule_type,
+            cron_expression=s.cron_expression,
+            timezone=s.timezone,
+            enabled=s.enabled,
+            paused=s.paused,
+            status=s.status,
+            created_at=s.created_at,
+            updated_at=s.updated_at,
+            last_run=s.last_run,
+            next_run=s.next_run,
+            retry_strategy=s.retry_strategy,
+            max_retries=s.max_retries,
             retry_delay_seconds=s.retry_delay_seconds,
             current_retry_count=s.current_retry_count,
         )
     )
+
 
 @router.delete(
     "/schedules/{schedule_id}",
@@ -295,6 +375,7 @@ async def delete_schedule(
         )
     )
     return DeleteScheduleResponse(success=result.success)
+
 
 @router.post(
     "/schedules/{schedule_id}/pause",
@@ -317,18 +398,30 @@ async def pause_schedule(
     s = result.schedule
     return PauseScheduleResponse(
         schedule=ScheduleViewResponse(
-            id=s.id, name=s.name, description=s.description,
-            owner_user_id=s.owner_user_id, target=s.target,
-            scanner_ids=list(s.scanner_ids), config=dict(s.config),
-            schedule_type=s.schedule_type, cron_expression=s.cron_expression,
-            timezone=s.timezone, enabled=s.enabled, paused=s.paused,
-            status=s.status, created_at=s.created_at, updated_at=s.updated_at,
-            last_run=s.last_run, next_run=s.next_run,
-            retry_strategy=s.retry_strategy, max_retries=s.max_retries,
+            id=s.id,
+            name=s.name,
+            description=s.description,
+            owner_user_id=s.owner_user_id,
+            target=s.target,
+            scanner_ids=list(s.scanner_ids),
+            config=dict(s.config),
+            schedule_type=s.schedule_type,
+            cron_expression=s.cron_expression,
+            timezone=s.timezone,
+            enabled=s.enabled,
+            paused=s.paused,
+            status=s.status,
+            created_at=s.created_at,
+            updated_at=s.updated_at,
+            last_run=s.last_run,
+            next_run=s.next_run,
+            retry_strategy=s.retry_strategy,
+            max_retries=s.max_retries,
             retry_delay_seconds=s.retry_delay_seconds,
             current_retry_count=s.current_retry_count,
         )
     )
+
 
 @router.post(
     "/schedules/{schedule_id}/resume",
@@ -351,18 +444,30 @@ async def resume_schedule(
     s = result.schedule
     return ResumeScheduleResponse(
         schedule=ScheduleViewResponse(
-            id=s.id, name=s.name, description=s.description,
-            owner_user_id=s.owner_user_id, target=s.target,
-            scanner_ids=list(s.scanner_ids), config=dict(s.config),
-            schedule_type=s.schedule_type, cron_expression=s.cron_expression,
-            timezone=s.timezone, enabled=s.enabled, paused=s.paused,
-            status=s.status, created_at=s.created_at, updated_at=s.updated_at,
-            last_run=s.last_run, next_run=s.next_run,
-            retry_strategy=s.retry_strategy, max_retries=s.max_retries,
+            id=s.id,
+            name=s.name,
+            description=s.description,
+            owner_user_id=s.owner_user_id,
+            target=s.target,
+            scanner_ids=list(s.scanner_ids),
+            config=dict(s.config),
+            schedule_type=s.schedule_type,
+            cron_expression=s.cron_expression,
+            timezone=s.timezone,
+            enabled=s.enabled,
+            paused=s.paused,
+            status=s.status,
+            created_at=s.created_at,
+            updated_at=s.updated_at,
+            last_run=s.last_run,
+            next_run=s.next_run,
+            retry_strategy=s.retry_strategy,
+            max_retries=s.max_retries,
             retry_delay_seconds=s.retry_delay_seconds,
             current_retry_count=s.current_retry_count,
         )
     )
+
 
 @router.post(
     "/schedules/{schedule_id}/enable",
@@ -385,18 +490,30 @@ async def enable_schedule(
     s = result.schedule
     return EnableScheduleResponse(
         schedule=ScheduleViewResponse(
-            id=s.id, name=s.name, description=s.description,
-            owner_user_id=s.owner_user_id, target=s.target,
-            scanner_ids=list(s.scanner_ids), config=dict(s.config),
-            schedule_type=s.schedule_type, cron_expression=s.cron_expression,
-            timezone=s.timezone, enabled=s.enabled, paused=s.paused,
-            status=s.status, created_at=s.created_at, updated_at=s.updated_at,
-            last_run=s.last_run, next_run=s.next_run,
-            retry_strategy=s.retry_strategy, max_retries=s.max_retries,
+            id=s.id,
+            name=s.name,
+            description=s.description,
+            owner_user_id=s.owner_user_id,
+            target=s.target,
+            scanner_ids=list(s.scanner_ids),
+            config=dict(s.config),
+            schedule_type=s.schedule_type,
+            cron_expression=s.cron_expression,
+            timezone=s.timezone,
+            enabled=s.enabled,
+            paused=s.paused,
+            status=s.status,
+            created_at=s.created_at,
+            updated_at=s.updated_at,
+            last_run=s.last_run,
+            next_run=s.next_run,
+            retry_strategy=s.retry_strategy,
+            max_retries=s.max_retries,
             retry_delay_seconds=s.retry_delay_seconds,
             current_retry_count=s.current_retry_count,
         )
     )
+
 
 @router.post(
     "/schedules/{schedule_id}/disable",
@@ -419,18 +536,30 @@ async def disable_schedule(
     s = result.schedule
     return DisableScheduleResponse(
         schedule=ScheduleViewResponse(
-            id=s.id, name=s.name, description=s.description,
-            owner_user_id=s.owner_user_id, target=s.target,
-            scanner_ids=list(s.scanner_ids), config=dict(s.config),
-            schedule_type=s.schedule_type, cron_expression=s.cron_expression,
-            timezone=s.timezone, enabled=s.enabled, paused=s.paused,
-            status=s.status, created_at=s.created_at, updated_at=s.updated_at,
-            last_run=s.last_run, next_run=s.next_run,
-            retry_strategy=s.retry_strategy, max_retries=s.max_retries,
+            id=s.id,
+            name=s.name,
+            description=s.description,
+            owner_user_id=s.owner_user_id,
+            target=s.target,
+            scanner_ids=list(s.scanner_ids),
+            config=dict(s.config),
+            schedule_type=s.schedule_type,
+            cron_expression=s.cron_expression,
+            timezone=s.timezone,
+            enabled=s.enabled,
+            paused=s.paused,
+            status=s.status,
+            created_at=s.created_at,
+            updated_at=s.updated_at,
+            last_run=s.last_run,
+            next_run=s.next_run,
+            retry_strategy=s.retry_strategy,
+            max_retries=s.max_retries,
             retry_delay_seconds=s.retry_delay_seconds,
             current_retry_count=s.current_retry_count,
         )
     )
+
 
 @router.post(
     "/schedules/{schedule_id}/trigger",
@@ -453,14 +582,25 @@ async def trigger_schedule(
     s = result.schedule
     return TriggerScheduleNowResponse(
         schedule=ScheduleViewResponse(
-            id=s.id, name=s.name, description=s.description,
-            owner_user_id=s.owner_user_id, target=s.target,
-            scanner_ids=list(s.scanner_ids), config=dict(s.config),
-            schedule_type=s.schedule_type, cron_expression=s.cron_expression,
-            timezone=s.timezone, enabled=s.enabled, paused=s.paused,
-            status=s.status, created_at=s.created_at, updated_at=s.updated_at,
-            last_run=s.last_run, next_run=s.next_run,
-            retry_strategy=s.retry_strategy, max_retries=s.max_retries,
+            id=s.id,
+            name=s.name,
+            description=s.description,
+            owner_user_id=s.owner_user_id,
+            target=s.target,
+            scanner_ids=list(s.scanner_ids),
+            config=dict(s.config),
+            schedule_type=s.schedule_type,
+            cron_expression=s.cron_expression,
+            timezone=s.timezone,
+            enabled=s.enabled,
+            paused=s.paused,
+            status=s.status,
+            created_at=s.created_at,
+            updated_at=s.updated_at,
+            last_run=s.last_run,
+            next_run=s.next_run,
+            retry_strategy=s.retry_strategy,
+            max_retries=s.max_retries,
             retry_delay_seconds=s.retry_delay_seconds,
             current_retry_count=s.current_retry_count,
         ),

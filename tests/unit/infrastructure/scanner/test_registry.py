@@ -165,9 +165,7 @@ class TestRegistration:
         registry.register(_FakePlugin(plugin_id="nikto"))
         assert len(registry.list_all()) == 3
 
-    def test_duplicate_registration_raises(
-        self, registry: InMemoryPluginRegistry
-    ) -> None:
+    def test_duplicate_registration_raises(self, registry: InMemoryPluginRegistry) -> None:
         registry.register(_FakePlugin(plugin_id="nuclei"))
         with pytest.raises(ScannerDuplicateError, match="nuclei"):
             registry.register(_FakePlugin(plugin_id="nuclei"))
@@ -207,26 +205,18 @@ class TestLookup:
 
 
 class TestResolution:
-    def test_target_matches_plugin_capability(
-        self, registry: InMemoryPluginRegistry, fake_ip: Target
-    ) -> None:
+    def test_target_matches_plugin_capability(self, registry: InMemoryPluginRegistry, fake_ip: Target) -> None:
         registry.register(_FakePlugin(plugin_id="nuclei"))
         result = registry.resolve(fake_ip)
         assert len(result) == 1
         assert result[0].metadata().id == ScannerId("nuclei")
 
-    def test_target_does_not_match_capability(
-        self, registry: InMemoryPluginRegistry, fake_url: Target
-    ) -> None:
-        registry.register(
-            _FakePlugin(plugin_id="nuclei", target_types=frozenset({TargetType.IP_ADDRESS}))
-        )
+    def test_target_does_not_match_capability(self, registry: InMemoryPluginRegistry, fake_url: Target) -> None:
+        registry.register(_FakePlugin(plugin_id="nuclei", target_types=frozenset({TargetType.IP_ADDRESS})))
         result = registry.resolve(fake_url)
         assert len(result) == 0
 
-    def test_multiple_matching_plugins(
-        self, registry: InMemoryPluginRegistry, fake_ip: Target
-    ) -> None:
+    def test_multiple_matching_plugins(self, registry: InMemoryPluginRegistry, fake_ip: Target) -> None:
         registry.register(_FakePlugin(plugin_id="nuclei"))
         registry.register(_FakePlugin(plugin_id="nmap"))
         result = registry.resolve(fake_ip)
@@ -238,9 +228,7 @@ class TestResolution:
         result = registry.resolve(fake_ip)
         assert result == ()
 
-    def test_multi_capability_plugin_matches_multiple_targets(
-        self, registry: InMemoryPluginRegistry
-    ) -> None:
+    def test_multi_capability_plugin_matches_multiple_targets(self, registry: InMemoryPluginRegistry) -> None:
         registry.register(_MultiCapPlugin(plugin_id="multi"))
         ip_result = registry.resolve(Target("10.0.0.5", TargetType.IP_ADDRESS))
         url_result = registry.resolve(Target("https://example.com", TargetType.URL))
@@ -312,6 +300,7 @@ class TestRegistryBehaviour:
         meta = plugin.metadata()
         # Metadata is frozen — attempting to mutate raises
         import dataclasses
+
         with pytest.raises(dataclasses.FrozenInstanceError):
             meta.name = "Changed"  # type: ignore[misc]
 
@@ -340,9 +329,11 @@ class TestRegistryBehaviour:
 class TestInheritance:
     def test_is_subclass(self) -> None:
         from kingsec.application.ports.scanner_registry import ScannerPluginRegistry
+
         assert issubclass(InMemoryPluginRegistry, ScannerPluginRegistry)
 
     def test_can_be_assigned_to_port_type(self) -> None:
         from kingsec.application.ports.scanner_registry import ScannerPluginRegistry
+
         registry: ScannerPluginRegistry = InMemoryPluginRegistry()
         assert isinstance(registry, ScannerPluginRegistry)

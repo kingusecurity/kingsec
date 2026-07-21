@@ -125,14 +125,40 @@ def extract_affected_assets(text: str) -> tuple[str, ...]:
 def extract_tags(text: str) -> tuple[str, ...]:
     """Extract lowercase words that look like tags or categories from text."""
     tag_words = {
-        "vulnerability", "vuln", "misconfiguration", "misconfig",
-        "information", "info", "critical", "high", "medium", "low",
-        "injection", "xss", "sqli", "rce", "idor", "ssrf", "csrf",
-        "authentication", "authorization", "crypto", "ssl", "tls",
-        "hardcoded", "credential", "password", "secret",
-        "directory", "traversal", "path-traversal",
-        "remote", "local", "code-execution",
-        "denial-of-service", "dos",
+        "vulnerability",
+        "vuln",
+        "misconfiguration",
+        "misconfig",
+        "information",
+        "info",
+        "critical",
+        "high",
+        "medium",
+        "low",
+        "injection",
+        "xss",
+        "sqli",
+        "rce",
+        "idor",
+        "ssrf",
+        "csrf",
+        "authentication",
+        "authorization",
+        "crypto",
+        "ssl",
+        "tls",
+        "hardcoded",
+        "credential",
+        "password",
+        "secret",
+        "directory",
+        "traversal",
+        "path-traversal",
+        "remote",
+        "local",
+        "code-execution",
+        "denial-of-service",
+        "dos",
     }
     lower_text = text.lower()
     found: list[str] = []
@@ -200,22 +226,24 @@ class FindingNormalizer:
             tags = extract_tags(combined_text)
             category = classify_category(finding.severity, finding.title, finding.description)
 
-            normalized.append(NormalizedFinding(
-                finding_id=str(finding.id),
-                title=finding.title,
-                description=finding.description,
-                severity=finding.severity,
-                scanner_id=scanner_id,
-                scanner_version=scanner_version,
-                evidence=finding.evidence,
-                recommendations=finding.recommendations,
-                references=references,
-                affected_assets=affected_assets,
-                raw_data=finding.description,
-                discovered_at=finding.discovered_at,
-                tags=tags,
-                category=category,
-            ))
+            normalized.append(
+                NormalizedFinding(
+                    finding_id=str(finding.id),
+                    title=finding.title,
+                    description=finding.description,
+                    severity=finding.severity,
+                    scanner_id=scanner_id,
+                    scanner_version=scanner_version,
+                    evidence=finding.evidence,
+                    recommendations=finding.recommendations,
+                    references=references,
+                    affected_assets=affected_assets,
+                    raw_data=finding.description,
+                    discovered_at=finding.discovered_at,
+                    tags=tags,
+                    category=category,
+                )
+            )
 
         return normalized
 

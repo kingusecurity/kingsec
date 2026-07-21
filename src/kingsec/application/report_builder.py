@@ -57,22 +57,31 @@ class ReportBuilder:
         risk_map = {a.correlation_id: a for a in risk_assessments}
 
         executive_summary = self._build_executive_summary(
-            normalized_findings, correlated_findings, enriched_findings,
-            risk_assessments, enriched_map,
+            normalized_findings,
+            correlated_findings,
+            enriched_findings,
+            risk_assessments,
+            enriched_map,
         )
         technical_summary = self._build_technical_summary(
-            normalized_findings, correlated_findings, enriched_findings,
-            risk_assessments, enriched_map,
+            normalized_findings,
+            correlated_findings,
+            enriched_findings,
+            risk_assessments,
+            enriched_map,
         )
         risk_summary = self._build_risk_summary(
-            risk_assessments, enriched_findings,
+            risk_assessments,
+            enriched_findings,
         )
         asset_summary = self._build_asset_summary(
-            enriched_findings, risk_map,
+            enriched_findings,
+            risk_map,
         )
         sorted_findings = sorted(enriched_findings, key=lambda x: x.correlation_id)
         finding_section = self._build_finding_section(
-            sorted_findings, risk_map,
+            sorted_findings,
+            risk_map,
         )
         attack_path_section = AttackPathSection(
             total_paths=attack_graph.total_paths,
@@ -81,7 +90,8 @@ class ReportBuilder:
             graph=attack_graph,
         )
         recommendation_section = self._build_recommendation_section(
-            sorted_findings, risk_map,
+            sorted_findings,
+            risk_map,
         )
         appendix = self._build_appendix(normalized_findings)
 
@@ -226,19 +236,17 @@ class ReportBuilder:
         entries: list[AssetEntry] = []
         for asset in sorted(asset_findings):
             findings = asset_findings[asset]
-            scores = [
-                risk_map[f.correlation_id].score
-                for f in findings
-                if f.correlation_id in risk_map
-            ]
+            scores = [risk_map[f.correlation_id].score for f in findings if f.correlation_id in risk_map]
             high = max(scores) if scores else 0
             avg = sum(scores) / len(scores) if scores else 0.0
-            entries.append(AssetEntry(
-                asset=asset,
-                finding_count=len(findings),
-                highest_risk_score=high,
-                average_risk_score=round(avg, 2),
-            ))
+            entries.append(
+                AssetEntry(
+                    asset=asset,
+                    finding_count=len(findings),
+                    highest_risk_score=high,
+                    average_risk_score=round(avg, 2),
+                )
+            )
 
         entries_tuple = tuple(entries)
         return AssetSummary(
@@ -258,22 +266,24 @@ class ReportBuilder:
             risk_level = ra.risk_level if ra else "Unknown"
             priority = ra.priority if ra else "None"
 
-            entries.append(FindingEntry(
-                correlation_id=f.correlation_id,
-                title=f.title,
-                severity=f.severity.name,
-                category=f.category,
-                confidence=f.confidence,
-                scanner_sources=f.scanner_sources,
-                affected_assets=f.affected_assets,
-                service=f.service,
-                port=f.port,
-                protocol=f.protocol,
-                attack_surface=f.attack_surface,
-                risk_score=risk_score,
-                risk_level=risk_level,
-                priority=priority,
-            ))
+            entries.append(
+                FindingEntry(
+                    correlation_id=f.correlation_id,
+                    title=f.title,
+                    severity=f.severity.name,
+                    category=f.category,
+                    confidence=f.confidence,
+                    scanner_sources=f.scanner_sources,
+                    affected_assets=f.affected_assets,
+                    service=f.service,
+                    port=f.port,
+                    protocol=f.protocol,
+                    attack_surface=f.attack_surface,
+                    risk_score=risk_score,
+                    risk_level=risk_level,
+                    priority=priority,
+                )
+            )
 
         entries.sort(key=lambda e: (_SEVERITY_ORDER.get(e.severity, 99), -e.risk_score, e.correlation_id))
 
@@ -300,13 +310,15 @@ class ReportBuilder:
                 continue
             ra = risk_map.get(f.correlation_id)
             risk_score = ra.score if ra else 0
-            entries.append(RecommendationEntry(
-                finding_title=f.title,
-                severity=f.severity.name,
-                risk_score=risk_score,
-                correlation_id=f.correlation_id,
-                recommendations=f.recommendations,
-            ))
+            entries.append(
+                RecommendationEntry(
+                    finding_title=f.title,
+                    severity=f.severity.name,
+                    risk_score=risk_score,
+                    correlation_id=f.correlation_id,
+                    recommendations=f.recommendations,
+                )
+            )
 
         entries.sort(key=lambda e: (-e.risk_score, e.correlation_id))
 

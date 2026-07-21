@@ -24,18 +24,18 @@ from urllib.parse import urlparse
 # ---------------------------------------------------------------------------
 
 _PRIVATE_NETS: list[str] = [
-    "127.0.0.0/8",      # loopback
-    "10.0.0.0/8",       # RFC 1918
-    "172.16.0.0/12",    # RFC 1918
-    "192.168.0.0/16",   # RFC 1918
-    "169.254.0.0/16",   # link-local
-    "224.0.0.0/4",      # multicast
-    "240.0.0.0/4",      # reserved (RFC 1112)
-    "0.0.0.0/8",        # "this" network
-    "::1/128",           # IPv6 loopback
-    "fc00::/7",          # IPv6 unique-local
-    "fe80::/10",         # IPv6 link-local
-    "ff00::/8",          # IPv6 multicast
+    "127.0.0.0/8",  # loopback
+    "10.0.0.0/8",  # RFC 1918
+    "172.16.0.0/12",  # RFC 1918
+    "192.168.0.0/16",  # RFC 1918
+    "169.254.0.0/16",  # link-local
+    "224.0.0.0/4",  # multicast
+    "240.0.0.0/4",  # reserved (RFC 1112)
+    "0.0.0.0/8",  # "this" network
+    "::1/128",  # IPv6 loopback
+    "fc00::/7",  # IPv6 unique-local
+    "fe80::/10",  # IPv6 link-local
+    "ff00::/8",  # IPv6 multicast
 ]
 
 
@@ -69,13 +69,9 @@ def validate_url(url: str, *, allowlist: Iterable[str] | None = None) -> None:
 
     # Resolve the hostname to IP addresses.
     try:
-        addrinfo = socket.getaddrinfo(
-            hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM
-        )
+        addrinfo = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
     except OSError as exc:
-        raise SSRFError(
-            f"Cannot resolve hostname {hostname!r}: {exc}"
-        ) from exc
+        raise SSRFError(f"Cannot resolve hostname {hostname!r}: {exc}") from exc
 
     addresses = {addr[4][0] for addr in addrinfo}
 
@@ -87,26 +83,14 @@ def validate_url(url: str, *, allowlist: Iterable[str] | None = None) -> None:
             continue
 
         if ip.is_loopback:
-            raise SSRFError(
-                f"URL resolves to loopback address {raw_ip}: {url!r}"
-            )
+            raise SSRFError(f"URL resolves to loopback address {raw_ip}: {url!r}")
         if ip.is_private:
-            raise SSRFError(
-                f"URL resolves to private address {raw_ip}: {url!r}"
-            )
+            raise SSRFError(f"URL resolves to private address {raw_ip}: {url!r}")
         if ip.is_multicast:
-            raise SSRFError(
-                f"URL resolves to multicast address {raw_ip}: {url!r}"
-            )
+            raise SSRFError(f"URL resolves to multicast address {raw_ip}: {url!r}")
         if ip.is_link_local:
-            raise SSRFError(
-                f"URL resolves to link-local address {raw_ip}: {url!r}"
-            )
+            raise SSRFError(f"URL resolves to link-local address {raw_ip}: {url!r}")
         if ip.is_reserved:
-            raise SSRFError(
-                f"URL resolves to reserved address {raw_ip}: {url!r}"
-            )
+            raise SSRFError(f"URL resolves to reserved address {raw_ip}: {url!r}")
         if ip.is_unspecified:
-            raise SSRFError(
-                f"URL resolves to unspecified address {raw_ip}: {url!r}"
-            )
+            raise SSRFError(f"URL resolves to unspecified address {raw_ip}: {url!r}")

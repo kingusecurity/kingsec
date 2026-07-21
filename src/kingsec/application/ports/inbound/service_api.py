@@ -37,47 +37,25 @@ class ServiceAPI(ABC):
     """The operations a driving adapter may invoke on the application core."""
 
     @abstractmethod
-    def create_assessment(
-        self, request: CreateAssessmentRequest
-    ) -> CreateAssessmentResponse:
-        ...
+    def create_assessment(self, request: CreateAssessmentRequest) -> CreateAssessmentResponse: ...
 
     @abstractmethod
-    def start_assessment(
-        self, request: StartAssessmentRequest
-    ) -> StartAssessmentResponse:
-        ...
+    def start_assessment(self, request: StartAssessmentRequest) -> StartAssessmentResponse: ...
 
     @abstractmethod
-    def submit_assessment(
-        self, request: SubmitAssessmentRequest
-    ) -> SubmitAssessmentResponse:
-        ...
+    def submit_assessment(self, request: SubmitAssessmentRequest) -> SubmitAssessmentResponse: ...
 
     @abstractmethod
-    def cancel_assessment(
-        self, request: CancelAssessmentRequest
-    ) -> CancelAssessmentResponse:
-        ...
+    def cancel_assessment(self, request: CancelAssessmentRequest) -> CancelAssessmentResponse: ...
 
     @abstractmethod
-    def list_assessments(
-        self, request: ListAssessmentsRequest
-    ) -> ListAssessmentsResponse:
-        ...
+    def list_assessments(self, request: ListAssessmentsRequest) -> ListAssessmentsResponse: ...
 
     @abstractmethod
-    def get_assessment(self, request: GetAssessmentRequest) -> AssessmentView:
-        ...
+    def get_assessment(self, request: GetAssessmentRequest) -> AssessmentView: ...
 
     @abstractmethod
-    def generate_report(
-        self, request: GenerateReportRequest
-    ) -> GenerateReportResponse:
-        ...
+    def generate_report(self, request: GenerateReportRequest) -> GenerateReportResponse: ...
 
     @abstractmethod
-    def delete_assessment(
-        self, request: DeleteAssessmentRequest
-    ) -> DeleteAssessmentResponse:
-        ...
+    def delete_assessment(self, request: DeleteAssessmentRequest) -> DeleteAssessmentResponse: ...

@@ -226,6 +226,7 @@ class ProductionReportService(ReportServicePort):
     def _ensure_report(self, report_id: str) -> None:
         if report_id not in self._reports:
             from kingsec.application.errors import ReportNotFoundError
+
             raise ReportNotFoundError(f"Report not found: {report_id}")
 
 
@@ -399,6 +400,7 @@ def create_production_application(
     # --- API (pass all optional services) ---
     if auth_dependency is None:
         from kingsec.interfaces.api.auth import get_current_user as _get_current_user
+
         auth_dependency = _get_current_user
 
     fastapi_app = create_app(
@@ -425,7 +427,6 @@ def create_production_application(
         report_service=report_service,
         report_builder=report_builder,
         executive_summary_generator=exec_summary_gen,
-
         markdown_renderer=markdown_renderer,
         html_renderer=html_renderer,
         pdf_renderer=pdf_renderer,

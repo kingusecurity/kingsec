@@ -24,8 +24,7 @@ def mock_service() -> MagicMock:
 
 def _make_execution(state: PipelineState = PipelineState.QUEUED) -> PipelineExecution:
     stages = tuple(
-        PipelineStage(name=s.value, status="completed" if s == state else "pending",
-                      started_at="2025-01-01T00:00:00")
+        PipelineStage(name=s.value, status="completed" if s == state else "pending", started_at="2025-01-01T00:00:00")
         for s in PIPELINE_ORDER[:1]
     )
     return PipelineExecution(
@@ -47,13 +46,14 @@ def app(mock_service: MagicMock) -> TestClient:
 
         app = FastAPI()
         from kingsec.adapters.inbound.web.pipeline_routes import router
+
         app.include_router(router)
         app.state.kingsec_app = app_instance
 
         from kingsec.adapters.inbound.web.auth import get_current_user
+
         app.dependency_overrides[get_current_user] = lambda: type(
-            "User", (), {"user_id": "admin", "username": "admin",
-                         "role": Role.ADMIN, "claims": None}
+            "User", (), {"user_id": "admin", "username": "admin", "role": Role.ADMIN, "claims": None}
         )()
         return TestClient(app)
 
@@ -61,11 +61,14 @@ def app(mock_service: MagicMock) -> TestClient:
 class TestPipelineRoutes:
     def test_start_pipeline(self, app: TestClient, mock_service: MagicMock) -> None:
         mock_service.start_pipeline.return_value = _make_execution()
-        resp = app.post("/api/v1/pipelines/start", json={
-            "target": "10.0.0.1",
-            "scanner_ids": ["nuclei"],
-            "priority": "high",
-        })
+        resp = app.post(
+            "/api/v1/pipelines/start",
+            json={
+                "target": "10.0.0.1",
+                "scanner_ids": ["nuclei"],
+                "priority": "high",
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["message"] == "Pipeline started"
@@ -89,6 +92,7 @@ class TestPipelineRoutes:
 
     def test_get_pipeline_not_found(self, app: TestClient, mock_service: MagicMock) -> None:
         from kingsec.application.errors import PipelineNotFoundError
+
         mock_service.get_pipeline.side_effect = PipelineNotFoundError("not found")
         resp = app.get("/api/v1/pipelines/pl-missing")
         assert resp.status_code == 404
@@ -102,6 +106,7 @@ class TestPipelineRoutes:
 
     def test_cancel_pipeline_not_found(self, app: TestClient, mock_service: MagicMock) -> None:
         from kingsec.application.errors import PipelineNotFoundError
+
         mock_service.cancel_pipeline.side_effect = PipelineNotFoundError("not found")
         resp = app.post("/api/v1/pipelines/pl-missing/cancel", json={})
         assert resp.status_code == 404
@@ -115,6 +120,7 @@ class TestPipelineRoutes:
 
     def test_retry_pipeline_conflict(self, app: TestClient, mock_service: MagicMock) -> None:
         from kingsec.application.errors import PipelineStateConflictError
+
         mock_service.retry_pipeline.side_effect = PipelineStateConflictError("conflict")
         resp = app.post("/api/v1/pipelines/pl-1/retry", json={})
         assert resp.status_code == 409
@@ -133,9 +139,9 @@ class TestPipelineRoutes:
 
     def test_unauthorized_without_admin(self, app: TestClient, mock_service: MagicMock) -> None:
         from kingsec.adapters.inbound.web.auth import get_current_user
+
         app.app.dependency_overrides[get_current_user] = lambda: type(
-            "User", (), {"user_id": "viewer", "username": "viewer",
-                         "role": Role.VIEWER, "claims": None}
+            "User", (), {"user_id": "viewer", "username": "viewer", "role": Role.VIEWER, "claims": None}
         )()
         resp = app.post("/api/v1/pipelines/start", json={"target": "10.0.0.1"})
         assert resp.status_code == 403

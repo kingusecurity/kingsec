@@ -20,10 +20,7 @@ from kingsec.infrastructure.scanner.runner import CommandResult
 from tests.unit.infrastructure.scanner.conftest import FakeRunner
 
 _TARGET = Target("10.0.0.5", TargetType.IP_ADDRESS)
-_SAMPLE = (
-    '{"template-id":"t1","info":{"name":"Crit","severity":"critical"},'
-    '"matched-at":"http://10.0.0.5/x"}'
-)
+_SAMPLE = '{"template-id":"t1","info":{"name":"Crit","severity":"critical"},"matched-at":"http://10.0.0.5/x"}'
 
 
 # ---------------------------------------------------------------------------
@@ -82,11 +79,13 @@ class TestCapabilities:
 
     def test_vulnerability_category(self) -> None:
         from kingsec.domain import ScanCategory
+
         caps = _make_plugin().capabilities()
         assert ScanCategory.VULNERABILITY in caps[0].scan_categories
 
     def test_structured_json_output(self) -> None:
         from kingsec.domain import OutputFormat
+
         caps = _make_plugin().capabilities()
         assert caps[0].output_format is OutputFormat.STRUCTURED_JSON
 
@@ -162,9 +161,11 @@ class TestProvisioning:
         register_scanner(container, Settings(), runner=runner)
 
         from kingsec.application import ScannerPort
+
         scanner = container.resolve(ScannerPort)
         # The scanner is now an orchestrator wrapping the NucleiPlugin
         from kingsec.infrastructure.scanner.orchestrator import ScannerOrchestrator
+
         assert isinstance(scanner, ScannerOrchestrator)
 
     def test_orchestrator_resolves_nuclei(self) -> None:
@@ -179,12 +180,11 @@ class TestProvisioning:
         # Override scanner and nmap sub-settings with a binary that exists
         scanner_settings = ScannerSettings(binary_path="python")
         nmap_settings = NmapSettings(binary_path="python")
-        settings = settings.model_copy(
-            update={"scanner": scanner_settings, "nmap": nmap_settings}
-        )
+        settings = settings.model_copy(update={"scanner": scanner_settings, "nmap": nmap_settings})
         register_scanner(container, settings, runner=runner)
 
         from kingsec.application import ScannerPort
+
         scanner = container.resolve(ScannerPort)
         findings = scanner.scan(_TARGET)
         assert len(findings) == 1

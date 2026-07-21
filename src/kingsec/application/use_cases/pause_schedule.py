@@ -22,18 +22,29 @@ class PauseSchedule:
         existing = self._repository.find_by_id(request.schedule_id)
         if existing is None:
             from kingsec.application.errors import ApplicationError
+
             raise ApplicationError(f"schedule '{request.schedule_id}' not found")
 
         paused = existing.with_status(ScheduleStatus.PAUSED)
         updated = ScanSchedule(
-            id=paused.id, name=paused.name, description=paused.description,
-            owner_user_id=paused.owner_user_id, target=paused.target,
-            scanner_ids=paused.scanner_ids, config=paused.config,
-            schedule_type=paused.schedule_type, cron_expression=paused.cron_expression,
-            timezone=paused.timezone, enabled=paused.enabled, paused=True,
-            created_at=paused.created_at, updated_at=datetime.now(UTC).isoformat(),
-            last_run=paused.last_run, next_run=paused.next_run,
-            retry_policy=paused.retry_policy, current_retry_count=paused.current_retry_count,
+            id=paused.id,
+            name=paused.name,
+            description=paused.description,
+            owner_user_id=paused.owner_user_id,
+            target=paused.target,
+            scanner_ids=paused.scanner_ids,
+            config=paused.config,
+            schedule_type=paused.schedule_type,
+            cron_expression=paused.cron_expression,
+            timezone=paused.timezone,
+            enabled=paused.enabled,
+            paused=True,
+            created_at=paused.created_at,
+            updated_at=datetime.now(UTC).isoformat(),
+            last_run=paused.last_run,
+            next_run=paused.next_run,
+            retry_policy=paused.retry_policy,
+            current_retry_count=paused.current_retry_count,
             status=paused.status,
         )
         self._repository.save(updated)

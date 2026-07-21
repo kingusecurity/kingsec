@@ -32,9 +32,15 @@ from kingsec.domain.system_health import (
 
 
 class ProductionService(ProductionServicePort):
-    def __init__(self, monitor: SystemMonitorPort, collector: MetricsCollectorPort,
-                 repo: HealthRepositoryPort, lifecycle: LifecycleManagerPort,
-                 logger: LoggingPort, audit: AuditPublisher) -> None:
+    def __init__(
+        self,
+        monitor: SystemMonitorPort,
+        collector: MetricsCollectorPort,
+        repo: HealthRepositoryPort,
+        lifecycle: LifecycleManagerPort,
+        logger: LoggingPort,
+        audit: AuditPublisher,
+    ) -> None:
         self._health_uc = GetHealth(monitor, audit)
         self._liveness_uc = GetLiveness(monitor, lifecycle, audit)
         self._readiness_uc = GetReadiness(monitor, audit)

@@ -23,9 +23,14 @@ from kingsec.domain.backup import (
 
 
 class CreateBackup:
-    def __init__(self, repo: BackupRepositoryPort, storage: BackupStoragePort,
-                 encryption: BackupEncryptionPort, compression: BackupCompressionPort,
-                 audit: AuditPublisher) -> None:
+    def __init__(
+        self,
+        repo: BackupRepositoryPort,
+        storage: BackupStoragePort,
+        encryption: BackupEncryptionPort,
+        compression: BackupCompressionPort,
+        audit: AuditPublisher,
+    ) -> None:
         self._repo = repo
         self._storage = storage
         self._encryption = encryption
@@ -33,10 +38,14 @@ class CreateBackup:
         self._audit = audit
         self._counter = 0
 
-    def execute(self, backup_type: str, owner_user_id: str = "",
-                includes: list[str] | None = None,
-                encrypt: bool = True,
-                compress: bool = True) -> BackupMetadata:
+    def execute(
+        self,
+        backup_type: str,
+        owner_user_id: str = "",
+        includes: list[str] | None = None,
+        encrypt: bool = True,
+        compress: bool = True,
+    ) -> BackupMetadata:
         self._counter += 1
         bid = BackupId(value=f"bkp-{self._counter}")
         btype = BackupType.FULL
@@ -77,20 +86,24 @@ class CreateBackup:
                 completed_at=now,
             )
             self._repo.save_backup(completed)
-            self._audit.record(AuditEntry(
-                action=AuditAction.BACKUP_CREATED,
-                resource_type="backup",
-                resource_id=bid.value,
-                success=True,
-                username=owner_user_id,
-            ))
-            self._audit.record(AuditEntry(
-                action=AuditAction.BACKUP_COMPLETED,
-                resource_type="backup",
-                resource_id=bid.value,
-                success=True,
-                username=owner_user_id,
-            ))
+            self._audit.record(
+                AuditEntry(
+                    action=AuditAction.BACKUP_CREATED,
+                    resource_type="backup",
+                    resource_id=bid.value,
+                    success=True,
+                    username=owner_user_id,
+                )
+            )
+            self._audit.record(
+                AuditEntry(
+                    action=AuditAction.BACKUP_COMPLETED,
+                    resource_type="backup",
+                    resource_id=bid.value,
+                    success=True,
+                    username=owner_user_id,
+                )
+            )
             return completed
         except Exception as exc:
             failed = BackupMetadata(
@@ -101,21 +114,28 @@ class CreateBackup:
                 owner_user_id=owner_user_id,
             )
             self._repo.save_backup(failed)
-            self._audit.record(AuditEntry(
-                action=AuditAction.BACKUP_FAILED,
-                resource_type="backup",
-                resource_id=bid.value,
-                success=False,
-                reason=str(exc),
-                username=owner_user_id,
-            ))
+            self._audit.record(
+                AuditEntry(
+                    action=AuditAction.BACKUP_FAILED,
+                    resource_type="backup",
+                    resource_id=bid.value,
+                    success=False,
+                    reason=str(exc),
+                    username=owner_user_id,
+                )
+            )
             return failed
 
 
 class RestoreBackup:
-    def __init__(self, repo: BackupRepositoryPort, storage: BackupStoragePort,
-                 encryption: BackupEncryptionPort, compression: BackupCompressionPort,
-                 audit: AuditPublisher) -> None:
+    def __init__(
+        self,
+        repo: BackupRepositoryPort,
+        storage: BackupStoragePort,
+        encryption: BackupEncryptionPort,
+        compression: BackupCompressionPort,
+        audit: AuditPublisher,
+    ) -> None:
         self._repo = repo
         self._storage = storage
         self._encryption = encryption
@@ -127,6 +147,7 @@ class RestoreBackup:
         backup = self._repo.find_backup_by_id(backup_id)
         if not backup:
             from kingsec.application.errors import BackupNotFoundError
+
             raise BackupNotFoundError(f"Backup '{backup_id}' not found")
         self._counter += 1
         rid = BackupId(value=f"rest-{self._counter}")
@@ -148,8 +169,11 @@ class RestoreBackup:
             expected = backup.checksum
             if expected:
                 hashlib.sha256(
-                    self._encryption.encrypt(data) if backup.encrypted else
-                    self._compression.compress(data) if backup.compressed else data
+                    self._encryption.encrypt(data)
+                    if backup.encrypted
+                    else self._compression.compress(data)
+                    if backup.compressed
+                    else data
                 ).hexdigest()
             now = datetime.now(UTC).isoformat()
             completed_op = RestoreOperation(
@@ -162,12 +186,14 @@ class RestoreBackup:
                 target_path=target_path,
             )
             self._repo.save_restore(completed_op)
-            self._audit.record(AuditEntry(
-                action=AuditAction.BACKUP_RESTORED,
-                resource_type="backup",
-                resource_id=backup_id,
-                success=True,
-            ))
+            self._audit.record(
+                AuditEntry(
+                    action=AuditAction.BACKUP_RESTORED,
+                    resource_type="backup",
+                    resource_id=backup_id,
+                    success=True,
+                )
+            )
             return completed_op
         except Exception as exc:
             failed_op = RestoreOperation(
@@ -192,8 +218,7 @@ class ListBackups:
 
 
 class DeleteBackup:
-    def __init__(self, repo: BackupRepositoryPort, storage: BackupStoragePort,
-                 audit: AuditPublisher) -> None:
+    def __init__(self, repo: BackupRepositoryPort, storage: BackupStoragePort, audit: AuditPublisher) -> None:
         self._repo = repo
         self._storage = storage
         self._audit = audit
@@ -202,20 +227,28 @@ class DeleteBackup:
         backup = self._repo.find_backup_by_id(backup_id)
         if not backup:
             from kingsec.application.errors import BackupNotFoundError
+
             raise BackupNotFoundError(f"Backup '{backup_id}' not found")
         self._repo.delete_backup(backup_id)
         self._storage.delete(backup_id)
-        self._audit.record(AuditEntry(
-            action=AuditAction.BACKUP_DELETED,
-            resource_type="backup",
-            resource_id=backup_id,
-            success=True,
-        ))
+        self._audit.record(
+            AuditEntry(
+                action=AuditAction.BACKUP_DELETED,
+                resource_type="backup",
+                resource_id=backup_id,
+                success=True,
+            )
+        )
 
 
 class ValidateBackup:
-    def __init__(self, repo: BackupRepositoryPort, storage: BackupStoragePort,
-                 encryption: BackupEncryptionPort, compression: BackupCompressionPort) -> None:
+    def __init__(
+        self,
+        repo: BackupRepositoryPort,
+        storage: BackupStoragePort,
+        encryption: BackupEncryptionPort,
+        compression: BackupCompressionPort,
+    ) -> None:
         self._repo = repo
         self._storage = storage
         self._encryption = encryption
@@ -225,6 +258,7 @@ class ValidateBackup:
         backup = self._repo.find_backup_by_id(backup_id)
         if not backup:
             from kingsec.application.errors import BackupNotFoundError
+
             raise BackupNotFoundError(f"Backup '{backup_id}' not found")
         try:
             data = self._storage.read(backup_id)
@@ -245,8 +279,7 @@ class CreateSnapshot:
         self._audit = audit
         self._counter = 0
 
-    def execute(self, label: str = "",
-                backup_ids: list[str] | None = None) -> BackupSnapshot:
+    def execute(self, label: str = "", backup_ids: list[str] | None = None) -> BackupSnapshot:
         self._counter += 1
         sid = BackupId(value=f"snap-{self._counter}")
         snapshot = BackupSnapshot(
@@ -255,19 +288,19 @@ class CreateSnapshot:
             label=label,
         )
         self._repo.save_snapshot(snapshot)
-        self._audit.record(AuditEntry(
-            action=AuditAction.SNAPSHOT_CREATED,
-            resource_type="snapshot",
-            resource_id=sid.value,
-            success=True,
-        ))
+        self._audit.record(
+            AuditEntry(
+                action=AuditAction.SNAPSHOT_CREATED,
+                resource_type="snapshot",
+                resource_id=sid.value,
+                success=True,
+            )
+        )
         return snapshot
 
 
 class RestoreSnapshot:
-    def __init__(self, repo: BackupRepositoryPort,
-                 restore_uc: RestoreBackup,
-                 audit: AuditPublisher) -> None:
+    def __init__(self, repo: BackupRepositoryPort, restore_uc: RestoreBackup, audit: AuditPublisher) -> None:
         self._repo = repo
         self._restore_uc = restore_uc
         self._audit = audit
@@ -276,17 +309,20 @@ class RestoreSnapshot:
         snapshot = self._repo.find_snapshot_by_id(snapshot_id)
         if not snapshot:
             from kingsec.application.errors import SnapshotNotFoundError
+
             raise SnapshotNotFoundError(f"Snapshot '{snapshot_id}' not found")
         operations: list[RestoreOperation] = []
         for bid in snapshot.backup_ids:
             op = self._restore_uc.execute(bid)
             operations.append(op)
-        self._audit.record(AuditEntry(
-            action=AuditAction.SNAPSHOT_RESTORED,
-            resource_type="snapshot",
-            resource_id=snapshot_id,
-            success=True,
-        ))
+        self._audit.record(
+            AuditEntry(
+                action=AuditAction.SNAPSHOT_RESTORED,
+                resource_type="snapshot",
+                resource_id=snapshot_id,
+                success=True,
+            )
+        )
         return operations
 
 
@@ -298,6 +334,7 @@ class VerifyRestore:
         operation = self._repo.find_restore_by_id(restore_id)
         if not operation:
             from kingsec.application.errors import RestoreNotFoundError
+
             raise RestoreNotFoundError(f"Restore operation '{restore_id}' not found")
         return operation.status == BackupStatus.COMPLETED and not operation.error_message
 
@@ -311,9 +348,13 @@ class ListSnapshots:
 
 
 class CleanupExpiredBackups:
-    def __init__(self, repo: BackupRepositoryPort, storage: BackupStoragePort,
-                 audit: AuditPublisher,
-                 policy: RetentionPolicy | None = None) -> None:
+    def __init__(
+        self,
+        repo: BackupRepositoryPort,
+        storage: BackupStoragePort,
+        audit: AuditPublisher,
+        policy: RetentionPolicy | None = None,
+    ) -> None:
         self._repo = repo
         self._storage = storage
         self._audit = audit
@@ -325,26 +366,36 @@ class CleanupExpiredBackups:
         full_backups = [b for b in backups if b.backup_type == BackupType.FULL]
         inc_backups = [b for b in backups if b.backup_type == BackupType.INCREMENTAL]
         deleted = 0
-        for b in full_backups[:-self._policy.max_full_backups] if len(full_backups) > self._policy.max_full_backups else []:
+        for b in (
+            full_backups[: -self._policy.max_full_backups] if len(full_backups) > self._policy.max_full_backups else []
+        ):
             self._repo.delete_backup(b.backup_id.value)
             self._storage.delete(b.backup_id.value)
-            self._audit.record(AuditEntry(
-                action=AuditAction.BACKUP_DELETED,
-                resource_type="backup",
-                resource_id=b.backup_id.value,
-                success=True,
-                reason="retention policy",
-            ))
+            self._audit.record(
+                AuditEntry(
+                    action=AuditAction.BACKUP_DELETED,
+                    resource_type="backup",
+                    resource_id=b.backup_id.value,
+                    success=True,
+                    reason="retention policy",
+                )
+            )
             deleted += 1
-        for b in inc_backups[:-self._policy.max_incremental_backups] if len(inc_backups) > self._policy.max_incremental_backups else []:
+        for b in (
+            inc_backups[: -self._policy.max_incremental_backups]
+            if len(inc_backups) > self._policy.max_incremental_backups
+            else []
+        ):
             self._repo.delete_backup(b.backup_id.value)
             self._storage.delete(b.backup_id.value)
-            self._audit.record(AuditEntry(
-                action=AuditAction.BACKUP_DELETED,
-                resource_type="backup",
-                resource_id=b.backup_id.value,
-                success=True,
-                reason="retention policy",
-            ))
+            self._audit.record(
+                AuditEntry(
+                    action=AuditAction.BACKUP_DELETED,
+                    resource_type="backup",
+                    resource_id=b.backup_id.value,
+                    success=True,
+                    reason="retention policy",
+                )
+            )
             deleted += 1
         return deleted

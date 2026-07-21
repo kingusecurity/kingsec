@@ -13,9 +13,7 @@ class ListApiKeys:
         self._repo = repo
 
     def execute(self, request: ListApiKeysRequest) -> tuple[ApiKeyView, ...]:
-        keys = self._repo.find_by_user_id(
-            request.user_id, limit=request.limit, offset=request.offset
-        )
+        keys = self._repo.find_by_user_id(request.user_id, limit=request.limit, offset=request.offset)
         return tuple(
             ApiKeyView(
                 api_key_id=k.id,

@@ -63,9 +63,7 @@ class TestEncryptedFileSecretProvider:
     def test_round_trip(self) -> None:
         key = Fernet.generate_key()
         enc = FernetEncryptionService(key=key)
-        with tempfile.NamedTemporaryFile(
-            suffix=".json", delete=False, mode="w"
-        ) as f:
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w") as f:
             f.write("{}")
             path = Path(f.name)
 
@@ -83,9 +81,7 @@ class TestEncryptedFileSecretProvider:
     def test_delete(self) -> None:
         key = Fernet.generate_key()
         enc = FernetEncryptionService(key=key)
-        with tempfile.NamedTemporaryFile(
-            suffix=".json", delete=False, mode="w"
-        ) as f:
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w") as f:
             f.write("{}")
             path = Path(f.name)
 
@@ -102,9 +98,7 @@ class TestEncryptedFileSecretProvider:
     def test_list_empty(self) -> None:
         key = Fernet.generate_key()
         enc = FernetEncryptionService(key=key)
-        with tempfile.NamedTemporaryFile(
-            suffix=".json", delete=False, mode="w"
-        ) as f:
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w") as f:
             f.write("{}")
             path = Path(f.name)
 

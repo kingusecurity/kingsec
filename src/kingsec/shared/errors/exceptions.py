@@ -33,9 +33,7 @@ class ConfigurationError(KingSecError):
     """
 
     code = ErrorCode.CONFIGURATION
-    default_user_message = (
-        "The application is misconfigured. Please contact your administrator."
-    )
+    default_user_message = "The application is misconfigured. Please contact your administrator."
 
 
 class ValidationError(KingSecError):
@@ -55,10 +53,7 @@ class AuthorizationError(KingSecError):
     """
 
     code = ErrorCode.AUTHORIZATION
-    default_user_message = (
-        "This action has not been authorized. Confirm target authorization before "
-        "continuing."
-    )
+    default_user_message = "This action has not been authorized. Confirm target authorization before continuing."
 
 
 class ResourceNotFoundError(KingSecError):
@@ -77,9 +72,7 @@ class ExternalServiceError(KingSecError):
     """
 
     code = ErrorCode.EXTERNAL_SERVICE
-    default_user_message = (
-        "A required external service is currently unavailable. Please try again later."
-    )
+    default_user_message = "A required external service is currently unavailable. Please try again later."
 
 
 class ServiceTimeoutError(ExternalServiceError):
@@ -90,9 +83,7 @@ class ServiceTimeoutError(ExternalServiceError):
     """
 
     code = ErrorCode.EXTERNAL_TIMEOUT
-    default_user_message = (
-        "A required external service did not respond in time. Please try again later."
-    )
+    default_user_message = "A required external service did not respond in time. Please try again later."
 
 
 class ScannerError(KingSecError):

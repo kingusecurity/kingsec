@@ -97,9 +97,7 @@ class JWTTokenService(TokenService):
 
         token_type = payload.get("type")
         if token_type != expected_type:
-            raise TokenInvalidError(
-                f"expected {expected_type} token, got {token_type}"
-            )
+            raise TokenInvalidError(f"expected {expected_type} token, got {token_type}")
 
         jti = payload.get("jti", "")
         if self.is_revoked(jti):

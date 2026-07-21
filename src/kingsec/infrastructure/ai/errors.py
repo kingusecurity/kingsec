@@ -74,9 +74,7 @@ class ErrorTranslator:
         """
         context = {"status": status_code, "body": body.strip()[:200]}
         if status_code in (401, 403):
-            return AIAuthenticationError(
-                "AI authentication failed", context=context
-            )
+            return AIAuthenticationError("AI authentication failed", context=context)
         if status_code == 429:
             return AIRateLimitError("AI rate limit exceeded", context=context)
         return AIError(f"AI request failed with status {status_code}", context=context)

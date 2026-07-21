@@ -70,9 +70,7 @@ class TestEnvironmentOverrides:
 class TestDotEnvLoading:
     """A .env file must be read, and real env vars must win over it."""
 
-    def test_values_loaded_from_dotenv(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_values_loaded_from_dotenv(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         _clean_kingsec_env(monkeypatch)
         env_file = tmp_path / ".env"
         env_file.write_text(
@@ -85,9 +83,7 @@ class TestDotEnvLoading:
         assert settings.server.port == 5555
         assert settings.app.environment is Environment.TESTING
 
-    def test_process_env_overrides_dotenv(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_process_env_overrides_dotenv(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         env_file = tmp_path / ".env"
         env_file.write_text("KINGSEC_SERVER__PORT=5555\n", encoding="utf-8")
         monkeypatch.setenv("KINGSEC_SERVER__PORT", "6666")

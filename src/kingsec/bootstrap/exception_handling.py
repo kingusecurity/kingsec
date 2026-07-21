@@ -39,9 +39,7 @@ def install_excepthooks(logger: Any) -> Callable[[], None]:
             previous_sys(exc_type, exc_value, exc_tb)
             return
         try:
-            log_exception(
-                logger, exc_value, event="uncaught exception", level="critical"
-            )
+            log_exception(logger, exc_value, event="uncaught exception", level="critical")
         except Exception:
             previous_sys(exc_type, exc_value, exc_tb)
 
@@ -50,9 +48,7 @@ def install_excepthooks(logger: Any) -> Callable[[], None]:
             previous_thread(args)
             return
         exc = args.exc_value or args.exc_type("uncaught thread exception")
-        log_exception(
-            logger, exc, event="uncaught thread exception", level="critical"
-        )
+        log_exception(logger, exc, event="uncaught thread exception", level="critical")
 
     sys.excepthook = sys_hook
     threading.excepthook = thread_hook
@@ -70,14 +66,10 @@ class ExceptionHandlerRegistry:
     def __init__(self) -> None:
         self._handlers: dict[type, Callable[[BaseException], Any]] = {}
 
-    def register(
-        self, exc_type: type[BaseException], handler: Callable[[BaseException], Any]
-    ) -> None:
+    def register(self, exc_type: type[BaseException], handler: Callable[[BaseException], Any]) -> None:
         self._handlers[exc_type] = handler
 
-    def handler_for(
-        self, exc: BaseException
-    ) -> Callable[[BaseException], Any] | None:
+    def handler_for(self, exc: BaseException) -> Callable[[BaseException], Any] | None:
         # Walk the exception's MRO so a handler for a base category also serves
         # its subclasses (e.g. an ExternalServiceError handler covers
         # ServiceTimeoutError) unless a more specific one is registered.

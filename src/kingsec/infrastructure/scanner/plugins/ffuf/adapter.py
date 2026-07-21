@@ -65,12 +65,8 @@ class FfufPlugin(ScannerPluginPort):
         """Declare ffuf's scanning capabilities."""
         return (
             ScannerCapability(
-                target_types=frozenset(
-                    {TargetType.HOSTNAME, TargetType.URL}
-                ),
-                scan_categories=frozenset(
-                    {ScanCategory.DISCOVERY, ScanCategory.VULNERABILITY}
-                ),
+                target_types=frozenset({TargetType.HOSTNAME, TargetType.URL}),
+                scan_categories=frozenset({ScanCategory.DISCOVERY, ScanCategory.VULNERABILITY}),
                 output_format=OutputFormat.STRUCTURED_JSON,
             ),
         )

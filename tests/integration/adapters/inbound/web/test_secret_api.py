@@ -30,6 +30,7 @@ from .test_session_api import TokenClaims
 
 _TEST_FERNET_KEY = Fernet.generate_key()
 
+
 class InMemorySecretProvider(SecretProviderPort):
     def __init__(self) -> None:
         self._secrets: dict[str, str] = {}
@@ -120,6 +121,7 @@ def app() -> FastAPI:
     fastapi_app.dependency_overrides[get_current_user] = override_get_current_user
 
     from kingsec.adapters.inbound.web.secret_routes import router
+
     fastapi_app.include_router(router)
     register_error_handlers(fastapi_app)
 

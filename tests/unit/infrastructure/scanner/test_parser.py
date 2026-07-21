@@ -11,17 +11,12 @@ def _line(**info) -> str:
 
     template_id = info.pop("template_id", "tmpl-1")
     matched_at = info.pop("matched_at", "http://10.0.0.5")
-    return json.dumps(
-        {"template-id": template_id, "info": info, "type": "http", "matched-at": matched_at}
-    )
+    return json.dumps({"template-id": template_id, "info": info, "type": "http", "matched-at": matched_at})
 
 
 class TestSeverityMapping:
     def test_maps_all_known_severities(self) -> None:
-        output = "\n".join(
-            _line(name=f"F{sev}", severity=sev)
-            for sev in ("info", "low", "medium", "high", "critical")
-        )
+        output = "\n".join(_line(name=f"F{sev}", severity=sev) for sev in ("info", "low", "medium", "high", "critical"))
         findings = parse_nuclei_jsonl(output)
         assert [f.severity for f in findings] == [
             Severity.INFORMATIONAL,
@@ -38,9 +33,7 @@ class TestSeverityMapping:
 
 class TestFieldExtraction:
     def test_title_description_and_evidence(self) -> None:
-        findings = parse_nuclei_jsonl(
-            _line(name="SQL Injection", severity="high", description="injectable")
-        )
+        findings = parse_nuclei_jsonl(_line(name="SQL Injection", severity="high", description="injectable"))
         finding = findings[0]
         assert finding.title == "SQL Injection"
         assert finding.description == "injectable"
@@ -48,9 +41,7 @@ class TestFieldExtraction:
         assert "10.0.0.5" in finding.evidence[0].detail
 
     def test_remediation_becomes_recommendation(self) -> None:
-        findings = parse_nuclei_jsonl(
-            _line(name="X", severity="medium", remediation="apply the patch")
-        )
+        findings = parse_nuclei_jsonl(_line(name="X", severity="medium", remediation="apply the patch"))
         assert len(findings[0].recommendations) == 1
         assert findings[0].recommendations[0].description == "apply the patch"
 
@@ -65,9 +56,7 @@ class TestResilience:
         assert parse_nuclei_jsonl("\n  \n") == []
 
     def test_non_json_lines_are_skipped(self) -> None:
-        output = "\n".join(
-            ["a stray banner line", _line(name="Real", severity="high"), "another"]
-        )
+        output = "\n".join(["a stray banner line", _line(name="Real", severity="high"), "another"])
         findings = parse_nuclei_jsonl(output)
         assert len(findings) == 1
         assert findings[0].title == "Real"

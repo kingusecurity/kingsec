@@ -56,7 +56,9 @@ class TestSystemMetrics:
 
 class TestResourceUsage:
     def test_fields(self) -> None:
-        r = ResourceUsage(cpu_percent=45.0, memory_percent=60.0, memory_used_mb=1024.0, disk_percent=50.0, disk_used_gb=100.0)
+        r = ResourceUsage(
+            cpu_percent=45.0, memory_percent=60.0, memory_used_mb=1024.0, disk_percent=50.0, disk_used_gb=100.0
+        )
         assert r.cpu_percent == 45.0
         assert r.memory_percent == 60.0
 

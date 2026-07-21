@@ -18,10 +18,15 @@ class EnqueueJob:
         self._repo = repo
         self._counter = 0
 
-    def execute(self, payload: str, target: str, priority: str = "normal",
-                scanner_ids: list[str] | None = None,
-                owner_user_id: str = "",
-                estimated_duration_seconds: int = 300) -> QueueEntry:
+    def execute(
+        self,
+        payload: str,
+        target: str,
+        priority: str = "normal",
+        scanner_ids: list[str] | None = None,
+        owner_user_id: str = "",
+        estimated_duration_seconds: int = 300,
+    ) -> QueueEntry:
         self._counter += 1
         entry_id = f"q-{self._counter}"
         priority_enum = QueuePriority.NORMAL
@@ -57,6 +62,7 @@ class DequeueJob:
         entry = self._repo.dequeue(entry_id)
         if not entry:
             from kingsec.application.errors import QueueEntryNotFoundError
+
             raise QueueEntryNotFoundError(f"Queue entry '{entry_id}' not found")
         return entry
 
@@ -69,6 +75,7 @@ class CancelQueuedJob:
         entry = self._repo.peek(entry_id)
         if not entry:
             from kingsec.application.errors import QueueEntryNotFoundError
+
             raise QueueEntryNotFoundError(f"Queue entry '{entry_id}' not found")
         cancelled = QueueEntry(
             entry_id=entry.entry_id,
@@ -134,6 +141,7 @@ class ChangePriority:
         entry = self._repo.peek(entry_id)
         if not entry:
             from kingsec.application.errors import QueueEntryNotFoundError
+
             raise QueueEntryNotFoundError(f"Queue entry '{entry_id}' not found")
         new_priority = QueuePriority.NORMAL
         for p in QueuePriority:
@@ -173,6 +181,7 @@ class MoveQueuePosition:
         entry = self._repo.peek(entry_id)
         if not entry:
             from kingsec.application.errors import QueueEntryNotFoundError
+
             raise QueueEntryNotFoundError(f"Queue entry '{entry_id}' not found")
         all_entries = self._repo.find_all()
         sorted_entries = sorted(all_entries, key=lambda e: (e.priority, e.created_at))
@@ -209,8 +218,7 @@ class MoveQueuePosition:
 
 
 class AssignBestAgent:
-    def __init__(self, repo: QueueRepositoryPort, policy: SchedulerPolicyPort,
-                 agent_repo: Any) -> None:
+    def __init__(self, repo: QueueRepositoryPort, policy: SchedulerPolicyPort, agent_repo: Any) -> None:
         self._repo = repo
         self._policy = policy
         self._agent_repo = agent_repo
@@ -219,6 +227,7 @@ class AssignBestAgent:
         entry = self._repo.peek(entry_id)
         if not entry:
             from kingsec.application.errors import QueueEntryNotFoundError
+
             raise QueueEntryNotFoundError(f"Queue entry '{entry_id}' not found")
         agents = self._agent_repo.find_idle()
         agent = self._policy.allocate_agent(entry, agents)

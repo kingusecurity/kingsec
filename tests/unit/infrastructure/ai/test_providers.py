@@ -56,9 +56,7 @@ class TestShaping:
         assert p.build_headers("k")["x-goog-api-key"] == "k"
         payload = p.build_payload("sys", "usr", "gemini-pro", 0.2, 100)
         assert payload["systemInstruction"]["parts"][0]["text"] == "sys"
-        text = p.extract_text(
-            {"candidates": [{"content": {"parts": [{"text": "hi"}]}}]}
-        )
+        text = p.extract_text({"candidates": [{"content": {"parts": [{"text": "hi"}]}}]})
         assert text == "hi"
 
     def test_malformed_response_shape_raises(self) -> None:

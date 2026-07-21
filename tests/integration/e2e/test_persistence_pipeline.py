@@ -170,6 +170,7 @@ class TestApplicationBoot:
     def test_database_initializes(self, app: ProductionApplication) -> None:
         assert isinstance(app.engine, Engine)
         import sqlalchemy
+
         with app.engine.connect():
             tables = sqlalchemy.inspect(app.engine).get_table_names()
         assert "assessments" in tables
@@ -241,9 +242,12 @@ class TestReportPersistence:
 class TestJobPersistence:
     def test_job_persists(self, uow: SQLAlchemyUnitOfWork) -> None:
         from kingsec.application.jobs import JobId, ScanJob
+
         job_id = JobId("job-e2e-001")
         now = datetime.now(UTC)
-        job = ScanJob(id=job_id, target="e2e-test.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now)
+        job = ScanJob(
+            id=job_id, target="e2e-test.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now
+        )
         with uow:
             uow.job_repository.save(job)
             uow.commit()
@@ -253,9 +257,17 @@ class TestJobPersistence:
 
     def test_job_list(self, uow: SQLAlchemyUnitOfWork) -> None:
         from kingsec.application.jobs import JobId, ScanJob
+
         now = datetime.now(UTC)
         jobs = [
-            ScanJob(id=JobId(f"job-e2e-{i}"), target=f"t{i}.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now)
+            ScanJob(
+                id=JobId(f"job-e2e-{i}"),
+                target=f"t{i}.com",
+                config={},
+                status=JobStatus.PENDING,
+                created_at=now,
+                updated_at=now,
+            )
             for i in range(3)
         ]
         with uow:
@@ -280,7 +292,11 @@ class TestAssetPersistence:
     def test_asset_list(self, session: Session) -> None:
         repo = SQLAlchemyAssetRepository(session)
         for i in range(3):
-            a = Asset(id=f"asset-{i:03d}", target=Target(f"10.0.0.{i}", TargetType.IP_ADDRESS), discovered_at=datetime.now(UTC))
+            a = Asset(
+                id=f"asset-{i:03d}",
+                target=Target(f"10.0.0.{i}", TargetType.IP_ADDRESS),
+                discovered_at=datetime.now(UTC),
+            )
             repo.add(a)
         session.commit()
         lst = repo.list()
@@ -296,8 +312,16 @@ class TestUnitOfWorkCommit:
     def test_commit_persists(self, session: Session) -> None:
         uow = SQLAlchemyUnitOfWork(session)
         from kingsec.application.jobs import JobId, ScanJob
+
         now = datetime.now(UTC)
-        job = ScanJob(id=JobId("uow-commit-1"), target="commit-test.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now)
+        job = ScanJob(
+            id=JobId("uow-commit-1"),
+            target="commit-test.com",
+            config={},
+            status=JobStatus.PENDING,
+            created_at=now,
+            updated_at=now,
+        )
         with uow:
             uow.job_repository.save(job)
             uow.commit()
@@ -310,8 +334,16 @@ class TestUnitOfWorkRollback:
     def test_rollback_discards(self, session: Session) -> None:
         uow = SQLAlchemyUnitOfWork(session)
         from kingsec.application.jobs import JobId, ScanJob
+
         now = datetime.now(UTC)
-        job = ScanJob(id=JobId("uow-rollback-1"), target="rollback-test.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now)
+        job = ScanJob(
+            id=JobId("uow-rollback-1"),
+            target="rollback-test.com",
+            config={},
+            status=JobStatus.PENDING,
+            created_at=now,
+            updated_at=now,
+        )
         with uow:
             uow.job_repository.save(job)
             uow.rollback()
@@ -330,8 +362,16 @@ class TestCrossSessionPersistence:
         session1 = Session(engine)
         uow1 = SQLAlchemyUnitOfWork(session1)
         from kingsec.application.jobs import JobId, ScanJob
+
         now = datetime.now(UTC)
-        job = ScanJob(id=JobId("xsession-001"), target="xsession.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now)
+        job = ScanJob(
+            id=JobId("xsession-001"),
+            target="xsession.com",
+            config={},
+            status=JobStatus.PENDING,
+            created_at=now,
+            updated_at=now,
+        )
         with uow1:
             uow1.job_repository.save(job)
             uow1.commit()
@@ -524,11 +564,19 @@ class TestAtomicity:
     def test_multi_repo_commit(self, session: Session) -> None:
         uow = SQLAlchemyUnitOfWork(session)
         from kingsec.application.jobs import JobId, ScanJob
+
         now = datetime.now(UTC)
         with uow:
             assessment = make_assessment()
             uow.assessment_repository.save(assessment)
-            job = ScanJob(id=JobId("atomic-job-001"), target="atomic.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now)
+            job = ScanJob(
+                id=JobId("atomic-job-001"),
+                target="atomic.com",
+                config={},
+                status=JobStatus.PENDING,
+                created_at=now,
+                updated_at=now,
+            )
             uow.job_repository.save(job)
             uow.commit()
         repo_assessment = SQLAlchemyAssessmentRepository(session)
@@ -541,11 +589,19 @@ class TestAtomicity:
     def test_rollback_removes_all_pending_writes(self, session: Session) -> None:
         uow = SQLAlchemyUnitOfWork(session)
         from kingsec.application.jobs import JobId, ScanJob
+
         now = datetime.now(UTC)
         with uow:
             assessment = make_assessment()
             uow.assessment_repository.save(assessment)
-            job = ScanJob(id=JobId("atomic-rollback-001"), target="rollback-atomic.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now)
+            job = ScanJob(
+                id=JobId("atomic-rollback-001"),
+                target="rollback-atomic.com",
+                config={},
+                status=JobStatus.PENDING,
+                created_at=now,
+                updated_at=now,
+            )
             uow.job_repository.save(job)
             uow.rollback()
         repo_assessment = SQLAlchemyAssessmentRepository(session)
@@ -558,11 +614,19 @@ class TestAtomicity:
     def test_context_manager_rollback_on_exception(self, session: Session) -> None:
         uow = SQLAlchemyUnitOfWork(session)
         from kingsec.application.jobs import JobId, ScanJob
+
         now = datetime.now(UTC)
         with pytest.raises(ValueError):
             with uow:
                 uow.job_repository.save(
-                    ScanJob(id=JobId("ctx-exc-001"), target="ctx-test.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now)
+                    ScanJob(
+                        id=JobId("ctx-exc-001"),
+                        target="ctx-test.com",
+                        config={},
+                        status=JobStatus.PENDING,
+                        created_at=now,
+                        updated_at=now,
+                    )
                 )
                 raise ValueError("simulated failure")
         repo = SQLAlchemyJobRepository(session)
@@ -571,10 +635,18 @@ class TestAtomicity:
     def test_uncommitted_context_manager_auto_rollback(self, session: Session) -> None:
         uow = SQLAlchemyUnitOfWork(session)
         from kingsec.application.jobs import JobId, ScanJob
+
         now = datetime.now(UTC)
         with uow:
             uow.job_repository.save(
-                ScanJob(id=JobId("uncommitted-001"), target="uncommitted.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now)
+                ScanJob(
+                    id=JobId("uncommitted-001"),
+                    target="uncommitted.com",
+                    config={},
+                    status=JobStatus.PENDING,
+                    created_at=now,
+                    updated_at=now,
+                )
             )
         repo = SQLAlchemyJobRepository(session)
         assert repo.exists("uncommitted-001") is False
@@ -611,18 +683,33 @@ class TestFailureRecovery:
 
     def test_isolated_transactions_dont_interfere(self, session: Session) -> None:
         from kingsec.application.jobs import JobId, ScanJob
+
         uow1 = SQLAlchemyUnitOfWork(session)
         now = datetime.now(UTC)
         with uow1:
             uow1.job_repository.save(
-                ScanJob(id=JobId("isolated-001"), target="first.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now)
+                ScanJob(
+                    id=JobId("isolated-001"),
+                    target="first.com",
+                    config={},
+                    status=JobStatus.PENDING,
+                    created_at=now,
+                    updated_at=now,
+                )
             )
             uow1.commit()
 
         uow2 = SQLAlchemyUnitOfWork(session)
         with uow2:
             uow2.job_repository.save(
-                ScanJob(id=JobId("isolated-002"), target="second.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now)
+                ScanJob(
+                    id=JobId("isolated-002"),
+                    target="second.com",
+                    config={},
+                    status=JobStatus.PENDING,
+                    created_at=now,
+                    updated_at=now,
+                )
             )
             uow2.commit()
 
@@ -632,15 +719,32 @@ class TestFailureRecovery:
 
     def test_error_during_commit_does_not_corrupt_existing_data(self, session: Session) -> None:
         from kingsec.application.jobs import JobId, ScanJob
+
         now = datetime.now(UTC)
         repo = SQLAlchemyJobRepository(session)
-        repo.save(ScanJob(id=JobId("pre-existing"), target="stable.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now))
+        repo.save(
+            ScanJob(
+                id=JobId("pre-existing"),
+                target="stable.com",
+                config={},
+                status=JobStatus.PENDING,
+                created_at=now,
+                updated_at=now,
+            )
+        )
         session.commit()
 
         uow = SQLAlchemyUnitOfWork(session)
         with uow:
             uow.job_repository.save(
-                ScanJob(id=JobId("during-error"), target="unstable.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now)
+                ScanJob(
+                    id=JobId("during-error"),
+                    target="unstable.com",
+                    config={},
+                    status=JobStatus.PENDING,
+                    created_at=now,
+                    updated_at=now,
+                )
             )
             uow.rollback()
 
@@ -688,6 +792,7 @@ class TestBootstrapWiring:
 
     def test_job_service_is_persistent(self, app: ProductionApplication) -> None:
         from kingsec.application.services.persistent_job_service import PersistentJobService
+
         assert isinstance(app.job_service, PersistentJobService)
 
     def test_report_service_is_production(self, app: ProductionApplication) -> None:
@@ -731,6 +836,7 @@ class TestBootstrapWiring:
 class TestArchitecture:
     def test_api_layer_does_not_import_infrastructure(self) -> None:
         import kingsec.interfaces.api.app as api_app
+
         src = api_app.__file__
         assert src is not None
         with open(src) as f:
@@ -740,6 +846,7 @@ class TestArchitecture:
 
     def test_api_routes_only_use_ports(self) -> None:
         import kingsec.interfaces.api.routes.jobs as jobs_route
+
         with open(jobs_route.__file__) as f:
             content = f.read()
         assert "JobServicePort" in content
@@ -747,6 +854,7 @@ class TestArchitecture:
 
     def test_persistent_job_service_no_sqlalchemy(self) -> None:
         import kingsec.application.services.persistent_job_service as pjs
+
         with open(pjs.__file__) as f:
             content = f.read()
         assert "from sqlalchemy" not in content
@@ -754,6 +862,7 @@ class TestArchitecture:
 
     def test_repositories_unchanged(self) -> None:
         import kingsec.infrastructure.persistence.repositories.assessment as arepo
+
         assert hasattr(arepo, "SQLAlchemyAssessmentRepository")
 
     def test_unit_of_work_port_unchanged(self) -> None:
@@ -764,6 +873,7 @@ class TestArchitecture:
 
     def test_bootstrap_only_composition_root_instantiates_infrastructure(self) -> None:
         import kingsec.bootstrap.production as prod
+
         with open(prod.__file__) as f:
             content = f.read()
         assert "PersistentJobService" in content

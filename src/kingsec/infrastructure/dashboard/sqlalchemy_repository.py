@@ -34,9 +34,7 @@ class SQLAlchemyDashboardRepository(DashboardRepositoryPort):
             .where(AssessmentORM.status.in_(["COMPLETED", "FAILED"]))
             .group_by(AssessmentORM.status)
         ).all()
-        total_scans = (
-            self._session.execute(select(func.count(AssessmentORM.id))).scalar() or 0
-        )
+        total_scans = self._session.execute(select(func.count(AssessmentORM.id))).scalar() or 0
         for status, cnt in rows:
             status_counts[status] = cnt
 
@@ -46,9 +44,7 @@ class SQLAlchemyDashboardRepository(DashboardRepositoryPort):
             .where(FindingORM.severity.in_(["CRITICAL", "HIGH", "MEDIUM", "LOW"]))
             .group_by(FindingORM.severity)
         ).all()
-        total_findings = (
-            self._session.execute(select(func.count(FindingORM.id))).scalar() or 0
-        )
+        total_findings = self._session.execute(select(func.count(FindingORM.id))).scalar() or 0
         severity_map: dict[str, int] = {}
         for sev, cnt in severity_rows:
             severity_map[sev] = cnt
@@ -80,8 +76,7 @@ class SQLAlchemyDashboardRepository(DashboardRepositoryPort):
         from kingsec.infrastructure.persistence.models import FindingORM
 
         rows = self._session.execute(
-            select(FindingORM.severity, func.count(FindingORM.id))
-            .group_by(FindingORM.severity)
+            select(FindingORM.severity, func.count(FindingORM.id)).group_by(FindingORM.severity)
         ).all()
         counts: dict[str, int] = {}
         for sev, cnt in rows:
@@ -142,9 +137,7 @@ class SQLAlchemyDashboardRepository(DashboardRepositoryPort):
     def get_schedule_statistics(self) -> ScheduleStatistics:
         from kingsec.infrastructure.persistence.models import ScheduleORM
 
-        total = self._session.execute(
-            select(func.count(ScheduleORM.id))
-        ).scalar() or 0
+        total = self._session.execute(select(func.count(ScheduleORM.id))).scalar() or 0
         rows = self._session.execute(
             select(ScheduleORM.status, func.count(ScheduleORM.id))
             .where(ScheduleORM.status.in_(["active", "paused", "disabled"]))
@@ -164,9 +157,7 @@ class SQLAlchemyDashboardRepository(DashboardRepositoryPort):
     def get_notification_statistics(self) -> NotificationStatistics:
         from kingsec.infrastructure.notifications.orm import NotificationORM
 
-        total = self._session.execute(
-            select(func.count(NotificationORM.id))
-        ).scalar() or 0
+        total = self._session.execute(select(func.count(NotificationORM.id))).scalar() or 0
         rows = self._session.execute(
             select(NotificationORM.status, func.count(NotificationORM.id))
             .where(NotificationORM.status.in_(["sent", "failed", "pending", "read"]))

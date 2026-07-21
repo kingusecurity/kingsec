@@ -56,30 +56,22 @@ def _error_response(status_code: int, error_code: str, message: str) -> JSONResp
 # ── Application-layer errors ────────────────────────────────────────────────
 
 
-async def handle_input_validation_error(
-    _request: Request, exc: InputValidationError
-) -> JSONResponse:
+async def handle_input_validation_error(_request: Request, exc: InputValidationError) -> JSONResponse:
     return _error_response(400, ErrorCode.VALIDATION, str(exc))
 
 
-async def handle_assessment_not_found(
-    _request: Request, exc: AssessmentNotFoundError
-) -> JSONResponse:
+async def handle_assessment_not_found(_request: Request, exc: AssessmentNotFoundError) -> JSONResponse:
     return _error_response(404, ErrorCode.NOT_FOUND, str(exc))
 
 
-async def handle_report_not_found(
-    _request: Request, exc: ReportNotFoundError
-) -> JSONResponse:
+async def handle_report_not_found(_request: Request, exc: ReportNotFoundError) -> JSONResponse:
     return _error_response(404, ErrorCode.NOT_FOUND, str(exc))
 
 
 # ── Domain-layer errors ─────────────────────────────────────────────────────
 
 
-async def handle_illegal_state_transition(
-    _request: Request, exc: IllegalStateTransition
-) -> JSONResponse:
+async def handle_illegal_state_transition(_request: Request, exc: IllegalStateTransition) -> JSONResponse:
     return _error_response(
         409,
         ErrorCode.UNEXPECTED,
@@ -87,9 +79,7 @@ async def handle_illegal_state_transition(
     )
 
 
-async def handle_invariant_violation(
-    _request: Request, exc: InvariantViolation
-) -> JSONResponse:
+async def handle_invariant_violation(_request: Request, exc: InvariantViolation) -> JSONResponse:
     return _error_response(
         422,
         ErrorCode.VALIDATION,
@@ -97,9 +87,7 @@ async def handle_invariant_violation(
     )
 
 
-async def handle_rate_limit_exceeded(
-    _request: Request, exc: RateLimitExceeded
-) -> JSONResponse:
+async def handle_rate_limit_exceeded(_request: Request, exc: RateLimitExceeded) -> JSONResponse:
     d = exc.decision
     return JSONResponse(
         status_code=429,
@@ -119,9 +107,7 @@ async def handle_rate_limit_exceeded(
     )
 
 
-async def handle_domain_error(
-    _request: Request, exc: DomainError
-) -> JSONResponse:
+async def handle_domain_error(_request: Request, exc: DomainError) -> JSONResponse:
     return _error_response(
         409,
         ErrorCode.UNEXPECTED,
@@ -144,9 +130,7 @@ _KINGSEC_STATUS_MAP: dict[str, int] = {
 }
 
 
-async def handle_kingsec_error(
-    _request: Request, exc: KingSecError
-) -> JSONResponse:
+async def handle_kingsec_error(_request: Request, exc: KingSecError) -> JSONResponse:
     status = _KINGSEC_STATUS_MAP.get(exc.code, 400)
     return _error_response(status, exc.code, exc.user_message)
 
@@ -154,9 +138,7 @@ async def handle_kingsec_error(
 # ── Catch-all ────────────────────────────────────────────────────────────────
 
 
-async def handle_unhandled_exception(
-    _request: Request, _exc: Exception
-) -> JSONResponse:
+async def handle_unhandled_exception(_request: Request, _exc: Exception) -> JSONResponse:
     return _error_response(
         500,
         ErrorCode.UNEXPECTED,

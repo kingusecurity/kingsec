@@ -113,9 +113,7 @@ class TestDatabase:
 
 
 class TestRepositories:
-    def test_assessment_repository_is_sqlalchemy(
-        self, app: ProductionApplication
-    ) -> None:
+    def test_assessment_repository_is_sqlalchemy(self, app: ProductionApplication) -> None:
         assert isinstance(app.assessment_repository, SQLAlchemyAssessmentRepository)
 
     def test_report_repository_is_sqlalchemy(self, app: ProductionApplication) -> None:
@@ -280,6 +278,7 @@ class TestDependencyGraph:
 class TestArchitecture:
     def test_app_does_not_import_repository_modules_directly(self) -> None:
         import kingsec.interfaces.api.app as api_app
+
         src = str(api_app.__file__)
         with open(src) as f:
             content = f.read()

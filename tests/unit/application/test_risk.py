@@ -76,22 +76,19 @@ def _make_ef(
 
 class TestRiskFactor:
     def test_creates_with_valid_data(self) -> None:
-        rf = RiskFactor(name="severity", weight=30, contribution=22,
-                        description="Severity is HIGH")
+        rf = RiskFactor(name="severity", weight=30, contribution=22, description="Severity is HIGH")
         assert rf.name == "severity"
         assert rf.weight == 30
         assert rf.contribution == 22
         assert rf.description == "Severity is HIGH"
 
     def test_frozen_immutable(self) -> None:
-        rf = RiskFactor(name="test", weight=10, contribution=5,
-                        description="Test")
+        rf = RiskFactor(name="test", weight=10, contribution=5, description="Test")
         with pytest.raises(AttributeError):
             rf.name = "changed"  # type: ignore[misc]
 
     def test_zero_contribution(self) -> None:
-        rf = RiskFactor(name="test", weight=10, contribution=0,
-                        description="No contribution")
+        rf = RiskFactor(name="test", weight=10, contribution=0, description="No contribution")
         assert rf.contribution == 0
 
 
@@ -102,8 +99,7 @@ class TestRiskFactor:
 
 class TestRiskAssessmentConstruction:
     def test_creates_with_valid_data(self) -> None:
-        factors = (RiskFactor(name="a", weight=10, contribution=5,
-                              description="A"),)
+        factors = (RiskFactor(name="a", weight=10, contribution=5, description="A"),)
         ra = RiskAssessment(
             correlation_id="corr-abc",
             score=55,
@@ -117,8 +113,7 @@ class TestRiskAssessmentConstruction:
         assert ra.risk_level == "Medium"
 
     def test_frozen_immutable(self) -> None:
-        factors = (RiskFactor(name="a", weight=10, contribution=5,
-                              description="A"),)
+        factors = (RiskFactor(name="a", weight=10, contribution=5, description="A"),)
         ra = RiskAssessment(
             correlation_id="corr-x",
             score=10,
@@ -131,8 +126,7 @@ class TestRiskAssessmentConstruction:
             ra.score = 99  # type: ignore[misc]
 
     def test_empty_correlation_id_raises(self) -> None:
-        factors = (RiskFactor(name="a", weight=10, contribution=5,
-                              description="A"),)
+        factors = (RiskFactor(name="a", weight=10, contribution=5, description="A"),)
         with pytest.raises(ValueError, match="correlation_id"):
             RiskAssessment(
                 correlation_id="",
@@ -144,8 +138,7 @@ class TestRiskAssessmentConstruction:
             )
 
     def test_score_negative_raises(self) -> None:
-        factors = (RiskFactor(name="a", weight=10, contribution=5,
-                              description="A"),)
+        factors = (RiskFactor(name="a", weight=10, contribution=5, description="A"),)
         with pytest.raises(ValueError, match="score"):
             RiskAssessment(
                 correlation_id="corr-abc",
@@ -157,8 +150,7 @@ class TestRiskAssessmentConstruction:
             )
 
     def test_score_above_100_raises(self) -> None:
-        factors = (RiskFactor(name="a", weight=10, contribution=5,
-                              description="A"),)
+        factors = (RiskFactor(name="a", weight=10, contribution=5, description="A"),)
         with pytest.raises(ValueError, match="score"):
             RiskAssessment(
                 correlation_id="corr-abc",
@@ -210,12 +202,15 @@ class TestScoreBasic:
     def test_score_in_range_zero_to_hundred(self) -> None:
         ef = _make_ef(severity=Severity.INFORMATIONAL, confidence=0.0)
         assert 0 <= _ENGINE.score(ef).score <= 100
-        ef2 = _make_ef(severity=Severity.CRITICAL, confidence=1.0,
-                       exploit_likelihood="High",
-                       business_impact="Critical",
-                       attack_surface="Web Application",
-                       scanner_sources=("n", "m", "n2", "n3"),
-                       risk_factors=("a", "b", "c", "d"))
+        ef2 = _make_ef(
+            severity=Severity.CRITICAL,
+            confidence=1.0,
+            exploit_likelihood="High",
+            business_impact="Critical",
+            attack_surface="Web Application",
+            scanner_sources=("n", "m", "n2", "n3"),
+            risk_factors=("a", "b", "c", "d"),
+        )
         assert 0 <= _ENGINE.score(ef2).score <= 100
 
     def test_deterministic(self) -> None:
@@ -237,8 +232,12 @@ class TestScoreBasic:
         ra = _ENGINE.score(ef)
         names = [f.name for f in ra.factors]
         assert names == [
-            "severity", "confidence", "exploit_likelihood",
-            "business_impact", "attack_surface", "scanner_count",
+            "severity",
+            "confidence",
+            "exploit_likelihood",
+            "business_impact",
+            "attack_surface",
+            "scanner_count",
             "risk_factors",
         ]
 
@@ -539,27 +538,42 @@ class TestRiskFactorCountContribution:
 
 class TestTotalScore:
     def test_minimal_score_is_0(self) -> None:
-        ef = _make_ef(severity=Severity.INFORMATIONAL, confidence=0.0,
-                       exploit_likelihood=None, business_impact=None,
-                       attack_surface=None, scanner_sources=(),
-                       risk_factors=())
+        ef = _make_ef(
+            severity=Severity.INFORMATIONAL,
+            confidence=0.0,
+            exploit_likelihood=None,
+            business_impact=None,
+            attack_surface=None,
+            scanner_sources=(),
+            risk_factors=(),
+        )
         ra = _ENGINE.score(ef)
         assert ra.score == 0
 
     def test_risk_level_informational_at_0(self) -> None:
-        ef = _make_ef(severity=Severity.INFORMATIONAL, confidence=0.0,
-                       exploit_likelihood=None, business_impact=None,
-                       attack_surface=None, scanner_sources=(),
-                       risk_factors=())
+        ef = _make_ef(
+            severity=Severity.INFORMATIONAL,
+            confidence=0.0,
+            exploit_likelihood=None,
+            business_impact=None,
+            attack_surface=None,
+            scanner_sources=(),
+            risk_factors=(),
+        )
         ra = _ENGINE.score(ef)
         assert ra.risk_level == "Informational"
 
     def test_low_risk_at_25(self) -> None:
         # severity=LOW(6) + conf=0.5(7) + lkhd=Low(5) + impact=Low(3) + surface=DNS(4) = 25
-        ef = _make_ef(severity=Severity.LOW, confidence=0.50,
-                       exploit_likelihood="Low", business_impact="Low",
-                       attack_surface="DNS", scanner_sources=(),
-                       risk_factors=())
+        ef = _make_ef(
+            severity=Severity.LOW,
+            confidence=0.50,
+            exploit_likelihood="Low",
+            business_impact="Low",
+            attack_surface="DNS",
+            scanner_sources=(),
+            risk_factors=(),
+        )
         ra = _ENGINE.score(ef)
         assert ra.score >= 25
         assert ra.risk_level == "Low"
@@ -567,38 +581,55 @@ class TestTotalScore:
     def test_medium_risk_at_40(self) -> None:
         # MEDIUM(14) + conf=0.6(9) + lkhd=Medium(10) + impact=Medium(7)
         # + surface=NetworkService(8) + scanner=1(3) = 51
-        ef = _make_ef(severity=Severity.MEDIUM, confidence=0.60,
-                       exploit_likelihood="Medium", business_impact="Medium",
-                       attack_surface="Network Service",
-                       scanner_sources=("n",),
-                       risk_factors=())
+        ef = _make_ef(
+            severity=Severity.MEDIUM,
+            confidence=0.60,
+            exploit_likelihood="Medium",
+            business_impact="Medium",
+            attack_surface="Network Service",
+            scanner_sources=("n",),
+            risk_factors=(),
+        )
         ra = _ENGINE.score(ef)
         assert ra.risk_level == "Medium"
 
     def test_high_risk_at_60(self) -> None:
-        ef = _make_ef(severity=Severity.HIGH, confidence=0.60,
-                       exploit_likelihood="Medium", business_impact="Medium",
-                       attack_surface="Web Application", scanner_sources=("n",),
-                       risk_factors=())
+        ef = _make_ef(
+            severity=Severity.HIGH,
+            confidence=0.60,
+            exploit_likelihood="Medium",
+            business_impact="Medium",
+            attack_surface="Web Application",
+            scanner_sources=("n",),
+            risk_factors=(),
+        )
         ra = _ENGINE.score(ef)
         assert ra.risk_level == "High"
 
     def test_critical_risk_at_80(self) -> None:
-        ef = _make_ef(severity=Severity.CRITICAL, confidence=1.0,
-                       exploit_likelihood="High", business_impact="Critical",
-                       attack_surface="Web Application",
-                       scanner_sources=("a", "b", "c", "d"),
-                       risk_factors=("a", "b", "c", "d", "e"))
+        ef = _make_ef(
+            severity=Severity.CRITICAL,
+            confidence=1.0,
+            exploit_likelihood="High",
+            business_impact="Critical",
+            attack_surface="Web Application",
+            scanner_sources=("a", "b", "c", "d"),
+            risk_factors=("a", "b", "c", "d", "e"),
+        )
         ra = _ENGINE.score(ef)
         assert ra.risk_level == "Critical"
         assert ra.score >= 80
 
     def test_score_capped_at_100(self) -> None:
-        ef = _make_ef(severity=Severity.CRITICAL, confidence=1.0,
-                       exploit_likelihood="High", business_impact="Critical",
-                       attack_surface="Web Application",
-                       scanner_sources=("a", "b", "c", "d"),
-                       risk_factors=("a", "b", "c", "d"))
+        ef = _make_ef(
+            severity=Severity.CRITICAL,
+            confidence=1.0,
+            exploit_likelihood="High",
+            business_impact="Critical",
+            attack_surface="Web Application",
+            scanner_sources=("a", "b", "c", "d"),
+            risk_factors=("a", "b", "c", "d"),
+        )
         ra = _ENGINE.score(ef)
         assert ra.score <= 100
 
@@ -610,56 +641,83 @@ class TestTotalScore:
 
 class TestPriority:
     def test_critical_priority(self) -> None:
-        ef = _make_ef(severity=Severity.CRITICAL, confidence=1.0,
-                       exploit_likelihood="High", business_impact="Critical",
-                       attack_surface="Web Application",
-                       scanner_sources=("a", "b", "c", "d"),
-                       risk_factors=("a", "b", "c", "d"))
+        ef = _make_ef(
+            severity=Severity.CRITICAL,
+            confidence=1.0,
+            exploit_likelihood="High",
+            business_impact="Critical",
+            attack_surface="Web Application",
+            scanner_sources=("a", "b", "c", "d"),
+            risk_factors=("a", "b", "c", "d"),
+        )
         ra = _ENGINE.score(ef)
         assert ra.priority == "Critical"
 
     def test_high_priority(self) -> None:
-        ef = _make_ef(severity=Severity.HIGH, confidence=0.80,
-                       exploit_likelihood="Medium", business_impact="Medium",
-                       attack_surface="Web Application",
-                       scanner_sources=("a", "b"),
-                       risk_factors=("a", "b"))
+        ef = _make_ef(
+            severity=Severity.HIGH,
+            confidence=0.80,
+            exploit_likelihood="Medium",
+            business_impact="Medium",
+            attack_surface="Web Application",
+            scanner_sources=("a", "b"),
+            risk_factors=("a", "b"),
+        )
         ra = _ENGINE.score(ef)
         assert ra.priority == "High"
 
     def test_medium_priority(self) -> None:
         # MEDIUM(14) + conf=0.6(9) + lkhd=Medium(10) + impact=Medium(7)
         # + surface=NetworkService(8) + scanner=1(3) = 51
-        ef = _make_ef(severity=Severity.MEDIUM, confidence=0.60,
-                       exploit_likelihood="Medium", business_impact="Medium",
-                       attack_surface="Network Service",
-                       scanner_sources=("n",),
-                       risk_factors=())
+        ef = _make_ef(
+            severity=Severity.MEDIUM,
+            confidence=0.60,
+            exploit_likelihood="Medium",
+            business_impact="Medium",
+            attack_surface="Network Service",
+            scanner_sources=("n",),
+            risk_factors=(),
+        )
         ra = _ENGINE.score(ef)
         assert ra.priority == "Medium"
 
     def test_low_priority(self) -> None:
-        ef = _make_ef(severity=Severity.LOW, confidence=0.0,
-                       exploit_likelihood=None, business_impact=None,
-                       attack_surface=None, scanner_sources=(),
-                       risk_factors=())
+        ef = _make_ef(
+            severity=Severity.LOW,
+            confidence=0.0,
+            exploit_likelihood=None,
+            business_impact=None,
+            attack_surface=None,
+            scanner_sources=(),
+            risk_factors=(),
+        )
         ra = _ENGINE.score(ef)
         assert ra.priority == "Low"
 
     def test_informational_low_priority(self) -> None:
-        ef = _make_ef(severity=Severity.INFORMATIONAL, confidence=0.0,
-                       exploit_likelihood=None, business_impact=None,
-                       attack_surface=None, scanner_sources=(),
-                       risk_factors=())
+        ef = _make_ef(
+            severity=Severity.INFORMATIONAL,
+            confidence=0.0,
+            exploit_likelihood=None,
+            business_impact=None,
+            attack_surface=None,
+            scanner_sources=(),
+            risk_factors=(),
+        )
         ra = _ENGINE.score(ef)
         assert ra.priority == "Low"
 
     def test_priority_differs_from_enriched(self) -> None:
         # Enriched priority is "Critical" but risk score may produce "High"
-        ef = _make_ef(severity=Severity.CRITICAL, confidence=0.50,
-                       exploit_likelihood="Low", business_impact=None,
-                       attack_surface=None, scanner_sources=(),
-                       risk_factors=())
+        ef = _make_ef(
+            severity=Severity.CRITICAL,
+            confidence=0.50,
+            exploit_likelihood="Low",
+            business_impact=None,
+            attack_surface=None,
+            scanner_sources=(),
+            risk_factors=(),
+        )
         ra = _ENGINE.score(ef)
         # Not asserting specific value, just that priority exists
         assert ra.priority in ("Critical", "High", "Medium", "Low")
@@ -676,8 +734,12 @@ class TestFactorOrdering:
         ra = _ENGINE.score(ef)
         names = [f.name for f in ra.factors]
         assert names == [
-            "severity", "confidence", "exploit_likelihood",
-            "business_impact", "attack_surface", "scanner_count",
+            "severity",
+            "confidence",
+            "exploit_likelihood",
+            "business_impact",
+            "attack_surface",
+            "scanner_count",
             "risk_factors",
         ]
 
@@ -689,11 +751,15 @@ class TestFactorOrdering:
 
 class TestDeterministic:
     def test_same_input_same_output(self) -> None:
-        ef = _make_ef(severity=Severity.CRITICAL, confidence=0.85,
-                       exploit_likelihood="High", business_impact="Critical",
-                       attack_surface="Web Application",
-                       scanner_sources=("n", "m", "n2"),
-                       risk_factors=("a", "b"))
+        ef = _make_ef(
+            severity=Severity.CRITICAL,
+            confidence=0.85,
+            exploit_likelihood="High",
+            business_impact="Critical",
+            attack_surface="Web Application",
+            scanner_sources=("n", "m", "n2"),
+            risk_factors=("a", "b"),
+        )
         r1 = _ENGINE.score(ef)
         r2 = _ENGINE.score(ef)
         assert r1 == r2
@@ -711,11 +777,15 @@ class TestDeterministic:
 
 class TestReasoning:
     def test_reasoning_includes_all_factors(self) -> None:
-        ef = _make_ef(severity=Severity.HIGH, confidence=0.60,
-                       exploit_likelihood="Medium", business_impact="Medium",
-                       attack_surface="Web Application",
-                       scanner_sources=("n", "m"),
-                       risk_factors=("a", "b"))
+        ef = _make_ef(
+            severity=Severity.HIGH,
+            confidence=0.60,
+            exploit_likelihood="Medium",
+            business_impact="Medium",
+            attack_surface="Web Application",
+            scanner_sources=("n", "m"),
+            risk_factors=("a", "b"),
+        )
         ra = _ENGINE.score(ef)
         assert "severity=22" in ra.reasoning
         assert "confidence=9" in ra.reasoning
@@ -726,10 +796,15 @@ class TestReasoning:
         assert "risk_factors=3" in ra.reasoning
 
     def test_factor_descriptions(self) -> None:
-        ef = _make_ef(severity=Severity.CRITICAL, confidence=0.99,
-                       exploit_likelihood="High", business_impact="Critical",
-                       attack_surface="API", scanner_sources=("a", "b", "c"),
-                       risk_factors=("RCE", "XSS"))
+        ef = _make_ef(
+            severity=Severity.CRITICAL,
+            confidence=0.99,
+            exploit_likelihood="High",
+            business_impact="Critical",
+            attack_surface="API",
+            scanner_sources=("a", "b", "c"),
+            risk_factors=("RCE", "XSS"),
+        )
         ra = _ENGINE.score(ef)
         descs = [f.description for f in ra.factors]
         assert any("CRITICAL" in d for d in descs)
@@ -747,32 +822,45 @@ class TestReasoning:
 
 class TestEdgeCases:
     def test_all_none_fields(self) -> None:
-        ef = _make_ef(severity=Severity.INFORMATIONAL, confidence=0.0,
-                       exploit_likelihood=None, business_impact=None,
-                       attack_surface=None, scanner_sources=(),
-                       risk_factors=())
+        ef = _make_ef(
+            severity=Severity.INFORMATIONAL,
+            confidence=0.0,
+            exploit_likelihood=None,
+            business_impact=None,
+            attack_surface=None,
+            scanner_sources=(),
+            risk_factors=(),
+        )
         ra = _ENGINE.score(ef)
         assert ra.score == 0
         assert ra.risk_level == "Informational"
 
     def test_maximum_configuration(self) -> None:
-        ef = _make_ef(severity=Severity.CRITICAL, confidence=1.0,
-                       exploit_likelihood="High", business_impact="Critical",
-                       attack_surface="Web Application",
-                       scanner_sources=("a", "b", "c", "d", "e"),
-                       risk_factors=("a", "b", "c", "d", "e", "f"))
+        ef = _make_ef(
+            severity=Severity.CRITICAL,
+            confidence=1.0,
+            exploit_likelihood="High",
+            business_impact="Critical",
+            attack_surface="Web Application",
+            scanner_sources=("a", "b", "c", "d", "e"),
+            risk_factors=("a", "b", "c", "d", "e", "f"),
+        )
         ra = _ENGINE.score(ef)
         assert ra.score == 100
         assert ra.risk_level == "Critical"
 
     def test_many_findings_large_dataset(self) -> None:
         findings = [
-            _make_ef(correlation_id=f"corr-{i:04d}",
-                      severity=Severity.HIGH, confidence=0.60,
-                      exploit_likelihood="Medium", business_impact="High",
-                      attack_surface="Web Application",
-                      scanner_sources=("nuclei",),
-                      risk_factors=("xss",))
+            _make_ef(
+                correlation_id=f"corr-{i:04d}",
+                severity=Severity.HIGH,
+                confidence=0.60,
+                exploit_likelihood="Medium",
+                business_impact="High",
+                attack_surface="Web Application",
+                scanner_sources=("nuclei",),
+                risk_factors=("xss",),
+            )
             for i in range(100)
         ]
         results = [_ENGINE.score(f) for f in findings]
@@ -801,11 +889,14 @@ class TestEdgeCases:
 
     def test_various_severity_with_all_high_inputs(self) -> None:
         for sev in Severity:
-            ef = _make_ef(severity=sev, confidence=1.0,
-                           exploit_likelihood="High",
-                           business_impact="Critical",
-                           attack_surface="Web Application",
-                           scanner_sources=("a", "b", "c", "d"),
-                           risk_factors=("a", "b", "c", "d"))
+            ef = _make_ef(
+                severity=sev,
+                confidence=1.0,
+                exploit_likelihood="High",
+                business_impact="Critical",
+                attack_surface="Web Application",
+                scanner_sources=("a", "b", "c", "d"),
+                risk_factors=("a", "b", "c", "d"),
+            )
             ra = _ENGINE.score(ef)
             assert 0 <= ra.score <= 100

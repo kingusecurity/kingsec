@@ -69,10 +69,13 @@ class TestScanRepositoryPortIsAbstract:
         class Full(ScanRepositoryPort):
             def save(self, scan_id: str, result: ScannerResult) -> None:
                 pass
+
             def get(self, scan_id: str) -> ScannerResult:
                 raise NotImplementedError
+
             def exists(self, scan_id: str) -> bool:
                 return False
+
             def delete(self, scan_id: str) -> None:
                 pass
 
@@ -97,10 +100,13 @@ class TestJobRepositoryPortIsAbstract:
         class Full(JobRepositoryPort):
             def save(self, job: object) -> None:
                 pass
+
             def get(self, job_id: str) -> object:
                 raise NotImplementedError
+
             def list(self, *, limit: int = 50, offset: int = 0) -> list:
                 return []
+
             def exists(self, job_id: str) -> bool:
                 return False
 
@@ -125,10 +131,13 @@ class TestAssetRepositoryPortIsAbstract:
         class Full(AssetRepositoryPort):
             def add(self, asset: Asset) -> None:
                 pass
+
             def get(self, asset_id: str) -> Asset:
                 raise NotImplementedError
+
             def list(self, *, limit: int = 50, offset: int = 0) -> list[Asset]:
                 return []
+
             def exists(self, asset_id: str) -> bool:
                 return False
 
@@ -207,16 +216,20 @@ class TestAssetRepositoryPortSignatures:
 class TestExports:
     def test_scan_repository_port_exported(self) -> None:
         from kingsec.application.ports import ScanRepositoryPort
+
         assert ScanRepositoryPort is not None
 
     def test_job_repository_port_exported(self) -> None:
         from kingsec.application.ports import JobRepositoryPort
+
         assert JobRepositoryPort is not None
 
     def test_asset_repository_port_exported(self) -> None:
         from kingsec.application.ports import AssetRepositoryPort
+
         assert AssetRepositoryPort is not None
 
     def test_asset_dataclass_exported(self) -> None:
         from kingsec.application.ports.repositories import Asset
+
         assert Asset is not None

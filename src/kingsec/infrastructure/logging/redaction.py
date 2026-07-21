@@ -64,9 +64,7 @@ _SENSITIVE_KEY_PARTS: tuple[str, ...] = (
 #   - generic "<label>=<value>" / "<label>: <value>" secret assignments
 _BEARER_RE = re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._\-]+")
 _SK_KEY_RE = re.compile(r"\bsk-[A-Za-z0-9]{12,}\b")
-_ASSIGN_RE = re.compile(
-    r"(?i)\b(api[_-]?key|token|password|secret)(\s*[=:]\s*)(\S+)"
-)
+_ASSIGN_RE = re.compile(r"(?i)\b(api[_-]?key|token|password|secret)(\s*[=:]\s*)(\S+)")
 
 
 def _key_is_sensitive(key: str) -> bool:
@@ -92,10 +90,7 @@ def _redact(obj: Any) -> Any:
         return REDACTED
 
     if isinstance(obj, dict):
-        return {
-            key: (REDACTED if _key_is_sensitive(str(key)) else _redact(value))
-            for key, value in obj.items()
-        }
+        return {key: (REDACTED if _key_is_sensitive(str(key)) else _redact(value)) for key, value in obj.items()}
 
     if isinstance(obj, (list, tuple, set)):
         rebuilt = [_redact(item) for item in obj]
@@ -107,9 +102,7 @@ def _redact(obj: Any) -> Any:
     return obj
 
 
-def redact_processor(
-    logger: WrappedLogger, method_name: str, event_dict: EventDict
-) -> EventDict:
+def redact_processor(logger: WrappedLogger, method_name: str, event_dict: EventDict) -> EventDict:
     """Structlog processor entry point. Redacts the whole event dict.
 
     Placed late in the chain (after contextvars are merged and exceptions are

@@ -60,9 +60,7 @@ def app() -> FastAPI:
     )
     container.register_factory(
         CheckAccountLockout,
-        lambda c: CheckAccountLockout(
-            c.resolve(LockoutRepository), c.resolve(ClockPort)
-        ),
+        lambda c: CheckAccountLockout(c.resolve(LockoutRepository), c.resolve(ClockPort)),
     )
     container.register_factory(
         ResetFailedAttempts,
@@ -111,7 +109,7 @@ class TestRateLimitAPI:
 
         for i in range(5):
             resp = client.post("/api/v1/auth/login", json={})
-            assert resp.status_code == 200, f"request {i+1} should succeed"
+            assert resp.status_code == 200, f"request {i + 1} should succeed"
 
         resp = client.post("/api/v1/auth/login", json={})
         assert resp.status_code == 429

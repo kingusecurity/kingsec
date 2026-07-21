@@ -24,31 +24,39 @@ class InMemoryDashboardRepository(DashboardRepositoryPort):
         self._schedules: list[dict[str, Any]] = []
 
     def seed_assessment(self, status: str, target: str = "example.com", created_at: str | None = None) -> None:
-        self._assessments.append({
-            "id": f"a-{len(self._assessments)}",
-            "target_value": target,
-            "status": status,
-            "created_at": created_at or datetime.now(UTC).isoformat(),
-        })
+        self._assessments.append(
+            {
+                "id": f"a-{len(self._assessments)}",
+                "target_value": target,
+                "status": status,
+                "created_at": created_at or datetime.now(UTC).isoformat(),
+            }
+        )
 
     def seed_finding(self, severity: str) -> None:
-        self._findings.append({
-            "id": f"f-{len(self._findings)}",
-            "severity": severity,
-            "assessment_id": "a-0",
-        })
+        self._findings.append(
+            {
+                "id": f"f-{len(self._findings)}",
+                "severity": severity,
+                "assessment_id": "a-0",
+            }
+        )
 
     def seed_notification(self, status: str) -> None:
-        self._notifications.append({
-            "id": f"n-{len(self._notifications)}",
-            "status": status,
-        })
+        self._notifications.append(
+            {
+                "id": f"n-{len(self._notifications)}",
+                "status": status,
+            }
+        )
 
     def seed_schedule(self, status: str) -> None:
-        self._schedules.append({
-            "id": f"s-{len(self._schedules)}",
-            "status": status,
-        })
+        self._schedules.append(
+            {
+                "id": f"s-{len(self._schedules)}",
+                "status": status,
+            }
+        )
 
     def get_summary(self) -> DashboardSummary:
         return DashboardSummary(
@@ -82,7 +90,8 @@ class InMemoryDashboardRepository(DashboardRepositoryPort):
             end = today - timedelta(days=i * step)
             start = end - timedelta(days=step - 1)
             count = sum(
-                1 for a in self._assessments
+                1
+                for a in self._assessments
                 if a.get("created_at", "")[:10] >= start.isoformat()[:10]
                 and a.get("created_at", "")[:10] <= end.isoformat()[:10]
             )
@@ -124,7 +133,13 @@ class InMemoryDashboardRepository(DashboardRepositoryPort):
     def get_recent_activity(self, limit: int = 20) -> list[dict[str, Any]]:
         sorted_a = sorted(self._assessments, key=lambda a: a.get("created_at", ""), reverse=True)
         return [
-            {"id": a["id"], "type": "assessment", "action": a["status"], "target": a["target_value"], "timestamp": a.get("created_at", "")}
+            {
+                "id": a["id"],
+                "type": "assessment",
+                "action": a["status"],
+                "target": a["target_value"],
+                "timestamp": a.get("created_at", ""),
+            }
             for a in sorted_a[:limit]
         ]
 

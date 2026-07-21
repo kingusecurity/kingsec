@@ -33,9 +33,7 @@ class CreateSession:
     def execute(self, request: CreateSessionRequest) -> CreateSessionResponse:
         now_ts = self._clock.now()
         now_iso = datetime.fromtimestamp(now_ts, tz=UTC).isoformat()
-        expires_iso = (
-            datetime.fromtimestamp(now_ts, tz=UTC) + timedelta(seconds=self._session_ttl)
-        ).isoformat()
+        expires_iso = (datetime.fromtimestamp(now_ts, tz=UTC) + timedelta(seconds=self._session_ttl)).isoformat()
 
         active_count = self._repo.count_active_by_user(request.user_id)
         if active_count >= self._max_concurrent:

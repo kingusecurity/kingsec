@@ -230,9 +230,7 @@ class TestCancelErrors:
         with pytest.raises(JobNotFoundError):
             service.cancel_job("no-such-job")
 
-    def test_cancel_already_cancelled_raises(
-        self, service: PersistentJobService
-    ) -> None:
+    def test_cancel_already_cancelled_raises(self, service: PersistentJobService) -> None:
         job = service.submit_scan("example.com")
         service.cancel_job(str(job.id))
         with pytest.raises(IllegalJobTransitionError):
@@ -245,16 +243,12 @@ class TestCancelErrors:
 
 
 class TestCompletedJobs:
-    def test_get_job_result_raises_for_pending(
-        self, service: PersistentJobService
-    ) -> None:
+    def test_get_job_result_raises_for_pending(self, service: PersistentJobService) -> None:
         job = service.submit_scan("example.com")
         with pytest.raises(IllegalJobTransitionError):
             service.get_job_result(str(job.id))
 
-    def test_get_job_result_raises_for_nonexistent(
-        self, service: PersistentJobService
-    ) -> None:
+    def test_get_job_result_raises_for_nonexistent(self, service: PersistentJobService) -> None:
         with pytest.raises(JobNotFoundError):
             service.get_job_result("no-such-id")
 
@@ -320,9 +314,7 @@ class TestRollback:
             fetched = svc2.get_job(job_id)
             assert fetched.target == "rollback-test.com"
 
-    def test_cancel_rolls_back_on_invalid_transition(
-        self, service: PersistentJobService
-    ) -> None:
+    def test_cancel_rolls_back_on_invalid_transition(self, service: PersistentJobService) -> None:
         job = service.submit_scan("rollback-cancel.com")
         job_id = str(job.id)
         service.cancel_job(job_id)
@@ -371,6 +363,7 @@ class TestApiIntegration:
     def api_env(self):
         import os
         import tempfile
+
         db_path = tempfile.mktemp(suffix=".db")
         engine = create_database_engine(url=f"sqlite:///{db_path}")
         create_schema(engine)

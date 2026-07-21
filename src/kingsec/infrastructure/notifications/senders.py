@@ -27,7 +27,9 @@ class EmailSender(NotificationSenderPort):
         self._password = password
 
     def send(self, notification: Notification) -> str | None:
-        logger.info("Email notification %s would be sent via SMTP %s:%s", notification.id, self._smtp_host, self._smtp_port)
+        logger.info(
+            "Email notification %s would be sent via SMTP %s:%s", notification.id, self._smtp_host, self._smtp_port
+        )
         return None
 
     def channel(self) -> str:
@@ -44,12 +46,14 @@ class WebhookSender(NotificationSenderPort):
             return "Webhook endpoint not configured"
         try:
             validate_url(url)
-            payload = json.dumps({
-                "event": notification.event_type,
-                "title": notification.title,
-                "message": notification.message,
-                "priority": notification.priority.value,
-            }).encode()
+            payload = json.dumps(
+                {
+                    "event": notification.event_type,
+                    "title": notification.title,
+                    "message": notification.message,
+                    "priority": notification.priority.value,
+                }
+            ).encode()
             req = Request(url, data=payload, method="POST")
             req.add_header("Content-Type", "application/json")
             with urlopen(req, timeout=10):
@@ -76,9 +80,11 @@ class SlackSender(NotificationSenderPort):
             return "Slack webhook not configured"
         try:
             validate_url(url)
-            payload = json.dumps({
-                "text": f"*{notification.title}*\n{notification.message}",
-            }).encode()
+            payload = json.dumps(
+                {
+                    "text": f"*{notification.title}*\n{notification.message}",
+                }
+            ).encode()
             req = Request(url, data=payload, method="POST")
             req.add_header("Content-Type", "application/json")
             with urlopen(req, timeout=10):
@@ -105,9 +111,11 @@ class DiscordSender(NotificationSenderPort):
             return "Discord webhook not configured"
         try:
             validate_url(url)
-            payload = json.dumps({
-                "content": f"**{notification.title}**\n{notification.message}",
-            }).encode()
+            payload = json.dumps(
+                {
+                    "content": f"**{notification.title}**\n{notification.message}",
+                }
+            ).encode()
             req = Request(url, data=payload, method="POST")
             req.add_header("Content-Type", "application/json")
             with urlopen(req, timeout=10):
@@ -134,13 +142,15 @@ class TeamsSender(NotificationSenderPort):
             return "Teams webhook not configured"
         try:
             validate_url(url)
-            payload = json.dumps({
-                "@type": "MessageCard",
-                "@context": "http://schema.org/extensions",
-                "summary": notification.title,
-                "title": notification.title,
-                "text": notification.message,
-            }).encode()
+            payload = json.dumps(
+                {
+                    "@type": "MessageCard",
+                    "@context": "http://schema.org/extensions",
+                    "summary": notification.title,
+                    "title": notification.title,
+                    "text": notification.message,
+                }
+            ).encode()
             req = Request(url, data=payload, method="POST")
             req.add_header("Content-Type", "application/json")
             with urlopen(req, timeout=10):

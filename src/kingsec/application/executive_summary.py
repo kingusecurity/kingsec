@@ -88,7 +88,11 @@ _LEVEL_MAP: dict[int, str] = {
 
 
 def _highest_severity_present(
-    critical: int, high: int, medium: int, low: int, informational: int,
+    critical: int,
+    high: int,
+    medium: int,
+    low: int,
+    informational: int,
 ) -> int:
     if critical > 0:
         return 4
@@ -102,7 +106,9 @@ def _highest_severity_present(
 
 
 def _determine_posture(
-    posture_level: int, attack_path_count: int, highest_path_score: int,
+    posture_level: int,
+    attack_path_count: int,
+    highest_path_score: int,
 ) -> str:
     base = _POSTURE_MAP.get(posture_level, "Excellent")
     if attack_path_count >= 5 and base not in ("Critical",):
@@ -118,32 +124,35 @@ def _determine_posture(
 
 
 def _build_top_concerns(
-    critical: int, high: int, medium: int, low: int, informational: int,
-    attack_path_count: int, highest_path_score: int,
+    critical: int,
+    high: int,
+    medium: int,
+    low: int,
+    informational: int,
+    attack_path_count: int,
+    highest_path_score: int,
     total_assets: int,
 ) -> tuple[str, ...]:
     concerns: list[str] = []
     if critical > 0:
-        concerns.append(
-            f"{critical} critical severity finding(s) require immediate attention"
-        )
+        concerns.append(f"{critical} critical severity finding(s) require immediate attention")
     if high > 0:
         concerns.append(f"{high} high-risk finding(s) present in the environment")
     if medium > 0:
         concerns.append(f"{medium} medium-risk finding(s) should be reviewed")
     if attack_path_count > 0 and highest_path_score >= 60:
-        concerns.append(
-            f"{attack_path_count} attack path(s) identified with "
-            f"maximum score {highest_path_score}"
-        )
+        concerns.append(f"{attack_path_count} attack path(s) identified with maximum score {highest_path_score}")
     if not concerns:
         concerns.append("No significant security concerns detected")
     return tuple(concerns)
 
 
 def _build_observations(
-    total_findings: int, critical: int, high: int,
-    total_assets: int, attack_path_count: int,
+    total_findings: int,
+    critical: int,
+    high: int,
+    total_assets: int,
+    attack_path_count: int,
     enriched_findings: list[EnrichedFinding],
 ) -> tuple[str, ...]:
     obs: list[str] = []
@@ -154,22 +163,13 @@ def _build_observations(
     for f in enriched_findings:
         scanner_sources.update(f.scanner_sources)
     scanner_count = len(scanner_sources)
-    obs.append(
-        f"Scan covered {total_assets} asset(s) using "
-        f"{scanner_count} scanner(s)"
-    )
+    obs.append(f"Scan covered {total_assets} asset(s) using {scanner_count} scanner(s)")
     severe = critical + high
     if severe > 0:
         ratio = round(severe / total_findings * 100)
-        obs.append(
-            f"{severe} of {total_findings} finding(s) ({ratio}%) "
-            f"are high or critical severity"
-        )
+        obs.append(f"{severe} of {total_findings} finding(s) ({ratio}%) are high or critical severity")
     if attack_path_count > 0:
-        obs.append(
-            f"{attack_path_count} attack chain(s) identified, "
-            f"indicating potential lateral movement paths"
-        )
+        obs.append(f"{attack_path_count} attack chain(s) identified, indicating potential lateral movement paths")
     categories: Counter[str] = Counter()
     for f in enriched_findings:
         categories[f.category] += 1
@@ -180,8 +180,11 @@ def _build_observations(
 
 
 def _build_recommendations(
-    critical: int, high: int, medium: int,
-    attack_path_count: int, highest_path_score: int,
+    critical: int,
+    high: int,
+    medium: int,
+    attack_path_count: int,
+    highest_path_score: int,
     total_assets: int,
 ) -> tuple[str, ...]:
     recs: list[str] = []
@@ -265,19 +268,34 @@ class ExecutiveSummaryGenerator:
         overall_posture = _determine_posture(level, attack_path_count, highest_path_score)
 
         concerns = _build_top_concerns(
-            critical, high, medium, low, informational,
-            attack_path_count, highest_path_score, total_assets,
+            critical,
+            high,
+            medium,
+            low,
+            informational,
+            attack_path_count,
+            highest_path_score,
+            total_assets,
         )
         observations = _build_observations(
-            total_findings, critical, high,
-            total_assets, attack_path_count, enriched_findings,
+            total_findings,
+            critical,
+            high,
+            total_assets,
+            attack_path_count,
+            enriched_findings,
         )
         recommendations = _build_recommendations(
-            critical, high, medium,
-            attack_path_count, highest_path_score, total_assets,
+            critical,
+            high,
+            medium,
+            attack_path_count,
+            highest_path_score,
+            total_assets,
         )
         remediation_items = _build_remediation_items(
-            enriched_findings, risk_assessments,
+            enriched_findings,
+            risk_assessments,
         )
 
         return ExecutiveSummary(

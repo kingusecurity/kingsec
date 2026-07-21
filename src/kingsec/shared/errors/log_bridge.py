@@ -72,9 +72,7 @@ def log_exception(
     log_method(message, exc_info=exc, **fields)
 
 
-def add_exception_context(
-    logger: Any, method_name: str, event_dict: dict[str, Any]
-) -> dict[str, Any]:
+def add_exception_context(logger: Any, method_name: str, event_dict: dict[str, Any]) -> dict[str, Any]:
     """OPTIONAL structlog processor: auto-attach KingSecError fields.
 
     If ``exc_info`` in the event is a ``KingSecError`` instance, merge its safe

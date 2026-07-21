@@ -1,4 +1,5 @@
 """FastAPI routes for MFA (TOTP) management and verification."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Annotated, Any, cast
@@ -19,8 +20,10 @@ if TYPE_CHECKING:
 
 router = APIRouter(prefix="/api/v1/mfa", tags=["mfa"])
 
+
 def _get_app(request: Request) -> Application:
     return cast("Application", request.app.state.kingsec_app)
+
 
 @router.get(
     "/status",
@@ -42,6 +45,7 @@ async def get_mfa_status(
     result = use_case.execute(current_user.user_id)
     return MfaStatusSchema(enabled=result.enabled)
 
+
 @router.post(
     "/enable",
     summary="Enable MFA (TOTP)",
@@ -62,6 +66,7 @@ async def enable_mfa(
     use_case: EnableMfa = app.resolve(EnableMfa)
     result = use_case.execute(EnableMfaRequest(user_id=current_user.user_id))
     return {"secret": result.secret, "uri": result.uri}
+
 
 @router.post(
     "/verify",
@@ -85,11 +90,13 @@ async def verify_mfa(
     app = _get_app(request)
     use_case: VerifyMfaCode = app.resolve(VerifyMfaCode)
     try:
-        result = use_case.execute(VerifyMfaCodeRequest(
-            username=body["username"],
-            password=body["password"],
-            totp_code=body["totp_code"],
-        ))
+        result = use_case.execute(
+            VerifyMfaCodeRequest(
+                username=body["username"],
+                password=body["password"],
+                totp_code=body["totp_code"],
+            )
+        )
     except ApplicationError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
 
@@ -102,6 +109,7 @@ async def verify_mfa(
         "token_type": result.token_type,
         "expires_in": result.expires_in,
     }
+
 
 @router.post(
     "/disable",
@@ -123,6 +131,7 @@ async def disable_mfa(
     use_case: DisableMfa = app.resolve(DisableMfa)
     use_case.execute(DisableMfaRequest(user_id=current_user.user_id))
     return {"status": "ok"}
+
 
 @router.post(
     "/disable/{user_id}",
@@ -148,6 +157,7 @@ async def admin_disable_mfa(
     use_case.execute(DisableMfaRequest(user_id=user_id))
     return {"status": "ok"}
 
+
 @router.post(
     "/recovery",
     summary="Authenticate with recovery code",
@@ -166,11 +176,13 @@ async def use_recovery_code(
     app = _get_app(request)
     use_case: UseRecoveryCode = app.resolve(UseRecoveryCode)
     try:
-        result = use_case.execute(UseRecoveryCodeRequest(
-            username=body["username"],
-            password=body["password"],
-            recovery_code=body["recovery_code"],
-        ))
+        result = use_case.execute(
+            UseRecoveryCodeRequest(
+                username=body["username"],
+                password=body["password"],
+                recovery_code=body["recovery_code"],
+            )
+        )
     except ApplicationError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
 
@@ -183,6 +195,7 @@ async def use_recovery_code(
         "token_type": result.token_type,
         "expires_in": result.expires_in,
     }
+
 
 @router.post(
     "/recovery/generate",
@@ -204,6 +217,7 @@ async def generate_recovery_codes(
     use_case: GenerateRecoveryCodes = app.resolve(GenerateRecoveryCodes)
     result = use_case.execute(GenerateRecoveryCodesRequest(user_id=current_user.user_id))
     return {"codes": list(result.codes)}
+
 
 @router.post(
     "/recovery/rotate",

@@ -50,6 +50,7 @@ def _weasyprint_available() -> bool:
     """Return True only if WeasyPrint can actually render PDFs."""
     try:
         from weasyprint import HTML
+
         HTML(string="<p>test</p>").write_pdf()
         return True
     except Exception:
@@ -114,9 +115,7 @@ class TestFullSlice:
             created = CreateAssessment(assessments).execute(
                 CreateAssessmentRequest("10.0.0.5", "ip_address", "tester", "10.0.0.5")
             )
-            StartAssessment(assessments, _StubScanner()).execute(
-                StartAssessmentRequest(created.assessment_id)
-            )
+            StartAssessment(assessments, _StubScanner()).execute(StartAssessmentRequest(created.assessment_id))
             response = GenerateReport(assessments, reports, generator).execute(
                 GenerateReportRequest(created.assessment_id)
             )

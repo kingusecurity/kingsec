@@ -13,9 +13,7 @@ class CheckAccountLockout:
         self._lockout_repo = lockout_repo
         self._clock = clock
 
-    def execute(
-        self, request: CheckAccountLockoutRequest
-    ) -> CheckAccountLockoutResponse:
+    def execute(self, request: CheckAccountLockoutRequest) -> CheckAccountLockoutResponse:
         now = self._clock.now()
         existing = self._lockout_repo.get(request.user_id)
 

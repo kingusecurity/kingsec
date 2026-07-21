@@ -52,67 +52,77 @@ class TestAuditTrailIntegration:
     def test_full_lifecycle(self, repo: SqlAlchemyAuditRepository) -> None:
         """Simulate a full audit lifecycle: login, create assessment, generate report, logout."""
         # 1. Successful login
-        repo.record(AuditEntry(
-            action=AuditAction.LOGIN,
-            resource_type="user",
-            resource_id="user-1",
-            success=True,
-            user_id="user-1",
-            username="admin",
-            role="ADMIN",
-            ip_address="127.0.0.1",
-            user_agent="Mozilla/5.0",
-            correlation_id="req-001",
-        ))
+        repo.record(
+            AuditEntry(
+                action=AuditAction.LOGIN,
+                resource_type="user",
+                resource_id="user-1",
+                success=True,
+                user_id="user-1",
+                username="admin",
+                role="ADMIN",
+                ip_address="127.0.0.1",
+                user_agent="Mozilla/5.0",
+                correlation_id="req-001",
+            )
+        )
 
         # 2. Create assessment
-        repo.record(AuditEntry(
-            action=AuditAction.ASSESSMENT_CREATED,
-            resource_type="assessment",
-            resource_id="assess-001",
-            success=True,
-            user_id="user-1",
-            username="admin",
-            role="ADMIN",
-            ip_address="127.0.0.1",
-            correlation_id="req-002",
-            metadata={"target": "10.0.0.1"},
-        ))
+        repo.record(
+            AuditEntry(
+                action=AuditAction.ASSESSMENT_CREATED,
+                resource_type="assessment",
+                resource_id="assess-001",
+                success=True,
+                user_id="user-1",
+                username="admin",
+                role="ADMIN",
+                ip_address="127.0.0.1",
+                correlation_id="req-002",
+                metadata={"target": "10.0.0.1"},
+            )
+        )
 
         # 3. Start assessment
-        repo.record(AuditEntry(
-            action=AuditAction.ASSESSMENT_STARTED,
-            resource_type="assessment",
-            resource_id="assess-001",
-            success=True,
-            user_id="user-1",
-            username="admin",
-            correlation_id="req-003",
-        ))
+        repo.record(
+            AuditEntry(
+                action=AuditAction.ASSESSMENT_STARTED,
+                resource_type="assessment",
+                resource_id="assess-001",
+                success=True,
+                user_id="user-1",
+                username="admin",
+                correlation_id="req-003",
+            )
+        )
 
         # 4. Assessment completed
-        repo.record(AuditEntry(
-            action=AuditAction.ASSESSMENT_COMPLETED,
-            resource_type="assessment",
-            resource_id="assess-001",
-            success=True,
-            user_id="user-1",
-            username="admin",
-            correlation_id="req-004",
-            metadata={"findings_count": 5},
-        ))
+        repo.record(
+            AuditEntry(
+                action=AuditAction.ASSESSMENT_COMPLETED,
+                resource_type="assessment",
+                resource_id="assess-001",
+                success=True,
+                user_id="user-1",
+                username="admin",
+                correlation_id="req-004",
+                metadata={"findings_count": 5},
+            )
+        )
 
         # 5. Generate report
-        repo.record(AuditEntry(
-            action=AuditAction.REPORT_GENERATED,
-            resource_type="report",
-            resource_id="assess-001",
-            success=True,
-            user_id="user-1",
-            username="admin",
-            correlation_id="req-005",
-            metadata={"filename": "report.pdf"},
-        ))
+        repo.record(
+            AuditEntry(
+                action=AuditAction.REPORT_GENERATED,
+                resource_type="report",
+                resource_id="assess-001",
+                success=True,
+                user_id="user-1",
+                username="admin",
+                correlation_id="req-005",
+                metadata={"filename": "report.pdf"},
+            )
+        )
 
         # Verify total count
         assert repo.count_entries() == 5
@@ -133,27 +143,31 @@ class TestAuditTrailIntegration:
         """Verify that failed login attempts are recorded."""
         # Multiple failed attempts
         for i in range(3):
-            repo.record(AuditEntry(
-                action=AuditAction.FAILED_LOGIN,
-                resource_type="user",
-                success=False,
-                reason="invalid credentials",
-                username="admin",
-                ip_address="192.168.1.100",
-                correlation_id=f"req-fail-{i}",
-            ))
+            repo.record(
+                AuditEntry(
+                    action=AuditAction.FAILED_LOGIN,
+                    resource_type="user",
+                    success=False,
+                    reason="invalid credentials",
+                    username="admin",
+                    ip_address="192.168.1.100",
+                    correlation_id=f"req-fail-{i}",
+                )
+            )
 
         # Then a success
-        repo.record(AuditEntry(
-            action=AuditAction.LOGIN,
-            resource_type="user",
-            resource_id="user-1",
-            success=True,
-            user_id="user-1",
-            username="admin",
-            ip_address="192.168.1.100",
-            correlation_id="req-ok",
-        ))
+        repo.record(
+            AuditEntry(
+                action=AuditAction.LOGIN,
+                resource_type="user",
+                resource_id="user-1",
+                success=True,
+                user_id="user-1",
+                username="admin",
+                ip_address="192.168.1.100",
+                correlation_id="req-ok",
+            )
+        )
 
         # Total: 4 entries
         assert repo.count_entries() == 4
@@ -188,10 +202,12 @@ class TestAuditTrailIntegration:
         import threading
 
         def _record(i: int) -> None:
-            repo.record(AuditEntry(
-                action=AuditAction.LOGIN,
-                resource_id=f"user-{i}",
-            ))
+            repo.record(
+                AuditEntry(
+                    action=AuditAction.LOGIN,
+                    resource_id=f"user-{i}",
+                )
+            )
 
         threads = [threading.Thread(target=_record, args=(i,)) for i in range(10)]
         for t in threads:

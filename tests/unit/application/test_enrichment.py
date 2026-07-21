@@ -728,38 +728,31 @@ class TestEstimateRemediationComplexity:
 
 class TestCalculatePriority:
     def test_critical_returns_critical(self) -> None:
-        cf = _make_cf(severity=Severity.CRITICAL, confidence=1.0,
-                       description="critical database vulnerability")
+        cf = _make_cf(severity=Severity.CRITICAL, confidence=1.0, description="critical database vulnerability")
         assert _ENGINE.calculate_priority(cf) == "Critical"
 
     def test_informational_returns_low(self) -> None:
-        cf = _make_cf(severity=Severity.INFORMATIONAL, confidence=0.35,
-                       description="banner info")
+        cf = _make_cf(severity=Severity.INFORMATIONAL, confidence=0.35, description="banner info")
         assert _ENGINE.calculate_priority(cf) == "Low"
 
     def test_high_with_good_confidence_returns_high(self) -> None:
-        cf = _make_cf(severity=Severity.HIGH, confidence=0.80,
-                       title="Security issue no impact keywords")
+        cf = _make_cf(severity=Severity.HIGH, confidence=0.80, title="Security issue no impact keywords")
         assert _ENGINE.calculate_priority(cf) == "High"
 
     def test_boundary_80_is_critical(self) -> None:
-        cf = _make_cf(severity=Severity.CRITICAL, confidence=1.0,
-                       title="Web server issue medium business impact")
+        cf = _make_cf(severity=Severity.CRITICAL, confidence=1.0, title="Web server issue medium business impact")
         assert _ENGINE.calculate_priority(cf) == "Critical"
 
     def test_boundary_79_is_high(self) -> None:
-        cf = _make_cf(severity=Severity.CRITICAL, confidence=0.80,
-                       title="Discovery info low impact")
+        cf = _make_cf(severity=Severity.CRITICAL, confidence=0.80, title="Discovery info low impact")
         assert _ENGINE.calculate_priority(cf) == "High"
 
     def test_boundary_60_is_high(self) -> None:
-        cf = _make_cf(severity=Severity.HIGH, confidence=0.80,
-                       title="A finding with no business impact keywords")
+        cf = _make_cf(severity=Severity.HIGH, confidence=0.80, title="A finding with no business impact keywords")
         assert _ENGINE.calculate_priority(cf) == "High"
 
     def test_boundary_59_is_medium(self) -> None:
-        cf = _make_cf(severity=Severity.HIGH, confidence=0.60,
-                       title="No business impact keywords here")
+        cf = _make_cf(severity=Severity.HIGH, confidence=0.60, title="No business impact keywords here")
         assert _ENGINE.calculate_priority(cf) == "Medium"
 
     def test_deterministic(self) -> None:

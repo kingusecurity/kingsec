@@ -44,8 +44,11 @@ class StubTokenService(TokenService):
 
     def verify_access_token(self, token: str) -> TokenClaims:
         return TokenClaims(
-            user_id="user-001", username="test", role="Viewer",
-            token_type="access", jti="jti-1",
+            user_id="user-001",
+            username="test",
+            role="Viewer",
+            token_type="access",
+            jti="jti-1",
             issued_at=datetime.now(UTC),
             expires_at=datetime.now(UTC),
         )

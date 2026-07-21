@@ -28,7 +28,11 @@ class StoreSecret:
         try:
             secret_type = SecretType(request.secret_type)
         except ValueError:
-            secret_type = SecretType(request.secret_type) if request.secret_type in SecretType._value2member_map_ else SecretType.DATABASE_PASSWORD
+            secret_type = (
+                SecretType(request.secret_type)
+                if request.secret_type in SecretType._value2member_map_
+                else SecretType.DATABASE_PASSWORD
+            )
 
         masked = self._mask_value(request.plaintext)
         metadata = SecretMetadata(

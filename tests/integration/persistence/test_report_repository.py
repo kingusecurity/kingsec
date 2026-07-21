@@ -117,6 +117,7 @@ class TestSaveAndGet:
         session.flush()
 
         from kingsec.infrastructure.persistence.models import ReportORM
+
         orm = session.get(ReportORM, report.assessment_id)
         assert orm is not None
         assert orm.target == str(Target("example.com", TargetType.HOSTNAME))

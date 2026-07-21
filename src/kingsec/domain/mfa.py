@@ -1,4 +1,5 @@
 """MFA domain entities — TOTP secret, recovery codes, and status enums."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

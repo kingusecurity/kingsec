@@ -65,9 +65,7 @@ class GobusterPlugin(ScannerPluginPort):
         """Declare Gobuster's scanning capabilities."""
         return (
             ScannerCapability(
-                target_types=frozenset(
-                    {TargetType.HOSTNAME, TargetType.URL}
-                ),
+                target_types=frozenset({TargetType.HOSTNAME, TargetType.URL}),
                 scan_categories=frozenset({ScanCategory.DISCOVERY}),
                 output_format=OutputFormat.RAW_TEXT,
             ),

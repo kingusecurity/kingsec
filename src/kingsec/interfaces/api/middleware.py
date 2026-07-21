@@ -45,9 +45,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
     * Always set ``X-Request-ID`` response header.
     """
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         client_id = request.headers.get("X-Request-ID")
         if client_id:
             request.scope["request_id"] = client_id
@@ -74,9 +72,7 @@ class RequestTimingMiddleware(BaseHTTPMiddleware):
     ``X-Process-Time`` response header (ms with three decimal places).
     """
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         start = time.perf_counter()
         response = await call_next(request)
         elapsed_ms = (time.perf_counter() - start) * 1000.0
@@ -95,9 +91,7 @@ class RequestTimingMiddleware(BaseHTTPMiddleware):
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add standard security headers to every response."""
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
@@ -120,9 +114,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
     No secrets are exposed.
     """
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         try:
             response = await call_next(request)
         except Exception:

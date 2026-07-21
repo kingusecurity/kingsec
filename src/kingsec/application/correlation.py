@@ -31,17 +31,45 @@ if TYPE_CHECKING:
 # Constants
 # ---------------------------------------------------------------------------
 
-_SOFTWARE_NAMES: frozenset[str] = frozenset({
-    "openssh", "ssh", "apache", "httpd", "nginx", "iis",
-    "mysql", "mariadb", "postgresql", "postgres", "oracle",
-    "redis", "mongodb", "elasticsearch",
-    "tomcat", "jetty", "jboss", "wildfly",
-    "php", "python", "node", "express",
-    "wordpress", "drupal", "joomla",
-    "openssl", "ssl", "tls",
-    "docker", "kubernetes", "k8s",
-    "git", "jenkins", "jira", "confluence",
-})
+_SOFTWARE_NAMES: frozenset[str] = frozenset(
+    {
+        "openssh",
+        "ssh",
+        "apache",
+        "httpd",
+        "nginx",
+        "iis",
+        "mysql",
+        "mariadb",
+        "postgresql",
+        "postgres",
+        "oracle",
+        "redis",
+        "mongodb",
+        "elasticsearch",
+        "tomcat",
+        "jetty",
+        "jboss",
+        "wildfly",
+        "php",
+        "python",
+        "node",
+        "express",
+        "wordpress",
+        "drupal",
+        "joomla",
+        "openssl",
+        "ssl",
+        "tls",
+        "docker",
+        "kubernetes",
+        "k8s",
+        "git",
+        "jenkins",
+        "jira",
+        "confluence",
+    }
+)
 
 _PORT_PATTERN = re.compile(r"(?:port\s*[:#]?\s*|:)(\d{1,5})", re.IGNORECASE)
 
@@ -255,9 +283,7 @@ class CorrelationEngine:
     # Main correlation pipeline
     # ------------------------------------------------------------------
 
-    def correlate(
-        self, findings: list[NormalizedFinding]
-    ) -> list[CorrelatedFinding]:
+    def correlate(self, findings: list[NormalizedFinding]) -> list[CorrelatedFinding]:
         """Correlate a list of normalized findings into deduplicated issues.
 
         Args:
@@ -283,9 +309,7 @@ class CorrelationEngine:
     # Grouping views (for analysis, not deduplication)
     # ------------------------------------------------------------------
 
-    def group_by_asset(
-        self, findings: list[NormalizedFinding]
-    ) -> dict[str, list[NormalizedFinding]]:
+    def group_by_asset(self, findings: list[NormalizedFinding]) -> dict[str, list[NormalizedFinding]]:
         """Group findings by affected asset (hostname, IP, file path).
 
         Returns:
@@ -294,13 +318,11 @@ class CorrelationEngine:
         """
         result: dict[str, list[NormalizedFinding]] = defaultdict(list)
         for finding in findings:
-            for asset in (finding.affected_assets or ("unknown",)):
+            for asset in finding.affected_assets or ("unknown",):
                 result[asset].append(finding)
         return dict(result)
 
-    def group_by_category(
-        self, findings: list[NormalizedFinding]
-    ) -> dict[str, list[NormalizedFinding]]:
+    def group_by_category(self, findings: list[NormalizedFinding]) -> dict[str, list[NormalizedFinding]]:
         """Group findings by their normalized category.
 
         Returns:
@@ -312,9 +334,7 @@ class CorrelationEngine:
             result[finding.category].append(finding)
         return dict(result)
 
-    def group_by_severity(
-        self, findings: list[NormalizedFinding]
-    ) -> dict[Severity, list[NormalizedFinding]]:
+    def group_by_severity(self, findings: list[NormalizedFinding]) -> dict[Severity, list[NormalizedFinding]]:
         """Group findings by severity level.
 
         Returns:
@@ -409,9 +429,7 @@ class CorrelationEngine:
 # ---------------------------------------------------------------------------
 
 
-def _derive_title(
-    sorted_by_sev: list[NormalizedFinding], max_severity: Severity
-) -> str:
+def _derive_title(sorted_by_sev: list[NormalizedFinding], max_severity: Severity) -> str:
     """Derive a single descriptive title for a correlated finding."""
     for f in sorted_by_sev:
         for ref in f.references:
@@ -426,8 +444,10 @@ def _derive_description(
 ) -> str:
     """Derive a consolidated description from grouped findings."""
     parts: list[str] = []
-    parts.append(f"Correlated from {len(sorted_by_sev)} finding(s) "
-                 f"across {len({f.scanner_id for f in sorted_by_sev})} scanner(s).")
+    parts.append(
+        f"Correlated from {len(sorted_by_sev)} finding(s) "
+        f"across {len({f.scanner_id for f in sorted_by_sev})} scanner(s)."
+    )
 
     for f in sorted_by_sev:
         parts.append(f"[{f.scanner_id}] {f.title} — {f.description[:120]}")

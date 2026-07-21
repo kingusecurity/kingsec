@@ -110,9 +110,7 @@ class TestScannerPluginPort:
                 return ()
 
             def is_available(self) -> PluginAvailability:
-                return PluginAvailability(
-                    available=False, reason="binary not found"
-                )
+                return PluginAvailability(available=False, reason="binary not found")
 
             def scan(self, target, config):
                 raise AssertionError("should not be called")

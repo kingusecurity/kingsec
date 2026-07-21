@@ -13,6 +13,7 @@ from .dependencies import get_application
 if TYPE_CHECKING:
     from kingsec.bootstrap.application import Application
 
+
 async def require_valid_session(
     request: Request,
     current_user: CurrentUser = Depends(get_current_user),

@@ -204,8 +204,7 @@ def _confidence_from_edges(edges: tuple[AttackEdge, ...]) -> float:
     return sum(e.confidence for e in edges) / len(edges)
 
 
-def _is_reachable(source: AttackNode, target: AttackNode,
-                  finding_map: dict[str, EnrichedFinding]) -> AttackEdge | None:
+def _is_reachable(source: AttackNode, target: AttackNode, finding_map: dict[str, EnrichedFinding]) -> AttackEdge | None:
     """Detect if there is a reachability relationship between two nodes.
 
     Returns an ``AttackEdge`` if a relationship is found, ``None`` otherwise.
@@ -234,8 +233,11 @@ def _is_reachable(source: AttackNode, target: AttackNode,
             confidence=0.6,
         )
 
-    if (src_finding.attack_surface and tgt_finding.attack_surface
-            and src_finding.attack_surface == tgt_finding.attack_surface):
+    if (
+        src_finding.attack_surface
+        and tgt_finding.attack_surface
+        and src_finding.attack_surface == tgt_finding.attack_surface
+    ):
         return AttackEdge(
             source_id=source.node_id,
             target_id=target.node_id,
@@ -282,15 +284,11 @@ def _build_attack_steps(nodes: tuple[AttackNode, ...]) -> list[str]:
         service = node.service or "unknown"
         step_num = _ATTACK_STAGE.get(surface, 0)
         label = _STAGE_LABELS.get(step_num, "Unknown Stage")
-        steps.append(
-            f"Step {i + 1}: {label} — {node.title} "
-            f"({surface}/{service}, risk {node.risk_score})"
-        )
+        steps.append(f"Step {i + 1}: {label} — {node.title} ({surface}/{service}, risk {node.risk_score})")
     return steps
 
 
-def _build_recommendations(nodes: tuple[AttackNode, ...],
-                           finding_map: dict[str, EnrichedFinding]) -> tuple[str, ...]:
+def _build_recommendations(nodes: tuple[AttackNode, ...], finding_map: dict[str, EnrichedFinding]) -> tuple[str, ...]:
     """Collect and deduplicate recommendations from all nodes."""
     seen: set[str] = set()
     result: list[str] = []
@@ -506,10 +504,7 @@ class AttackPathAnalyzer:
 
         # Collect relevant edges
         node_ids = {n.node_id for n in ordered_nodes}
-        path_edges = tuple(
-            e for e in all_edges
-            if e.source_id in node_ids and e.target_id in node_ids
-        )
+        path_edges = tuple(e for e in all_edges if e.source_id in node_ids and e.target_id in node_ids)
 
         path_id = _generate_path_id([n.node_id for n in ordered_nodes])
 

@@ -83,18 +83,23 @@ class ChangePassword:
         """Validate password complexity."""
         if len(password) < 8:
             from kingsec.domain.user import PasswordValidationError
+
             raise PasswordValidationError("password must be at least 8 characters")
         if len(password) > 128:
             from kingsec.domain.user import PasswordValidationError
+
             raise PasswordValidationError("password must be at most 128 characters")
         if not any(c.isupper() for c in password):
             from kingsec.domain.user import PasswordValidationError
+
             raise PasswordValidationError("password must contain an uppercase letter")
         if not any(c.islower() for c in password):
             from kingsec.domain.user import PasswordValidationError
+
             raise PasswordValidationError("password must contain a lowercase letter")
         if not any(c.isdigit() for c in password):
             from kingsec.domain.user import PasswordValidationError
+
             raise PasswordValidationError("password must contain a digit")
 
 

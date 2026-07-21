@@ -38,10 +38,15 @@ class TestInMemoryAgentRepository:
     def test_find_all(self) -> None:
         self.repo.register(self.agent)
         a2 = Agent(
-            id=AgentId("a2"), name="Agent Two",
-            platform=AgentPlatform.LINUX, architecture=AgentArchitecture.AMD64,
-            version="1.0", hostname="w2", state=AgentState.ONLINE,
-            capability=AgentCapability(), api_key_hash="h2",
+            id=AgentId("a2"),
+            name="Agent Two",
+            platform=AgentPlatform.LINUX,
+            architecture=AgentArchitecture.AMD64,
+            version="1.0",
+            hostname="w2",
+            state=AgentState.ONLINE,
+            capability=AgentCapability(),
+            api_key_hash="h2",
         )
         self.repo.register(a2)
         assert len(self.repo.find_all()) == 2
@@ -49,10 +54,15 @@ class TestInMemoryAgentRepository:
     def test_update(self) -> None:
         self.repo.register(self.agent)
         updated = Agent(
-            id=AgentId("a1"), name="Updated",
-            platform=AgentPlatform.LINUX, architecture=AgentArchitecture.AMD64,
-            version="2.0.0", hostname="worker-1", state=AgentState.BUSY,
-            capability=AgentCapability(), api_key_hash="hash",
+            id=AgentId("a1"),
+            name="Updated",
+            platform=AgentPlatform.LINUX,
+            architecture=AgentArchitecture.AMD64,
+            version="2.0.0",
+            hostname="worker-1",
+            state=AgentState.BUSY,
+            capability=AgentCapability(),
+            api_key_hash="hash",
         )
         self.repo.update(updated)
         found = self.repo.find_by_id(AgentId("a1"))
@@ -68,10 +78,15 @@ class TestInMemoryAgentRepository:
     def test_find_online(self) -> None:
         self.repo.register(self.agent)
         busy = Agent(
-            id=AgentId("a2"), name="Busy",
-            platform=AgentPlatform.LINUX, architecture=AgentArchitecture.AMD64,
-            version="1.0", hostname="w2", state=AgentState.BUSY,
-            capability=AgentCapability(), api_key_hash="h2",
+            id=AgentId("a2"),
+            name="Busy",
+            platform=AgentPlatform.LINUX,
+            architecture=AgentArchitecture.AMD64,
+            version="1.0",
+            hostname="w2",
+            state=AgentState.BUSY,
+            capability=AgentCapability(),
+            api_key_hash="h2",
         )
         self.repo.register(busy)
         online = self.repo.find_online()
@@ -81,10 +96,15 @@ class TestInMemoryAgentRepository:
     def test_find_idle(self) -> None:
         self.repo.register(self.agent)
         busy = Agent(
-            id=AgentId("a2"), name="Busy",
-            platform=AgentPlatform.LINUX, architecture=AgentArchitecture.AMD64,
-            version="1.0", hostname="w2", state=AgentState.ONLINE,
-            capability=AgentCapability(), api_key_hash="h2",
+            id=AgentId("a2"),
+            name="Busy",
+            platform=AgentPlatform.LINUX,
+            architecture=AgentArchitecture.AMD64,
+            version="1.0",
+            hostname="w2",
+            state=AgentState.ONLINE,
+            capability=AgentCapability(),
+            api_key_hash="h2",
             current_job_id="job-1",
         )
         self.repo.register(busy)

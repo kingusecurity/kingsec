@@ -65,36 +65,34 @@ def _get_indexes(database_url: str, table_name: str) -> dict[str, bool]:
     engine = create_engine(database_url, future=True)
     try:
         inspector = inspect(engine)
-        return {
-            idx["name"]: idx["unique"]
-            for idx in inspector.get_indexes(table_name)
-            if idx["name"]
-        }
+        return {idx["name"]: idx["unique"] for idx in inspector.get_indexes(table_name) if idx["name"]}
     finally:
         engine.dispose()
 
 
-EXPECTED_TABLES = frozenset({
-    "api_keys",
-    "assessments",
-    "assets",
-    "audit_entries",
-    "audit_events",
-    "evidence",
-    "findings",
-    "mfa_recovery_codes",
-    "mfa_secrets",
-    "notifications",
-    "recommendations",
-    "reports",
-    "scan_findings",
-    "scan_jobs",
-    "scan_reports",
-    "scan_results",
-    "schedules",
-    "sessions",
-    "users",
-})
+EXPECTED_TABLES = frozenset(
+    {
+        "api_keys",
+        "assessments",
+        "assets",
+        "audit_entries",
+        "audit_events",
+        "evidence",
+        "findings",
+        "mfa_recovery_codes",
+        "mfa_secrets",
+        "notifications",
+        "recommendations",
+        "reports",
+        "scan_findings",
+        "scan_jobs",
+        "scan_reports",
+        "scan_results",
+        "schedules",
+        "sessions",
+        "users",
+    }
+)
 
 
 class TestMigrationUpgrade:
@@ -203,7 +201,10 @@ class TestMigrationAutogenerate:
 
         # Autogenerate should detect nothing new.
         result = _run_alembic(
-            "revision", "--autogenerate", "-m", "no changes",
+            "revision",
+            "--autogenerate",
+            "-m",
+            "no changes",
             database_url=db_url,
         )
         assert result.returncode == 0
@@ -219,12 +220,8 @@ class TestMigrationMetadata:
         """The metadata imported by env.py must know about every ORM table."""
         import importlib.util
 
-        models_path = (
-            _PROJECT_ROOT / "src" / "kingsec" / "infrastructure" / "persistence" / "models.py"
-        )
-        spec = importlib.util.spec_from_file_location(
-            "kingsec.infrastructure.persistence.models", models_path
-        )
+        models_path = _PROJECT_ROOT / "src" / "kingsec" / "infrastructure" / "persistence" / "models.py"
+        spec = importlib.util.spec_from_file_location("kingsec.infrastructure.persistence.models", models_path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
 

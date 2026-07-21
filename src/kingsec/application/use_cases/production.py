@@ -34,17 +34,18 @@ class GetHealth:
             elif c.status.value == "degraded" and worst.value == "healthy":
                 worst = HealthStatus.DEGRADED
         overall = HealthCheck(name="overall", status=worst)
-        self._audit.record(AuditEntry(
-            action=AuditAction.HEALTH_CHECK,
-            resource_type="system",
-            success=worst != HealthStatus.UNHEALTHY,
-        ))
+        self._audit.record(
+            AuditEntry(
+                action=AuditAction.HEALTH_CHECK,
+                resource_type="system",
+                success=worst != HealthStatus.UNHEALTHY,
+            )
+        )
         return overall
 
 
 class GetLiveness:
-    def __init__(self, monitor: SystemMonitorPort, lifecycle: LifecycleManagerPort,
-                 audit: AuditPublisher) -> None:
+    def __init__(self, monitor: SystemMonitorPort, lifecycle: LifecycleManagerPort, audit: AuditPublisher) -> None:
         self._monitor = monitor
         self._lifecycle = lifecycle
         self._audit = audit
@@ -52,11 +53,13 @@ class GetLiveness:
     def execute(self) -> LivenessReport:
         alive = self._lifecycle.is_running()
         report = self._monitor.get_liveness()
-        self._audit.record(AuditEntry(
-            action=AuditAction.LIVENESS_CHECK,
-            resource_type="system",
-            success=alive,
-        ))
+        self._audit.record(
+            AuditEntry(
+                action=AuditAction.LIVENESS_CHECK,
+                resource_type="system",
+                success=alive,
+            )
+        )
         return report
 
 
@@ -67,17 +70,18 @@ class GetReadiness:
 
     def execute(self) -> ReadinessReport:
         report = self._monitor.get_readiness()
-        self._audit.record(AuditEntry(
-            action=AuditAction.READINESS_CHECK,
-            resource_type="system",
-            success=report.ready,
-        ))
+        self._audit.record(
+            AuditEntry(
+                action=AuditAction.READINESS_CHECK,
+                resource_type="system",
+                success=report.ready,
+            )
+        )
         return report
 
 
 class CollectMetrics:
-    def __init__(self, collector: MetricsCollectorPort, repo: HealthRepositoryPort,
-                 logger: LoggingPort) -> None:
+    def __init__(self, collector: MetricsCollectorPort, repo: HealthRepositoryPort, logger: LoggingPort) -> None:
         self._collector = collector
         self._repo = repo
         self._logger = logger
@@ -127,36 +131,38 @@ class ValidateConfiguration:
 
 
 class ShutdownGracefully:
-    def __init__(self, lifecycle: LifecycleManagerPort, logger: LoggingPort,
-                 audit: AuditPublisher) -> None:
+    def __init__(self, lifecycle: LifecycleManagerPort, logger: LoggingPort, audit: AuditPublisher) -> None:
         self._lifecycle = lifecycle
         self._logger = logger
         self._audit = audit
 
     def execute(self) -> None:
         self._logger.info("System shutdown initiated")
-        self._audit.record(AuditEntry(
-            action=AuditAction.SYSTEM_STOPPED,
-            resource_type="system",
-            success=True,
-        ))
+        self._audit.record(
+            AuditEntry(
+                action=AuditAction.SYSTEM_STOPPED,
+                resource_type="system",
+                success=True,
+            )
+        )
         self._lifecycle.shutdown()
 
 
 class RestartService:
-    def __init__(self, lifecycle: LifecycleManagerPort, logger: LoggingPort,
-                 audit: AuditPublisher) -> None:
+    def __init__(self, lifecycle: LifecycleManagerPort, logger: LoggingPort, audit: AuditPublisher) -> None:
         self._lifecycle = lifecycle
         self._logger = logger
         self._audit = audit
 
     def execute(self) -> None:
         self._logger.info("System restart initiated")
-        self._audit.record(AuditEntry(
-            action=AuditAction.SYSTEM_RESTARTED,
-            resource_type="system",
-            success=True,
-        ))
+        self._audit.record(
+            AuditEntry(
+                action=AuditAction.SYSTEM_RESTARTED,
+                resource_type="system",
+                success=True,
+            )
+        )
         self._lifecycle.restart()
 
 

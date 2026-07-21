@@ -62,9 +62,7 @@ def _build_processors(*, json_format: bool, colors: bool) -> list[Any]:
     return processors
 
 
-def configure_logging(
-    settings: LoggingSettings, *, stream: TextIO | None = None
-) -> None:
+def configure_logging(settings: LoggingSettings, *, stream: TextIO | None = None) -> None:
     """Configure the global structlog pipeline from LoggingSettings.
 
     Call once at startup (the composition root will do this after loading
@@ -82,14 +80,10 @@ def configure_logging(
     colors = hasattr(target, "isatty") and target.isatty()
 
     structlog.configure(
-        processors=_build_processors(
-            json_format=settings.json_format, colors=colors
-        ),
+        processors=_build_processors(json_format=settings.json_format, colors=colors),
         # Efficient level filtering: calls below the threshold become no-ops
         # instead of building and discarding an event dict.
-        wrapper_class=structlog.make_filtering_bound_logger(
-            _level_to_int(settings.level.value)
-        ),
+        wrapper_class=structlog.make_filtering_bound_logger(_level_to_int(settings.level.value)),
         logger_factory=structlog.WriteLoggerFactory(file=target),
         # Cache the bound logger per call site for performance. Safe because
         # configuration is immutable for the process lifetime after startup.

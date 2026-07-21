@@ -1,4 +1,5 @@
 """Tests for enterprise audit event use cases."""
+
 from __future__ import annotations
 
 import pytest
@@ -68,20 +69,22 @@ class TestRecordAuditEvent:
         repo = StubAuditEventRepository()
         use_case = RecordAuditEvent(repo)
 
-        result = use_case.execute(RecordAuditEventRequest(
-            actor_id="user-1",
-            actor_type="user",
-            username="admin",
-            ip_address="127.0.0.1",
-            user_agent="TestAgent/1.0",
-            request_id="req-001",
-            action="login_success",
-            resource_type="session",
-            resource_id="sess-001",
-            outcome="success",
-            severity="info",
-            message="User logged in",
-        ))
+        result = use_case.execute(
+            RecordAuditEventRequest(
+                actor_id="user-1",
+                actor_type="user",
+                username="admin",
+                ip_address="127.0.0.1",
+                user_agent="TestAgent/1.0",
+                request_id="req-001",
+                action="login_success",
+                resource_type="session",
+                resource_id="sess-001",
+                outcome="success",
+                severity="info",
+                message="User logged in",
+            )
+        )
 
         assert result.event_id
         event = repo.find_by_id(AuditEventId(result.event_id))
@@ -94,20 +97,22 @@ class TestRecordAuditEvent:
         repo = StubAuditEventRepository()
         use_case = RecordAuditEvent(repo)
 
-        result = use_case.execute(RecordAuditEventRequest(
-            actor_id="unknown",
-            actor_type="user",
-            username="attacker",
-            ip_address="10.0.0.1",
-            user_agent="",
-            request_id="req-002",
-            action="login_failure",
-            resource_type="user",
-            resource_id="",
-            outcome="failure",
-            severity="warning",
-            message="Invalid credentials",
-        ))
+        result = use_case.execute(
+            RecordAuditEventRequest(
+                actor_id="unknown",
+                actor_type="user",
+                username="attacker",
+                ip_address="10.0.0.1",
+                user_agent="",
+                request_id="req-002",
+                action="login_failure",
+                resource_type="user",
+                resource_id="",
+                outcome="failure",
+                severity="warning",
+                message="Invalid credentials",
+            )
+        )
 
         event = repo.find_by_id(AuditEventId(result.event_id))
         assert event is not None
@@ -119,20 +124,22 @@ class TestRecordAuditEvent:
         repo = StubAuditEventRepository()
         use_case = RecordAuditEvent(repo)
 
-        result = use_case.execute(RecordAuditEventRequest(
-            actor_id="user-2",
-            actor_type="user",
-            username="viewer",
-            ip_address="",
-            user_agent="",
-            request_id="req-003",
-            action="permission_denied",
-            resource_type="assessment",
-            resource_id="assess-001",
-            outcome="denied",
-            severity="error",
-            message="Insufficient permissions",
-        ))
+        result = use_case.execute(
+            RecordAuditEventRequest(
+                actor_id="user-2",
+                actor_type="user",
+                username="viewer",
+                ip_address="",
+                user_agent="",
+                request_id="req-003",
+                action="permission_denied",
+                resource_type="assessment",
+                resource_id="assess-001",
+                outcome="denied",
+                severity="error",
+                message="Insufficient permissions",
+            )
+        )
 
         event = repo.find_by_id(AuditEventId(result.event_id))
         assert event is not None
@@ -145,40 +152,44 @@ class TestRecordAuditEvent:
         use_case = RecordAuditEvent(repo)
 
         with pytest.raises(Exception):
-            use_case.execute(RecordAuditEventRequest(
-                actor_id="user-1",
-                actor_type="user",
-                username="admin",
-                ip_address="",
-                user_agent="",
-                request_id="",
-                action="invalid_action",
-                resource_type="",
-                resource_id="",
-                outcome="success",
-                severity="info",
-                message="",
-            ))
+            use_case.execute(
+                RecordAuditEventRequest(
+                    actor_id="user-1",
+                    actor_type="user",
+                    username="admin",
+                    ip_address="",
+                    user_agent="",
+                    request_id="",
+                    action="invalid_action",
+                    resource_type="",
+                    resource_id="",
+                    outcome="success",
+                    severity="info",
+                    message="",
+                )
+            )
 
     def test_record_with_metadata(self) -> None:
         repo = StubAuditEventRepository()
         use_case = RecordAuditEvent(repo)
 
-        result = use_case.execute(RecordAuditEventRequest(
-            actor_id="user-1",
-            actor_type="user",
-            username="admin",
-            ip_address="",
-            user_agent="",
-            request_id="req-004",
-            action="api_key_created",
-            resource_type="api_key",
-            resource_id="key-001",
-            outcome="success",
-            severity="info",
-            message="API key created",
-            metadata={"key_name": "ci-cd-token", "scope": "read_only"},
-        ))
+        result = use_case.execute(
+            RecordAuditEventRequest(
+                actor_id="user-1",
+                actor_type="user",
+                username="admin",
+                ip_address="",
+                user_agent="",
+                request_id="req-004",
+                action="api_key_created",
+                resource_type="api_key",
+                resource_id="key-001",
+                outcome="success",
+                severity="info",
+                message="API key created",
+                metadata={"key_name": "ci-cd-token", "scope": "read_only"},
+            )
+        )
 
         event = repo.find_by_id(AuditEventId(result.event_id))
         assert event is not None

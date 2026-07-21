@@ -15,6 +15,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
+
     from kingsec.infrastructure.config.settings import Settings
 
 

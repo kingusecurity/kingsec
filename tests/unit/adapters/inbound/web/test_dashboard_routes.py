@@ -22,12 +22,21 @@ from kingsec.domain.dashboard import (
 def mock_service() -> MagicMock:
     service = MagicMock()
     service.get_summary.return_value = DashboardSummary(
-        total_scans=100, successful_scans=80, failed_scans=20,
-        total_findings=500, critical_findings=10, high_findings=50,
-        medium_findings=100, low_findings=340,
+        total_scans=100,
+        successful_scans=80,
+        failed_scans=20,
+        total_findings=500,
+        critical_findings=10,
+        high_findings=50,
+        medium_findings=100,
+        low_findings=340,
     )
     service.get_severity_breakdown.return_value = SeverityBreakdown(
-        critical=10, high=50, medium=100, low=300, info=40,
+        critical=10,
+        high=50,
+        medium=100,
+        low=300,
+        info=40,
     )
     service.get_trend_data.return_value = [
         TrendPoint(date="2025-01-01", value=10.0),
@@ -36,13 +45,24 @@ def mock_service() -> MagicMock:
     service.get_scanner_statistics.return_value = []
     service.get_worker_statistics.return_value = []
     service.get_job_statistics.return_value = JobStatistics(
-        pending=2, running=1, completed=80, failed=10, cancelled=7,
+        pending=2,
+        running=1,
+        completed=80,
+        failed=10,
+        cancelled=7,
     )
     service.get_schedule_statistics.return_value = ScheduleStatistics(
-        total=20, active=15, paused=3, disabled=2,
+        total=20,
+        active=15,
+        paused=3,
+        disabled=2,
     )
     service.get_notification_statistics.return_value = NotificationStatistics(
-        total=200, sent=180, failed=10, pending=5, read_count=5,
+        total=200,
+        sent=180,
+        failed=10,
+        pending=5,
+        read_count=5,
     )
     service.get_recent_activity.return_value = [
         {"id": "a1", "type": "assessment", "action": "COMPLETED", "target": "example.com", "timestamp": "now"},
@@ -57,20 +77,27 @@ def app(mock_service: MagicMock) -> TestClient:
         app_instance.resolve.return_value = mock_service
 
         from fastapi import FastAPI
+
         app = FastAPI()
         from kingsec.adapters.inbound.web.versioning import register_versioned_routes
+
         register_versioned_routes(app)
         app.state.kingsec_app = app_instance
         client = TestClient(app)
         from kingsec.adapters.inbound.web.auth import CurrentUser, get_current_user
+
         app.dependency_overrides[get_current_user] = lambda: CurrentUser(
             user_id="user1",
             username="test",
             role=Role.ADMIN,
             claims=TokenClaims(
-                user_id="user1", username="test", role="admin",
-                token_type="access", jti="test-jti",
-                issued_at=datetime.now(), expires_at=datetime.now(),
+                user_id="user1",
+                username="test",
+                role="admin",
+                token_type="access",
+                jti="test-jti",
+                issued_at=datetime.now(),
+                expires_at=datetime.now(),
             ),
         )
         return client

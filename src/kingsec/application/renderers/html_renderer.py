@@ -219,9 +219,7 @@ class HTMLReportRenderer:
 
     @staticmethod
     def _write_header(parts: list[str], report: Report) -> None:
-        ts = report.created_at.astimezone(UTC).strftime(
-            "%Y-%m-%d %H:%M:%S UTC"
-        )
+        ts = report.created_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
         parts.append(f"<h1>{html.escape(report.title)}</h1>")
         parts.append(f'<p class="timestamp">Generated: {html.escape(ts)}</p>')
 
@@ -246,41 +244,24 @@ class HTMLReportRenderer:
             ("Informational", es.informational_count, "info"),
         ]
         for label, count, cls in rows:
-            parts.append(
-                f'<tr><td><span class="severity-{cls}">{label}</span></td>'
-                f"<td>{count}</td></tr>"
-            )
+            parts.append(f'<tr><td><span class="severity-{cls}">{label}</span></td><td>{count}</td></tr>')
         parts.append("</table>")
-        parts.append(
-            f'<p><strong>Total findings:</strong> {es.total_findings}</p>'
-        )
+        parts.append(f"<p><strong>Total findings:</strong> {es.total_findings}</p>")
         parts.append("<h3>Attack Path Summary</h3>")
         ap = report.attack_path_section
         parts.append("<table>")
         parts.append("<tr><th>Metric</th><th>Value</th></tr>")
         parts.append(f"<tr><td>Attack Paths</td><td>{ap.total_paths}</td></tr>")
-        parts.append(
-            f"<tr><td>Highest Score</td><td>{ap.highest_score}/100</td></tr>"
-        )
-        parts.append(
-            f"<tr><td>Average Score</td><td>{ap.average_score:.1f}</td></tr>"
-        )
+        parts.append(f"<tr><td>Highest Score</td><td>{ap.highest_score}/100</td></tr>")
+        parts.append(f"<tr><td>Average Score</td><td>{ap.average_score:.1f}</td></tr>")
         parts.append("</table>")
         parts.append("<h3>Scope</h3>")
         parts.append("<table>")
         parts.append("<tr><th>Metric</th><th>Value</th></tr>")
-        parts.append(
-            f"<tr><td>Total Findings</td><td>{es.total_findings}</td></tr>"
-        )
-        parts.append(
-            f"<tr><td>Affected Assets</td><td>{es.total_assets}</td></tr>"
-        )
-        parts.append(
-            f"<tr><td>Top Risk Score</td><td>{es.top_risk_score}/100</td></tr>"
-        )
-        parts.append(
-            f"<tr><td>Average Risk Score</td><td>{es.average_risk_score:.1f}</td></tr>"
-        )
+        parts.append(f"<tr><td>Total Findings</td><td>{es.total_findings}</td></tr>")
+        parts.append(f"<tr><td>Affected Assets</td><td>{es.total_assets}</td></tr>")
+        parts.append(f"<tr><td>Top Risk Score</td><td>{es.top_risk_score}/100</td></tr>")
+        parts.append(f"<tr><td>Average Risk Score</td><td>{es.average_risk_score:.1f}</td></tr>")
         parts.append("</table>")
         parts.append("</section>")
 
@@ -302,23 +283,14 @@ class HTMLReportRenderer:
                 cls = level.lower()
                 if cls == "informational":
                     cls = "info"
-                parts.append(
-                    f'<tr><td><span class="severity-{cls}">{level}</span></td>'
-                    f"<td>{count}</td></tr>"
-                )
+                parts.append(f'<tr><td><span class="severity-{cls}">{level}</span></td><td>{count}</td></tr>')
             parts.append("</table>")
         parts.append("<h3>Risk Statistics</h3>")
         parts.append("<table>")
         parts.append("<tr><th>Metric</th><th>Value</th></tr>")
-        parts.append(
-            f"<tr><td>Average Score</td><td>{rs.average_score:.1f}</td></tr>"
-        )
-        parts.append(
-            f"<tr><td>Highest Score</td><td>{rs.highest_score}/100</td></tr>"
-        )
-        parts.append(
-            f"<tr><td>Lowest Score</td><td>{rs.lowest_score}/100</td></tr>"
-        )
+        parts.append(f"<tr><td>Average Score</td><td>{rs.average_score:.1f}</td></tr>")
+        parts.append(f"<tr><td>Highest Score</td><td>{rs.highest_score}/100</td></tr>")
+        parts.append(f"<tr><td>Lowest Score</td><td>{rs.lowest_score}/100</td></tr>")
         parts.append("</table>")
         if rs.top_risk_factors:
             parts.append("<h3>Top Risk Factors</h3>")
@@ -348,14 +320,9 @@ class HTMLReportRenderer:
                 cls = "info"
             parts.append('<div class="card">')
             parts.append(
-                f"<h3>{html.escape(fe.title)} "
-                f'<span class="badge badge-{cls}">'
-                f"{html.escape(fe.severity)}</span></h3>"
+                f'<h3>{html.escape(fe.title)} <span class="badge badge-{cls}">{html.escape(fe.severity)}</span></h3>'
             )
-            parts.append(
-                f'<p class="subtitle">Correlation ID: '
-                f'<code>{html.escape(fe.correlation_id)}</code></p>'
-            )
+            parts.append(f'<p class="subtitle">Correlation ID: <code>{html.escape(fe.correlation_id)}</code></p>')
             parts.append("<table>")
             parts.append("<tr><th>Field</th><th>Value</th></tr>")
             parts.append(
@@ -363,55 +330,24 @@ class HTMLReportRenderer:
                 f'<td><span class="severity-{cls}">'
                 f"{html.escape(fe.severity)}</span></td></tr>"
             )
+            parts.append(f"<tr><td><strong>Risk Score</strong></td><td>{fe.risk_score}/100</td></tr>")
+            parts.append(f"<tr><td><strong>Risk Level</strong></td><td>{html.escape(fe.risk_level)}</td></tr>")
+            parts.append(f"<tr><td><strong>Priority</strong></td><td>{html.escape(fe.priority)}</td></tr>")
+            parts.append(f"<tr><td><strong>Category</strong></td><td>{html.escape(fe.category)}</td></tr>")
+            parts.append(f"<tr><td><strong>Confidence</strong></td><td>{fe.confidence:.0%}</td></tr>")
             parts.append(
-                f"<tr><td><strong>Risk Score</strong></td>"
-                f"<td>{fe.risk_score}/100</td></tr>"
-            )
-            parts.append(
-                f"<tr><td><strong>Risk Level</strong></td>"
-                f"<td>{html.escape(fe.risk_level)}</td></tr>"
-            )
-            parts.append(
-                f"<tr><td><strong>Priority</strong></td>"
-                f"<td>{html.escape(fe.priority)}</td></tr>"
-            )
-            parts.append(
-                f"<tr><td><strong>Category</strong></td>"
-                f"<td>{html.escape(fe.category)}</td></tr>"
-            )
-            parts.append(
-                f"<tr><td><strong>Confidence</strong></td>"
-                f"<td>{fe.confidence:.0%}</td></tr>"
-            )
-            parts.append(
-                f"<tr><td><strong>Scanner(s)</strong></td>"
-                f"<td>{html.escape(', '.join(fe.scanner_sources))}</td></tr>"
+                f"<tr><td><strong>Scanner(s)</strong></td><td>{html.escape(', '.join(fe.scanner_sources))}</td></tr>"
             )
             svc = fe.service or "N/A"
-            parts.append(
-                f"<tr><td><strong>Service</strong></td>"
-                f"<td>{html.escape(svc)}</td></tr>"
-            )
+            parts.append(f"<tr><td><strong>Service</strong></td><td>{html.escape(svc)}</td></tr>")
             port_str = str(fe.port) if fe.port is not None else "N/A"
-            parts.append(
-                f"<tr><td><strong>Port</strong></td>"
-                f"<td>{html.escape(port_str)}</td></tr>"
-            )
+            parts.append(f"<tr><td><strong>Port</strong></td><td>{html.escape(port_str)}</td></tr>")
             proto = fe.protocol or "N/A"
-            parts.append(
-                f"<tr><td><strong>Protocol</strong></td>"
-                f"<td>{html.escape(proto)}</td></tr>"
-            )
+            parts.append(f"<tr><td><strong>Protocol</strong></td><td>{html.escape(proto)}</td></tr>")
             surface = fe.attack_surface or "N/A"
-            parts.append(
-                f"<tr><td><strong>Attack Surface</strong></td>"
-                f"<td>{html.escape(surface)}</td></tr>"
-            )
+            parts.append(f"<tr><td><strong>Attack Surface</strong></td><td>{html.escape(surface)}</td></tr>")
             assets_str = ", ".join(fe.affected_assets) if fe.affected_assets else "N/A"
-            parts.append(
-                f"<tr><td><strong>Affected Assets</strong></td>"
-                f"<td>{html.escape(assets_str)}</td></tr>"
-            )
+            parts.append(f"<tr><td><strong>Affected Assets</strong></td><td>{html.escape(assets_str)}</td></tr>")
             parts.append("</table>")
             parts.append("</div>")
         parts.append("</section>")
@@ -438,9 +374,7 @@ class HTMLReportRenderer:
 
         for path in aps.graph.paths:
             parts.append('<div class="card">')
-            parts.append(
-                f"<h3>Path: <code>{html.escape(path.path_id)}</code></h3>"
-            )
+            parts.append(f"<h3>Path: <code>{html.escape(path.path_id)}</code></h3>")
             parts.append(
                 f"<p><strong>Attack Score:</strong> {path.attack_score}/100<br>"
                 f"<strong>Confidence:</strong> {path.confidence:.0%}<br>"
@@ -452,9 +386,7 @@ class HTMLReportRenderer:
                 f"{html.escape(path.likelihood)}</p>"
             )
             if path.reasoning:
-                parts.append(
-                    f"<p><em>{html.escape(path.reasoning)}</em></p>"
-                )
+                parts.append(f"<p><em>{html.escape(path.reasoning)}</em></p>")
             if path.nodes:
                 parts.append("<h4>Nodes</h4>")
                 parts.append("<table>")
@@ -482,10 +414,7 @@ class HTMLReportRenderer:
             if path.edges:
                 parts.append("<h4>Edges</h4>")
                 parts.append("<table>")
-                parts.append(
-                    "<tr><th>Source</th><th>Target</th>"
-                    "<th>Relationship</th><th>Confidence</th></tr>"
-                )
+                parts.append("<tr><th>Source</th><th>Target</th><th>Relationship</th><th>Confidence</th></tr>")
                 for e in path.edges:
                     parts.append(
                         f"<tr><td>{html.escape(e.source_id)}</td>"
@@ -523,10 +452,7 @@ class HTMLReportRenderer:
             f"{a.total_findings}</p>"
         )
         parts.append("<table>")
-        parts.append(
-            "<tr><th>Asset</th><th>Findings</th>"
-            "<th>Highest Risk</th><th>Avg Risk</th></tr>"
-        )
+        parts.append("<tr><th>Asset</th><th>Findings</th><th>Highest Risk</th><th>Avg Risk</th></tr>")
         for entry in a.entries:
             parts.append(
                 f"<tr><td>{html.escape(entry.asset)}</td>"
@@ -551,10 +477,7 @@ class HTMLReportRenderer:
             parts.append("</section>")
             return
 
-        parts.append(
-            f"<p><strong>Total recommendations:</strong> "
-            f"{rs.total_recommendations}</p>"
-        )
+        parts.append(f"<p><strong>Total recommendations:</strong> {rs.total_recommendations}</p>")
 
         for i, entry in enumerate(rs.entries, 1):
             cls = entry.severity.lower()
@@ -573,10 +496,7 @@ class HTMLReportRenderer:
                 f'<td><span class="severity-{cls}">'
                 f"{html.escape(entry.severity)}</span></td></tr>"
             )
-            parts.append(
-                f"<tr><td><strong>Risk Score</strong></td>"
-                f"<td>{entry.risk_score}/100</td></tr>"
-            )
+            parts.append(f"<tr><td><strong>Risk Score</strong></td><td>{entry.risk_score}/100</td></tr>")
             parts.append(
                 f"<tr><td><strong>Correlation ID</strong></td>"
                 f"<td><code>{html.escape(entry.correlation_id)}</code></td></tr>"
@@ -605,41 +525,23 @@ class HTMLReportRenderer:
             parts.append("<tr><th>Scanner</th><th>Version</th></tr>")
             for scanner in sorted(app.scanner_versions):
                 ver = app.scanner_versions[scanner] or "unknown"
-                parts.append(
-                    f"<tr><td>{html.escape(scanner)}</td>"
-                    f"<td>{html.escape(ver)}</td></tr>"
-                )
+                parts.append(f"<tr><td>{html.escape(scanner)}</td><td>{html.escape(ver)}</td></tr>")
             parts.append("</table>")
         parts.append("<h3>Statistics</h3>")
         parts.append("<table>")
         parts.append("<tr><th>Metric</th><th>Value</th></tr>")
         ts = report.technical_summary
-        parts.append(
-            f"<tr><td>Normalized Findings</td>"
-            f"<td>{ts.total_findings}</td></tr>"
-        )
-        parts.append(
-            f"<tr><td>Correlated Findings</td>"
-            f"<td>{ts.total_correlations}</td></tr>"
-        )
-        parts.append(
-            f"<tr><td>Enriched Findings</td>"
-            f"<td>{ts.total_enriched}</td></tr>"
-        )
-        parts.append(
-            f"<tr><td>Risk Assessments</td>"
-            f"<td>{ts.total_risk_assessments}</td></tr>"
-        )
+        parts.append(f"<tr><td>Normalized Findings</td><td>{ts.total_findings}</td></tr>")
+        parts.append(f"<tr><td>Correlated Findings</td><td>{ts.total_correlations}</td></tr>")
+        parts.append(f"<tr><td>Enriched Findings</td><td>{ts.total_enriched}</td></tr>")
+        parts.append(f"<tr><td>Risk Assessments</td><td>{ts.total_risk_assessments}</td></tr>")
         parts.append("</table>")
         if ts.category_breakdown:
             parts.append("<h4>Category Breakdown</h4>")
             parts.append("<table>")
             parts.append("<tr><th>Category</th><th>Count</th></tr>")
             for cat in sorted(ts.category_breakdown):
-                parts.append(
-                    f"<tr><td>{html.escape(cat)}</td>"
-                    f"<td>{ts.category_breakdown[cat]}</td></tr>"
-                )
+                parts.append(f"<tr><td>{html.escape(cat)}</td><td>{ts.category_breakdown[cat]}</td></tr>")
             parts.append("</table>")
         parts.append("<h3>Metadata</h3>")
         parts.append(

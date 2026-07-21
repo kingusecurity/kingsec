@@ -27,15 +27,24 @@ from kingsec.infrastructure.logging import get_logger
 _logger = get_logger("kingsec.infrastructure.scanner")
 
 # Pattern: /path                 (Status: 200) [Size: 1234]
-_FINDING_RE = re.compile(
-    r"^\s*(\S+)\s+\(Status:\s*(\d+)\)\s+\[Size:\s*(\d+)\]"
-)
+_FINDING_RE = re.compile(r"^\s*(\S+)\s+\(Status:\s*(\d+)\)\s+\[Size:\s*(\d+)\]")
 
 # Sensitive paths → HIGH
-_SENSITIVE_PATHS = frozenset({
-    "/.git", "/.env", "/backup", "/config", "/dump", "/sql",
-    "/database", "/db", "/private", "/secret", "/credentials",
-})
+_SENSITIVE_PATHS = frozenset(
+    {
+        "/.git",
+        "/.env",
+        "/backup",
+        "/config",
+        "/dump",
+        "/sql",
+        "/database",
+        "/db",
+        "/private",
+        "/secret",
+        "/credentials",
+    }
+)
 
 # Admin/login paths → MEDIUM
 _ADMIN_PATH_RE = re.compile(

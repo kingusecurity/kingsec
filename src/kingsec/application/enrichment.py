@@ -200,7 +200,12 @@ _BUSINESS_IMPACT_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"admin|administrator|admin panel|admin login|admin console", re.IGNORECASE), "High"),
     (re.compile(r"database|db |sql|mysql|postgres|oracle|redis|mongodb|cassandra", re.IGNORECASE), "Critical"),
     (re.compile(r"ssh|remote access|shell|rce|remote code|code execution|remote exec", re.IGNORECASE), "Critical"),
-    (re.compile(r"auth.?bypass|authentication.?bypass|bypass.?auth|unauthorized|privilege.?escalation", re.IGNORECASE), "Critical"),
+    (
+        re.compile(
+            r"auth.?bypass|authentication.?bypass|bypass.?auth|unauthorized|privilege.?escalation", re.IGNORECASE
+        ),
+        "Critical",
+    ),
     (re.compile(r"sensitive|credential|password|secret|api.?key|token|pii|personal", re.IGNORECASE), "High"),
     (re.compile(r"injection|xss|sqli|rce|code.?exec|remote.?exec|command.?inject", re.IGNORECASE), "Critical"),
     (re.compile(r"directory.?traversal|path.?traversal|lfi|rfi|file.?inclusion", re.IGNORECASE), "High"),
@@ -211,7 +216,13 @@ _BUSINESS_IMPACT_PATTERNS: list[tuple[re.Pattern[str], str]] = [
 ]
 
 _REMEDIATION_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"missing header|csp|hsts|x.?frame|x.?content|x.?permitted|add header|set header|configure header", re.IGNORECASE), "Easy"),
+    (
+        re.compile(
+            r"missing header|csp|hsts|x.?frame|x.?content|x.?permitted|add header|set header|configure header",
+            re.IGNORECASE,
+        ),
+        "Easy",
+    ),
     (re.compile(r"upgrade|update|patch|version|outdated|deprecated|newer|old.?version|bump", re.IGNORECASE), "Medium"),
     (re.compile(r"reconfigur|migrate|redeploy|infrastructure|architecture|redesign|refactor", re.IGNORECASE), "Hard"),
     (re.compile(r"ssl.?cert|tls.?cert|certificate|expired|renew", re.IGNORECASE), "Medium"),
@@ -221,9 +232,18 @@ _REMEDIATION_PATTERNS: list[tuple[re.Pattern[str], str]] = [
 ]
 
 _ATTACK_SURFACE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"web|http|apache|nginx|iis|tomcat|wordpress|drupal|joomla|php|node|express|django|flask|rails|xss|sqli|header|csp|hsts", re.IGNORECASE), "Web Application"),
+    (
+        re.compile(
+            r"web|http|apache|nginx|iis|tomcat|wordpress|drupal|joomla|php|node|express|django|flask|rails|xss|sqli|header|csp|hsts",
+            re.IGNORECASE,
+        ),
+        "Web Application",
+    ),
     (re.compile(r"ssh|openssh|remote|telnet|ftp|smtp|rdp|vnc|snmp", re.IGNORECASE), "Network Service"),
-    (re.compile(r"database|sql|mysql|postgres|oracle|redis|mongodb|mariadb|cassandra|elasticsearch", re.IGNORECASE), "Database"),
+    (
+        re.compile(r"database|sql|mysql|postgres|oracle|redis|mongodb|mariadb|cassandra|elasticsearch", re.IGNORECASE),
+        "Database",
+    ),
     (re.compile(r"dns|domain|subdomain|zone", re.IGNORECASE), "DNS"),
     (re.compile(r"api|rest|graphql|soap|restful|endpoint", re.IGNORECASE), "API"),
     (re.compile(r"container|docker|kubernetes|k8s|pod|image|registry", re.IGNORECASE), "Container"),
@@ -236,33 +256,94 @@ _ATTACK_SURFACE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
 _RISK_FACTOR_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"remote|network.?accessible|externally.?accessible|public", re.IGNORECASE), "Remote Exploitable"),
     (re.compile(r"auth.?bypass|authentication.?bypass|no.?auth|without.?auth", re.IGNORECASE), "Authentication Bypass"),
-    (re.compile(r"credential|password|secret|api.?key|token|plain.?text|cleartext", re.IGNORECASE), "Credential Exposure"),
-    (re.compile(r"rce|code.?execution|remote.?code|shell|command.?inject|arbitrary.?code", re.IGNORECASE), "Remote Code Execution"),
-    (re.compile(r"xss|cross.?site.?script|inject|sqli|sql.?inject|ldap.?inject|command.?inject", re.IGNORECASE), "Injection"),
+    (
+        re.compile(r"credential|password|secret|api.?key|token|plain.?text|cleartext", re.IGNORECASE),
+        "Credential Exposure",
+    ),
+    (
+        re.compile(r"rce|code.?execution|remote.?code|shell|command.?inject|arbitrary.?code", re.IGNORECASE),
+        "Remote Code Execution",
+    ),
+    (
+        re.compile(r"xss|cross.?site.?script|inject|sqli|sql.?inject|ldap.?inject|command.?inject", re.IGNORECASE),
+        "Injection",
+    ),
     (re.compile(r"dos|ddos|denial.?of.?service|crash|hang|exhaust", re.IGNORECASE), "Denial of Service"),
     (re.compile(r"privilege.?escalation|privesc|elevat|root|admin.?access", re.IGNORECASE), "Privilege Escalation"),
     (re.compile(r"information.?disclosure|info.?leak|expos|sensitive.?data", re.IGNORECASE), "Information Disclosure"),
-    (re.compile(r"misconfig|insecure.?config|default.?config|default.?credential|default.?password", re.IGNORECASE), "Misconfiguration"),
+    (
+        re.compile(r"misconfig|insecure.?config|default.?config|default.?credential|default.?password", re.IGNORECASE),
+        "Misconfiguration",
+    ),
 ]
 
 _PORT_RE = re.compile(r"(?:port\s*[:#]?\s*|:)(\d{1,5})", re.IGNORECASE)
 
-_SOFTWARE_NAMES: frozenset[str] = frozenset({
-    "openssh", "ssh", "apache", "httpd", "nginx", "iis",
-    "mysql", "mariadb", "postgresql", "postgres", "oracle",
-    "redis", "mongodb", "elasticsearch",
-    "tomcat", "jetty", "jboss", "wildfly",
-    "php", "python", "node", "express",
-    "wordpress", "drupal", "joomla",
-    "openssl", "ssl", "tls",
-    "docker", "kubernetes", "k8s",
-    "git", "jenkins", "jira", "confluence",
-    "ftp", "smtp", "dns", "dhcp", "ntp", "snmp",
-    "ldap", "kerberos", "rdp", "vnc", "telnet",
-    "ruby", "rails", "django", "flask", "spring", "struts",
-    "hadoop", "spark", "kafka", "rabbitmq", "haproxy",
-    "memcached", "cassandra", "couchdb", "neo4j",
-})
+_SOFTWARE_NAMES: frozenset[str] = frozenset(
+    {
+        "openssh",
+        "ssh",
+        "apache",
+        "httpd",
+        "nginx",
+        "iis",
+        "mysql",
+        "mariadb",
+        "postgresql",
+        "postgres",
+        "oracle",
+        "redis",
+        "mongodb",
+        "elasticsearch",
+        "tomcat",
+        "jetty",
+        "jboss",
+        "wildfly",
+        "php",
+        "python",
+        "node",
+        "express",
+        "wordpress",
+        "drupal",
+        "joomla",
+        "openssl",
+        "ssl",
+        "tls",
+        "docker",
+        "kubernetes",
+        "k8s",
+        "git",
+        "jenkins",
+        "jira",
+        "confluence",
+        "ftp",
+        "smtp",
+        "dns",
+        "dhcp",
+        "ntp",
+        "snmp",
+        "ldap",
+        "kerberos",
+        "rdp",
+        "vnc",
+        "telnet",
+        "ruby",
+        "rails",
+        "django",
+        "flask",
+        "spring",
+        "struts",
+        "hadoop",
+        "spark",
+        "kafka",
+        "rabbitmq",
+        "haproxy",
+        "memcached",
+        "cassandra",
+        "couchdb",
+        "neo4j",
+    }
+)
 
 _SEVERITY_WEIGHT: dict[Severity, int] = {
     Severity.CRITICAL: 40,
@@ -420,7 +501,12 @@ class FindingEnricher:
         remediation_complexity = self.estimate_remediation_complexity(finding)
         priority = self.calculate_priority(finding)
         metadata = self._build_metadata(
-            service, protocol, port, technology, operating_system, attack_surface,
+            service,
+            protocol,
+            port,
+            technology,
+            operating_system,
+            attack_surface,
         )
 
         return EnrichedFinding(

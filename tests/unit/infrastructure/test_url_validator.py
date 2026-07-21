@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import socket
+
 import pytest
 
 from kingsec.infrastructure.notifications.url_validator import SSRFError, validate_url
@@ -45,7 +47,14 @@ class TestSSRFValidation:
     def test_allows_public_ip(self) -> None:
         validate_url("http://93.184.216.34")
 
-    def test_allows_public_hostname(self) -> None:
+    def test_allows_public_hostname(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            socket,
+            "getaddrinfo",
+            lambda hostname, port, family=0, type=0, proto=0, flags=0: [
+                (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))
+            ],
+        )
         validate_url("https://hooks.slack.com/services/T00/B00/xxx")
 
     def test_allows_with_allowlist(self) -> None:

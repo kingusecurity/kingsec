@@ -55,11 +55,13 @@ def app(mock_service: MagicMock) -> TestClient:
 
         app = FastAPI()
         from kingsec.adapters.inbound.web.versioning import register_versioned_routes
+
         register_versioned_routes(app)
 
         app.state.kingsec_app = app_instance
         client = TestClient(app)
         from kingsec.adapters.inbound.web.auth import CurrentUser, get_current_user
+
         app.dependency_overrides[get_current_user] = lambda: CurrentUser(
             user_id="user1",
             username="test",
@@ -96,6 +98,7 @@ class TestGetNotification:
 
     def test_get_nonexistent_returns_404(self, app: TestClient, mock_service: MagicMock) -> None:
         from kingsec.application.errors import NotificationNotFoundError
+
         mock_service.get.side_effect = NotificationNotFoundError("not found")
         response = app.get("/api/v1/notifications/nonexistent")
         assert response.status_code == 404
@@ -103,21 +106,27 @@ class TestGetNotification:
 
 class TestSendNotification:
     def test_send_returns_200(self, app: TestClient) -> None:
-        response = app.post("/api/v1/notifications/send", json={
-            "channel": "in_app",
-            "event_type": "test",
-            "priority": "medium",
-        })
+        response = app.post(
+            "/api/v1/notifications/send",
+            json={
+                "channel": "in_app",
+                "event_type": "test",
+                "priority": "medium",
+            },
+        )
         assert response.status_code == 200
 
 
 class TestBulk:
     def test_bulk_returns_200(self, app: TestClient) -> None:
-        response = app.post("/api/v1/notifications/bulk", json={
-            "notifications": [
-                {"channel": "in_app", "event_type": "test"},
-            ]
-        })
+        response = app.post(
+            "/api/v1/notifications/bulk",
+            json={
+                "notifications": [
+                    {"channel": "in_app", "event_type": "test"},
+                ]
+            },
+        )
         assert response.status_code == 200
 
 

@@ -22,8 +22,7 @@ def _make_factor(
     contribution: int = 22,
     description: str = "Severity is HIGH",
 ) -> RiskFactor:
-    return RiskFactor(name=name, weight=weight,
-                      contribution=contribution, description=description)
+    return RiskFactor(name=name, weight=weight, contribution=contribution, description=description)
 
 
 def _make_assessment(
@@ -36,18 +35,16 @@ def _make_assessment(
     if factors is None:
         factors = (
             _make_factor(name="severity", description="Severity is HIGH"),
-            _make_factor(name="confidence", weight=15, contribution=9,
-                         description="Confidence is 0.60"),
-            _make_factor(name="exploit_likelihood", weight=15, contribution=10,
-                         description="Exploit likelihood is Medium"),
-            _make_factor(name="business_impact", weight=15, contribution=7,
-                         description="Business impact is Medium"),
-            _make_factor(name="attack_surface", weight=10, contribution=8,
-                         description="Attack surface is Network Service"),
-            _make_factor(name="scanner_count", weight=10, contribution=6,
-                         description="Detected by 2 scanner(s)"),
-            _make_factor(name="risk_factors", weight=5, contribution=3,
-                         description="2 risk factor(s) identified"),
+            _make_factor(name="confidence", weight=15, contribution=9, description="Confidence is 0.60"),
+            _make_factor(
+                name="exploit_likelihood", weight=15, contribution=10, description="Exploit likelihood is Medium"
+            ),
+            _make_factor(name="business_impact", weight=15, contribution=7, description="Business impact is Medium"),
+            _make_factor(
+                name="attack_surface", weight=10, contribution=8, description="Attack surface is Network Service"
+            ),
+            _make_factor(name="scanner_count", weight=10, contribution=6, description="Detected by 2 scanner(s)"),
+            _make_factor(name="risk_factors", weight=5, contribution=3, description="2 risk factor(s) identified"),
         )
     return RiskAssessment(
         correlation_id=correlation_id,

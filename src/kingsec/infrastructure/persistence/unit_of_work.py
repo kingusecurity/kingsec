@@ -57,17 +57,13 @@ class _SessionBoundAssessmentRepository(AssessmentRepository):
         try:
             ops.persist_assessment(self._session, assessment)
         except SQLAlchemyError as exc:
-            ops.raise_persistence_error(
-                "failed to save assessment", exc, str(assessment.id)
-            )
+            ops.raise_persistence_error("failed to save assessment", exc, str(assessment.id))
 
     def get(self, assessment_id: AssessmentId) -> Assessment:
         try:
             return ops.load_assessment(self._session, assessment_id)
         except SQLAlchemyError as exc:
-            ops.raise_persistence_error(
-                "failed to load assessment", exc, assessment_id.value
-            )
+            ops.raise_persistence_error("failed to load assessment", exc, assessment_id.value)
 
     def list(
         self,
@@ -76,9 +72,7 @@ class _SessionBoundAssessmentRepository(AssessmentRepository):
         offset: int = 0,
     ) -> list[Assessment]:
         try:
-            return ops.list_assessments(
-                self._session, limit=min(max(limit, 1), 200), offset=max(offset, 0)
-            )
+            return ops.list_assessments(self._session, limit=min(max(limit, 1), 200), offset=max(offset, 0))
         except SQLAlchemyError as exc:
             ops.raise_persistence_error("failed to list assessments", exc, "-")
 
@@ -86,9 +80,7 @@ class _SessionBoundAssessmentRepository(AssessmentRepository):
         try:
             ops.delete_assessment(self._session, assessment_id)
         except SQLAlchemyError as exc:
-            ops.raise_persistence_error(
-                "failed to delete assessment", exc, assessment_id.value
-            )
+            ops.raise_persistence_error("failed to delete assessment", exc, assessment_id.value)
 
 
 class _SessionBoundReportRepository(ReportRepository):
@@ -101,17 +93,13 @@ class _SessionBoundReportRepository(ReportRepository):
         try:
             ops.persist_report(self._session, report)
         except SQLAlchemyError as exc:
-            ops.raise_persistence_error(
-                "failed to save report", exc, report.assessment_id
-            )
+            ops.raise_persistence_error("failed to save report", exc, report.assessment_id)
 
     def get(self, assessment_id: AssessmentId) -> Report:
         try:
             return ops.load_report(self._session, assessment_id)
         except SQLAlchemyError as exc:
-            ops.raise_persistence_error(
-                "failed to load report", exc, assessment_id.value
-            )
+            ops.raise_persistence_error("failed to load report", exc, assessment_id.value)
 
 
 class SqlAlchemyUnitOfWork(UnitOfWork):

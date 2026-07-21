@@ -38,9 +38,7 @@ class InMemoryRateLimiter(RateLimiterPort):
             allowed = count < policy.max_requests
 
             oldest = entry.timestamps[0] if entry.timestamps else now
-            reset_seconds = max(
-                0, int(policy.window_seconds - (now - oldest)) + 1
-            ) if entry.timestamps else 0
+            reset_seconds = max(0, int(policy.window_seconds - (now - oldest)) + 1) if entry.timestamps else 0
 
             return RateLimitDecision(
                 allowed=allowed,
@@ -70,9 +68,6 @@ class InMemoryRateLimiter(RateLimiterPort):
         now = time.time()
         cutoff = now - window_seconds
         with self._lock:
-            expired = [
-                k for k, v in self._buckets.items()
-                if not v.timestamps or max(v.timestamps) < cutoff
-            ]
+            expired = [k for k, v in self._buckets.items() if not v.timestamps or max(v.timestamps) < cutoff]
             for k in expired:
                 del self._buckets[k]

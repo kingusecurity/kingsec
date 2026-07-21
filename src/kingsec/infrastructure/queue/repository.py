@@ -91,6 +91,7 @@ class SQLAlchemyQueueRepository(QueueRepositoryPort):
 
     def enqueue(self, entry: QueueEntry) -> None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             session.execute(
                 text("""
@@ -116,6 +117,7 @@ class SQLAlchemyQueueRepository(QueueRepositoryPort):
 
     def dequeue(self, entry_id: str) -> QueueEntry | None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             row = session.execute(
                 text("SELECT * FROM scan_queue WHERE entry_id = :entry_id"),
@@ -132,6 +134,7 @@ class SQLAlchemyQueueRepository(QueueRepositoryPort):
 
     def peek(self, entry_id: str) -> QueueEntry | None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             row = session.execute(
                 text("SELECT * FROM scan_queue WHERE entry_id = :entry_id"),
@@ -143,6 +146,7 @@ class SQLAlchemyQueueRepository(QueueRepositoryPort):
 
     def remove(self, entry_id: str) -> None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             session.execute(text("DELETE FROM scan_queue WHERE entry_id = :entry_id"), {"entry_id": entry_id})
             session.commit()
@@ -158,12 +162,14 @@ class SQLAlchemyQueueRepository(QueueRepositoryPort):
 
     def find_all(self) -> list[QueueEntry]:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             rows = session.execute(text("SELECT * FROM scan_queue ORDER BY created_at DESC")).fetchall()
             return [self._row_to_entry(r._mapping) for r in rows]
 
     def update(self, entry: QueueEntry) -> None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             session.execute(
                 text("""
@@ -196,15 +202,11 @@ class SQLAlchemyQueueRepository(QueueRepositoryPort):
                 state_counts[r.state] = r.cnt
 
             # Compute wait times from created_at only (no full-row fetch)
-            ts_rows = session.execute(
-                text("SELECT created_at FROM scan_queue")
-            ).fetchall()
+            ts_rows = session.execute(text("SELECT created_at FROM scan_queue")).fetchall()
 
         now = datetime.now(UTC)
         wait_times: list[float] = [
-            (now - datetime.fromisoformat(r.created_at)).total_seconds()
-            for r in ts_rows
-            if r.created_at
+            (now - datetime.fromisoformat(r.created_at)).total_seconds() for r in ts_rows if r.created_at
         ]
         avg_wait = sum(wait_times) / len(wait_times) if wait_times else 0.0
         longest = max(wait_times) if wait_times else 0.0
@@ -225,6 +227,7 @@ class SQLAlchemyQueueRepository(QueueRepositoryPort):
 
     def _find_by_state(self, state: str) -> list[QueueEntry]:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             rows = session.execute(
                 text("SELECT * FROM scan_queue WHERE state = :state ORDER BY priority DESC, created_at ASC"),

@@ -34,14 +34,16 @@ class InMemoryNotificationRepository(NotificationRepositoryPort):
     def find_by_user(self, user_id: str, limit: int = 50, offset: int = 0) -> tuple[list[Notification], int]:
         all_n = [n for n in self._store.values() if n.user_id == user_id]
         all_n.sort(key=lambda n: n.created_at, reverse=True)
-        return all_n[offset:offset + limit], len(all_n)
+        return all_n[offset : offset + limit], len(all_n)
 
     def find_all(self, limit: int = 50, offset: int = 0) -> tuple[list[Notification], int]:
         all_n = list(self._store.values())
         all_n.sort(key=lambda n: n.created_at, reverse=True)
-        return all_n[offset:offset + limit], len(all_n)
+        return all_n[offset : offset + limit], len(all_n)
 
-    def update_status(self, notification_id: NotificationId, status: NotificationStatus, error_message: str | None = None) -> None:
+    def update_status(
+        self, notification_id: NotificationId, status: NotificationStatus, error_message: str | None = None
+    ) -> None:
         old = self._store.get(str(notification_id))
         if old is None:
             return
@@ -191,6 +193,7 @@ class TestGetNotification:
         import pytest
 
         from kingsec.application.errors import NotificationNotFoundError
+
         with pytest.raises(NotificationNotFoundError):
             self.service.get(NotificationId("no-such"))
 
@@ -212,6 +215,7 @@ class TestMarkNotificationRead:
         import pytest
 
         from kingsec.application.errors import NotificationNotFoundError
+
         with pytest.raises(NotificationNotFoundError):
             self.service.mark_read(NotificationId("no-such"))
 
@@ -228,6 +232,7 @@ class TestDeleteNotification:
         self.service.send(n)
         self.service.delete(n.id)
         from kingsec.application.errors import NotificationNotFoundError
+
         with pytest.raises(NotificationNotFoundError):
             self.service.get(n.id)
 

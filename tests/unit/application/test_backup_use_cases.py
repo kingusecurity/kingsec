@@ -103,8 +103,12 @@ class TestRestoreBackup:
     def test_restore_success(self, repo, storage, encryption, compression, audit) -> None:
         bid = BackupId(value="bkp-1")
         backup = BackupMetadata(
-            backup_id=bid, backup_type=BackupType.FULL, status=BackupStatus.COMPLETED,
-            encrypted=True, compressed=True, checksum="",
+            backup_id=bid,
+            backup_type=BackupType.FULL,
+            status=BackupStatus.COMPLETED,
+            encrypted=True,
+            compressed=True,
+            checksum="",
         )
         repo.find_backup_by_id.return_value = backup
         uc = RestoreBackup(repo, storage, encryption, compression, audit)
@@ -120,8 +124,12 @@ class TestRestoreBackup:
     def test_restore_failure(self, repo, storage, encryption, compression, audit) -> None:
         bid = BackupId(value="bkp-1")
         backup = BackupMetadata(
-            backup_id=bid, backup_type=BackupType.FULL, status=BackupStatus.COMPLETED,
-            encrypted=True, compressed=True, checksum="",
+            backup_id=bid,
+            backup_type=BackupType.FULL,
+            status=BackupStatus.COMPLETED,
+            encrypted=True,
+            compressed=True,
+            checksum="",
         )
         repo.find_backup_by_id.return_value = backup
         storage.read.return_value = None
@@ -133,7 +141,9 @@ class TestRestoreBackup:
 class TestListBackups:
     def test_list(self, repo) -> None:
         repo.find_all_backups.return_value = [
-            BackupMetadata(backup_id=BackupId(value="bkp-1"), backup_type=BackupType.FULL, status=BackupStatus.COMPLETED),
+            BackupMetadata(
+                backup_id=BackupId(value="bkp-1"), backup_type=BackupType.FULL, status=BackupStatus.COMPLETED
+            ),
         ]
         uc = ListBackups(repo)
         result = uc.execute()
@@ -148,7 +158,9 @@ class TestListBackups:
 class TestDeleteBackup:
     def test_delete(self, repo, storage, audit) -> None:
         repo.find_backup_by_id.return_value = BackupMetadata(
-            backup_id=BackupId(value="bkp-1"), backup_type=BackupType.FULL, status=BackupStatus.COMPLETED,
+            backup_id=BackupId(value="bkp-1"),
+            backup_type=BackupType.FULL,
+            status=BackupStatus.COMPLETED,
         )
         uc = DeleteBackup(repo, storage, audit)
         uc.execute("bkp-1")
@@ -166,8 +178,11 @@ class TestDeleteBackup:
 class TestValidateBackup:
     def test_valid(self, repo, storage, encryption, compression) -> None:
         repo.find_backup_by_id.return_value = BackupMetadata(
-            backup_id=BackupId(value="bkp-1"), backup_type=BackupType.FULL, status=BackupStatus.COMPLETED,
-            encrypted=True, compressed=True,
+            backup_id=BackupId(value="bkp-1"),
+            backup_type=BackupType.FULL,
+            status=BackupStatus.COMPLETED,
+            encrypted=True,
+            compressed=True,
         )
         uc = ValidateBackup(repo, storage, encryption, compression)
         assert uc.execute("bkp-1") is True
@@ -180,8 +195,11 @@ class TestValidateBackup:
 
     def test_invalid_data(self, repo, storage, encryption, compression) -> None:
         repo.find_backup_by_id.return_value = BackupMetadata(
-            backup_id=BackupId(value="bkp-1"), backup_type=BackupType.FULL, status=BackupStatus.COMPLETED,
-            encrypted=True, compressed=True,
+            backup_id=BackupId(value="bkp-1"),
+            backup_type=BackupType.FULL,
+            status=BackupStatus.COMPLETED,
+            encrypted=True,
+            compressed=True,
         )
         storage.read.return_value = None
         uc = ValidateBackup(repo, storage, encryption, compression)
@@ -216,6 +234,7 @@ class TestRestoreSnapshot:
         restore_uc = MagicMock()
         uc = RestoreSnapshot(repo, restore_uc, audit)
         from kingsec.application.errors import SnapshotNotFoundError
+
         with pytest.raises(SnapshotNotFoundError):
             uc.execute("snap-missing")
 
@@ -237,6 +256,7 @@ class TestVerifyRestore:
         repo.find_restore_by_id.return_value = None
         uc = VerifyRestore(repo)
         from kingsec.application.errors import RestoreNotFoundError
+
         with pytest.raises(RestoreNotFoundError):
             uc.execute("rest-missing")
 
@@ -244,7 +264,9 @@ class TestVerifyRestore:
 class TestCleanupExpiredBackups:
     def test_cleanup_removes_excess_full(self, repo, storage, audit) -> None:
         backups = [
-            BackupMetadata(backup_id=BackupId(value=f"bkp-{i}"), backup_type=BackupType.FULL, status=BackupStatus.COMPLETED)
+            BackupMetadata(
+                backup_id=BackupId(value=f"bkp-{i}"), backup_type=BackupType.FULL, status=BackupStatus.COMPLETED
+            )
             for i in range(5)
         ]
         repo.find_all_backups.return_value = backups
@@ -255,7 +277,9 @@ class TestCleanupExpiredBackups:
 
     def test_cleanup_removes_excess_incremental(self, repo, storage, audit) -> None:
         backups = [
-            BackupMetadata(backup_id=BackupId(value=f"bkp-{i}"), backup_type=BackupType.INCREMENTAL, status=BackupStatus.COMPLETED)
+            BackupMetadata(
+                backup_id=BackupId(value=f"bkp-{i}"), backup_type=BackupType.INCREMENTAL, status=BackupStatus.COMPLETED
+            )
             for i in range(5)
         ]
         repo.find_all_backups.return_value = backups
@@ -266,7 +290,9 @@ class TestCleanupExpiredBackups:
 
     def test_cleanup_no_excess(self, repo, storage, audit) -> None:
         backups = [
-            BackupMetadata(backup_id=BackupId(value="bkp-1"), backup_type=BackupType.FULL, status=BackupStatus.COMPLETED),
+            BackupMetadata(
+                backup_id=BackupId(value="bkp-1"), backup_type=BackupType.FULL, status=BackupStatus.COMPLETED
+            ),
         ]
         repo.find_all_backups.return_value = backups
         uc = CleanupExpiredBackups(repo, storage, audit)

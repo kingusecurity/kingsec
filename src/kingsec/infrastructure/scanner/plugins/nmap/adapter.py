@@ -65,12 +65,8 @@ class NmapPlugin(ScannerPluginPort):
         """Declare Nmap's scanning capabilities."""
         return (
             ScannerCapability(
-                target_types=frozenset(
-                    {TargetType.IP_ADDRESS, TargetType.HOSTNAME, TargetType.NETWORK}
-                ),
-                scan_categories=frozenset(
-                    {ScanCategory.DISCOVERY, ScanCategory.CONFIGURATION}
-                ),
+                target_types=frozenset({TargetType.IP_ADDRESS, TargetType.HOSTNAME, TargetType.NETWORK}),
+                scan_categories=frozenset({ScanCategory.DISCOVERY, ScanCategory.CONFIGURATION}),
                 output_format=OutputFormat.RAW_TEXT,
             ),
         )

@@ -37,20 +37,24 @@ class Permission(Enum):
 
 
 ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
-    Role.VIEWER: frozenset({
-        Permission.READ_REPORTS,
-        Permission.READ_SUMMARIES,
-        Permission.READ_HEALTH,
-    }),
-    Role.ANALYST: frozenset({
-        Permission.CREATE_SCAN,
-        Permission.LIST_SCANS,
-        Permission.VIEW_REPORTS,
-        Permission.DOWNLOAD_REPORTS,
-        Permission.CREATE_API_KEY,
-        Permission.LIST_API_KEYS,
-        Permission.ROTATE_API_KEY,
-        Permission.DELETE_API_KEY,
-    }),
+    Role.VIEWER: frozenset(
+        {
+            Permission.READ_REPORTS,
+            Permission.READ_SUMMARIES,
+            Permission.READ_HEALTH,
+        }
+    ),
+    Role.ANALYST: frozenset(
+        {
+            Permission.CREATE_SCAN,
+            Permission.LIST_SCANS,
+            Permission.VIEW_REPORTS,
+            Permission.DOWNLOAD_REPORTS,
+            Permission.CREATE_API_KEY,
+            Permission.LIST_API_KEYS,
+            Permission.ROTATE_API_KEY,
+            Permission.DELETE_API_KEY,
+        }
+    ),
     Role.ADMIN: frozenset(Permission),
 }

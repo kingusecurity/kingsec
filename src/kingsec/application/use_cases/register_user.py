@@ -62,6 +62,7 @@ class RegisterUser:
 
         # Step 6: Create the user entity.
         import uuid
+
         user = User(
             id=str(uuid.uuid4()),
             username=request.username,

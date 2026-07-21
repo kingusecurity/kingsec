@@ -11,9 +11,7 @@ from kingsec.infrastructure.config import load_settings
 class TestSecretMasking:
     """A configured API key must never appear in any string representation."""
 
-    def test_key_absent_from_repr_and_str(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_key_absent_from_repr_and_str(self, monkeypatch: pytest.MonkeyPatch) -> None:
         secret = "sk-super-secret-do-not-leak"
         monkeypatch.setenv("KINGSEC_AI__API_KEY", secret)
 
@@ -28,9 +26,7 @@ class TestSecretMasking:
         # ...but the real value is still retrievable on purpose.
         assert settings.ai.api_key.get_secret_value() == secret
 
-    def test_model_dump_keeps_secret_masked(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_model_dump_keeps_secret_masked(self, monkeypatch: pytest.MonkeyPatch) -> None:
         secret = "sk-another-secret"
         monkeypatch.setenv("KINGSEC_AI__API_KEY", secret)
 

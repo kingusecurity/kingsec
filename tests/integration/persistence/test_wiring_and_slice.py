@@ -50,12 +50,8 @@ class TestContainerWiring:
         register_persistence(container, Settings(), engine=engine, validate_migrations=False)
 
         # Ports resolve to the SQLite adapters.
-        assert isinstance(
-            container.resolve(AssessmentRepository), SqlAlchemyAssessmentRepository
-        )
-        assert isinstance(
-            container.resolve(ReportRepository), SqlAlchemyReportRepository
-        )
+        assert isinstance(container.resolve(AssessmentRepository), SqlAlchemyAssessmentRepository)
+        assert isinstance(container.resolve(ReportRepository), SqlAlchemyReportRepository)
 
     def test_shutdown_hook_disposes_engine(self, tmp_path: Path) -> None:
         container = Container()
@@ -85,16 +81,12 @@ class TestEndToEndSlice:
         )
 
         # 2. Start (loads from DB, scans, records, completes, re-saves)
-        started = StartAssessment(assessments, _StubScanner()).execute(
-            StartAssessmentRequest(created.assessment_id)
-        )
+        started = StartAssessment(assessments, _StubScanner()).execute(StartAssessmentRequest(created.assessment_id))
         assert started.status == "completed"
         assert started.findings_count == 1
 
         # 3. Get (loads persisted state)
-        view = GetAssessment(assessments).execute(
-            GetAssessmentRequest(created.assessment_id)
-        )
+        view = GetAssessment(assessments).execute(GetAssessmentRequest(created.assessment_id))
         assert view.status == "completed"
         assert len(view.findings) == 1
 

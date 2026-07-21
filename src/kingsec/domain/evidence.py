@@ -19,8 +19,8 @@ from .errors import InvariantViolation
 class Evidence:
     """Proof supporting a finding (an observation, response, payload, etc.)."""
 
-    summary: str            # short: what this proves
-    detail: str             # the raw supporting material
+    summary: str  # short: what this proves
+    detail: str  # the raw supporting material
     collected_at: datetime  # when it was captured (timezone-aware)
 
     def __post_init__(self) -> None:
@@ -40,7 +40,7 @@ class Recommendation:
 
     title: str
     description: str
-    priority: Severity      # how urgently this should be actioned
+    priority: Severity  # how urgently this should be actioned
 
     def __post_init__(self) -> None:
         ensure_non_empty(self.title, "Recommendation title")

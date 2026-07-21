@@ -103,7 +103,7 @@ class PipelineOrchestrator(PipelineOrchestratorPort):
                 job = self._job_service.submit_scan(target=execution.target)
                 result = PipelineResult(
                     queue_entry_id=result.queue_entry_id,
-                    job_id=str(job.id) if hasattr(job, 'id') else str(job),
+                    job_id=str(job.id) if hasattr(job, "id") else str(job),
                     agent_id=result.agent_id,
                     report_id=result.report_id,
                     notification_ids=result.notification_ids,
@@ -119,7 +119,7 @@ class PipelineOrchestrator(PipelineOrchestratorPort):
             elif next_state == PipelineState.COLLECTING_RESULTS:
                 try:
                     job_result = self._job_service.get_job_result(result.job_id)
-                    findings = getattr(job_result, 'findings', []) or []
+                    findings = getattr(job_result, "findings", []) or []
                     fc = len(findings)
                     result = PipelineResult(
                         queue_entry_id=result.queue_entry_id,
@@ -143,10 +143,10 @@ class PipelineOrchestrator(PipelineOrchestratorPort):
                         queue_entry_id=result.queue_entry_id,
                         job_id=result.job_id,
                         agent_id=result.agent_id,
-                        report_id=getattr(report, 'report_id', ""),
+                        report_id=getattr(report, "report_id", ""),
                         notification_ids=result.notification_ids,
                         findings_count=result.findings_count,
-                        summary=getattr(report, 'summary', ""),
+                        summary=getattr(report, "summary", ""),
                         error_message=result.error_message,
                         started_at=result.started_at,
                         completed_at=now,
@@ -225,8 +225,11 @@ class PipelineOrchestrator(PipelineOrchestratorPort):
         if 0 <= current_idx < len(stages):
             s = stages[current_idx]
             stages[current_idx] = PipelineStage(
-                name=s.name, status="failed", started_at=s.started_at,
-                completed_at=now, error_message="Cancelled",
+                name=s.name,
+                status="failed",
+                started_at=s.started_at,
+                completed_at=now,
+                error_message="Cancelled",
             )
         result = PipelineResult(
             queue_entry_id=execution.result.queue_entry_id,
@@ -260,8 +263,11 @@ class PipelineOrchestrator(PipelineOrchestratorPort):
         if 0 <= current_idx < len(stages):
             s = stages[current_idx]
             stages[current_idx] = PipelineStage(
-                name=s.name, status="running", started_at=s.started_at or now,
-                completed_at="", error_message="",
+                name=s.name,
+                status="running",
+                started_at=s.started_at or now,
+                completed_at="",
+                error_message="",
             )
         return PipelineExecution(
             pipeline_id=execution.pipeline_id,
@@ -293,14 +299,18 @@ class PipelineOrchestrator(PipelineOrchestratorPort):
     def resume(self, execution: PipelineExecution) -> PipelineExecution:
         return execution
 
-    def _build_failed(self, execution: PipelineExecution, stages: list[Any],
-                      result: PipelineResult, now: str, error: str) -> PipelineExecution:
+    def _build_failed(
+        self, execution: PipelineExecution, stages: list[Any], result: PipelineResult, now: str, error: str
+    ) -> PipelineExecution:
         current_idx = next((i for i, s in enumerate(PIPELINE_ORDER) if s == execution.state), -1)
         if 0 <= current_idx < len(stages):
             s = stages[current_idx]
             stages[current_idx] = PipelineStage(
-                name=s.name, status="failed", started_at=s.started_at or now,
-                completed_at=now, error_message=error,
+                name=s.name,
+                status="failed",
+                started_at=s.started_at or now,
+                completed_at=now,
+                error_message=error,
             )
         return PipelineExecution(
             pipeline_id=execution.pipeline_id,

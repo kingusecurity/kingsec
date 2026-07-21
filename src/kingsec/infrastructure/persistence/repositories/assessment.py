@@ -50,12 +50,7 @@ class SQLAlchemyAssessmentRepository(AssessmentRepository):
         limit: int = 50,
         offset: int = 0,
     ) -> list[Assessment]:
-        stmt = (
-            select(AssessmentORM)
-            .order_by(AssessmentORM.created_at.desc())
-            .offset(offset)
-            .limit(limit)
-        )
+        stmt = select(AssessmentORM).order_by(AssessmentORM.created_at.desc()).offset(offset).limit(limit)
         orms = self._session.execute(stmt).scalars().all()
         return [assessment_to_domain(o) for o in orms]
 

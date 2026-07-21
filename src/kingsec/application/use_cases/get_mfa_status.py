@@ -1,4 +1,5 @@
 """Use case: get MFA status for a user."""
+
 from __future__ import annotations
 
 from kingsec.application.ports.outbound.mfa_secret_repository import MfaSecretRepository

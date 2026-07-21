@@ -60,6 +60,7 @@ class NotificationService(NotificationServicePort):
         n = self._get.execute(notification_id)
         if n is None:
             from kingsec.application.errors import NotificationNotFoundError
+
             raise NotificationNotFoundError(f"Notification not found: {notification_id}")
         return n
 
@@ -67,6 +68,7 @@ class NotificationService(NotificationServicePort):
         n = self._mark_read.execute(notification_id)
         if n is None:
             from kingsec.application.errors import NotificationNotFoundError
+
             raise NotificationNotFoundError(f"Notification not found: {notification_id}")
         return n
 
@@ -77,11 +79,13 @@ class NotificationService(NotificationServicePort):
         n = self._retry.execute(notification_id)
         if n is None:
             from kingsec.application.errors import NotificationNotFoundError
+
             raise NotificationNotFoundError(f"Notification not found: {notification_id}")
         return n
 
     def render(self, template: object, variables: dict[str, str]) -> tuple[str, str]:
         from kingsec.domain.notification import NotificationTemplate
+
         if not isinstance(template, NotificationTemplate):
             raise TypeError("template must be a NotificationTemplate")
         return self._render.execute(template.event_type, template.channel.value, variables)

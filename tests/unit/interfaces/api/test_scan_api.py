@@ -142,6 +142,7 @@ class TestSuccessfulScan:
         response = self.client.post("/scan", json={"target": "example.com"})
         data = response.json()
         import uuid
+
         uuid.UUID(data["scan_id"])
 
     def test_scan_with_ip_target(self) -> None:
@@ -446,6 +447,7 @@ class TestNoInfrastructureLeaks:
         import inspect
 
         import kingsec.interfaces.api.routes.scan as scan_module
+
         source = inspect.getsource(scan_module)
         assert "infrastructure" not in source.lower()
 
@@ -454,5 +456,6 @@ class TestNoInfrastructureLeaks:
         import inspect
 
         import kingsec.interfaces.api.app as app_module
+
         source = inspect.getsource(app_module)
         assert "infrastructure" not in source.lower()

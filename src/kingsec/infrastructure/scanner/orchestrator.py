@@ -67,9 +67,7 @@ class ScannerOrchestrator(ScannerPort, ScannerExecutor):
             raise
         except Exception as exc:
             p2 = cast(ScannerPluginPort, plugin)
-            raise ScannerPluginError(
-                f"unexpected error in plugin {p2.metadata().id.value!r}: {exc}"
-            ) from exc
+            raise ScannerPluginError(f"unexpected error in plugin {p2.metadata().id.value!r}: {exc}") from exc
 
     def execute_all(
         self,
@@ -95,9 +93,7 @@ class ScannerOrchestrator(ScannerPort, ScannerExecutor):
             except ScannerPluginError:
                 raise
             except Exception as exc:
-                raise ScannerPluginError(
-                    f"unexpected error in plugin {plugin_id.value!r}: {exc}"
-                ) from exc
+                raise ScannerPluginError(f"unexpected error in plugin {plugin_id.value!r}: {exc}") from exc
 
         return tuple(results)
 

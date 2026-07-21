@@ -209,7 +209,4 @@ class Assessment:
         return hash(self._id)
 
     def __repr__(self) -> str:
-        return (
-            f"Assessment(id={self._id.value!r}, status={self._status.value}, "
-            f"findings={len(self._findings)})"
-        )
+        return f"Assessment(id={self._id.value!r}, status={self._status.value}, findings={len(self._findings)})"

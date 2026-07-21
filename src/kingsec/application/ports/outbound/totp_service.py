@@ -1,4 +1,5 @@
 """Port for RFC 6238 TOTP operations."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

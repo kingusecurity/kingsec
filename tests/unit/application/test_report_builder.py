@@ -266,14 +266,23 @@ class TestEmptyReport:
     def test_empty_inputs(self) -> None:
         n1 = _make_attack_node("corr-001")
         p = AttackPath(
-            path_id="path-1", nodes=(n1,), edges=(),
-            attack_score=0, confidence=0.0,
-            estimated_impact="None", attack_complexity="Simple",
-            likelihood="Low", reasoning="Empty.", recommendations=(),
+            path_id="path-1",
+            nodes=(n1,),
+            edges=(),
+            attack_score=0,
+            confidence=0.0,
+            estimated_impact="None",
+            attack_complexity="Simple",
+            likelihood="Low",
+            reasoning="Empty.",
+            recommendations=(),
         )
         ag = AttackGraph(
-            paths=(p,), total_paths=1, highest_score=0,
-            average_score=0.0, metadata={"total_assessments": "0"},
+            paths=(p,),
+            total_paths=1,
+            highest_score=0,
+            average_score=0.0,
+            metadata={"total_assessments": "0"},
         )
         report = _BUILDER.build([], [], [], [], ag)
         assert report.executive_summary.total_findings == 0
@@ -284,14 +293,23 @@ class TestEmptyReport:
     def test_empty_finding_section(self) -> None:
         n1 = _make_attack_node("corr-001")
         p = AttackPath(
-            path_id="path-1", nodes=(n1,), edges=(),
-            attack_score=0, confidence=0.0,
-            estimated_impact="None", attack_complexity="Simple",
-            likelihood="Low", reasoning="Empty.", recommendations=(),
+            path_id="path-1",
+            nodes=(n1,),
+            edges=(),
+            attack_score=0,
+            confidence=0.0,
+            estimated_impact="None",
+            attack_complexity="Simple",
+            likelihood="Low",
+            reasoning="Empty.",
+            recommendations=(),
         )
         ag = AttackGraph(
-            paths=(p,), total_paths=1, highest_score=0,
-            average_score=0.0, metadata={"total_assessments": "0"},
+            paths=(p,),
+            total_paths=1,
+            highest_score=0,
+            average_score=0.0,
+            metadata={"total_assessments": "0"},
         )
         report = _BUILDER.build([], [], [], [], ag)
         assert report.finding_section.total_count == 0
@@ -300,14 +318,23 @@ class TestEmptyReport:
     def test_empty_recommendation_section(self) -> None:
         n1 = _make_attack_node("corr-001")
         p = AttackPath(
-            path_id="path-1", nodes=(n1,), edges=(),
-            attack_score=0, confidence=0.0,
-            estimated_impact="None", attack_complexity="Simple",
-            likelihood="Low", reasoning="Empty.", recommendations=(),
+            path_id="path-1",
+            nodes=(n1,),
+            edges=(),
+            attack_score=0,
+            confidence=0.0,
+            estimated_impact="None",
+            attack_complexity="Simple",
+            likelihood="Low",
+            reasoning="Empty.",
+            recommendations=(),
         )
         ag = AttackGraph(
-            paths=(p,), total_paths=1, highest_score=0,
-            average_score=0.0, metadata={"total_assessments": "0"},
+            paths=(p,),
+            total_paths=1,
+            highest_score=0,
+            average_score=0.0,
+            metadata={"total_assessments": "0"},
         )
         report = _BUILDER.build([], [], [], [], ag)
         assert report.recommendation_section.total_recommendations == 0
@@ -316,14 +343,23 @@ class TestEmptyReport:
     def test_empty_asset_summary(self) -> None:
         n1 = _make_attack_node("corr-001")
         p = AttackPath(
-            path_id="path-1", nodes=(n1,), edges=(),
-            attack_score=0, confidence=0.0,
-            estimated_impact="None", attack_complexity="Simple",
-            likelihood="Low", reasoning="Empty.", recommendations=(),
+            path_id="path-1",
+            nodes=(n1,),
+            edges=(),
+            attack_score=0,
+            confidence=0.0,
+            estimated_impact="None",
+            attack_complexity="Simple",
+            likelihood="Low",
+            reasoning="Empty.",
+            recommendations=(),
         )
         ag = AttackGraph(
-            paths=(p,), total_paths=1, highest_score=0,
-            average_score=0.0, metadata={"total_assessments": "0"},
+            paths=(p,),
+            total_paths=1,
+            highest_score=0,
+            average_score=0.0,
+            metadata={"total_assessments": "0"},
         )
         report = _BUILDER.build([], [], [], [], ag)
         assert report.asset_summary.total_assets == 0
@@ -332,14 +368,23 @@ class TestEmptyReport:
     def test_empty_risk_summary(self) -> None:
         n1 = _make_attack_node("corr-001")
         p = AttackPath(
-            path_id="path-1", nodes=(n1,), edges=(),
-            attack_score=0, confidence=0.0,
-            estimated_impact="None", attack_complexity="Simple",
-            likelihood="Low", reasoning="Empty.", recommendations=(),
+            path_id="path-1",
+            nodes=(n1,),
+            edges=(),
+            attack_score=0,
+            confidence=0.0,
+            estimated_impact="None",
+            attack_complexity="Simple",
+            likelihood="Low",
+            reasoning="Empty.",
+            recommendations=(),
         )
         ag = AttackGraph(
-            paths=(p,), total_paths=1, highest_score=0,
-            average_score=0.0, metadata={"total_assessments": "0"},
+            paths=(p,),
+            total_paths=1,
+            highest_score=0,
+            average_score=0.0,
+            metadata={"total_assessments": "0"},
         )
         report = _BUILDER.build([], [], [], [], ag)
         assert report.risk_summary.score_distribution == {}
@@ -349,14 +394,23 @@ class TestEmptyReport:
     def test_empty_appendix(self) -> None:
         n1 = _make_attack_node("corr-001")
         p = AttackPath(
-            path_id="path-1", nodes=(n1,), edges=(),
-            attack_score=0, confidence=0.0,
-            estimated_impact="None", attack_complexity="Simple",
-            likelihood="Low", reasoning="Empty.", recommendations=(),
+            path_id="path-1",
+            nodes=(n1,),
+            edges=(),
+            attack_score=0,
+            confidence=0.0,
+            estimated_impact="None",
+            attack_complexity="Simple",
+            likelihood="Low",
+            reasoning="Empty.",
+            recommendations=(),
         )
         ag = AttackGraph(
-            paths=(p,), total_paths=1, highest_score=0,
-            average_score=0.0, metadata={"total_assessments": "0"},
+            paths=(p,),
+            total_paths=1,
+            highest_score=0,
+            average_score=0.0,
+            metadata={"total_assessments": "0"},
         )
         report = _BUILDER.build([], [], [], [], ag)
         assert report.appendix.scanner_versions == {}
@@ -373,19 +427,26 @@ class TestExecutiveSummary:
         nfs = [_make_normalized(finding_id="nf-1"), _make_normalized(finding_id="nf-2")]
         cfs = [_make_correlated(correlation_id="corr-001"), _make_correlated(correlation_id="corr-002")]
         efs = [_make_enriched(correlation_id="corr-001"), _make_enriched(correlation_id="corr-002")]
-        ras = [_make_assessment(correlation_id="corr-001", score=80, risk_level="Critical"),
-               _make_assessment(correlation_id="corr-002", score=50, risk_level="Medium")]
+        ras = [
+            _make_assessment(correlation_id="corr-001", score=80, risk_level="Critical"),
+            _make_assessment(correlation_id="corr-002", score=50, risk_level="Medium"),
+        ]
         n1 = _make_attack_node("corr-001")
         n2 = _make_attack_node("corr-002")
-        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002",
-                        relationship="same_asset", confidence=0.8)
-        p = AttackPath(path_id="path-1", nodes=(n1, n2), edges=(e,),
-                       attack_score=68, confidence=0.8,
-                       estimated_impact="High", attack_complexity="Moderate",
-                       likelihood="Medium", reasoning="Two-step.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=68,
-                         average_score=68.0, metadata={})
+        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002", relationship="same_asset", confidence=0.8)
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1, n2),
+            edges=(e,),
+            attack_score=68,
+            confidence=0.8,
+            estimated_impact="High",
+            attack_complexity="Moderate",
+            likelihood="Medium",
+            reasoning="Two-step.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=68, average_score=68.0, metadata={})
         report = _BUILDER.build(nfs, cfs, efs, ras, ag)
         es = report.executive_summary
         assert es.total_findings == 2
@@ -419,27 +480,33 @@ class TestExecutiveSummary:
         nfs = [_make_normalized(finding_id="nf-1"), _make_normalized(finding_id="nf-2")]
         cfs = [_make_correlated(correlation_id="corr-001"), _make_correlated(correlation_id="corr-002")]
         efs = [_make_enriched(correlation_id="corr-001"), _make_enriched(correlation_id="corr-002")]
-        ras = [_make_assessment(correlation_id="corr-001", score=80),
-               _make_assessment(correlation_id="corr-002", score=40)]
+        ras = [
+            _make_assessment(correlation_id="corr-001", score=80),
+            _make_assessment(correlation_id="corr-002", score=40),
+        ]
         n1 = _make_attack_node("corr-001")
         n2 = _make_attack_node("corr-002")
-        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002",
-                        relationship="same_asset", confidence=0.8)
-        p = AttackPath(path_id="path-1", nodes=(n1, n2), edges=(e,),
-                       attack_score=64, confidence=0.8,
-                       estimated_impact="High", attack_complexity="Moderate",
-                       likelihood="Medium", reasoning="Two-step.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=64,
-                         average_score=64.0, metadata={})
+        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002", relationship="same_asset", confidence=0.8)
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1, n2),
+            edges=(e,),
+            attack_score=64,
+            confidence=0.8,
+            estimated_impact="High",
+            attack_complexity="Moderate",
+            likelihood="Medium",
+            reasoning="Two-step.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=64, average_score=64.0, metadata={})
         report = _BUILDER.build(nfs, cfs, efs, ras, ag)
         assert report.executive_summary.average_risk_score == 60.0
 
     def test_total_assets(self) -> None:
         nfs = [_make_normalized(finding_id="nf-1")]
         cfs = [_make_correlated(correlation_id="corr-001")]
-        efs = [_make_enriched(correlation_id="corr-001",
-                               affected_assets=("10.0.0.1", "10.0.0.2"))]
+        efs = [_make_enriched(correlation_id="corr-001", affected_assets=("10.0.0.1", "10.0.0.2"))]
         ras = [_make_assessment(correlation_id="corr-001")]
         ag = _make_attack_graph()
         report = _BUILDER.build(nfs, cfs, efs, ras, ag)
@@ -464,29 +531,32 @@ class TestTechnicalSummary:
             _make_enriched(correlation_id="corr-001", severity=Severity.CRITICAL),
             _make_enriched(correlation_id="corr-002", severity=Severity.HIGH),
         ]
-        ras = [_make_assessment(correlation_id="corr-001"),
-               _make_assessment(correlation_id="corr-002")]
+        ras = [_make_assessment(correlation_id="corr-001"), _make_assessment(correlation_id="corr-002")]
         nfs = [_make_normalized(finding_id="nf-1"), _make_normalized(finding_id="nf-2")]
         cfs = [_make_correlated(correlation_id="corr-001"), _make_correlated(correlation_id="corr-002")]
         n1 = _make_attack_node("corr-001")
         n2 = _make_attack_node("corr-002")
-        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002",
-                        relationship="same_asset", confidence=0.8)
-        p = AttackPath(path_id="path-1", nodes=(n1, n2), edges=(e,),
-                       attack_score=68, confidence=0.8,
-                       estimated_impact="High", attack_complexity="Moderate",
-                       likelihood="Medium", reasoning="Two-step.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=68,
-                         average_score=68.0, metadata={})
+        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002", relationship="same_asset", confidence=0.8)
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1, n2),
+            edges=(e,),
+            attack_score=68,
+            confidence=0.8,
+            estimated_impact="High",
+            attack_complexity="Moderate",
+            likelihood="Medium",
+            reasoning="Two-step.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=68, average_score=68.0, metadata={})
         report = _BUILDER.build(nfs, cfs, efs, ras, ag)
         sb = report.technical_summary.severity_breakdown
         assert sb.get("CRITICAL") == 1
         assert sb.get("HIGH") == 1
 
     def test_scanner_coverage(self) -> None:
-        efs = [_make_enriched(correlation_id="corr-001",
-                               scanner_sources=("nuclei", "nmap"))]
+        efs = [_make_enriched(correlation_id="corr-001", scanner_sources=("nuclei", "nmap"))]
         ras = [_make_assessment(correlation_id="corr-001")]
         nfs = [_make_normalized(finding_id="nf-1")]
         cfs = [_make_correlated(correlation_id="corr-001")]
@@ -501,21 +571,25 @@ class TestTechnicalSummary:
             _make_enriched(correlation_id="corr-001", category="vulnerability"),
             _make_enriched(correlation_id="corr-002", category="misconfiguration"),
         ]
-        ras = [_make_assessment(correlation_id="corr-001"),
-               _make_assessment(correlation_id="corr-002")]
+        ras = [_make_assessment(correlation_id="corr-001"), _make_assessment(correlation_id="corr-002")]
         nfs = [_make_normalized(finding_id="nf-1"), _make_normalized(finding_id="nf-2")]
         cfs = [_make_correlated(correlation_id="corr-001"), _make_correlated(correlation_id="corr-002")]
         n1 = _make_attack_node("corr-001")
         n2 = _make_attack_node("corr-002")
-        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002",
-                        relationship="same_asset", confidence=0.8)
-        p = AttackPath(path_id="path-1", nodes=(n1, n2), edges=(e,),
-                       attack_score=68, confidence=0.8,
-                       estimated_impact="High", attack_complexity="Moderate",
-                       likelihood="Medium", reasoning="Two-step.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=68,
-                         average_score=68.0, metadata={})
+        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002", relationship="same_asset", confidence=0.8)
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1, n2),
+            edges=(e,),
+            attack_score=68,
+            confidence=0.8,
+            estimated_impact="High",
+            attack_complexity="Moderate",
+            likelihood="Medium",
+            reasoning="Two-step.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=68, average_score=68.0, metadata={})
         report = _BUILDER.build(nfs, cfs, efs, ras, ag)
         cb = report.technical_summary.category_breakdown
         assert cb.get("vulnerability") == 1
@@ -533,29 +607,32 @@ class TestRiskSummary:
             _make_assessment(correlation_id="corr-001", score=85, risk_level="Critical"),
             _make_assessment(correlation_id="corr-002", score=70, risk_level="High"),
         ]
-        efs = [_make_enriched(correlation_id="corr-001"),
-               _make_enriched(correlation_id="corr-002")]
+        efs = [_make_enriched(correlation_id="corr-001"), _make_enriched(correlation_id="corr-002")]
         nfs = [_make_normalized(finding_id="nf-1"), _make_normalized(finding_id="nf-2")]
         cfs = [_make_correlated(correlation_id="corr-001"), _make_correlated(correlation_id="corr-002")]
         n1 = _make_attack_node("corr-001")
         n2 = _make_attack_node("corr-002")
-        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002",
-                        relationship="same_asset", confidence=0.8)
-        p = AttackPath(path_id="path-1", nodes=(n1, n2), edges=(e,),
-                       attack_score=79, confidence=0.8,
-                       estimated_impact="High", attack_complexity="Moderate",
-                       likelihood="Medium", reasoning="Two-step.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=79,
-                         average_score=79.0, metadata={})
+        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002", relationship="same_asset", confidence=0.8)
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1, n2),
+            edges=(e,),
+            attack_score=79,
+            confidence=0.8,
+            estimated_impact="High",
+            attack_complexity="Moderate",
+            likelihood="Medium",
+            reasoning="Two-step.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=79, average_score=79.0, metadata={})
         report = _BUILDER.build(nfs, cfs, efs, ras, ag)
         sd = report.risk_summary.score_distribution
         assert sd.get("Critical") == 1
         assert sd.get("High") == 1
 
     def test_top_risk_factors(self) -> None:
-        efs = [_make_enriched(correlation_id="corr-001",
-                               risk_factors=("RCE", "SQL Injection"))]
+        efs = [_make_enriched(correlation_id="corr-001", risk_factors=("RCE", "SQL Injection"))]
         ras = [_make_assessment(correlation_id="corr-001")]
         nfs = [_make_normalized(finding_id="nf-1")]
         cfs = [_make_correlated(correlation_id="corr-001")]
@@ -570,21 +647,25 @@ class TestRiskSummary:
             _make_enriched(correlation_id="corr-001", risk_factors=("RCE",)),
             _make_enriched(correlation_id="corr-002", risk_factors=("RCE",)),
         ]
-        ras = [_make_assessment(correlation_id="corr-001"),
-               _make_assessment(correlation_id="corr-002")]
+        ras = [_make_assessment(correlation_id="corr-001"), _make_assessment(correlation_id="corr-002")]
         nfs = [_make_normalized(finding_id="nf-1"), _make_normalized(finding_id="nf-2")]
         cfs = [_make_correlated(correlation_id="corr-001"), _make_correlated(correlation_id="corr-002")]
         n1 = _make_attack_node("corr-001")
         n2 = _make_attack_node("corr-002")
-        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002",
-                        relationship="same_asset", confidence=0.8)
-        p = AttackPath(path_id="path-1", nodes=(n1, n2), edges=(e,),
-                       attack_score=68, confidence=0.8,
-                       estimated_impact="High", attack_complexity="Moderate",
-                       likelihood="Medium", reasoning="Two-step.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=68,
-                         average_score=68.0, metadata={})
+        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002", relationship="same_asset", confidence=0.8)
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1, n2),
+            edges=(e,),
+            attack_score=68,
+            confidence=0.8,
+            estimated_impact="High",
+            attack_complexity="Moderate",
+            likelihood="Medium",
+            reasoning="Two-step.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=68, average_score=68.0, metadata={})
         report = _BUILDER.build(nfs, cfs, efs, ras, ag)
         assert len(report.risk_summary.top_risk_factors) == 1
 
@@ -593,21 +674,25 @@ class TestRiskSummary:
             _make_assessment(correlation_id="corr-001", score=90),
             _make_assessment(correlation_id="corr-002", score=30),
         ]
-        efs = [_make_enriched(correlation_id="corr-001"),
-               _make_enriched(correlation_id="corr-002")]
+        efs = [_make_enriched(correlation_id="corr-001"), _make_enriched(correlation_id="corr-002")]
         nfs = [_make_normalized(finding_id="nf-1"), _make_normalized(finding_id="nf-2")]
         cfs = [_make_correlated(correlation_id="corr-001"), _make_correlated(correlation_id="corr-002")]
         n1 = _make_attack_node("corr-001")
         n2 = _make_attack_node("corr-002")
-        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002",
-                        relationship="same_asset", confidence=0.8)
-        p = AttackPath(path_id="path-1", nodes=(n1, n2), edges=(e,),
-                       attack_score=66, confidence=0.8,
-                       estimated_impact="High", attack_complexity="Moderate",
-                       likelihood="Medium", reasoning="Two-step.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=66,
-                         average_score=66.0, metadata={})
+        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002", relationship="same_asset", confidence=0.8)
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1, n2),
+            edges=(e,),
+            attack_score=66,
+            confidence=0.8,
+            estimated_impact="High",
+            attack_complexity="Moderate",
+            likelihood="Medium",
+            reasoning="Two-step.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=66, average_score=66.0, metadata={})
         report = _BUILDER.build(nfs, cfs, efs, ras, ag)
         assert report.risk_summary.highest_score == 90
         assert report.risk_summary.lowest_score == 30
@@ -621,10 +706,8 @@ class TestRiskSummary:
 class TestAssetSummary:
     def test_per_asset_stats(self) -> None:
         efs = [
-            _make_enriched(correlation_id="corr-001",
-                           affected_assets=("10.0.0.1",)),
-            _make_enriched(correlation_id="corr-002",
-                           affected_assets=("10.0.0.2",)),
+            _make_enriched(correlation_id="corr-001", affected_assets=("10.0.0.1",)),
+            _make_enriched(correlation_id="corr-002", affected_assets=("10.0.0.2",)),
         ]
         ras = [
             _make_assessment(correlation_id="corr-001", score=90),
@@ -634,24 +717,27 @@ class TestAssetSummary:
         cfs = [_make_correlated(correlation_id="corr-001"), _make_correlated(correlation_id="corr-002")]
         n1 = _make_attack_node("corr-001")
         n2 = _make_attack_node("corr-002")
-        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002",
-                        relationship="same_asset", confidence=0.8)
-        p = AttackPath(path_id="path-1", nodes=(n1, n2), edges=(e,),
-                       attack_score=74, confidence=0.8,
-                       estimated_impact="High", attack_complexity="Moderate",
-                       likelihood="Medium", reasoning="Two-step.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=74,
-                         average_score=74.0, metadata={})
+        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002", relationship="same_asset", confidence=0.8)
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1, n2),
+            edges=(e,),
+            attack_score=74,
+            confidence=0.8,
+            estimated_impact="High",
+            attack_complexity="Moderate",
+            likelihood="Medium",
+            reasoning="Two-step.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=74, average_score=74.0, metadata={})
         report = _BUILDER.build(nfs, cfs, efs, ras, ag)
         assert report.asset_summary.total_assets == 2
 
     def test_asset_finding_count(self) -> None:
         efs = [
-            _make_enriched(correlation_id="corr-001",
-                           affected_assets=("10.0.0.1",)),
-            _make_enriched(correlation_id="corr-002",
-                           affected_assets=("10.0.0.1",)),
+            _make_enriched(correlation_id="corr-001", affected_assets=("10.0.0.1",)),
+            _make_enriched(correlation_id="corr-002", affected_assets=("10.0.0.1",)),
         ]
         ras = [
             _make_assessment(correlation_id="corr-001", score=80),
@@ -661,15 +747,20 @@ class TestAssetSummary:
         cfs = [_make_correlated(correlation_id="corr-001"), _make_correlated(correlation_id="corr-002")]
         n1 = _make_attack_node("corr-001")
         n2 = _make_attack_node("corr-002")
-        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002",
-                        relationship="same_asset", confidence=0.8)
-        p = AttackPath(path_id="path-1", nodes=(n1, n2), edges=(e,),
-                       attack_score=72, confidence=0.8,
-                       estimated_impact="High", attack_complexity="Moderate",
-                       likelihood="Medium", reasoning="Two-step.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=72,
-                         average_score=72.0, metadata={})
+        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002", relationship="same_asset", confidence=0.8)
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1, n2),
+            edges=(e,),
+            attack_score=72,
+            confidence=0.8,
+            estimated_impact="High",
+            attack_complexity="Moderate",
+            likelihood="Medium",
+            reasoning="Two-step.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=72, average_score=72.0, metadata={})
         report = _BUILDER.build(nfs, cfs, efs, ras, ag)
         entries = report.asset_summary.entries
         assert len(entries) == 1
@@ -677,10 +768,8 @@ class TestAssetSummary:
 
     def test_asset_highest_risk(self) -> None:
         efs = [
-            _make_enriched(correlation_id="corr-001",
-                           affected_assets=("10.0.0.1",)),
-            _make_enriched(correlation_id="corr-002",
-                           affected_assets=("10.0.0.1",)),
+            _make_enriched(correlation_id="corr-001", affected_assets=("10.0.0.1",)),
+            _make_enriched(correlation_id="corr-002", affected_assets=("10.0.0.1",)),
         ]
         ras = [
             _make_assessment(correlation_id="corr-001", score=90),
@@ -690,15 +779,20 @@ class TestAssetSummary:
         cfs = [_make_correlated(correlation_id="corr-001"), _make_correlated(correlation_id="corr-002")]
         n1 = _make_attack_node("corr-001")
         n2 = _make_attack_node("corr-002")
-        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002",
-                        relationship="same_asset", confidence=0.8)
-        p = AttackPath(path_id="path-1", nodes=(n1, n2), edges=(e,),
-                       attack_score=70, confidence=0.8,
-                       estimated_impact="High", attack_complexity="Moderate",
-                       likelihood="Medium", reasoning="Two-step.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=70,
-                         average_score=70.0, metadata={})
+        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002", relationship="same_asset", confidence=0.8)
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1, n2),
+            edges=(e,),
+            attack_score=70,
+            confidence=0.8,
+            estimated_impact="High",
+            attack_complexity="Moderate",
+            likelihood="Medium",
+            reasoning="Two-step.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=70, average_score=70.0, metadata={})
         report = _BUILDER.build(nfs, cfs, efs, ras, ag)
         assert report.asset_summary.entries[0].highest_risk_score == 90
 
@@ -727,15 +821,20 @@ class TestFindingSection:
         cfs = [_make_correlated(correlation_id="corr-001"), _make_correlated(correlation_id="corr-002")]
         n1 = _make_attack_node("corr-001")
         n2 = _make_attack_node("corr-002")
-        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002",
-                        relationship="same_asset", confidence=0.8)
-        p = AttackPath(path_id="path-1", nodes=(n1, n2), edges=(e,),
-                       attack_score=71, confidence=0.8,
-                       estimated_impact="High", attack_complexity="Moderate",
-                       likelihood="Medium", reasoning="Two-step.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=71,
-                         average_score=71.0, metadata={})
+        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002", relationship="same_asset", confidence=0.8)
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1, n2),
+            edges=(e,),
+            attack_score=71,
+            confidence=0.8,
+            estimated_impact="High",
+            attack_complexity="Moderate",
+            likelihood="Medium",
+            reasoning="Two-step.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=71, average_score=71.0, metadata={})
         report = _BUILDER.build(nfs, cfs, efs, ras, ag)
         assert report.finding_section.entries[0].severity == "CRITICAL"
         assert report.finding_section.entries[1].severity == "MEDIUM"
@@ -782,10 +881,8 @@ class TestRecommendationSection:
 
     def test_ordered_by_risk_score(self) -> None:
         efs = [
-            _make_enriched(correlation_id="corr-001", title="Low Risk",
-                           recommendations=("Fix A",)),
-            _make_enriched(correlation_id="corr-002", title="High Risk",
-                           recommendations=("Fix B",)),
+            _make_enriched(correlation_id="corr-001", title="Low Risk", recommendations=("Fix A",)),
+            _make_enriched(correlation_id="corr-002", title="High Risk", recommendations=("Fix B",)),
         ]
         ras = [
             _make_assessment(correlation_id="corr-001", score=30, risk_level="Low"),
@@ -795,23 +892,27 @@ class TestRecommendationSection:
         cfs = [_make_correlated(correlation_id="corr-001"), _make_correlated(correlation_id="corr-002")]
         n1 = _make_attack_node("corr-001")
         n2 = _make_attack_node("corr-002")
-        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002",
-                        relationship="same_asset", confidence=0.8)
-        p = AttackPath(path_id="path-1", nodes=(n1, n2), edges=(e,),
-                       attack_score=66, confidence=0.8,
-                       estimated_impact="High", attack_complexity="Moderate",
-                       likelihood="Medium", reasoning="Two-step.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=66,
-                         average_score=66.0, metadata={})
+        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002", relationship="same_asset", confidence=0.8)
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1, n2),
+            edges=(e,),
+            attack_score=66,
+            confidence=0.8,
+            estimated_impact="High",
+            attack_complexity="Moderate",
+            likelihood="Medium",
+            reasoning="Two-step.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=66, average_score=66.0, metadata={})
         report = _BUILDER.build(nfs, cfs, efs, ras, ag)
         entries = report.recommendation_section.entries
         assert entries[0].finding_title == "High Risk"
         assert entries[1].finding_title == "Low Risk"
 
     def test_total_recommendations_count(self) -> None:
-        ef = _make_enriched(correlation_id="corr-001",
-                            recommendations=("Fix A", "Fix B"))
+        ef = _make_enriched(correlation_id="corr-001", recommendations=("Fix A", "Fix B"))
         ra = _make_assessment(correlation_id="corr-001")
         nf = _make_normalized(finding_id="nf-1")
         cf = _make_correlated(correlation_id="corr-001")
@@ -836,15 +937,20 @@ class TestAppendix:
         ras = [_make_assessment(correlation_id="corr-001"), _make_assessment(correlation_id="corr-002")]
         n1 = _make_attack_node("corr-001")
         n2 = _make_attack_node("corr-002")
-        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002",
-                        relationship="same_asset", confidence=0.8)
-        p = AttackPath(path_id="path-1", nodes=(n1, n2), edges=(e,),
-                       attack_score=68, confidence=0.8,
-                       estimated_impact="High", attack_complexity="Moderate",
-                       likelihood="Medium", reasoning="Two-step.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=68,
-                         average_score=68.0, metadata={})
+        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002", relationship="same_asset", confidence=0.8)
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1, n2),
+            edges=(e,),
+            attack_score=68,
+            confidence=0.8,
+            estimated_impact="High",
+            attack_complexity="Moderate",
+            likelihood="Medium",
+            reasoning="Two-step.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=68, average_score=68.0, metadata={})
         report = _BUILDER.build(nfs, cfs, efs, ras, ag)
         versions = report.appendix.scanner_versions
         assert versions.get("nuclei") == "3.2.1"
@@ -860,15 +966,20 @@ class TestAppendix:
         ras = [_make_assessment(correlation_id="corr-001"), _make_assessment(correlation_id="corr-002")]
         n1 = _make_attack_node("corr-001")
         n2 = _make_attack_node("corr-002")
-        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002",
-                        relationship="same_asset", confidence=0.8)
-        p = AttackPath(path_id="path-1", nodes=(n1, n2), edges=(e,),
-                       attack_score=68, confidence=0.8,
-                       estimated_impact="High", attack_complexity="Moderate",
-                       likelihood="Medium", reasoning="Two-step.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=68,
-                         average_score=68.0, metadata={})
+        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002", relationship="same_asset", confidence=0.8)
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1, n2),
+            edges=(e,),
+            attack_score=68,
+            confidence=0.8,
+            estimated_impact="High",
+            attack_complexity="Moderate",
+            likelihood="Medium",
+            reasoning="Two-step.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=68, average_score=68.0, metadata={})
         report = _BUILDER.build(nfs, cfs, efs, ras, ag)
         assert report.appendix.total_plugins == 2
 
@@ -905,15 +1016,20 @@ class TestDeterministicOrdering:
         cfs = [_make_correlated(correlation_id="corr-001"), _make_correlated(correlation_id="corr-002")]
         n1 = _make_attack_node("corr-001")
         n2 = _make_attack_node("corr-002")
-        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002",
-                        relationship="same_asset", confidence=0.8)
-        p = AttackPath(path_id="path-1", nodes=(n1, n2), edges=(e,),
-                       attack_score=71, confidence=0.8,
-                       estimated_impact="High", attack_complexity="Moderate",
-                       likelihood="Medium", reasoning="Two-step.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=71,
-                         average_score=71.0, metadata={})
+        e = AttackEdge(source_id="node-corr-001", target_id="node-corr-002", relationship="same_asset", confidence=0.8)
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1, n2),
+            edges=(e,),
+            attack_score=71,
+            confidence=0.8,
+            estimated_impact="High",
+            attack_complexity="Moderate",
+            likelihood="Medium",
+            reasoning="Two-step.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=71, average_score=71.0, metadata={})
         r1 = _BUILDER.build(nfs, cfs, efs, ras, ag)
         r2 = _BUILDER.build(nfs, cfs, efs, ras, ag)
         for e1, e2 in zip(r1.finding_section.entries, r2.finding_section.entries, strict=False):
@@ -958,19 +1074,24 @@ class TestEdgeCases:
         nf = _make_normalized(finding_id="nf-1")
         cf = _make_correlated(correlation_id="corr-001")
         n1 = _make_attack_node("corr-001")
-        p = AttackPath(path_id="path-1", nodes=(n1,), edges=(),
-                       attack_score=75, confidence=0.35,
-                       estimated_impact="High", attack_complexity="Simple",
-                       likelihood="Medium", reasoning="Single.",
-                       recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=75,
-                         average_score=75.0, metadata={})
+        p = AttackPath(
+            path_id="path-1",
+            nodes=(n1,),
+            edges=(),
+            attack_score=75,
+            confidence=0.35,
+            estimated_impact="High",
+            attack_complexity="Simple",
+            likelihood="Medium",
+            reasoning="Single.",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=75, average_score=75.0, metadata={})
         report = _BUILDER.build([nf], [cf], [], [ra], ag)
         assert report.executive_summary.total_enriched == 0
 
     def test_multiple_assets_same_finding(self) -> None:
-        ef = _make_enriched(correlation_id="corr-001",
-                            affected_assets=("10.0.0.1", "10.0.0.2"))
+        ef = _make_enriched(correlation_id="corr-001", affected_assets=("10.0.0.1", "10.0.0.2"))
         ra = _make_assessment(correlation_id="corr-001", score=80)
         nf = _make_normalized(finding_id="nf-1")
         cf = _make_correlated(correlation_id="corr-001")

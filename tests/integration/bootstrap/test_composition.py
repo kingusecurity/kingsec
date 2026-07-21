@@ -45,6 +45,7 @@ def _weasyprint_available() -> bool:
     """Return True only if WeasyPrint can actually render PDFs."""
     try:
         from weasyprint import HTML
+
         HTML(string="<p>test</p>").write_pdf()
         return True
     except Exception:
@@ -124,20 +125,14 @@ class TestDependencyGraph:
                 CreateAssessmentRequest("10.0.0.5", "ip_address", "tester", "10.0.0.5")
             )
             # AI has no key configured -> enrichment fails safe (best-effort).
-            started = app.resolve(StartAssessment).execute(
-                StartAssessmentRequest(created.assessment_id)
-            )
+            started = app.resolve(StartAssessment).execute(StartAssessmentRequest(created.assessment_id))
             assert started.status == "completed"
             assert started.findings_count == 1
 
-            view = app.resolve(GetAssessment).execute(
-                GetAssessmentRequest(created.assessment_id)
-            )
+            view = app.resolve(GetAssessment).execute(GetAssessmentRequest(created.assessment_id))
             assert view.status == "completed"
 
-            report = app.resolve(GenerateReport).execute(
-                GenerateReportRequest(created.assessment_id)
-            )
+            report = app.resolve(GenerateReport).execute(GenerateReportRequest(created.assessment_id))
             assert report.artifact_media_type == "application/pdf"
             assert report.artifact_bytes > 1000
 
@@ -183,7 +178,7 @@ class TestShutdown:
         app.stop()
 
         assert disposed["engine"] >= 1  # engine.dispose ran on shutdown
-        assert disposed["http"] >= 1    # http client closed on shutdown
+        assert disposed["http"] >= 1  # http client closed on shutdown
 
 
 class TestArchitecture:

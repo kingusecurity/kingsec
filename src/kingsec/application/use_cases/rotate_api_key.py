@@ -24,9 +24,7 @@ class RotateApiKey:
             raise ApiKeyNotFoundError(request.api_key_id)
 
         if key.user_id != request.requesting_user_id:
-            raise ApiKeyUnauthorizedError(
-                f"user {request.requesting_user_id} does not own key {request.api_key_id}"
-            )
+            raise ApiKeyUnauthorizedError(f"user {request.requesting_user_id} does not own key {request.api_key_id}")
 
         plaintext = f"ks_{key.id}_{secrets.token_urlsafe(40)}"
         key.key_hash = self._hasher.hash(plaintext)

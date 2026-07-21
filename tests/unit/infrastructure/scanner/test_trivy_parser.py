@@ -98,26 +98,32 @@ _MISCONFIG_RECORD_HIGH = {
     "Resolution": "Enable the firewall",
 }
 
-_FULL_VULN_OUTPUT = json.dumps({
-    "Results": [
-        _make_vuln_result("/app", [_VULN_RECORD, _VULN_RECORD_LOW]),
-        _make_vuln_result("/usr/lib", [_VULN_RECORD_CRITICAL]),
-    ]
-})
+_FULL_VULN_OUTPUT = json.dumps(
+    {
+        "Results": [
+            _make_vuln_result("/app", [_VULN_RECORD, _VULN_RECORD_LOW]),
+            _make_vuln_result("/usr/lib", [_VULN_RECORD_CRITICAL]),
+        ]
+    }
+)
 
-_FULL_MISCONFIG_OUTPUT = json.dumps({
-    "Results": [
-        _make_misconfig_result("/app/config.yaml", [_MISCONFIG_RECORD]),
-        _make_misconfig_result("/etc/ssh/sshd_config", [_MISCONFIG_RECORD_HIGH]),
-    ]
-})
+_FULL_MISCONFIG_OUTPUT = json.dumps(
+    {
+        "Results": [
+            _make_misconfig_result("/app/config.yaml", [_MISCONFIG_RECORD]),
+            _make_misconfig_result("/etc/ssh/sshd_config", [_MISCONFIG_RECORD_HIGH]),
+        ]
+    }
+)
 
-_FULL_MIXED_OUTPUT = json.dumps({
-    "Results": [
-        _make_vuln_result("/app", [_VULN_RECORD]),
-        _make_misconfig_result("/app/config.yaml", [_MISCONFIG_RECORD]),
-    ]
-})
+_FULL_MIXED_OUTPUT = json.dumps(
+    {
+        "Results": [
+            _make_vuln_result("/app", [_VULN_RECORD]),
+            _make_misconfig_result("/app/config.yaml", [_MISCONFIG_RECORD]),
+        ]
+    }
+)
 
 _MALFORMED_JSON = "this is not json"
 
@@ -173,9 +179,7 @@ class TestParseTrivyJson:
         assert len(findings) == 0
 
     def test_empty_vulns_and_misconfigs(self) -> None:
-        output = json.dumps({
-            "Results": [{"Target": "/app", "Vulnerabilities": [], "Misconfigurations": []}]
-        })
+        output = json.dumps({"Results": [{"Target": "/app", "Vulnerabilities": [], "Misconfigurations": []}]})
         assert parse_trivy_json(output) == []
 
 

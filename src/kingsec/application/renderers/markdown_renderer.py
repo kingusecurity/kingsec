@@ -49,9 +49,7 @@ class MarkdownReportRenderer:
     @staticmethod
     def _write_title(lines: list[str], report: Report) -> None:
         lines.append(f"# {report.title}")
-        ts = report.created_at.astimezone(UTC).strftime(
-            "%Y-%m-%d %H:%M:%S UTC"
-        )
+        ts = report.created_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
         lines.append("")
         lines.append(f"*Generated: {ts}*")
         lines.append("")
@@ -228,8 +226,7 @@ class MarkdownReportRenderer:
                     port = str(n.port) if n.port is not None else "-"
                     asset = n.asset or "-"
                     lines.append(
-                        f"| {i} | {n.title} | {n.severity} | {surface} | "
-                        f"{svc} | {port} | {asset} | {n.risk_score} |"
+                        f"| {i} | {n.title} | {n.severity} | {surface} | {svc} | {port} | {asset} | {n.risk_score} |"
                     )
                 lines.append("")
             if path.edges:
@@ -238,10 +235,7 @@ class MarkdownReportRenderer:
                 lines.append("| Source | Target | Relationship | Confidence |")
                 lines.append("|--------|--------|--------------|------------|")
                 for e in path.edges:
-                    lines.append(
-                        f"| {e.source_id} | {e.target_id} | {e.relationship} | "
-                        f"{e.confidence:.0%} |"
-                    )
+                    lines.append(f"| {e.source_id} | {e.target_id} | {e.relationship} | {e.confidence:.0%} |")
                 lines.append("")
             if path.recommendations:
                 lines.append("#### Recommendations")

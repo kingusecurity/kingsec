@@ -44,9 +44,7 @@ class Verdict:
     @classmethod
     def from_findings(cls, findings: tuple[Any, ...]) -> Verdict:
         """Derive the overall verdict, ignoring false positives."""
-        actionable = [
-            f for f in findings if f.status is not FindingStatus.FALSE_POSITIVE
-        ]
+        actionable = [f for f in findings if f.status is not FindingStatus.FALSE_POSITIVE]
         if not actionable:
             return cls(None, _NO_ISSUES_HEADLINE, action_required=False)
 
@@ -76,13 +74,11 @@ class Report:
     target: str
     generated_at: datetime
     verdict: Verdict
-    entries: tuple[FindingSummary, ...]           # ordered most-severe first
+    entries: tuple[FindingSummary, ...]  # ordered most-severe first
     severity_counts: tuple[tuple[Severity, int], ...]  # present severities, desc
 
     @classmethod
-    def from_assessment(
-        cls, assessment: Assessment, *, generated_at: datetime | None = None
-    ) -> Report:
+    def from_assessment(cls, assessment: Assessment, *, generated_at: datetime | None = None) -> Report:
         """Build a report from a COMPLETED assessment (else raise)."""
         if assessment.status is not AssessmentStatus.COMPLETED:
             raise IllegalStateTransition(
@@ -110,9 +106,7 @@ class Report:
         counts: dict[Severity, int] = {}
         for f in findings:
             counts[f.severity] = counts.get(f.severity, 0) + 1
-        severity_counts = tuple(
-            sorted(counts.items(), key=lambda kv: kv[0], reverse=True)
-        )
+        severity_counts = tuple(sorted(counts.items(), key=lambda kv: kv[0], reverse=True))
 
         return cls(
             assessment_id=str(assessment.id),

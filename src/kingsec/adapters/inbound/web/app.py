@@ -23,7 +23,7 @@ Middleware is registered in the correct order (outermost first):
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI
 
@@ -33,12 +33,12 @@ from .versioning import register_versioned_routes
 
 if TYPE_CHECKING:
     from kingsec.bootstrap.application import Application
-    from kingsec.infrastructure.config.settings import Settings
+
 
 def create_fastapi_app(
     kingsec_app: Application,
     *,
-    register_middleware: Callable | None = None,
+    register_middleware: Callable[..., Any] | None = None,
 ) -> FastAPI:
     """Build a configured FastAPI application.
 
@@ -54,10 +54,7 @@ def create_fastapi_app(
     app = FastAPI(
         title="KingSec API",
         version=settings.app.version,
-        description=(
-            "Local-first, AI-augmented Attack Surface & Vulnerability "
-            "Management API"
-        ),
+        description=("Local-first, AI-augmented Attack Surface & Vulnerability Management API"),
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_url="/openapi.json",
@@ -80,5 +77,3 @@ def create_fastapi_app(
     register_versioned_routes(app)
 
     return app
-
-

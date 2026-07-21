@@ -29,12 +29,17 @@ class InstallPlugin:
 
     def execute(self, package_path: str, manifest: PluginManifest) -> PluginPackage:
         existing = self._repo.find_by_id(manifest.id)
-        if existing and existing.status in (PluginInstallStatus.INSTALLED, PluginInstallStatus.ENABLED, PluginInstallStatus.DISABLED):
+        if existing and existing.status in (
+            PluginInstallStatus.INSTALLED,
+            PluginInstallStatus.ENABLED,
+            PluginInstallStatus.DISABLED,
+        ):
             raise ValueError(f"Plugin '{manifest.id}' is already installed")
 
         incompat = self._validator.validate_dependencies(manifest, [])
         if incompat:
             from kingsec.application.errors import PluginDependencyError
+
             raise PluginDependencyError(f"Unmet dependencies: {incompat}")
 
         install_path = self._installer.install(package_path, manifest)
@@ -62,6 +67,7 @@ class UninstallPlugin:
         plugin = self._repo.find_by_id(plugin_id)
         if not plugin:
             from kingsec.application.errors import PluginNotFoundError
+
             raise PluginNotFoundError(f"Plugin '{plugin_id}' not found")
         self._installer.uninstall(plugin_id)
         self._repo.delete(plugin_id)
@@ -75,6 +81,7 @@ class EnablePlugin:
         plugin = self._repo.find_by_id(plugin_id)
         if not plugin:
             from kingsec.application.errors import PluginNotFoundError
+
             raise PluginNotFoundError(f"Plugin '{plugin_id}' not found")
         self._repo.update_status(plugin_id, PluginInstallStatus.ENABLED)
         updated = self._repo.find_by_id(plugin_id)
@@ -90,6 +97,7 @@ class DisablePlugin:
         plugin = self._repo.find_by_id(plugin_id)
         if not plugin:
             from kingsec.application.errors import PluginNotFoundError
+
             raise PluginNotFoundError(f"Plugin '{plugin_id}' not found")
         self._repo.update_status(plugin_id, PluginInstallStatus.DISABLED)
         updated = self._repo.find_by_id(plugin_id)
@@ -112,18 +120,22 @@ class UpdatePlugin:
         existing = self._repo.find_by_id(plugin_id)
         if not existing:
             from kingsec.application.errors import PluginNotFoundError
+
             raise PluginNotFoundError(f"Plugin '{plugin_id}' not found")
 
         incompat = self._validator.validate_dependencies(manifest, [])
         if incompat:
             from kingsec.application.errors import PluginDependencyError
+
             raise PluginDependencyError(f"Unmet dependencies: {incompat}")
 
         install_path = self._installer.install(package_path, manifest)
         plugin = PluginPackage(
             id=manifest.id,
             manifest=manifest,
-            status=existing.status if existing.status != PluginInstallStatus.INSTALLING else PluginInstallStatus.INSTALLED,
+            status=existing.status
+            if existing.status != PluginInstallStatus.INSTALLING
+            else PluginInstallStatus.INSTALLED,
             installed_version=manifest.version,
             install_path=install_path,
             installed_at=existing.installed_at,
@@ -145,6 +157,7 @@ class RollbackPlugin:
         plugin = self._repo.find_by_id(plugin_id)
         if not plugin:
             from kingsec.application.errors import PluginNotFoundError
+
             raise PluginNotFoundError(f"Plugin '{plugin_id}' not found")
         self._installer.rollback(plugin_id, plugin.install_path)
         self._repo.update_health(plugin_id, PluginHealth.HEALTHY.value, "")
@@ -159,9 +172,11 @@ class ValidatePlugin:
 
     def execute(self, package_path: str) -> dict[str, Any]:
         from kingsec.application.errors import PluginValidationError
+
         errors: list[str] = []
         import json
         import zipfile
+
         try:
             with zipfile.ZipFile(package_path, "r") as zf:
                 if "manifest.json" not in zf.namelist():
@@ -173,7 +188,11 @@ class ValidatePlugin:
         except Exception as e:
             raise PluginValidationError(str(e)) from e
 
-        checksum_ok = self._validator.validate_checksum(package_path, manifest.checksum_sha256) if manifest.checksum_sha256 else True
+        checksum_ok = (
+            self._validator.validate_checksum(package_path, manifest.checksum_sha256)
+            if manifest.checksum_sha256
+            else True
+        )
         compat_ok = self._validator.validate_compatibility(manifest)
         sig_ok = True
         if manifest.signature:
@@ -231,8 +250,11 @@ class CheckPluginUpdates:
         plugin = self._repo.find_by_id(plugin_id)
         if not plugin:
             from kingsec.application.errors import PluginNotFoundError
+
             raise PluginNotFoundError(f"Plugin '{plugin_id}' not found")
-        return self._marketplace.check_updates(plugin_id, str(plugin.installed_version) if plugin.installed_version else "0.0.0")
+        return self._marketplace.check_updates(
+            plugin_id, str(plugin.installed_version) if plugin.installed_version else "0.0.0"
+        )
 
 
 class ImportPlugin:
@@ -249,14 +271,17 @@ class ImportPlugin:
     def execute(self, package_path: str, filename: str) -> PluginPackage:
         import json
         import zipfile
+
         try:
             with zipfile.ZipFile(package_path, "r") as zf:
                 if "manifest.json" not in zf.namelist():
                     from kingsec.application.errors import PluginValidationError
+
                     raise PluginValidationError("Missing manifest.json in plugin archive")
                 data = json.loads(zf.read("manifest.json"))
         except (zipfile.BadZipFile, json.JSONDecodeError) as exc:
             from kingsec.application.errors import PluginValidationError
+
             raise PluginValidationError(f"Invalid plugin archive: {exc}") from exc
         manifest = self._validator.validate_manifest(data)
         use_case = InstallPlugin(self._repo, self._installer, self._validator)
@@ -274,6 +299,7 @@ class ExportPlugin:
         import io
         import json
         import zipfile
+
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
             manifest_dict = {

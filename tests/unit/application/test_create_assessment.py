@@ -25,9 +25,7 @@ def _request(**overrides: str) -> CreateAssessmentRequest:
 
 
 class TestHappyPath:
-    def test_creates_authorized_and_persisted_assessment(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_creates_authorized_and_persisted_assessment(self, assessments: InMemoryAssessmentRepository) -> None:
         response = CreateAssessment(assessments).execute(_request())
 
         # Authorization is captured up front, so the assessment is AUTHORIZED.
@@ -39,14 +37,10 @@ class TestHappyPath:
 
 
 class TestValidation:
-    def test_invalid_target_type_raises_input_error(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_invalid_target_type_raises_input_error(self, assessments: InMemoryAssessmentRepository) -> None:
         with pytest.raises(InputValidationError, match="invalid target type"):
             CreateAssessment(assessments).execute(_request(target_type="banana"))
 
-    def test_empty_target_value_raises_input_error(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_empty_target_value_raises_input_error(self, assessments: InMemoryAssessmentRepository) -> None:
         with pytest.raises(InputValidationError):
             CreateAssessment(assessments).execute(_request(target_value="  "))

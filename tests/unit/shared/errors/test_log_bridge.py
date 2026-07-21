@@ -47,10 +47,10 @@ class TestLogExceptionHelper:
 
         (level, event, kwargs) = logger.calls[0]
         assert level == "error"
-        assert event == "bad port"                 # defaults to internal message
+        assert event == "bad port"  # defaults to internal message
         assert kwargs["error_code"] == "KS-VAL-001"
         assert kwargs["field"] == "server.port"
-        assert kwargs["exc_info"] is exc           # drives traceback rendering
+        assert kwargs["exc_info"] is exc  # drives traceback rendering
 
     def test_non_kingsec_error_gets_generic_fields(self) -> None:
         logger = _FakeLogger()
@@ -78,9 +78,7 @@ class TestOptionalProcessor:
 
     def test_processor_does_not_overwrite_existing_keys(self) -> None:
         exc = ValidationError("bad", context={"field": "a"})
-        event_dict = add_exception_context(
-            None, "error", {"exc_info": exc, "field": "preset"}
-        )
+        event_dict = add_exception_context(None, "error", {"exc_info": exc, "field": "preset"})
         assert event_dict["field"] == "preset"
 
 
@@ -88,9 +86,7 @@ class TestEndToEndWithModule22:
     """Prove 2.3 flows through the UNMODIFIED 2.2 logging layer."""
 
     def _configure(self, stream: io.StringIO) -> None:
-        configure_logging(
-            LoggingSettings(level="INFO", json_format=True), stream=stream
-        )
+        configure_logging(LoggingSettings(level="INFO", json_format=True), stream=stream)
 
     def test_structured_error_is_logged_with_traceback(self) -> None:
         stream = io.StringIO()

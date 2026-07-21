@@ -19,9 +19,7 @@ class RevokeApiKey:
             raise ApiKeyNotFoundError(request.api_key_id)
 
         if key.user_id != request.requesting_user_id:
-            raise ApiKeyUnauthorizedError(
-                f"user {request.requesting_user_id} does not own key {request.api_key_id}"
-            )
+            raise ApiKeyUnauthorizedError(f"user {request.requesting_user_id} does not own key {request.api_key_id}")
 
         key.revoke()
         self._repo.save(key)

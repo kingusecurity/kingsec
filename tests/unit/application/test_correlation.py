@@ -44,9 +44,7 @@ def _make_nf(
         severity=severity,
         scanner_id=scanner_id,
         scanner_version=scanner_version,
-        evidence=(
-            Evidence(summary="Evidence", detail="Detail", collected_at=_NOW),
-        ),
+        evidence=(Evidence(summary="Evidence", detail="Detail", collected_at=_NOW),),
         recommendations=recommendations,
         references=references,
         affected_assets=affected_assets,
@@ -319,12 +317,20 @@ class TestCorrelateMultiple:
         assert len(result) == 1
 
     def test_different_cve_separate(self) -> None:
-        a = _make_nf(title="A CVE-2024-0001", references=("CVE-2024-0001",),
-                     affected_assets=("10.0.0.1",),
-                     description="Issue A on host 10.0.0.1", tags=())
-        b = _make_nf(title="B CVE-2025-0002", references=("CVE-2025-0002",),
-                     affected_assets=("10.0.0.2",),
-                     description="Issue B on host 10.0.0.2", tags=())
+        a = _make_nf(
+            title="A CVE-2024-0001",
+            references=("CVE-2024-0001",),
+            affected_assets=("10.0.0.1",),
+            description="Issue A on host 10.0.0.1",
+            tags=(),
+        )
+        b = _make_nf(
+            title="B CVE-2025-0002",
+            references=("CVE-2025-0002",),
+            affected_assets=("10.0.0.2",),
+            description="Issue B on host 10.0.0.2",
+            tags=(),
+        )
         result = _ENGINE.correlate([a, b])
         assert len(result) == 2
 
@@ -333,10 +339,12 @@ class TestCorrelateMultiple:
         assert len(result) == 1
 
     def test_different_assets_separate(self) -> None:
-        a = _make_nf(title="A", affected_assets=("10.0.0.1",), references=(),
-                     tags=(), description="Issue on host 10.0.0.1")
-        b = _make_nf(title="B", affected_assets=("10.0.0.2",), references=(),
-                     tags=(), description="Issue on host 10.0.0.2")
+        a = _make_nf(
+            title="A", affected_assets=("10.0.0.1",), references=(), tags=(), description="Issue on host 10.0.0.1"
+        )
+        b = _make_nf(
+            title="B", affected_assets=("10.0.0.2",), references=(), tags=(), description="Issue on host 10.0.0.2"
+        )
         result = _ENGINE.correlate([a, b])
         assert len(result) == 2
 
@@ -372,8 +380,7 @@ class TestCorrelateMultiple:
     def test_transitive_correlation(self) -> None:
         a = _make_nf(title="A", references=("CVE-2024-0001",), affected_assets=("10.0.0.1",))
         b = _make_nf(title="B", references=("CVE-2024-0001",), affected_assets=("10.0.0.2",))
-        c = _make_nf(title="C", references=(),
-                      affected_assets=("10.0.0.2",), tags=("ssh",))
+        c = _make_nf(title="C", references=(), affected_assets=("10.0.0.2",), tags=("ssh",))
         # A and B share CVE → merge
         # B and C share asset 10.0.0.2 → merge
         # Therefore A, B, C all merge transitively
@@ -481,8 +488,7 @@ class TestCategory:
 
     def test_category_from_first_highest(self) -> None:
         findings = [
-            _make_nf(severity=Severity.MEDIUM, references=("CVE-2024-0001",),
-                     category="misconfiguration"),
+            _make_nf(severity=Severity.MEDIUM, references=("CVE-2024-0001",), category="misconfiguration"),
             _make_nf(severity=Severity.CRITICAL, references=("CVE-2024-0001",)),
         ]
         result = _ENGINE.correlate(findings)
@@ -610,12 +616,20 @@ class TestDeriveDescription:
 class TestEdgeCases:
     def test_no_shared_keys_remains_separate(self) -> None:
         findings = [
-            _make_nf(title="Issue A", references=("CVE-2024-0001",),
-                     affected_assets=("10.0.0.1",),
-                     tags=(), description="Issue A on 10.0.0.1"),
-            _make_nf(title="Issue B", references=("CVE-2025-0002",),
-                     affected_assets=("10.0.0.2",),
-                     tags=(), description="Issue B on 10.0.0.2"),
+            _make_nf(
+                title="Issue A",
+                references=("CVE-2024-0001",),
+                affected_assets=("10.0.0.1",),
+                tags=(),
+                description="Issue A on 10.0.0.1",
+            ),
+            _make_nf(
+                title="Issue B",
+                references=("CVE-2025-0002",),
+                affected_assets=("10.0.0.2",),
+                tags=(),
+                description="Issue B on 10.0.0.2",
+            ),
         ]
         result = _ENGINE.correlate(findings)
         assert len(result) == 2
@@ -639,12 +653,16 @@ class TestEdgeCases:
 
     def test_no_references_uses_asset(self) -> None:
         a = _make_nf(
-            title="OpenSSH issue", references=(),
-            affected_assets=("10.0.0.5",), tags=("ssh", "openssh"),
+            title="OpenSSH issue",
+            references=(),
+            affected_assets=("10.0.0.5",),
+            tags=("ssh", "openssh"),
         )
         b = _make_nf(
-            title="SSH problem", references=(),
-            affected_assets=("10.0.0.5",), tags=("ssh",),
+            title="SSH problem",
+            references=(),
+            affected_assets=("10.0.0.5",),
+            tags=("ssh",),
         )
         result = _ENGINE.correlate([a, b])
         assert len(result) == 1
@@ -667,12 +685,9 @@ class TestEdgeCases:
 class TestOutputStability:
     def test_severity_descending_order(self) -> None:
         findings = [
-            _make_nf(severity=Severity.LOW, references=("CVE-2024-0001",),
-                     affected_assets=("10.0.0.1",)),
-            _make_nf(severity=Severity.CRITICAL, references=("CVE-2025-0001",),
-                     affected_assets=("10.0.0.2",)),
-            _make_nf(severity=Severity.HIGH, references=("CVE-2026-0001",),
-                     affected_assets=("10.0.0.3",)),
+            _make_nf(severity=Severity.LOW, references=("CVE-2024-0001",), affected_assets=("10.0.0.1",)),
+            _make_nf(severity=Severity.CRITICAL, references=("CVE-2025-0001",), affected_assets=("10.0.0.2",)),
+            _make_nf(severity=Severity.HIGH, references=("CVE-2026-0001",), affected_assets=("10.0.0.3",)),
         ]
         result = _ENGINE.correlate(findings)
         for i in range(len(result) - 1):

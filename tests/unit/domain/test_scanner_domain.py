@@ -328,13 +328,15 @@ class TestPluginConfig:
         assert cfg.settings == {}
 
     def test_valid_settings(self) -> None:
-        cfg = PluginConfig(settings={
-            "binary_path": "/usr/bin/nuclei",
-            "timeout": 300,
-            "rate_limit": 150,
-            "verbose": True,
-            "templates_dir": None,
-        })
+        cfg = PluginConfig(
+            settings={
+                "binary_path": "/usr/bin/nuclei",
+                "timeout": 300,
+                "rate_limit": 150,
+                "verbose": True,
+                "templates_dir": None,
+            }
+        )
         assert cfg.settings["binary_path"] == "/usr/bin/nuclei"
         assert cfg.settings["timeout"] == 300
 

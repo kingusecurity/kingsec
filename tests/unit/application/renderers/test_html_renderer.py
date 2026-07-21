@@ -84,59 +84,108 @@ class TestBasicRendering:
             RiskSummary,
             TechnicalSummary,
         )
+
         es = ExecutiveSummary(
-            total_findings=1, total_correlated=1, total_enriched=1,
-            total_risk_assessments=1, critical_count=0, high_count=1,
-            medium_count=0, low_count=0, informational_count=0,
-            top_risk_score=75, average_risk_score=75.0, total_assets=1,
+            total_findings=1,
+            total_correlated=1,
+            total_enriched=1,
+            total_risk_assessments=1,
+            critical_count=0,
+            high_count=1,
+            medium_count=0,
+            low_count=0,
+            informational_count=0,
+            top_risk_score=75,
+            average_risk_score=75.0,
+            total_assets=1,
             summary_text="Café résumé avec 🛡️",
         )
         fe = FindingEntry(
-            correlation_id="c-1", title="Café vuln", severity="HIGH",
-            category="vuln", confidence=0.8,
-            scanner_sources=("nuclei",), affected_assets=("München-01",),
-            service=None, port=None, protocol=None,
-            attack_surface=None, risk_score=75, risk_level="High", priority="High",
+            correlation_id="c-1",
+            title="Café vuln",
+            severity="HIGH",
+            category="vuln",
+            confidence=0.8,
+            scanner_sources=("nuclei",),
+            affected_assets=("München-01",),
+            service=None,
+            port=None,
+            protocol=None,
+            attack_surface=None,
+            risk_score=75,
+            risk_level="High",
+            priority="High",
         )
         fs = FindingSection(entries=(fe,), total_count=1, severity_breakdown={"HIGH": 1})
         ts = TechnicalSummary(
-            total_findings=1, total_correlations=1, total_enriched=1,
+            total_findings=1,
+            total_correlations=1,
+            total_enriched=1,
             total_risk_assessments=1,
-            severity_breakdown={"HIGH": 1}, category_breakdown={},
+            severity_breakdown={"HIGH": 1},
+            category_breakdown={},
             scanner_coverage={},
         )
         rs = RiskSummary(
-            score_distribution={"High": 1}, average_score=75.0,
-            highest_score=75, lowest_score=75, top_risk_factors=(),
+            score_distribution={"High": 1},
+            average_score=75.0,
+            highest_score=75,
+            lowest_score=75,
+            top_risk_factors=(),
         )
-        ae = AssetEntry(asset="München-01", finding_count=1,
-                        highest_risk_score=75, average_risk_score=75.0)
+        ae = AssetEntry(asset="München-01", finding_count=1, highest_risk_score=75, average_risk_score=75.0)
         a_s = AssetSummary(entries=(ae,), total_assets=1)
-        n1 = AttackNode(node_id="n-1", correlation_id="c-1", title="Café",
-                        severity="HIGH", category="vuln", attack_surface=None,
-                        service=None, port=None, protocol=None, asset="München-01",
-                        risk_score=75, risk_level="High")
-        p = AttackPath(path_id="p-1", nodes=(n1,), edges=(),
-                       attack_score=75, confidence=0.35,
-                       estimated_impact="High", attack_complexity="Simple",
-                       likelihood="Medium", reasoning=".", recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=75,
-                         average_score=75.0, metadata={})
-        aps = AttackPathSection(total_paths=1, highest_score=75,
-                                average_score=75.0, graph=ag)
-        re = RecommendationEntry(finding_title="Café", severity="HIGH",
-                                 risk_score=75, correlation_id="c-1",
-                                 recommendations=("Fix café",))
+        n1 = AttackNode(
+            node_id="n-1",
+            correlation_id="c-1",
+            title="Café",
+            severity="HIGH",
+            category="vuln",
+            attack_surface=None,
+            service=None,
+            port=None,
+            protocol=None,
+            asset="München-01",
+            risk_score=75,
+            risk_level="High",
+        )
+        p = AttackPath(
+            path_id="p-1",
+            nodes=(n1,),
+            edges=(),
+            attack_score=75,
+            confidence=0.35,
+            estimated_impact="High",
+            attack_complexity="Simple",
+            likelihood="Medium",
+            reasoning=".",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=75, average_score=75.0, metadata={})
+        aps = AttackPathSection(total_paths=1, highest_score=75, average_score=75.0, graph=ag)
+        re = RecommendationEntry(
+            finding_title="Café", severity="HIGH", risk_score=75, correlation_id="c-1", recommendations=("Fix café",)
+        )
         recs = RecommendationSection(entries=(re,), total_recommendations=1)
-        app = Appendix(scanner_versions={"nuc🚀": "1"}, total_plugins=1,
-                       generated_at=datetime(2026, 7, 17, tzinfo=UTC),
-                       generated_by="KingSec")
-        r = Report(report_id="rpt-u", title="UTF-8 Test",
-                   created_at=datetime(2026, 7, 17, tzinfo=UTC),
-                   executive_summary=es, technical_summary=ts, risk_summary=rs,
-                   asset_summary=a_s, finding_section=fs,
-                   attack_path_section=aps, recommendation_section=recs,
-                   appendix=app)
+        app = Appendix(
+            scanner_versions={"nuc🚀": "1"},
+            total_plugins=1,
+            generated_at=datetime(2026, 7, 17, tzinfo=UTC),
+            generated_by="KingSec",
+        )
+        r = Report(
+            report_id="rpt-u",
+            title="UTF-8 Test",
+            created_at=datetime(2026, 7, 17, tzinfo=UTC),
+            executive_summary=es,
+            technical_summary=ts,
+            risk_summary=rs,
+            asset_summary=a_s,
+            finding_section=fs,
+            attack_path_section=aps,
+            recommendation_section=recs,
+            appendix=app,
+        )
         html_out = _RENDERER.render(r)
         assert "Café" in html_out
         assert "München" in html_out
@@ -167,45 +216,87 @@ class TestEscaping:
             RiskSummary,
             TechnicalSummary,
         )
+
         es = ExecutiveSummary(
-            total_findings=0, total_correlated=0, total_enriched=0,
-            total_risk_assessments=0, critical_count=0, high_count=0,
-            medium_count=0, low_count=0, informational_count=0,
-            top_risk_score=0, average_risk_score=0.0, total_assets=0,
+            total_findings=0,
+            total_correlated=0,
+            total_enriched=0,
+            total_risk_assessments=0,
+            critical_count=0,
+            high_count=0,
+            medium_count=0,
+            low_count=0,
+            informational_count=0,
+            top_risk_score=0,
+            average_risk_score=0.0,
+            total_assets=0,
             summary_text="Safe <script>alert('xss')</script>",
         )
         ts = TechnicalSummary(
-            total_findings=0, total_correlations=0, total_enriched=0,
+            total_findings=0,
+            total_correlations=0,
+            total_enriched=0,
             total_risk_assessments=0,
-            severity_breakdown={}, category_breakdown={}, scanner_coverage={},
+            severity_breakdown={},
+            category_breakdown={},
+            scanner_coverage={},
         )
         rs = RiskSummary(
-            score_distribution={}, average_score=0.0, highest_score=0,
-            lowest_score=0, top_risk_factors=("<script>", "&escape"),
+            score_distribution={},
+            average_score=0.0,
+            highest_score=0,
+            lowest_score=0,
+            top_risk_factors=("<script>", "&escape"),
         )
         fs = FindingSection(entries=(), total_count=0, severity_breakdown={})
-        n1 = AttackNode(node_id="n-1", correlation_id="c-1", title="<img>",
-                        severity="HIGH", category="vuln", attack_surface=None,
-                        service=None, port=None, protocol=None, asset="<test>",
-                        risk_score=0, risk_level="Low")
-        p = AttackPath(path_id="<path>", nodes=(n1,), edges=(),
-                       attack_score=0, confidence=0.0,
-                       estimated_impact="None", attack_complexity="Simple",
-                       likelihood="Low", reasoning=".", recommendations=("<malicious>",))
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=0,
-                         average_score=0.0, metadata={})
-        aps = AttackPathSection(total_paths=0, highest_score=0,
-                                average_score=0.0, graph=ag)
+        n1 = AttackNode(
+            node_id="n-1",
+            correlation_id="c-1",
+            title="<img>",
+            severity="HIGH",
+            category="vuln",
+            attack_surface=None,
+            service=None,
+            port=None,
+            protocol=None,
+            asset="<test>",
+            risk_score=0,
+            risk_level="Low",
+        )
+        p = AttackPath(
+            path_id="<path>",
+            nodes=(n1,),
+            edges=(),
+            attack_score=0,
+            confidence=0.0,
+            estimated_impact="None",
+            attack_complexity="Simple",
+            likelihood="Low",
+            reasoning=".",
+            recommendations=("<malicious>",),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=0, average_score=0.0, metadata={})
+        aps = AttackPathSection(total_paths=0, highest_score=0, average_score=0.0, graph=ag)
         recs = RecommendationSection(entries=(), total_recommendations=0)
-        app = Appendix(scanner_versions={"<x>": "1"}, total_plugins=1,
-                       generated_at=datetime(2026, 7, 17, tzinfo=UTC),
-                       generated_by="<script>")
-        r = Report(report_id="<rpt>", title="<escape test>",
-                   created_at=datetime(2026, 7, 17, tzinfo=UTC),
-                   executive_summary=es, technical_summary=ts, risk_summary=rs,
-                   asset_summary=AssetSummary(entries=(), total_assets=0),
-                   finding_section=fs, attack_path_section=aps,
-                   recommendation_section=recs, appendix=app)
+        app = Appendix(
+            scanner_versions={"<x>": "1"},
+            total_plugins=1,
+            generated_at=datetime(2026, 7, 17, tzinfo=UTC),
+            generated_by="<script>",
+        )
+        r = Report(
+            report_id="<rpt>",
+            title="<escape test>",
+            created_at=datetime(2026, 7, 17, tzinfo=UTC),
+            executive_summary=es,
+            technical_summary=ts,
+            risk_summary=rs,
+            asset_summary=AssetSummary(entries=(), total_assets=0),
+            finding_section=fs,
+            attack_path_section=aps,
+            recommendation_section=recs,
+            appendix=app,
+        )
         html_out = _RENDERER.render(r)
         assert "&lt;escape test&gt;" in html_out
         assert "&amp;escape" in html_out
@@ -329,9 +420,9 @@ class TestMultipleFindings:
 
     def test_finding_severity_badges(self) -> None:
         html_out = _RENDERER.render(_multi_report())
-        assert 'badge-critical' in html_out
-        assert 'badge-high' in html_out
-        assert 'badge-medium' in html_out
+        assert "badge-critical" in html_out
+        assert "badge-high" in html_out
+        assert "badge-medium" in html_out
 
 
 # ===========================================================================
@@ -387,8 +478,7 @@ class TestRecommendations:
 class TestFileWriting:
     def test_write_creates_file(self) -> None:
         report = _minimal_report()
-        with NamedTemporaryFile(mode="w", suffix=".html", delete=False,
-                                encoding="utf-8") as f:
+        with NamedTemporaryFile(mode="w", suffix=".html", delete=False, encoding="utf-8") as f:
             path = Path(f.name)
         try:
             _RENDERER.write(report, path)
@@ -401,8 +491,7 @@ class TestFileWriting:
 
     def test_write_utf8_encoding(self) -> None:
         report = _minimal_report()
-        with NamedTemporaryFile(mode="w", suffix=".html", delete=False,
-                                encoding="utf-8") as f:
+        with NamedTemporaryFile(mode="w", suffix=".html", delete=False, encoding="utf-8") as f:
             path = Path(f.name)
         try:
             _RENDERER.write(report, path)
@@ -426,11 +515,9 @@ class TestIdempotency:
 
     def test_write_twice_identical_content(self) -> None:
         report = _minimal_report()
-        with NamedTemporaryFile(mode="w", suffix=".html", delete=False,
-                                encoding="utf-8") as f1:
+        with NamedTemporaryFile(mode="w", suffix=".html", delete=False, encoding="utf-8") as f1:
             p1 = Path(f1.name)
-        with NamedTemporaryFile(mode="w", suffix=".html", delete=False,
-                                encoding="utf-8") as f2:
+        with NamedTemporaryFile(mode="w", suffix=".html", delete=False, encoding="utf-8") as f2:
             p2 = Path(f2.name)
         try:
             _RENDERER.write(report, p1)

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
@@ -21,13 +19,16 @@ router = APIRouter(prefix="/api/v1/pipelines", tags=["pipelines"])
 
 ADMIN_ONLY = Role.ADMIN
 
+
 def _get_service(request: Request) -> PipelineServicePort:
     app: Application = get_application(request)
     return cast(PipelineServicePort, app.resolve(PipelineServicePort))
 
+
 def _require_admin(user: CurrentUser) -> None:
     if user.role != ADMIN_ONLY:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+
 
 def _to_response(execution: PipelineExecution) -> dict[str, Any]:
     return {
@@ -59,6 +60,7 @@ def _to_response(execution: PipelineExecution) -> dict[str, Any]:
         "updated_at": execution.updated_at,
     }
 
+
 @router.post("/start")
 async def start_pipeline(
     request: Request,
@@ -78,6 +80,7 @@ async def start_pipeline(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return {"message": "Pipeline started", "pipeline": _to_response(execution)}
 
+
 @router.get("")
 async def list_pipelines(
     request: Request,
@@ -86,6 +89,7 @@ async def list_pipelines(
     service = _get_service(request)
     executions = service.list_pipelines()
     return {"pipelines": [_to_response(e) for e in executions], "total": len(executions)}
+
 
 @router.get("/{pipeline_id}")
 async def get_pipeline(
@@ -99,6 +103,7 @@ async def get_pipeline(
     except PipelineNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return _to_response(execution)
+
 
 @router.post("/{pipeline_id}/cancel")
 async def cancel_pipeline(
@@ -116,6 +121,7 @@ async def cancel_pipeline(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return {"message": f"Pipeline '{pipeline_id}' cancelled", "pipeline": _to_response(execution)}
 
+
 @router.post("/{pipeline_id}/retry")
 async def retry_pipeline(
     pipeline_id: str,
@@ -132,6 +138,7 @@ async def retry_pipeline(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return {"message": f"Pipeline '{pipeline_id}' retried", "pipeline": _to_response(execution)}
 
+
 @router.post("/{pipeline_id}/resume")
 async def resume_pipeline(
     pipeline_id: str,
@@ -145,6 +152,7 @@ async def resume_pipeline(
     except PipelineNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return {"message": f"Pipeline '{pipeline_id}' resumed", "pipeline": _to_response(execution)}
+
 
 @router.post("/{pipeline_id}/pause")
 async def pause_pipeline(

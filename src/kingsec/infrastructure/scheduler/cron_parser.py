@@ -14,11 +14,11 @@ class CronParser:
     """Minimal cron expression parser (5-field: minute hour dom month dow)."""
 
     _ALL: ClassVar[list[range]] = [
-        range(0, 60),   # minute
-        range(0, 24),   # hour
-        range(1, 32),   # day of month
-        range(1, 13),   # month
-        range(0, 7),    # day of week (0=Sunday)
+        range(0, 60),  # minute
+        range(0, 24),  # hour
+        range(1, 32),  # day of month
+        range(1, 13),  # month
+        range(0, 7),  # day of week (0=Sunday)
     ]
 
     @classmethod

@@ -21,6 +21,7 @@ class TestPluginVersion:
 
     def test_parse_invalid(self) -> None:
         import pytest
+
         with pytest.raises(ValueError):
             PluginVersion.parse("1.2")
 
@@ -102,6 +103,7 @@ class TestPluginPackage:
         manifest = PluginManifest(id="p1", name="Test", version=PluginVersion(1, 0, 0))
         pkg = PluginPackage(id="p1", manifest=manifest, status=PluginInstallStatus.ENABLED)
         import pytest
+
         with pytest.raises(AttributeError):
             pkg.status = PluginInstallStatus.DISABLED  # type: ignore
 

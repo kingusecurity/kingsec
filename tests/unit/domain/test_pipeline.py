@@ -53,10 +53,13 @@ class TestPipelineStage:
         assert s.error_message == ""
 
     def test_full_construction(self) -> None:
-        s = PipelineStage(name="running", status="completed",
-                          started_at="2025-01-01T00:00:00",
-                          completed_at="2025-01-01T01:00:00",
-                          error_message="")
+        s = PipelineStage(
+            name="running",
+            status="completed",
+            started_at="2025-01-01T00:00:00",
+            completed_at="2025-01-01T01:00:00",
+            error_message="",
+        )
         assert s.name == "running"
         assert s.status == "completed"
 
@@ -131,5 +134,6 @@ class TestPipelineExecution:
             state=PipelineState.QUEUED,
         )
         import pytest
+
         with pytest.raises(AttributeError):
             exec_.target = "new-target"

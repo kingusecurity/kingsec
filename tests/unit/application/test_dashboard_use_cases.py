@@ -49,6 +49,7 @@ class TestGetTrendData:
         self.repo = InMemoryDashboardRepository()
         self.service = AnalyticsService(self.repo)
         from datetime import UTC, datetime, timedelta
+
         base = datetime.now(UTC)
         for i in range(5):
             self.repo.seed_assessment("COMPLETED", created_at=(base - timedelta(days=i * 7)).isoformat())

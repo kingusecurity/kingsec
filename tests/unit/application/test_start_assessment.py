@@ -41,9 +41,7 @@ def _draft(assessments: InMemoryAssessmentRepository) -> Assessment:
 
 
 class TestHappyPath:
-    def test_runs_scan_records_findings_and_completes(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_runs_scan_records_findings_and_completes(self, assessments: InMemoryAssessmentRepository) -> None:
         assessment = _authorized(assessments)
         use_case = StartAssessment(assessments, StubScanner(make_findings()), StubAI())
 
@@ -59,9 +57,7 @@ class TestHappyPath:
 
 
 class TestAuthorizationGate:
-    def test_cannot_start_unauthorized_assessment(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_cannot_start_unauthorized_assessment(self, assessments: InMemoryAssessmentRepository) -> None:
         assessment = _draft(assessments)
         use_case = StartAssessment(assessments, StubScanner(make_findings()))
 
@@ -71,18 +67,14 @@ class TestAuthorizationGate:
 
 
 class TestErrors:
-    def test_unknown_assessment_raises_not_found(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_unknown_assessment_raises_not_found(self, assessments: InMemoryAssessmentRepository) -> None:
         use_case = StartAssessment(assessments, StubScanner([]))
         with pytest.raises(AssessmentNotFoundError):
             use_case.execute(StartAssessmentRequest("asmt-does-not-exist"))
 
 
 class TestAiResilience:
-    def test_ai_failure_does_not_fail_the_scan(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_ai_failure_does_not_fail_the_scan(self, assessments: InMemoryAssessmentRepository) -> None:
         assessment = _authorized(assessments)
         use_case = StartAssessment(assessments, StubScanner(make_findings()), FailingAI())
 
@@ -94,9 +86,7 @@ class TestAiResilience:
         stored = assessments.get(assessment.id)
         assert all(not f.recommendations for f in stored.findings)
 
-    def test_runs_without_any_ai_port(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_runs_without_any_ai_port(self, assessments: InMemoryAssessmentRepository) -> None:
         assessment = _authorized(assessments)
         use_case = StartAssessment(assessments, StubScanner(make_findings()))  # ai=None
         response = use_case.execute(StartAssessmentRequest(str(assessment.id)))

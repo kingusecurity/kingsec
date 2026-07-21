@@ -64,9 +64,7 @@ class SarifRenderer:
         results = self._build_results(sorted_entries, recs_by_cid)
         artifacts = self._build_artifacts(entries)
 
-        ts = report.created_at.astimezone(UTC).strftime(
-            "%Y-%m-%d %H:%M:%S UTC"
-        )
+        ts = report.created_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
         return {
             "$schema": _SARIF_SCHEMA,
@@ -126,10 +124,7 @@ class SarifRenderer:
         for fe in sorted_entries:
             remediation = recs_by_cid.get(fe.correlation_id, [])
             scanners = sorted(fe.scanner_sources)
-            scanner_info = [
-                {"name": s, "version": scanner_versions.get(s)}
-                for s in scanners
-            ]
+            scanner_info = [{"name": s, "version": scanner_versions.get(s)} for s in scanners]
 
             rule: dict[str, Any] = {
                 "id": fe.correlation_id,
@@ -138,11 +133,7 @@ class SarifRenderer:
                     "text": fe.title,
                 },
                 "fullDescription": {
-                    "text": (
-                        f"Severity: {fe.severity} | "
-                        f"Category: {fe.category} | "
-                        f"Risk Score: {fe.risk_score}/100"
-                    ),
+                    "text": (f"Severity: {fe.severity} | Category: {fe.category} | Risk Score: {fe.risk_score}/100"),
                 },
                 "help": {
                     "text": (
@@ -152,11 +143,7 @@ class SarifRenderer:
                         f"Risk Score: {fe.risk_score}/100\n"
                         f"Confidence: {fe.confidence:.0%}\n"
                         f"Scanners: {', '.join(fe.scanner_sources)}\n"
-                        + (
-                            f"Remediation: {'; '.join(remediation)}"
-                            if remediation
-                            else "No remediation available"
-                        )
+                        + (f"Remediation: {'; '.join(remediation)}" if remediation else "No remediation available")
                     ),
                 },
                 "properties": {
@@ -187,13 +174,15 @@ class SarifRenderer:
 
             locations: list[dict[str, Any]] = []
             for asset in sorted(fe.affected_assets):
-                locations.append({
-                    "physicalLocation": {
-                        "artifactLocation": {
-                            "uri": asset,
+                locations.append(
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {
+                                "uri": asset,
+                            },
                         },
-                    },
-                })
+                    }
+                )
 
             result: dict[str, Any] = {
                 "ruleId": fe.correlation_id,
@@ -232,9 +221,11 @@ class SarifRenderer:
             for asset in fe.affected_assets:
                 if asset not in seen:
                     seen.add(asset)
-                    artifacts.append({
-                        "location": {"uri": asset},
-                        "description": {"text": "Affected asset"},
-                    })
+                    artifacts.append(
+                        {
+                            "location": {"uri": asset},
+                            "description": {"text": "Affected asset"},
+                        }
+                    )
         artifacts.sort(key=lambda a: a["location"]["uri"])
         return artifacts

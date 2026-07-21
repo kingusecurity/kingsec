@@ -64,13 +64,9 @@ def check_domain_isolation() -> None:
     for f in _collect_python_files(DOMAIN_DIR):
         for lineno, mod in _extract_imports(f):
             _get_module_root(f)
-            if any(
-                _is_submodule_of(mod, target)
-                for target in ["application", "infrastructure", "adapters"]
-            ):
+            if any(_is_submodule_of(mod, target) for target in ["application", "infrastructure", "adapters"]):
                 ERRORS.append(
-                    f"  {f.name}:{lineno} -> {mod} "
-                    f"(domain must not import from application/infrastructure/adapters)"
+                    f"  {f.name}:{lineno} -> {mod} (domain must not import from application/infrastructure/adapters)"
                 )
 
 
@@ -79,12 +75,9 @@ def check_application_isolation() -> None:
     for f in _collect_python_files(APPLICATION_DIR):
         for lineno, mod in _extract_imports(f):
             _get_module_root(f)
-            if any(
-                _is_submodule_of(mod, target) for target in ["infrastructure", "adapters"]
-            ):
+            if any(_is_submodule_of(mod, target) for target in ["infrastructure", "adapters"]):
                 ERRORS.append(
-                    f"  {f.name}:{lineno} -> {mod} "
-                    f"(application must not import from infrastructure/adapters)"
+                    f"  {f.name}:{lineno} -> {mod} (application must not import from infrastructure/adapters)"
                 )
 
 

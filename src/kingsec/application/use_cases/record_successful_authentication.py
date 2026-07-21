@@ -11,9 +11,7 @@ class RecordSuccessfulAuthentication:
     def __init__(self, lockout_repo: LockoutRepository) -> None:
         self._lockout_repo = lockout_repo
 
-    def execute(
-        self, request: RecordSuccessfulAuthenticationRequest
-    ) -> RecordSuccessfulAuthenticationResponse:
+    def execute(self, request: RecordSuccessfulAuthenticationRequest) -> RecordSuccessfulAuthenticationResponse:
         existing = self._lockout_repo.get(request.user_id)
         previous = existing.failed_attempts if existing else 0
 

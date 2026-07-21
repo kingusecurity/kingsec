@@ -75,10 +75,7 @@ class GenerateReport:
             action_required=report.verdict.action_required,
             highest_severity=highest.label if highest is not None else None,
             total_findings=report.total_findings,
-            severity_counts=tuple(
-                SeverityCount(severity.label, count)
-                for severity, count in report.severity_counts
-            ),
+            severity_counts=tuple(SeverityCount(severity.label, count) for severity, count in report.severity_counts),
             artifact_media_type=rendered.media_type,
             artifact_filename=rendered.filename,
             artifact_bytes=len(rendered.content),

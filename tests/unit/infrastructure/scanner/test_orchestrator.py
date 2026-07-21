@@ -371,7 +371,9 @@ class TestScan:
         findings = orchestrator.scan(fake_ip)
         assert findings == ()
 
-    def test_returns_tuple(self, registry: InMemoryPluginRegistry, orchestrator: ScannerOrchestrator, fake_ip: Target) -> None:
+    def test_returns_tuple(
+        self, registry: InMemoryPluginRegistry, orchestrator: ScannerOrchestrator, fake_ip: Target
+    ) -> None:
         registry.register(_StubPlugin(plugin_id="nuclei"))
         result = orchestrator.scan(fake_ip)
         assert isinstance(result, tuple)
@@ -400,7 +402,9 @@ class TestShutdown:
         orchestrator.shutdown()  # should not raise
         assert p2.shutdown_called is True
 
-    def test_unavailable_plugin_handled(self, registry: InMemoryPluginRegistry, orchestrator: ScannerOrchestrator) -> None:
+    def test_unavailable_plugin_handled(
+        self, registry: InMemoryPluginRegistry, orchestrator: ScannerOrchestrator
+    ) -> None:
         p1 = _StubPlugin(plugin_id="unavail", available=False, availability_reason="missing")
         p2 = _StubPlugin(plugin_id="good")
         registry.register(p1)
@@ -428,6 +432,7 @@ class TestInheritance:
 
     def test_is_scanner_executor(self) -> None:
         from kingsec.application.ports.scanner_executor import ScannerExecutor
+
         assert issubclass(ScannerOrchestrator, ScannerExecutor)
 
     def test_can_be_assigned_to_scanner_port(self) -> None:
@@ -437,6 +442,7 @@ class TestInheritance:
 
     def test_can_be_assigned_to_scanner_executor(self) -> None:
         from kingsec.application.ports.scanner_executor import ScannerExecutor
+
         registry = InMemoryPluginRegistry()
         orch: ScannerExecutor = ScannerOrchestrator(registry)
         assert isinstance(orch, ScannerExecutor)

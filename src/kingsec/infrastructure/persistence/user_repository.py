@@ -50,37 +50,32 @@ class SqlAlchemyUserRepository(UserRepository):
                 existing.role = user.role.name
                 existing.is_active = user.is_active
                 existing.created_at = user.created_at.isoformat()
-                existing.last_login_at = (
-                    user.last_login_at.isoformat() if user.last_login_at else None
-                )
+                existing.last_login_at = user.last_login_at.isoformat() if user.last_login_at else None
             else:
                 session.add(_to_orm(user))
             session.commit()
 
     def exists_by_username(self, username: str) -> bool:
         with self._session_factory() as session:
-            return session.execute(
-                select(exists().where(func.lower(UserORM.username) == username.lower()))
-            ).scalar() or False
+            return (
+                session.execute(select(exists().where(func.lower(UserORM.username) == username.lower()))).scalar()
+                or False
+            )
 
     def exists_by_email(self, email: str) -> bool:
         with self._session_factory() as session:
-            return session.execute(
-                select(exists().where(func.lower(UserORM.email) == email.lower()))
-            ).scalar() or False
+            return session.execute(select(exists().where(func.lower(UserORM.email) == email.lower()))).scalar() or False
 
     def list_all(self, limit: int = 50, offset: int = 0) -> list[User]:
         with self._session_factory() as session:
-            orms = session.execute(
-                select(UserORM).order_by(UserORM.username).limit(limit).offset(offset)
-            ).scalars().all()
+            orms = (
+                session.execute(select(UserORM).order_by(UserORM.username).limit(limit).offset(offset)).scalars().all()
+            )
             return [_to_domain(o) for o in orms]
 
     def count(self) -> int:
         with self._session_factory() as session:
-            count = session.execute(
-                select(func.count()).select_from(UserORM)
-            ).scalar()
+            count = session.execute(select(func.count()).select_from(UserORM)).scalar()
             return count if count else 0
 
 

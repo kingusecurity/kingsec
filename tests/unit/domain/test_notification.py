@@ -81,5 +81,6 @@ class TestNotification:
             updated_at="now",
         )
         import pytest
+
         with pytest.raises(AttributeError):
             n.title = "changed"

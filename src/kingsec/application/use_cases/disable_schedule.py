@@ -22,18 +22,28 @@ class DisableSchedule:
         existing = self._repository.find_by_id(request.schedule_id)
         if existing is None:
             from kingsec.application.errors import ApplicationError
+
             raise ApplicationError(f"schedule '{request.schedule_id}' not found")
 
         updated = ScanSchedule(
-            id=existing.id, name=existing.name, description=existing.description,
-            owner_user_id=existing.owner_user_id, target=existing.target,
-            scanner_ids=existing.scanner_ids, config=existing.config,
-            schedule_type=existing.schedule_type, cron_expression=existing.cron_expression,
+            id=existing.id,
+            name=existing.name,
+            description=existing.description,
+            owner_user_id=existing.owner_user_id,
+            target=existing.target,
+            scanner_ids=existing.scanner_ids,
+            config=existing.config,
+            schedule_type=existing.schedule_type,
+            cron_expression=existing.cron_expression,
             timezone=existing.timezone,
-            enabled=False, paused=False,
-            created_at=existing.created_at, updated_at=datetime.now(UTC).isoformat(),
-            last_run=existing.last_run, next_run=existing.next_run,
-            retry_policy=existing.retry_policy, current_retry_count=existing.current_retry_count,
+            enabled=False,
+            paused=False,
+            created_at=existing.created_at,
+            updated_at=datetime.now(UTC).isoformat(),
+            last_run=existing.last_run,
+            next_run=existing.next_run,
+            retry_policy=existing.retry_policy,
+            current_retry_count=existing.current_retry_count,
             status=ScheduleStatus.DISABLED,
         )
         self._repository.save(updated)

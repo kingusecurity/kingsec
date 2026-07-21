@@ -29,8 +29,6 @@ class AuditContextMiddleware(BaseHTTPMiddleware):
         request.state.audit_ip = request.client.host if request.client else "unknown"
         request.state.audit_user_agent = request.headers.get("user-agent", "")
         # CorrelationIDMiddleware stores this; fall back to empty string.
-        request.state.audit_correlation_id = getattr(
-            request.state, "request_id", ""
-        )
+        request.state.audit_correlation_id = getattr(request.state, "request_id", "")
 
         return await call_next(request)

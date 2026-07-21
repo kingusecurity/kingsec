@@ -43,9 +43,7 @@ class KingSecError(Exception):
     # Class-level defaults. Concrete subclasses override ``code`` (required to
     # be unique) and ``default_user_message`` (a safe generic fallback).
     code: ClassVar[str] = ErrorCode.UNEXPECTED
-    default_user_message: ClassVar[str] = (
-        "An unexpected error occurred. Please try again or contact support."
-    )
+    default_user_message: ClassVar[str] = "An unexpected error occurred. Please try again or contact support."
 
     # Global code -> class map, populated at import time by __init_subclass__.
     # Enables duplicate detection and code->class lookup for docs/tooling.
@@ -94,9 +92,7 @@ class KingSecError(Exception):
         """
         super().__init__(message)
         self.message = message
-        self.user_message = (
-            user_message if user_message is not None else self.default_user_message
-        )
+        self.user_message = user_message if user_message is not None else self.default_user_message
         # dict(...) copies; {} when None. Never share the caller's mutable dict.
         self.context: dict[str, Any] = dict(context) if context else {}
         if cause is not None:

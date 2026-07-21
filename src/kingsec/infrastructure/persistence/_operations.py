@@ -38,9 +38,7 @@ from .models import AssessmentORM, ReportORM
 _logger = get_logger("kingsec.infrastructure.persistence")
 
 
-def raise_persistence_error(
-    message: str, cause: SQLAlchemyError, reference: str
-) -> NoReturn:
+def raise_persistence_error(message: str, cause: SQLAlchemyError, reference: str) -> NoReturn:
     """Translate a SQLAlchemy error into a ``PersistenceError`` and log it.
 
     Keeping the SQLAlchemy exception out of the application layer prevents a
@@ -147,13 +145,7 @@ def list_assessments(
     Returns:
         A list of assessments, most recent first. May be empty.
     """
-    orms = (
-        session.query(AssessmentORM)
-        .order_by(AssessmentORM.created_at.desc())
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
+    orms = session.query(AssessmentORM).order_by(AssessmentORM.created_at.desc()).offset(offset).limit(limit).all()
     return [assessment_to_domain(orm) for orm in orms]
 
 

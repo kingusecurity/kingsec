@@ -97,6 +97,7 @@ class TestCapabilities:
 
     def test_structured_json_output(self) -> None:
         from kingsec.domain import OutputFormat
+
         caps = _make_plugin().capabilities()
         assert caps[0].output_format is OutputFormat.STRUCTURED_JSON
 
@@ -203,8 +204,10 @@ class TestProvisioning:
         register_scanner(container, Settings(), runner=runner)
 
         from kingsec.application import ScannerPort
+
         scanner = container.resolve(ScannerPort)
         from kingsec.infrastructure.scanner.orchestrator import ScannerOrchestrator
+
         assert isinstance(scanner, ScannerOrchestrator)
 
     def test_orchestrator_resolves_ffuf(self) -> None:

@@ -78,7 +78,9 @@ class OpenAICompatibleProvider(ProviderConfig):
     def build_headers(self, api_key: str) -> dict[str, str]:
         return {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
-    def build_payload(self, system_prompt: str, user_prompt: str, model: str, temperature: float, max_tokens: int) -> dict[str, Any]:
+    def build_payload(
+        self, system_prompt: str, user_prompt: str, model: str, temperature: float, max_tokens: int
+    ) -> dict[str, Any]:
         return {
             "model": model,
             "messages": [
@@ -109,7 +111,9 @@ class AnthropicProvider(ProviderConfig):
             "Content-Type": "application/json",
         }
 
-    def build_payload(self, system_prompt: str, user_prompt: str, model: str, temperature: float, max_tokens: int) -> dict[str, Any]:
+    def build_payload(
+        self, system_prompt: str, user_prompt: str, model: str, temperature: float, max_tokens: int
+    ) -> dict[str, Any]:
         return {
             "model": model,
             "system": system_prompt,
@@ -134,7 +138,9 @@ class GeminiProvider(ProviderConfig):
     def build_headers(self, api_key: str) -> dict[str, str]:
         return {"x-goog-api-key": api_key, "Content-Type": "application/json"}
 
-    def build_payload(self, system_prompt: str, user_prompt: str, model: str, temperature: float, max_tokens: int) -> dict[str, Any]:
+    def build_payload(
+        self, system_prompt: str, user_prompt: str, model: str, temperature: float, max_tokens: int
+    ) -> dict[str, Any]:
         return {
             "systemInstruction": {"parts": [{"text": system_prompt}]},
             "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],

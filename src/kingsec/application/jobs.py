@@ -50,9 +50,7 @@ def validate_transition(current: JobStatus, target: JobStatus) -> None:
     Raises ``IllegalJobTransitionError`` if not.
     """
     if target not in _TRANSITIONS.get(current, set()):
-        raise IllegalJobTransitionError(
-            f"Cannot transition from {current.value} to {target.value}"
-        )
+        raise IllegalJobTransitionError(f"Cannot transition from {current.value} to {target.value}")
 
 
 @dataclass(frozen=True)
@@ -145,9 +143,7 @@ class InMemoryJobService(JobServicePort):
             if job is None:
                 raise JobNotFoundError(f"Job not found: {job_id}")
             if job.status != JobStatus.COMPLETED:
-                raise IllegalJobTransitionError(
-                    f"Job {job_id} has status {job.status.value}, not COMPLETED"
-                )
+                raise IllegalJobTransitionError(f"Job {job_id} has status {job.status.value}, not COMPLETED")
             result = self._results.get(job_id)
         if result is None:
             raise JobNotFoundError(f"No result for job: {job_id}")

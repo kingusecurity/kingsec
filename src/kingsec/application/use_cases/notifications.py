@@ -221,7 +221,9 @@ class RetryFailedNotifications:
         return notification
 
     @staticmethod
-    def _publish_audit(audit: AuditPublisher | None, action: AuditAction, notification: Notification, error: str | None = None) -> None:
+    def _publish_audit(
+        audit: AuditPublisher | None, action: AuditAction, notification: Notification, error: str | None = None
+    ) -> None:
         if audit is None:
             return
         audit.record(

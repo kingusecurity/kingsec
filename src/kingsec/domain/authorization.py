@@ -18,9 +18,9 @@ from ._validation import ensure_non_empty, ensure_timezone_aware
 class Authorization:
     """Immutable proof that an assessment was authorized."""
 
-    authorized_by: str          # who granted authorization (person / ticket)
-    authorized_at: datetime     # when (timezone-aware)
-    scope: str                  # what was authorized (e.g. the target/range)
+    authorized_by: str  # who granted authorization (person / ticket)
+    authorized_at: datetime  # when (timezone-aware)
+    scope: str  # what was authorized (e.g. the target/range)
 
     def __post_init__(self) -> None:
         ensure_non_empty(self.authorized_by, "authorized_by")

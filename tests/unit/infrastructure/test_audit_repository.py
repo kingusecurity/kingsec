@@ -59,10 +59,12 @@ class TestSqlAlchemyAuditRepository:
 
     def test_append_only_no_delete(self, repo: SqlAlchemyAuditRepository) -> None:
         for i in range(5):
-            repo.record(AuditEntry(
-                action=AuditAction.LOGIN,
-                resource_id=f"user-{i}",
-            ))
+            repo.record(
+                AuditEntry(
+                    action=AuditAction.LOGIN,
+                    resource_id=f"user-{i}",
+                )
+            )
         entries = repo.list_entries()
         assert len(entries) == 5
 

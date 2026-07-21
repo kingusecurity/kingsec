@@ -67,9 +67,7 @@ class _IntegrationService(ServiceAPI):
     def __init__(self) -> None:
         self._assessment_id: str | None = None
 
-    def create_assessment(
-        self, request: CreateAssessmentRequest
-    ) -> CreateAssessmentResponse:
+    def create_assessment(self, request: CreateAssessmentRequest) -> CreateAssessmentResponse:
         self._assessment_id = "asmt-int-001"
         return CreateAssessmentResponse(
             assessment_id=self._assessment_id,
@@ -77,9 +75,7 @@ class _IntegrationService(ServiceAPI):
             target=f"{request.target_value} ({request.target_type})",
         )
 
-    def start_assessment(
-        self, request: StartAssessmentRequest
-    ) -> StartAssessmentResponse:
+    def start_assessment(self, request: StartAssessmentRequest) -> StartAssessmentResponse:
         return StartAssessmentResponse(
             assessment_id=request.assessment_id,
             status="completed",
@@ -87,18 +83,14 @@ class _IntegrationService(ServiceAPI):
             highest_severity=None,
         )
 
-    def submit_assessment(
-        self, request: SubmitAssessmentRequest
-    ) -> SubmitAssessmentResponse:
+    def submit_assessment(self, request: SubmitAssessmentRequest) -> SubmitAssessmentResponse:
         return SubmitAssessmentResponse(
             assessment_id=request.assessment_id,
             status="running",
             job_id=request.assessment_id,
         )
 
-    def cancel_assessment(
-        self, request: CancelAssessmentRequest
-    ) -> CancelAssessmentResponse:
+    def cancel_assessment(self, request: CancelAssessmentRequest) -> CancelAssessmentResponse:
         return CancelAssessmentResponse(
             assessment_id=request.assessment_id,
             status="cancelled",
@@ -114,9 +106,7 @@ class _IntegrationService(ServiceAPI):
             findings=(),
         )
 
-    def generate_report(
-        self, request: GenerateReportRequest
-    ) -> GenerateReportResponse:
+    def generate_report(self, request: GenerateReportRequest) -> GenerateReportResponse:
         return GenerateReportResponse(
             assessment_id=request.assessment_id,
             verdict="No findings",
@@ -129,9 +119,7 @@ class _IntegrationService(ServiceAPI):
             artifact_bytes=512,
         )
 
-    def list_assessments(
-        self, request: ListAssessmentsRequest
-    ) -> ListAssessmentsResponse:
+    def list_assessments(self, request: ListAssessmentsRequest) -> ListAssessmentsResponse:
         return ListAssessmentsResponse(
             items=(),
             total=0,
@@ -139,9 +127,7 @@ class _IntegrationService(ServiceAPI):
             offset=request.offset,
         )
 
-    def delete_assessment(
-        self, request: DeleteAssessmentRequest
-    ) -> DeleteAssessmentResponse:
+    def delete_assessment(self, request: DeleteAssessmentRequest) -> DeleteAssessmentResponse:
         return DeleteAssessmentResponse(
             assessment_id=request.assessment_id,
         )

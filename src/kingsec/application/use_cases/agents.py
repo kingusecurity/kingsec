@@ -46,6 +46,7 @@ class UpdateHeartbeat:
         agent = self._repo.find_by_id(heartbeat.agent_id)
         if not agent:
             from kingsec.application.errors import AgentNotFoundError
+
             raise AgentNotFoundError(f"Agent '{heartbeat.agent_id}' not found")
 
         stats = AgentStatistics(
@@ -121,6 +122,7 @@ class DisableAgent:
         agent = self._repo.find_by_id(AgentId(agent_id))
         if not agent:
             from kingsec.application.errors import AgentNotFoundError
+
             raise AgentNotFoundError(f"Agent '{agent_id}' not found")
         return agent
 
@@ -155,6 +157,7 @@ class EnableAgent:
         agent = self._repo.find_by_id(AgentId(agent_id))
         if not agent:
             from kingsec.application.errors import AgentNotFoundError
+
             raise AgentNotFoundError(f"Agent '{agent_id}' not found")
         return agent
 
@@ -167,6 +170,7 @@ class RemoveAgent:
         agent = self._repo.find_by_id(AgentId(agent_id))
         if not agent:
             from kingsec.application.errors import AgentNotFoundError
+
             raise AgentNotFoundError(f"Agent '{agent_id}' not found")
         self._repo.delete(AgentId(agent_id))
 
@@ -196,9 +200,11 @@ class ReportJobProgress:
         agent = self._repo.find_by_id(AgentId(agent_id))
         if not agent:
             from kingsec.application.errors import AgentNotFoundError
+
             raise AgentNotFoundError(f"Agent '{agent_id}' not found")
         if agent.current_job_id != job_id:
             from kingsec.application.errors import JobNotFoundError
+
             raise JobNotFoundError(f"Job '{job_id}' not assigned to agent '{agent_id}'")
 
 
@@ -211,6 +217,7 @@ class CompleteJob:
         agent = self._repo.find_by_id(AgentId(agent_id))
         if not agent:
             from kingsec.application.errors import AgentNotFoundError
+
             raise AgentNotFoundError(f"Agent '{agent_id}' not found")
         completed = Agent(
             id=agent.id,
@@ -248,6 +255,7 @@ class FailJob:
         agent = self._repo.find_by_id(AgentId(agent_id))
         if not agent:
             from kingsec.application.errors import AgentNotFoundError
+
             raise AgentNotFoundError(f"Agent '{agent_id}' not found")
         failed = Agent(
             id=agent.id,

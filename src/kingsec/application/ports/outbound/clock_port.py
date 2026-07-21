@@ -5,5 +5,4 @@ from abc import ABC, abstractmethod
 
 class ClockPort(ABC):
     @abstractmethod
-    def now(self) -> float:
-        ...
+    def now(self) -> float: ...

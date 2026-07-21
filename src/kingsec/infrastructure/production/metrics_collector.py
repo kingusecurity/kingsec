@@ -13,6 +13,7 @@ class ProcessMetricsCollector(MetricsCollectorPort):
     def collect_cpu(self) -> float:
         try:
             import psutil  # type: ignore[import-untyped]
+
             return cast(float, psutil.cpu_percent(interval=0.1))
         except ImportError:
             return 0.0
@@ -20,6 +21,7 @@ class ProcessMetricsCollector(MetricsCollectorPort):
     def collect_memory(self) -> tuple[float, float]:
         try:
             import psutil
+
             mem = psutil.virtual_memory()
             return mem.percent, mem.used / (1024 * 1024)
         except ImportError:
@@ -28,6 +30,7 @@ class ProcessMetricsCollector(MetricsCollectorPort):
     def collect_disk(self) -> tuple[float, float]:
         try:
             import psutil
+
             du = psutil.disk_usage("/")
             return du.percent, du.used / (1024 * 1024 * 1024)
         except ImportError:

@@ -22,13 +22,22 @@ from kingsec.infrastructure.logging import get_logger
 _logger = get_logger("kingsec.infrastructure.scanner")
 
 # Nmap script ids that signal elevated risk.
-_HIGH_RISK_SCRIPTS = frozenset({
-    "ssl-poodle", "ssl-heartbleed", "ssl-dh-params",
-    "ssl-cert-expired", "ssl-known-key",
-})
-_MEDIUM_RISK_SCRIPTS = frozenset({
-    "ssl-enum-ciphers", "http-vuln-*", "smb-vuln-*",
-})
+_HIGH_RISK_SCRIPTS = frozenset(
+    {
+        "ssl-poodle",
+        "ssl-heartbleed",
+        "ssl-dh-params",
+        "ssl-cert-expired",
+        "ssl-known-key",
+    }
+)
+_MEDIUM_RISK_SCRIPTS = frozenset(
+    {
+        "ssl-enum-ciphers",
+        "http-vuln-*",
+        "smb-vuln-*",
+    }
+)
 
 
 def _classify_script_severity(script_id: str) -> Severity:
@@ -103,10 +112,7 @@ def _parse_host(host_el: ET.Element) -> list[Finding]:
         finding.add_evidence(
             Evidence(
                 summary=f"Port {portid}/{protocol} open on {target_label}",
-                detail=(
-                    f"port: {portid}/{protocol} | state: open | "
-                    f"service: {service_desc} | addr: {addr}"
-                ),
+                detail=(f"port: {portid}/{protocol} | state: open | service: {service_desc} | addr: {addr}"),
                 collected_at=datetime.now(UTC),
             )
         )

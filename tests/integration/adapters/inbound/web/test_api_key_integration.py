@@ -65,6 +65,7 @@ def _build_app() -> tuple[FastAPI, StubTokenService, StubUserRepo, StubApiKeyRep
     class _StubApp:
         def resolve(self, service_type: type):
             from kingsec.application.ports import PasswordHasher, UserRepository
+
             if service_type == TokenService:
                 return token_service
             if service_type == UserRepository:
@@ -109,7 +110,9 @@ def _build_app() -> tuple[FastAPI, StubTokenService, StubUserRepo, StubApiKeyRep
 class TestApiKeyIntegration:
     """Full API key lifecycle tests."""
 
-    def _register_and_login(self, client: TestClient, token_service: StubTokenService, user_repo: StubUserRepo, username: str = "testuser") -> str:
+    def _register_and_login(
+        self, client: TestClient, token_service: StubTokenService, user_repo: StubUserRepo, username: str = "testuser"
+    ) -> str:
         """Helper: register a user and return an access token."""
         register_resp = client.post(
             "/api/v1/auth/register",

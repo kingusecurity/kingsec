@@ -23,46 +23,48 @@ from tests.unit.infrastructure.scanner.conftest import FakeRunner
 
 _TARGET = Target("http://example.com", TargetType.URL)
 
-_SAMPLE_JSONL = json.dumps({
-    "site": [
-        {
-            "@name": "http://example.com",
-            "host": "example.com",
-            "alerts": [
-                {
-                    "alert": "SQL Injection",
-                    "riskcode": "3",
-                    "confidence": "High",
-                    "description": "SQL injection found",
-                    "solution": "Use parameterized queries",
-                    "reference": "https://owasp.org",
-                    "url": "http://example.com/login",
-                    "param": "username",
-                },
-                {
-                    "alert": "XSS",
-                    "riskcode": "2",
-                    "confidence": "Medium",
-                    "description": "XSS found",
-                    "solution": "Encode output",
-                    "reference": "",
-                    "url": "http://example.com/search",
-                    "param": "q",
-                },
-                {
-                    "alert": "Missing Header",
-                    "riskcode": "1",
-                    "confidence": "Medium",
-                    "description": "Header missing",
-                    "solution": "Add header",
-                    "reference": "",
-                    "url": "http://example.com/",
-                    "param": "",
-                },
-            ],
-        }
-    ]
-})
+_SAMPLE_JSONL = json.dumps(
+    {
+        "site": [
+            {
+                "@name": "http://example.com",
+                "host": "example.com",
+                "alerts": [
+                    {
+                        "alert": "SQL Injection",
+                        "riskcode": "3",
+                        "confidence": "High",
+                        "description": "SQL injection found",
+                        "solution": "Use parameterized queries",
+                        "reference": "https://owasp.org",
+                        "url": "http://example.com/login",
+                        "param": "username",
+                    },
+                    {
+                        "alert": "XSS",
+                        "riskcode": "2",
+                        "confidence": "Medium",
+                        "description": "XSS found",
+                        "solution": "Encode output",
+                        "reference": "",
+                        "url": "http://example.com/search",
+                        "param": "q",
+                    },
+                    {
+                        "alert": "Missing Header",
+                        "riskcode": "1",
+                        "confidence": "Medium",
+                        "description": "Header missing",
+                        "solution": "Add header",
+                        "reference": "",
+                        "url": "http://example.com/",
+                        "param": "",
+                    },
+                ],
+            }
+        ]
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -124,6 +126,7 @@ class TestCapabilities:
 
     def test_structured_json_output(self) -> None:
         from kingsec.domain import OutputFormat
+
         caps = _make_plugin().capabilities()
         assert caps[0].output_format is OutputFormat.STRUCTURED_JSON
 
@@ -222,8 +225,10 @@ class TestProvisioning:
         register_scanner(container, Settings(), runner=runner)
 
         from kingsec.application import ScannerPort
+
         scanner = container.resolve(ScannerPort)
         from kingsec.infrastructure.scanner.orchestrator import ScannerOrchestrator
+
         assert isinstance(scanner, ScannerOrchestrator)
 
     def test_orchestrator_resolves_zap(self) -> None:

@@ -70,10 +70,7 @@ def _sev_class(severity: Severity) -> str:
 
 
 def _badge(severity: Severity) -> str:
-    return (
-        f'<span class="badge {_sev_class(severity)}">'
-        f"{escape(severity.label)}</span>"
-    )
+    return f'<span class="badge {_sev_class(severity)}">{escape(severity.label)}</span>'
 
 
 def _executive_summary(report: Report) -> str:
@@ -86,7 +83,7 @@ def _executive_summary(report: Report) -> str:
         else '<p class="callout">No immediate action is required.</p>'
     )
     return (
-        "<section id=\"executive-summary\">"
+        '<section id="executive-summary">'
         "<h2>Executive Summary</h2>"
         f"<p>{escape(verdict.headline)}</p>"
         f"<p>Total findings: <strong>{report.total_findings}</strong> &middot; "
@@ -104,24 +101,13 @@ def _assessment_information(report: Report) -> str:
         "Scan Date": scan_date,
         "Assessment Status": _ASSESSMENT_STATUS,
     }
-    body = "".join(
-        f"<tr><th>{escape(k)}</th><td>{escape(str(v))}</td></tr>"
-        for k, v in rows.items()
-    )
-    return (
-        '<section id="assessment-information">'
-        "<h2>Assessment Information</h2>"
-        f"<table>{body}</table>"
-        "</section>"
-    )
+    body = "".join(f"<tr><th>{escape(k)}</th><td>{escape(str(v))}</td></tr>" for k, v in rows.items())
+    return f'<section id="assessment-information"><h2>Assessment Information</h2><table>{body}</table></section>'
 
 
 def _risk_summary(report: Report) -> str:
     counts = dict(report.severity_counts)
-    rows = "".join(
-        f"<tr><td>{_badge(sev)}</td><td>{counts.get(sev, 0)}</td></tr>"
-        for sev in _SEVERITY_ORDER
-    )
+    rows = "".join(f"<tr><td>{_badge(sev)}</td><td>{counts.get(sev, 0)}</td></tr>" for sev in _SEVERITY_ORDER)
     return (
         '<section id="risk-summary">'
         "<h2>Risk Summary</h2>"
@@ -133,10 +119,7 @@ def _risk_summary(report: Report) -> str:
 
 def _findings(report: Report) -> str:
     if not report.entries:
-        return (
-            '<section id="findings"><h2>Findings</h2>'
-            "<p>No findings were recorded for this assessment.</p></section>"
-        )
+        return '<section id="findings"><h2>Findings</h2><p>No findings were recorded for this assessment.</p></section>'
     rows = "".join(
         "<tr>"
         f"<td>{_badge(entry.severity)}</td>"
@@ -169,16 +152,8 @@ def _conclusion(report: Report) -> str:
             "Prioritise the highest-severity findings listed above."
         )
     else:
-        text = (
-            "The assessment completed. The findings recorded are informational "
-            "and do not require immediate action."
-        )
-    return (
-        '<section id="conclusion">'
-        "<h2>Conclusion</h2>"
-        f"<p>{escape(text)}</p>"
-        "</section>"
-    )
+        text = "The assessment completed. The findings recorded are informational and do not require immediate action."
+    return f'<section id="conclusion"><h2>Conclusion</h2><p>{escape(text)}</p></section>'
 
 
 def _footer(report: Report, brand_name: str) -> str:

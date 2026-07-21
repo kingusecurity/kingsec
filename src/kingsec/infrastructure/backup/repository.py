@@ -56,6 +56,7 @@ class SQLAlchemyBackupRepository(BackupRepositoryPort):
 
     def save_backup(self, backup: BackupMetadata) -> None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             session.execute(
                 text("""
@@ -87,6 +88,7 @@ class SQLAlchemyBackupRepository(BackupRepositoryPort):
 
     def find_backup_by_id(self, backup_id: str) -> BackupMetadata | None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             row = session.execute(
                 text("SELECT * FROM scan_backup WHERE backup_id = :bid"),
@@ -98,18 +100,21 @@ class SQLAlchemyBackupRepository(BackupRepositoryPort):
 
     def find_all_backups(self) -> list[BackupMetadata]:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             rows = session.execute(text("SELECT * FROM scan_backup ORDER BY created_at DESC")).fetchall()
             return [self._row_to_backup(r._mapping) for r in rows]
 
     def delete_backup(self, backup_id: str) -> None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             session.execute(text("DELETE FROM scan_backup WHERE backup_id = :bid"), {"bid": backup_id})
             session.commit()
 
     def save_snapshot(self, snapshot: BackupSnapshot) -> None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             session.execute(
                 text("""
@@ -128,6 +133,7 @@ class SQLAlchemyBackupRepository(BackupRepositoryPort):
 
     def find_snapshot_by_id(self, snapshot_id: str) -> BackupSnapshot | None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             row = session.execute(
                 text("SELECT * FROM scan_snapshot WHERE snapshot_id = :sid"),
@@ -145,6 +151,7 @@ class SQLAlchemyBackupRepository(BackupRepositoryPort):
 
     def find_all_snapshots(self) -> list[BackupSnapshot]:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             rows = session.execute(text("SELECT * FROM scan_snapshot ORDER BY created_at DESC")).fetchall()
             return [
@@ -159,12 +166,14 @@ class SQLAlchemyBackupRepository(BackupRepositoryPort):
 
     def delete_snapshot(self, snapshot_id: str) -> None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             session.execute(text("DELETE FROM scan_snapshot WHERE snapshot_id = :sid"), {"sid": snapshot_id})
             session.commit()
 
     def save_restore(self, operation: RestoreOperation) -> None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             session.execute(
                 text("""
@@ -185,6 +194,7 @@ class SQLAlchemyBackupRepository(BackupRepositoryPort):
 
     def find_restore_by_id(self, restore_id: str) -> RestoreOperation | None:
         from sqlalchemy import text
+
         with self._session_factory() as session:
             row = session.execute(
                 text("SELECT * FROM scan_restore WHERE restore_id = :rid"),

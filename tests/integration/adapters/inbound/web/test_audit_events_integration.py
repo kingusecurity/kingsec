@@ -7,6 +7,7 @@ Verifies that:
 4. GET /api/v1/audit/events/{id} returns a single event
 5. GET /api/v1/audit/events/{id} returns 404 for missing event
 """
+
 from __future__ import annotations
 
 import uuid
@@ -118,7 +119,13 @@ def _build_app() -> tuple[FastAPI, StubAuditEventRepository, StubTokenService]:
     return app, event_repo, token_service
 
 
-def _register_and_login(client: TestClient, token_service: StubTokenService, user_repo: StubUserRepo, username: str = "adminuser", role: str = "ADMIN") -> str:
+def _register_and_login(
+    client: TestClient,
+    token_service: StubTokenService,
+    user_repo: StubUserRepo,
+    username: str = "adminuser",
+    role: str = "ADMIN",
+) -> str:
     """Helper: register a user and return an access token."""
     register_resp = client.post(
         "/api/v1/auth/register",

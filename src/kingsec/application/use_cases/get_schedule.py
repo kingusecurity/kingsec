@@ -16,6 +16,7 @@ class GetSchedule:
         schedule = self._repository.find_by_id(request.schedule_id)
         if schedule is None:
             from kingsec.application.errors import ApplicationError
+
             raise ApplicationError(f"schedule '{request.schedule_id}' not found")
 
         return GetScheduleResponse(schedule=_to_view(schedule))

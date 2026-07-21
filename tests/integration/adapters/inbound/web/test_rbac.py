@@ -25,6 +25,7 @@ class StubTokenService(TokenService):
 
     def create_access_token(self, user_id: str, username: str, role: str) -> str:
         import uuid
+
         jti = uuid.uuid4().hex
         token = f"access-{jti}"
         self._tokens[token] = TokenClaims(
@@ -40,6 +41,7 @@ class StubTokenService(TokenService):
 
     def create_refresh_token(self, user_id: str, username: str, role: str) -> str:
         import uuid
+
         jti = uuid.uuid4().hex
         token = f"refresh-{jti}"
         self._tokens[token] = TokenClaims(
@@ -101,7 +103,7 @@ class StubUserRepo:
         return any(u.email.lower() == email.lower() for u in self._users.values())
 
     def list_all(self, limit: int = 50, offset: int = 0) -> list[User]:
-        return list(self._users.values())[offset:offset + limit]
+        return list(self._users.values())[offset : offset + limit]
 
     def count(self) -> int:
         return len(self._users)
@@ -122,10 +124,12 @@ class StubServiceAPI:
 
     def list_assessments(self, request: object):
         from kingsec.application.dto import ListAssessmentsResponse
+
         return ListAssessmentsResponse(items=(), total=0, limit=50, offset=0)
 
     def create_assessment(self, request: object):
         from kingsec.application.dto import CreateAssessmentResponse
+
         return CreateAssessmentResponse(
             assessment_id=str(self._uuid.uuid4()),
             status="authorized",
@@ -134,10 +138,12 @@ class StubServiceAPI:
 
     def get_assessment(self, request: object):
         from kingsec.application.errors import AssessmentNotFoundError
+
         raise AssessmentNotFoundError("assessment not found")
 
     def submit_assessment(self, request: object):
         from kingsec.application.dto import SubmitAssessmentResponse
+
         return SubmitAssessmentResponse(
             assessment_id=str(self._uuid.uuid4()),
             status="running",
@@ -146,10 +152,12 @@ class StubServiceAPI:
 
     def generate_report(self, request: object):
         from kingsec.application.errors import AssessmentNotFoundError
+
         raise AssessmentNotFoundError("assessment not found")
 
     def cancel_assessment(self, request: object):
         from kingsec.application.dto import CancelAssessmentResponse
+
         return CancelAssessmentResponse(
             assessment_id=str(self._uuid.uuid4()),
             status="cancelled",
@@ -182,6 +190,7 @@ def _build_app() -> tuple[FastAPI, StubTokenService, StubUserRepo, StubHasher]:
                 TokenService,
                 UserRepository,
             )
+
             if service_type == ServiceAPI:
                 return StubServiceAPI()
             if service_type == TokenService:
@@ -257,17 +266,22 @@ class TestRBACProtectedEndpoints:
 
     # ── 401: no token ──────────────────────────────────────────────────
 
-    @pytest.mark.parametrize("method,path", [
-        ("GET", "/api/v1/assessments"),
-        ("POST", "/api/v1/assessments"),
-        ("GET", "/api/v1/assessments/abc-123"),
-        ("POST", "/api/v1/assessments/abc-123/start"),
-        ("POST", "/api/v1/assessments/abc-123/report"),
-        ("POST", "/api/v1/assessments/abc-123/cancel"),
-        ("DELETE", "/api/v1/assessments/abc-123"),
-    ])
+    @pytest.mark.parametrize(
+        "method,path",
+        [
+            ("GET", "/api/v1/assessments"),
+            ("POST", "/api/v1/assessments"),
+            ("GET", "/api/v1/assessments/abc-123"),
+            ("POST", "/api/v1/assessments/abc-123/start"),
+            ("POST", "/api/v1/assessments/abc-123/report"),
+            ("POST", "/api/v1/assessments/abc-123/cancel"),
+            ("DELETE", "/api/v1/assessments/abc-123"),
+        ],
+    )
     def test_protected_endpoint_returns_401_without_token(
-        self, method: str, path: str,
+        self,
+        method: str,
+        path: str,
     ) -> None:
         resp = self.client.request(method, path, json={})
         assert resp.status_code == 401, f"{method} {path} returned {resp.status_code}"

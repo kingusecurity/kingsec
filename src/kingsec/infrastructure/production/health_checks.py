@@ -18,6 +18,7 @@ class FilesystemHealthCheck:
             usage = 0.0
             try:
                 import shutil
+
                 total, used, _free = shutil.disk_usage(self._path)
                 usage = (used / total) * 100
             except (ImportError, AttributeError):
@@ -41,10 +42,13 @@ class DatabaseHealthCheck:
             return HealthCheck(name="database", status=HealthStatus.HEALTHY, message="No database configured")
         try:
             from sqlalchemy import text
+
             with self._session_factory() as session:
                 result = session.execute(text("SELECT 1")).scalar()
                 if result == 1:
                     return HealthCheck(name="database", status=HealthStatus.HEALTHY, message="Database reachable")
-                return HealthCheck(name="database", status=HealthStatus.UNHEALTHY, message="Database returned unexpected result")
+                return HealthCheck(
+                    name="database", status=HealthStatus.UNHEALTHY, message="Database returned unexpected result"
+                )
         except Exception as exc:
             return HealthCheck(name="database", status=HealthStatus.UNHEALTHY, message=str(exc))

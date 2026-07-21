@@ -27,24 +27,18 @@ def _sanitise_archive_path(dest: str, entry_path: str) -> str:
 
     # Reject absolute entry paths (e.g. /etc/passwd)
     if os.path.isabs(entry_path):
-        raise PathTraversalError(
-            f"Archive entry {entry_path!r} is an absolute path"
-        )
+        raise PathTraversalError(f"Archive entry {entry_path!r} is an absolute path")
 
     # Reject Windows drive paths
     entry_path_upper = entry_path.upper()
     if ":" in entry_path_upper and any(
         entry_path_upper.startswith(d) for d in [chr(c) + ":" for c in range(ord("A"), ord("Z") + 1)]
     ):
-        raise PathTraversalError(
-            f"Archive entry {entry_path!r} contains a Windows drive path"
-        )
+        raise PathTraversalError(f"Archive entry {entry_path!r} contains a Windows drive path")
 
     # Reject entries that escape the destination directory
     if not str(entry_resolved).startswith(str(dest_resolved)):
-        raise PathTraversalError(
-            f"Archive entry {entry_path!r} would escape destination {dest!r}"
-        )
+        raise PathTraversalError(f"Archive entry {entry_path!r} would escape destination {dest!r}")
 
     return str(entry_resolved)
 
@@ -63,6 +57,7 @@ class PluginInstaller(PluginInstallerPort):
 
     def install(self, package_path: str, manifest: PluginManifest) -> str:
         import zipfile
+
         target = self._plugin_dir(manifest.id)
         if os.path.exists(target):
             backup = target + ".bak"

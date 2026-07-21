@@ -73,24 +73,38 @@ def app(mock_service: MagicMock) -> TestClient:
         app_instance.resolve.return_value = mock_service
 
         from fastapi import FastAPI
+
         app = FastAPI()
         from kingsec.adapters.inbound.web.plugin_routes import router
+
         app.include_router(router)
         app.state.kingsec_app = app_instance
         client = TestClient(app)
         from kingsec.adapters.inbound.web.auth import get_current_user
         from kingsec.domain import Role
-        app.dependency_overrides[get_current_user] = lambda: type("User", (), {"id": "admin", "username": "admin", "role": Role.ADMIN, "claims": None})()
+
+        app.dependency_overrides[get_current_user] = lambda: type(
+            "User", (), {"id": "admin", "username": "admin", "role": Role.ADMIN, "claims": None}
+        )()
         return client
 
 
 def _create_plugin_zip(version: str = "1.0.0") -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("manifest.json", json.dumps({
-            "id": "test-plugin", "name": "Test Plugin", "version": version,
-            "author": "KingSec", "license": "MIT", "description": "",
-        }))
+        zf.writestr(
+            "manifest.json",
+            json.dumps(
+                {
+                    "id": "test-plugin",
+                    "name": "Test Plugin",
+                    "version": version,
+                    "author": "KingSec",
+                    "license": "MIT",
+                    "description": "",
+                }
+            ),
+        )
         zf.writestr("main.py", "print('hello')")
     buf.seek(0)
     return buf.getvalue()
@@ -131,7 +145,9 @@ class TestPluginRoutes:
         assert resp.status_code == 404
 
     def test_install_plugin(self, app: TestClient) -> None:
-        resp = app.post("/api/v1/plugins/install", files={"file": ("test.zip", _create_plugin_zip(), "application/zip")})
+        resp = app.post(
+            "/api/v1/plugins/install", files={"file": ("test.zip", _create_plugin_zip(), "application/zip")}
+        )
         assert resp.status_code == 200
         assert resp.json()["plugin"]["id"] == "test-plugin"
 
@@ -154,7 +170,11 @@ class TestPluginRoutes:
         assert resp.json()["plugin"]["status"] == "disabled"
 
     def test_update_plugin(self, app: TestClient) -> None:
-        resp = app.post("/api/v1/plugins/update", params={"plugin_id": "test-plugin"}, files={"file": ("test.zip", _create_plugin_zip(version="2.0.0"), "application/zip")})
+        resp = app.post(
+            "/api/v1/plugins/update",
+            params={"plugin_id": "test-plugin"},
+            files={"file": ("test.zip", _create_plugin_zip(version="2.0.0"), "application/zip")},
+        )
         assert resp.status_code == 200
 
     def test_rollback_plugin(self, app: TestClient) -> None:
@@ -162,7 +182,9 @@ class TestPluginRoutes:
         assert resp.status_code == 200
 
     def test_validate_plugin(self, app: TestClient) -> None:
-        resp = app.post("/api/v1/plugins/validate", files={"file": ("test.zip", _create_plugin_zip(), "application/zip")})
+        resp = app.post(
+            "/api/v1/plugins/validate", files={"file": ("test.zip", _create_plugin_zip(), "application/zip")}
+        )
         assert resp.status_code == 200
         assert resp.json()["valid"] is True
 

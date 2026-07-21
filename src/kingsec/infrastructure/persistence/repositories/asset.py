@@ -36,12 +36,7 @@ class SQLAlchemyAssetRepository(AssetRepositoryPort):
         limit: int = 50,
         offset: int = 0,
     ) -> list[Asset]:
-        stmt = (
-            select(AssetModel)
-            .order_by(AssetModel.created_at.desc())
-            .offset(offset)
-            .limit(limit)
-        )
+        stmt = select(AssetModel).order_by(AssetModel.created_at.desc()).offset(offset).limit(limit)
         orms = self._session.execute(stmt).scalars().all()
         return [asset_to_domain(o) for o in orms]
 

@@ -25,26 +25,16 @@ _SAMPLE_JSONL = (
 )
 
 _SCRIPTS: dict[str, str] = {
-    "findings": (
-        "import sys\n"
-        f"sys.stdout.write({_SAMPLE_JSONL!r})\n"
-        "sys.exit(0)\n"
-    ),
+    "findings": (f"import sys\nsys.stdout.write({_SAMPLE_JSONL!r})\nsys.exit(0)\n"),
     "empty": "import sys\nsys.exit(0)\n",
-    "error": (
-        "import sys\n"
-        "sys.stderr.write('fatal: could not load templates\\n')\n"
-        "sys.exit(2)\n"
-    ),
+    "error": ("import sys\nsys.stderr.write('fatal: could not load templates\\n')\nsys.exit(2)\n"),
     "slow": "import time\ntime.sleep(30)\n",
 }
 
 
 @pytest.fixture(autouse=True)
 def quiet_logging() -> None:
-    configure_logging(
-        LoggingSettings(level="ERROR", json_format=True), stream=io.StringIO()
-    )
+    configure_logging(LoggingSettings(level="ERROR", json_format=True), stream=io.StringIO())
 
 
 class FakeRunner:

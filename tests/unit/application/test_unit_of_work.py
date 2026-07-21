@@ -21,10 +21,13 @@ class TestUnitOfWorkPortIsAbstract:
         class Partial(UnitOfWorkPort):
             def begin(self) -> None:
                 pass
+
             def commit(self) -> None:
                 pass
+
             def rollback(self) -> None:
                 pass
+
             # missing: close
 
         with pytest.raises(TypeError):
@@ -34,12 +37,16 @@ class TestUnitOfWorkPortIsAbstract:
         class Full(UnitOfWorkPort):
             def begin(self) -> None:
                 pass
+
             def commit(self) -> None:
                 pass
+
             def rollback(self) -> None:
                 pass
+
             def close(self) -> None:
                 pass
+
             @property
             def job_repository(self) -> JobRepositoryPort:
                 return MagicMock(spec=JobRepositoryPort)
@@ -77,14 +84,19 @@ class TestUnitOfWorkPortContextManager:
         class Tracking(UnitOfWorkPort):
             def __init__(self):
                 self.calls = []
+
             def begin(self) -> None:
                 self.calls.append("begin")
+
             def commit(self) -> None:
                 self.calls.append("commit")
+
             def rollback(self) -> None:
                 self.calls.append("rollback")
+
             def close(self) -> None:
                 self.calls.append("close")
+
             @property
             def job_repository(self) -> JobRepositoryPort:
                 return MagicMock(spec=JobRepositoryPort)
@@ -99,14 +111,19 @@ class TestUnitOfWorkPortContextManager:
         class Tracking(UnitOfWorkPort):
             def __init__(self):
                 self.calls = []
+
             def begin(self) -> None:
                 self.calls.append("begin")
+
             def commit(self) -> None:
                 self.calls.append("commit")
+
             def rollback(self) -> None:
                 self.calls.append("rollback")
+
             def close(self) -> None:
                 self.calls.append("close")
+
             @property
             def job_repository(self) -> JobRepositoryPort:
                 return MagicMock(spec=JobRepositoryPort)
@@ -122,14 +139,19 @@ class TestUnitOfWorkPortContextManager:
         class Tracking(UnitOfWorkPort):
             def __init__(self):
                 self.calls = []
+
             def begin(self) -> None:
                 self.calls.append("begin")
+
             def commit(self) -> None:
                 self.calls.append("commit")
+
             def rollback(self) -> None:
                 self.calls.append("rollback")
+
             def close(self) -> None:
                 self.calls.append("close")
+
             @property
             def job_repository(self) -> JobRepositoryPort:
                 return MagicMock(spec=JobRepositoryPort)
@@ -145,12 +167,16 @@ class TestUnitOfWorkPortContextManager:
         class Full(UnitOfWorkPort):
             def begin(self) -> None:
                 pass
+
             def commit(self) -> None:
                 pass
+
             def rollback(self) -> None:
                 pass
+
             def close(self) -> None:
                 pass
+
             @property
             def job_repository(self) -> JobRepositoryPort:
                 return MagicMock(spec=JobRepositoryPort)
@@ -163,12 +189,16 @@ class TestUnitOfWorkPortContextManager:
         class Full(UnitOfWorkPort):
             def begin(self) -> None:
                 pass
+
             def commit(self) -> None:
                 pass
+
             def rollback(self) -> None:
                 pass
+
             def close(self) -> None:
                 pass
+
             @property
             def job_repository(self) -> JobRepositoryPort:
                 return MagicMock(spec=JobRepositoryPort)

@@ -51,14 +51,14 @@ class TestExceptHooks:
         finally:
             restore()
 
-        assert called == [True]                    # delegated, not swallowed
+        assert called == [True]  # delegated, not swallowed
 
     def test_restore_puts_original_hook_back(self) -> None:
         original = sys.excepthook
         restore = install_excepthooks(get_logger("kingsec.test"))
-        assert sys.excepthook is not original      # replaced
+        assert sys.excepthook is not original  # replaced
         restore()
-        assert sys.excepthook is original          # restored
+        assert sys.excepthook is original  # restored
 
 
 class TestHandlerRegistry:
@@ -84,7 +84,7 @@ class TestDefaultHandlers:
         registry = default_exception_handlers()
         payload = registry.handle(ValidationError("internal /etc detail"))
         assert payload["error_code"] == "KS-VAL-001"
-        assert "internal" not in payload["message"]   # no leak
+        assert "internal" not in payload["message"]  # no leak
 
     def test_unknown_exception_gets_generic_payload(self) -> None:
         registry = default_exception_handlers()

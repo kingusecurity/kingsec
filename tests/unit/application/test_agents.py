@@ -54,10 +54,13 @@ class TestUpdateHeartbeat:
         self.service = AgentService(self.repo, self.dispatcher)
         reg = AgentRegistration(
             agent_id=AgentId("agent-1"),
-            name="Test", platform=AgentPlatform.LINUX,
+            name="Test",
+            platform=AgentPlatform.LINUX,
             architecture=AgentArchitecture.AMD64,
-            version="1.0.0", hostname="h",
-            capability=AgentCapability(), api_key_hash="",
+            version="1.0.0",
+            hostname="h",
+            capability=AgentCapability(),
+            api_key_hash="",
         )
         self.service.register(reg)
 
@@ -82,6 +85,7 @@ class TestUpdateHeartbeat:
             health=AgentHealth(),
         )
         from kingsec.application.errors import AgentNotFoundError
+
         with pytest.raises(AgentNotFoundError):
             self.service.handle_heartbeat(hb)
 
@@ -97,9 +101,14 @@ class TestListGetAgents:
 
     def test_list_with_agents(self) -> None:
         reg = AgentRegistration(
-            agent_id=AgentId("a1"), name="A1",
-            platform=AgentPlatform.LINUX, architecture=AgentArchitecture.AMD64,
-            version="1.0", hostname="h", capability=AgentCapability(), api_key_hash="",
+            agent_id=AgentId("a1"),
+            name="A1",
+            platform=AgentPlatform.LINUX,
+            architecture=AgentArchitecture.AMD64,
+            version="1.0",
+            hostname="h",
+            capability=AgentCapability(),
+            api_key_hash="",
         )
         self.service.register(reg)
         agents = self.service.list_agents()
@@ -107,9 +116,14 @@ class TestListGetAgents:
 
     def test_get_agent_found(self) -> None:
         reg = AgentRegistration(
-            agent_id=AgentId("a1"), name="A1",
-            platform=AgentPlatform.LINUX, architecture=AgentArchitecture.AMD64,
-            version="1.0", hostname="h", capability=AgentCapability(), api_key_hash="",
+            agent_id=AgentId("a1"),
+            name="A1",
+            platform=AgentPlatform.LINUX,
+            architecture=AgentArchitecture.AMD64,
+            version="1.0",
+            hostname="h",
+            capability=AgentCapability(),
+            api_key_hash="",
         )
         self.service.register(reg)
         agent = self.service.get_agent("a1")
@@ -126,9 +140,14 @@ class TestDisableEnableAgent:
         self.dispatcher = InMemoryAgentDispatcher()
         self.service = AgentService(self.repo, self.dispatcher)
         reg = AgentRegistration(
-            agent_id=AgentId("a1"), name="A1",
-            platform=AgentPlatform.LINUX, architecture=AgentArchitecture.AMD64,
-            version="1.0", hostname="h", capability=AgentCapability(), api_key_hash="",
+            agent_id=AgentId("a1"),
+            name="A1",
+            platform=AgentPlatform.LINUX,
+            architecture=AgentArchitecture.AMD64,
+            version="1.0",
+            hostname="h",
+            capability=AgentCapability(),
+            api_key_hash="",
         )
         self.service.register(reg)
 
@@ -143,6 +162,7 @@ class TestDisableEnableAgent:
 
     def test_disable_not_found(self) -> None:
         from kingsec.application.errors import AgentNotFoundError
+
         with pytest.raises(AgentNotFoundError):
             self.service.disable_agent("nonexistent")
 
@@ -153,9 +173,14 @@ class TestRemoveAgent:
         self.dispatcher = InMemoryAgentDispatcher()
         self.service = AgentService(self.repo, self.dispatcher)
         reg = AgentRegistration(
-            agent_id=AgentId("a1"), name="A1",
-            platform=AgentPlatform.LINUX, architecture=AgentArchitecture.AMD64,
-            version="1.0", hostname="h", capability=AgentCapability(), api_key_hash="",
+            agent_id=AgentId("a1"),
+            name="A1",
+            platform=AgentPlatform.LINUX,
+            architecture=AgentArchitecture.AMD64,
+            version="1.0",
+            hostname="h",
+            capability=AgentCapability(),
+            api_key_hash="",
         )
         self.service.register(reg)
 
@@ -165,6 +190,7 @@ class TestRemoveAgent:
 
     def test_remove_not_found(self) -> None:
         from kingsec.application.errors import AgentNotFoundError
+
         with pytest.raises(AgentNotFoundError):
             self.service.remove_agent("nonexistent")
 
@@ -181,9 +207,14 @@ class TestAssignNextJob:
 
     def test_assign_to_idle_agent(self) -> None:
         reg = AgentRegistration(
-            agent_id=AgentId("a1"), name="A1",
-            platform=AgentPlatform.LINUX, architecture=AgentArchitecture.AMD64,
-            version="1.0", hostname="h", capability=AgentCapability(), api_key_hash="",
+            agent_id=AgentId("a1"),
+            name="A1",
+            platform=AgentPlatform.LINUX,
+            architecture=AgentArchitecture.AMD64,
+            version="1.0",
+            hostname="h",
+            capability=AgentCapability(),
+            api_key_hash="",
         )
         self.service.register(reg)
         job_id = self.service.assign_next_job("a1")
@@ -197,9 +228,14 @@ class TestCompleteFailJob:
         self.dispatcher = InMemoryAgentDispatcher()
         self.service = AgentService(self.repo, self.dispatcher)
         reg = AgentRegistration(
-            agent_id=AgentId("a1"), name="A1",
-            platform=AgentPlatform.LINUX, architecture=AgentArchitecture.AMD64,
-            version="1.0", hostname="h", capability=AgentCapability(), api_key_hash="",
+            agent_id=AgentId("a1"),
+            name="A1",
+            platform=AgentPlatform.LINUX,
+            architecture=AgentArchitecture.AMD64,
+            version="1.0",
+            hostname="h",
+            capability=AgentCapability(),
+            api_key_hash="",
         )
         self.service.register(reg)
 
@@ -222,6 +258,7 @@ class TestCompleteFailJob:
 
     def test_complete_not_found(self) -> None:
         from kingsec.application.errors import AgentNotFoundError
+
         with pytest.raises(AgentNotFoundError):
             self.service.complete_job("nonexistent", "job-1")
 
@@ -231,5 +268,6 @@ class TestCompleteFailJob:
 
     def test_report_progress_not_found(self) -> None:
         from kingsec.application.errors import AgentNotFoundError
+
         with pytest.raises(AgentNotFoundError):
             self.service.report_job_progress("nonexistent", "job-1", 50.0)

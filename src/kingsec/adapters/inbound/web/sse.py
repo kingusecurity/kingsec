@@ -31,16 +31,13 @@ Design decisions:
 
 from __future__ import annotations
 
-import logging
-
-from typing import TYPE_CHECKING
-
 import asyncio
 import json
+import logging
 import queue
 import uuid
 from collections.abc import AsyncGenerator
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
@@ -61,10 +58,12 @@ router = APIRouter(prefix="/api/v1")
 
 HEARTBEAT_INTERVAL = 15.0  # seconds
 
+
 def _get_event_publisher(request: Request) -> EventPublisher:
     """Resolve the EventPublisher from the DI container."""
     app: Application = get_application(request)
     return cast(EventPublisher, app.resolve(EventPublisher))
+
 
 def _format_sse(event: AssessmentEvent) -> str:
     """Format an AssessmentEvent as an SSE message."""
@@ -76,12 +75,8 @@ def _format_sse(event: AssessmentEvent) -> str:
         "severity_counts": event.severity_counts,
         "timestamp": event.timestamp,
     }
-    return (
-        f"event: {event.event_type}\n"
-        f"data: {json.dumps(payload)}\n"
-        f"id: {uuid.uuid4().hex}\n"
-        f"\n"
-    )
+    return f"event: {event.event_type}\ndata: {json.dumps(payload)}\nid: {uuid.uuid4().hex}\n\n"
+
 
 async def _sse_generator(
     event_bus: InMemoryEventBus,
@@ -116,6 +111,7 @@ async def _sse_generator(
             yield _format_sse(event)
     finally:
         event_bus.unsubscribe(client_id)
+
 
 @router.get(
     "/events",

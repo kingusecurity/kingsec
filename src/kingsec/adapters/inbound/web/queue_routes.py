@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
@@ -20,13 +18,16 @@ router = APIRouter(prefix="/api/v1/queue", tags=["queue"])
 
 ADMIN_ONLY = Role.ADMIN
 
+
 def _get_service(request: Request) -> QueueServicePort:
     app: Application = get_application(request)
     return cast(QueueServicePort, app.resolve(QueueServicePort))
 
+
 def _require_admin(user: CurrentUser) -> None:
     if user.role != ADMIN_ONLY:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+
 
 @router.post("/entry")
 async def enqueue(
@@ -58,6 +59,7 @@ async def enqueue(
         },
     }
 
+
 @router.get("/entry/{entry_id}")
 async def get_entry(
     entry_id: str,
@@ -85,6 +87,7 @@ async def get_entry(
         "position": entry.position,
     }
 
+
 @router.post("/entry/{entry_id}/cancel")
 async def cancel_entry(
     entry_id: str,
@@ -98,6 +101,7 @@ async def cancel_entry(
     except QueueEntryNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return {"message": f"Queue entry '{entry_id}' cancelled"}
+
 
 @router.post("/entry/{entry_id}/priority")
 async def change_priority(
@@ -118,6 +122,7 @@ async def change_priority(
         "priority": entry.priority.name.lower(),
     }
 
+
 @router.post("/entry/{entry_id}/move")
 async def move_entry(
     entry_id: str,
@@ -137,6 +142,7 @@ async def move_entry(
         "position": entry.position,
     }
 
+
 @router.post("/entry/{entry_id}/assign")
 async def assign_agent(
     entry_id: str,
@@ -152,6 +158,7 @@ async def assign_agent(
     if agent_id:
         return {"message": f"Agent '{agent_id}' assigned", "agent_id": agent_id}
     return {"message": "No suitable agent available", "agent_id": None}
+
 
 @router.get("/entries")
 async def list_queue(
@@ -179,6 +186,7 @@ async def list_queue(
         "total": len(entries),
     }
 
+
 @router.get("/statistics")
 async def get_statistics(
     request: Request,
@@ -202,6 +210,7 @@ async def get_statistics(
         "paused": stats.paused,
     }
 
+
 @router.post("/pause")
 async def pause_queue(
     request: Request,
@@ -212,6 +221,7 @@ async def pause_queue(
     service.pause()
     return {"message": "Queue paused"}
 
+
 @router.post("/resume")
 async def resume_queue(
     request: Request,
@@ -221,6 +231,7 @@ async def resume_queue(
     service = _get_service(request)
     service.resume()
     return {"message": "Queue resumed"}
+
 
 @router.get("/next")
 async def get_next_job(

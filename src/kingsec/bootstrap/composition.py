@@ -196,9 +196,7 @@ def _register_adapters(
 
     # Persistence first: it builds the engine + schema and adds the
     # engine.dispose shutdown hook. The Unit of Work shares that engine.
-    engine = register_persistence(
-        container, settings, validate_migrations=validate_migrations
-    )
+    engine = register_persistence(container, settings, validate_migrations=validate_migrations)
     session_factory = create_session_factory(engine)
     register_unit_of_work(container, session_factory)
 
@@ -527,9 +525,7 @@ def _register_use_cases(container: Container) -> None:
     )
     container.register_factory(
         CheckAccountLockout,
-        lambda c: CheckAccountLockout(
-            c.resolve(LockoutRepository), c.resolve(ClockPort)
-        ),
+        lambda c: CheckAccountLockout(c.resolve(LockoutRepository), c.resolve(ClockPort)),
     )
     container.register_factory(
         ResetFailedAttempts,

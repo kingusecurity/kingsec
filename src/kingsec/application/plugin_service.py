@@ -50,12 +50,15 @@ class PluginService(PluginServicePort):
     def _extract_manifest(self, package_path: str, filename: str | None = None) -> Any:
         import json
         import zipfile
+
         with zipfile.ZipFile(package_path, "r") as zf:
             if "manifest.json" not in zf.namelist():
                 from kingsec.application.errors import PluginValidationError
+
                 raise PluginValidationError("Missing manifest.json in plugin archive")
             data = json.loads(zf.read("manifest.json"))
         from kingsec.domain.plugin_package import PluginManifest, PluginVersion
+
         return PluginManifest(
             id=data["id"],
             name=data["name"],
@@ -75,9 +78,11 @@ class PluginService(PluginServicePort):
         import zipfile
 
         from kingsec.domain.plugin_package import PluginManifest, PluginVersion
+
         with zipfile.ZipFile(package_path, "r") as zf:
             if "manifest.json" not in zf.namelist():
                 from kingsec.application.errors import PluginValidationError
+
                 raise PluginValidationError("Missing manifest.json in plugin archive")
             data = json.loads(zf.read("manifest.json"))
         manifest = PluginManifest(
@@ -109,9 +114,11 @@ class PluginService(PluginServicePort):
         import zipfile
 
         from kingsec.domain.plugin_package import PluginManifest, PluginVersion
+
         with zipfile.ZipFile(package_path, "r") as zf:
             if "manifest.json" not in zf.namelist():
                 from kingsec.application.errors import PluginValidationError
+
                 raise PluginValidationError("Missing manifest.json in plugin archive")
             data = json.loads(zf.read("manifest.json"))
         manifest = PluginManifest(

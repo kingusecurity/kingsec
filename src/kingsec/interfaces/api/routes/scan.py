@@ -29,6 +29,7 @@ from kingsec.domain import ScannerId, Target, TargetType
 def _infer_target_type(value: str) -> TargetType:
     """Infer the target type from its string representation."""
     import re
+
     if re.match(r"^\d{1,3}(\.\d{1,3}){3}$", value):
         return TargetType.IP_ADDRESS
     if value.startswith("http://") or value.startswith("https://"):
@@ -112,11 +113,13 @@ def create_scan_router(
         entries = registry.list_all()
         result: list[dict[str, Any]] = []
         for meta, _ in entries:
-            result.append({
-                "id": meta.id.value,
-                "name": meta.name,
-                "version": meta.version,
-            })
+            result.append(
+                {
+                    "id": meta.id.value,
+                    "name": meta.name,
+                    "version": meta.version,
+                }
+            )
         return result
 
     return router

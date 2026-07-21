@@ -100,7 +100,9 @@ class FakeCollector(MetricsCollectorPort):
         return 50.0, 200.0
 
     def collect_all(self) -> ResourceUsage:
-        return ResourceUsage(cpu_percent=10.0, memory_percent=40.0, memory_used_mb=512.0, disk_percent=50.0, disk_used_gb=200.0)
+        return ResourceUsage(
+            cpu_percent=10.0, memory_percent=40.0, memory_used_mb=512.0, disk_percent=50.0, disk_used_gb=200.0
+        )
 
 
 class FakeLifecycle(LifecycleManagerPort):

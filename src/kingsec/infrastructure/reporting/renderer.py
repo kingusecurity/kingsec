@@ -65,9 +65,7 @@ class ReportRenderer:
         """
         html = self.to_html(report)
         pdf = self._html_to_pdf(html)
-        _logger.debug(
-            "report rendered", assessment_id=report.assessment_id, bytes=len(pdf)
-        )
+        _logger.debug("report rendered", assessment_id=report.assessment_id, bytes=len(pdf))
         return pdf
 
     def _html_to_pdf(self, html: str) -> bytes:
@@ -77,9 +75,7 @@ class ReportRenderer:
             # out of the import path for HTML-only use.
             from weasyprint import HTML  # type: ignore[import-untyped]
         except (ImportError, OSError) as exc:
-            raise ReportGenerationError(
-                "PDF rendering library is not available", cause=exc
-            ) from exc
+            raise ReportGenerationError("PDF rendering library is not available", cause=exc) from exc
         try:
             result = HTML(string=html).write_pdf()
         except Exception as exc:

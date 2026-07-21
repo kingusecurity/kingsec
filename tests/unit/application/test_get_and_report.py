@@ -41,16 +41,12 @@ def _completed(assessments: InMemoryAssessmentRepository) -> Assessment:
     assessment = Assessment.create(Target("10.0.0.5", TargetType.IP_ADDRESS))
     assessment.authorize(Authorization.grant("tester", scope="10.0.0.5"))
     assessments.save(assessment)
-    StartAssessment(assessments, StubScanner(make_findings())).execute(
-        StartAssessmentRequest(str(assessment.id))
-    )
+    StartAssessment(assessments, StubScanner(make_findings())).execute(StartAssessmentRequest(str(assessment.id)))
     return assessment
 
 
 class TestGetAssessment:
-    def test_returns_mapped_view(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_returns_mapped_view(self, assessments: InMemoryAssessmentRepository) -> None:
         assessment = _completed(assessments)
         view = GetAssessment(assessments).execute(GetAssessmentRequest(str(assessment.id)))
 
@@ -62,9 +58,7 @@ class TestGetAssessment:
         titles = {f.title for f in view.findings}
         assert "SQL Injection" in titles
 
-    def test_unknown_raises_not_found(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
+    def test_unknown_raises_not_found(self, assessments: InMemoryAssessmentRepository) -> None:
         with pytest.raises(AssessmentNotFoundError):
             GetAssessment(assessments).execute(GetAssessmentRequest("asmt-missing"))
 
@@ -77,9 +71,7 @@ class TestGenerateReport:
         generator: StubReportGenerator,
     ) -> None:
         assessment = _completed(assessments)
-        response = GenerateReport(assessments, reports, generator).execute(
-            GenerateReportRequest(str(assessment.id))
-        )
+        response = GenerateReport(assessments, reports, generator).execute(GenerateReportRequest(str(assessment.id)))
 
         # Conclusions-first summary.
         assert response.highest_severity == Severity.CRITICAL.label
@@ -103,9 +95,7 @@ class TestGenerateReport:
         assessments.save(assessment)
 
         with pytest.raises(IllegalStateTransition):
-            GenerateReport(assessments, reports, generator).execute(
-                GenerateReportRequest(str(assessment.id))
-            )
+            GenerateReport(assessments, reports, generator).execute(GenerateReportRequest(str(assessment.id)))
 
 
 class TestPortsAreAbstract:

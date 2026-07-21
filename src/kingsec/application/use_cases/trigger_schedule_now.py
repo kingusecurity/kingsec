@@ -28,6 +28,7 @@ class TriggerScheduleNow:
         existing = self._repository.find_by_id(request.schedule_id)
         if existing is None:
             from kingsec.application.errors import ApplicationError
+
             raise ApplicationError(f"schedule '{request.schedule_id}' not found")
 
         job = self._job_service.submit_scan(target=existing.target, config={"schedule_id": str(existing.id)})

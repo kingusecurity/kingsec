@@ -29,6 +29,7 @@ DEFAULT_POLICIES: dict[RateLimitGroup, tuple[int, int, RateLimitKeyType]] = {
     RateLimitGroup.API_KEY: (1000, 3600, RateLimitKeyType.API_KEY),
 }
 
+
 async def _resolve_identifier(
     request: Request,
     policy: RateLimitPolicy,
@@ -62,6 +63,7 @@ async def _resolve_identifier(
             return f"ip_user:{client_ip}:{uid}"
         except Exception:
             return f"ip:{client_ip}"
+
 
 def require_rate_limit(group: RateLimitGroup) -> object:
     max_reqs, window_secs, key_type = DEFAULT_POLICIES[group]

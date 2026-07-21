@@ -56,16 +56,19 @@ class TestCreateApplication:
     def test_creates_report_builder(self) -> None:
         app = create_production_application()
         from kingsec.application.report_builder import ReportBuilder
+
         assert isinstance(app.report_builder, ReportBuilder)
 
     def test_creates_executive_summary_generator(self) -> None:
         app = create_production_application()
         from kingsec.application.executive_summary import ExecutiveSummaryGenerator
+
         assert isinstance(app.executive_summary_generator, ExecutiveSummaryGenerator)
 
     def test_creates_fastapi_app(self) -> None:
         app = create_production_application()
         from fastapi import FastAPI
+
         assert isinstance(app.fastapi_app, FastAPI)
 
 
@@ -84,8 +87,15 @@ class TestAllPluginsRegistered:
         app = create_production_application()
         ids = {meta.id.value for meta, _ in app.scanner_registry.list_all()}
         expected = {
-            "nuclei", "nmap", "nikto", "ffuf", "gobuster",
-            "amass", "trivy", "zap", "semgrep",
+            "nuclei",
+            "nmap",
+            "nikto",
+            "ffuf",
+            "gobuster",
+            "amass",
+            "trivy",
+            "zap",
+            "semgrep",
         }
         assert ids == expected
 
@@ -278,6 +288,7 @@ class TestDependencyGraph:
         app.scanner_registry.list_all()
         # Verify orchestrator can resolve plugins
         from kingsec.domain import Target, TargetType
+
         target = Target(value="example.com", type=TargetType.HOSTNAME)
         resolved = app.scanner_registry.resolve(target)
         assert len(resolved) > 0

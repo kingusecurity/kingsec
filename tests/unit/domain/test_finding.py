@@ -35,7 +35,7 @@ class TestIdentity:
         fid = FindingId.generate()
         a = Finding(fid, "Title A", "desc", Severity.LOW)
         b = Finding(fid, "Title B", "different", Severity.CRITICAL)
-        assert a == b                 # same id -> same entity
+        assert a == b  # same id -> same entity
         assert hash(a) == hash(b)
 
     def test_different_ids_are_not_equal(self) -> None:
@@ -48,7 +48,7 @@ class TestEvidenceAccrual:
         finding.add_evidence(Evidence.create("resp", "500 error"))
         evidence = finding.evidence
         assert len(evidence) == 1
-        assert isinstance(evidence, tuple)   # callers cannot mutate internals
+        assert isinstance(evidence, tuple)  # callers cannot mutate internals
 
     def test_cannot_add_evidence_once_closed(self) -> None:
         finding = make_finding()

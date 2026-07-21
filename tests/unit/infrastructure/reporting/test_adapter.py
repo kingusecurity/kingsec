@@ -46,9 +46,7 @@ class TestRendererErrorTranslation:
             raise RuntimeError("template blew up")
 
         # Force the underlying template function to fail.
-        monkeypatch.setattr(
-            "kingsec.infrastructure.reporting.renderer.render_report_html", boom
-        )
+        monkeypatch.setattr("kingsec.infrastructure.reporting.renderer.render_report_html", boom)
         with pytest.raises(ReportGenerationError):
             renderer.to_html(build_report())
 

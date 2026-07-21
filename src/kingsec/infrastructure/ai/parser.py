@@ -70,9 +70,7 @@ class ResponseParser:
 
         raw_refs = data.get("references")
         references = (
-            tuple(str(ref).strip() for ref in raw_refs if str(ref).strip())
-            if isinstance(raw_refs, list)
-            else ()
+            tuple(str(ref).strip() for ref in raw_refs if str(ref).strip()) if isinstance(raw_refs, list) else ()
         )
 
         return Enrichment(

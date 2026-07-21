@@ -34,9 +34,7 @@ from kingsec.infrastructure.persistence import (
 
 
 def _adapter(base_url: str) -> AIProviderAdapter:
-    settings = AISettings(
-        provider="openai", api_key=SecretStr("test-key"), base_url=base_url, retry_count=1
-    )
+    settings = AISettings(provider="openai", api_key=SecretStr("test-key"), base_url=base_url, retry_count=1)
     client = AIClient(
         timeout=5,
         retry_count=settings.retry_count,
@@ -95,9 +93,7 @@ class TestFullSlice:
                 StartAssessmentRequest(created.assessment_id)
             )
 
-            view = GetAssessment(assessments).execute(
-                GetAssessmentRequest(created.assessment_id)
-            )
+            view = GetAssessment(assessments).execute(GetAssessmentRequest(created.assessment_id))
             # The finding was enriched with an AI recommendation and persisted.
             assert view.findings[0].recommendation_count == 1
         finally:
@@ -112,15 +108,13 @@ class TestFullSlice:
                 CreateAssessmentRequest("10.0.0.5", "ip_address", "tester", "10.0.0.5")
             )
             # Fail-safe: the scan still completes despite the AI being down.
-            started = StartAssessment(
-                assessments, _StubScanner(), _adapter(base_url)
-            ).execute(StartAssessmentRequest(created.assessment_id))
+            started = StartAssessment(assessments, _StubScanner(), _adapter(base_url)).execute(
+                StartAssessmentRequest(created.assessment_id)
+            )
 
             assert started.status == "completed"
             assert started.findings_count == 1
-            view = GetAssessment(assessments).execute(
-                GetAssessmentRequest(created.assessment_id)
-            )
+            view = GetAssessment(assessments).execute(GetAssessmentRequest(created.assessment_id))
             # Finding recorded unchanged — just without an AI recommendation.
             assert view.findings[0].recommendation_count == 0
         finally:

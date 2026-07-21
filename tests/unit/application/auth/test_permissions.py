@@ -60,6 +60,7 @@ class TestAuthorizationService:
 
     def test_unknown_role_has_no_permissions(self) -> None:
         from kingsec.application.auth.permissions import ROLE_PERMISSIONS, Permission
+
         assert Permission.CREATE_SCAN not in ROLE_PERMISSIONS.get(None, frozenset())  # type: ignore[arg-type]
 
     # ── has_any_role ───────────────────────────────────────────────────

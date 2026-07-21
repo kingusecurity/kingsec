@@ -68,9 +68,7 @@ class NucleiPlugin(ScannerPluginPort):
         """Declare Nuclei's scanning capabilities."""
         return (
             ScannerCapability(
-                target_types=frozenset(
-                    {TargetType.IP_ADDRESS, TargetType.HOSTNAME, TargetType.URL}
-                ),
+                target_types=frozenset({TargetType.IP_ADDRESS, TargetType.HOSTNAME, TargetType.URL}),
                 scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                 output_format=OutputFormat.STRUCTURED_JSON,
             ),

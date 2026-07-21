@@ -68,9 +68,7 @@ class AppSettings(BaseModel):
         # Cross-field rule: debug + production is almost always an accident and
         # can leak internals. Catch it at startup rather than in the field.
         if self.environment is Environment.PRODUCTION and self.debug:
-            raise ValueError(
-                "debug mode must be disabled when environment is 'production'"
-            )
+            raise ValueError("debug mode must be disabled when environment is 'production'")
         return self
 
 
@@ -482,7 +480,9 @@ class CORSSettings(BaseModel):
     allow_methods: list[str] = Field(default_factory=lambda: ["GET", "POST", "PUT", "DELETE", "PATCH"])
     allow_headers: list[str] = Field(default_factory=lambda: ["Authorization", "Content-Type", "X-Request-ID"])
     allow_credentials: bool = False
-    expose_headers: list[str] = Field(default_factory=lambda: ["X-Request-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining"])
+    expose_headers: list[str] = Field(
+        default_factory=lambda: ["X-Request-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining"]
+    )
     max_age: int = Field(default=600, ge=0)
 
 

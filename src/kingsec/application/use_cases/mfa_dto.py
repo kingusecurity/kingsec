@@ -1,4 +1,5 @@
 """DTOs for MFA use cases."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

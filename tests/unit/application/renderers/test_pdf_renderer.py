@@ -311,13 +311,15 @@ def _make_large_report():
         )
         findings.append(fe)
 
-        recs.append(RecommendationEntry(
-            finding_title=fe.title,
-            severity=sev,
-            risk_score=score,
-            correlation_id=cid,
-            recommendations=(f"Fix issue {i} - step 1", f"Fix issue {i} - step 2"),
-        ))
+        recs.append(
+            RecommendationEntry(
+                finding_title=fe.title,
+                severity=sev,
+                risk_score=score,
+                correlation_id=cid,
+                recommendations=(f"Fix issue {i} - step 1", f"Fix issue {i} - step 2"),
+            )
+        )
 
         nn = AttackNode(
             node_id=f"node-{cid}",
@@ -342,12 +344,14 @@ def _make_large_report():
 
     edges: list[AttackEdge] = []
     for i in range(min(10, len(nodes) - 1)):
-        edges.append(AttackEdge(
-            source_id=nodes[i].node_id,
-            target_id=nodes[i + 1].node_id,
-            relationship="same_asset",
-            confidence=0.8,
-        ))
+        edges.append(
+            AttackEdge(
+                source_id=nodes[i].node_id,
+                target_id=nodes[i + 1].node_id,
+                relationship="same_asset",
+                confidence=0.8,
+            )
+        )
 
     scores = [n.risk_score for n in nodes]
     as_val = min(int(max(scores) * 0.6 + (sum(scores) / len(scores)) * 0.4), 100)
@@ -408,12 +412,14 @@ def _make_large_report():
 
     assets_list: list[AssetEntry] = []
     for i in range(10):
-        assets_list.append(AssetEntry(
-            asset=f"asset-{i:04d}",
-            finding_count=5,
-            highest_risk_score=100 - i * 10,
-            average_risk_score=50.0,
-        ))
+        assets_list.append(
+            AssetEntry(
+                asset=f"asset-{i:04d}",
+                finding_count=5,
+                highest_risk_score=100 - i * 10,
+                average_risk_score=50.0,
+            )
+        )
 
     aps = AttackPathSection(
         total_paths=1,

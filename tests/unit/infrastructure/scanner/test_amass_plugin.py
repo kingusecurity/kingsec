@@ -23,14 +23,37 @@ from tests.unit.infrastructure.scanner.conftest import FakeRunner
 
 _TARGET = Target("example.com", TargetType.HOSTNAME)
 
-_SAMPLE_JSONL = "\n".join([
-    json.dumps({"name": "www.example.com", "domain": "example.com",
-                "addresses": [{"ip": "10.0.0.1"}], "sources": ["DNS"], "tag": "subdomain"}),
-    json.dumps({"name": "admin.example.com", "domain": "example.com",
-                "addresses": [{"ip": "10.0.0.2"}], "sources": ["DNS"], "tag": "subdomain"}),
-    json.dumps({"name": "secret.example.com", "domain": "example.com",
-                "addresses": [{"ip": "10.0.0.3"}], "sources": ["DNS"], "tag": "subdomain"}),
-])
+_SAMPLE_JSONL = "\n".join(
+    [
+        json.dumps(
+            {
+                "name": "www.example.com",
+                "domain": "example.com",
+                "addresses": [{"ip": "10.0.0.1"}],
+                "sources": ["DNS"],
+                "tag": "subdomain",
+            }
+        ),
+        json.dumps(
+            {
+                "name": "admin.example.com",
+                "domain": "example.com",
+                "addresses": [{"ip": "10.0.0.2"}],
+                "sources": ["DNS"],
+                "tag": "subdomain",
+            }
+        ),
+        json.dumps(
+            {
+                "name": "secret.example.com",
+                "domain": "example.com",
+                "addresses": [{"ip": "10.0.0.3"}],
+                "sources": ["DNS"],
+                "tag": "subdomain",
+            }
+        ),
+    ]
+)
 
 
 # ---------------------------------------------------------------------------
@@ -96,6 +119,7 @@ class TestCapabilities:
 
     def test_structured_json_output(self) -> None:
         from kingsec.domain import OutputFormat
+
         caps = _make_plugin().capabilities()
         assert caps[0].output_format is OutputFormat.STRUCTURED_JSON
 
@@ -206,8 +230,10 @@ class TestProvisioning:
         register_scanner(container, Settings(), runner=runner)
 
         from kingsec.application import ScannerPort
+
         scanner = container.resolve(ScannerPort)
         from kingsec.infrastructure.scanner.orchestrator import ScannerOrchestrator
+
         assert isinstance(scanner, ScannerOrchestrator)
 
     def test_orchestrator_resolves_amass(self) -> None:

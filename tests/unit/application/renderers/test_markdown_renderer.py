@@ -172,16 +172,17 @@ def _graph(
 ) -> AttackGraph:
     if node_scores is None:
         node_scores = [75]
-    nodes = [_attack_node(f"corr-{i:04d}", f"Finding {i}", s)
-             for i, s in enumerate(node_scores)]
+    nodes = [_attack_node(f"corr-{i:04d}", f"Finding {i}", s) for i, s in enumerate(node_scores)]
     edges: list[AttackEdge] = []
     for i in range(len(nodes) - 1):
-        edges.append(AttackEdge(
-            source_id=nodes[i].node_id,
-            target_id=nodes[i + 1].node_id,
-            relationship="same_asset",
-            confidence=0.8,
-        ))
+        edges.append(
+            AttackEdge(
+                source_id=nodes[i].node_id,
+                target_id=nodes[i + 1].node_id,
+                relationship="same_asset",
+                confidence=0.8,
+            )
+        )
     scores = [n.risk_score for n in nodes]
     max_s = max(scores) if scores else 0
     avg_s = sum(scores) / len(scores) if scores else 0.0
@@ -217,11 +218,22 @@ def _appendix() -> Appendix:
 
 
 def _minimal_report() -> Report:
-    es = _es(total_findings=1, critical=0, high=1, medium=0, low=0, informational=0,
-             top_score=75, avg_score=75.0, assets=1,
-             text="Security scan found 1 finding across 1 asset.")
+    es = _es(
+        total_findings=1,
+        critical=0,
+        high=1,
+        medium=0,
+        low=0,
+        informational=0,
+        top_score=75,
+        avg_score=75.0,
+        assets=1,
+        text="Security scan found 1 finding across 1 asset.",
+    )
     ts = TechnicalSummary(
-        total_findings=1, total_correlations=1, total_enriched=1,
+        total_findings=1,
+        total_correlations=1,
+        total_enriched=1,
         total_risk_assessments=1,
         severity_breakdown={"HIGH": 1},
         category_breakdown={"vulnerability": 1},
@@ -232,7 +244,9 @@ def _minimal_report() -> Report:
     fe = _finding_entry()
     fs = FindingSection(entries=(fe,), total_count=1, severity_breakdown={"HIGH": 1})
     aps = AttackPathSection(
-        total_paths=1, highest_score=75, average_score=75.0,
+        total_paths=1,
+        highest_score=75,
+        average_score=75.0,
         graph=_graph(),
     )
     rec_e = _rec_entry()
@@ -254,32 +268,55 @@ def _minimal_report() -> Report:
 
 
 def _empty_report() -> Report:
-    es = _es(total_findings=0, critical=0, high=0, medium=0, low=0, informational=0,
-             top_score=0, avg_score=0.0, assets=0,
-             text="No findings were discovered during the scan.")
+    es = _es(
+        total_findings=0,
+        critical=0,
+        high=0,
+        medium=0,
+        low=0,
+        informational=0,
+        top_score=0,
+        avg_score=0.0,
+        assets=0,
+        text="No findings were discovered during the scan.",
+    )
     ts = TechnicalSummary(
-        total_findings=0, total_correlations=0, total_enriched=0,
+        total_findings=0,
+        total_correlations=0,
+        total_enriched=0,
         total_risk_assessments=0,
-        severity_breakdown={}, category_breakdown={}, scanner_coverage={},
+        severity_breakdown={},
+        category_breakdown={},
+        scanner_coverage={},
     )
     rs = _rs(dist={}, avg=0.0, high=0, low=0)
     fs = FindingSection(entries=(), total_count=0, severity_breakdown={})
     n1 = _attack_node("corr-dummy", "Dummy", 0)
     p = AttackPath(
-        path_id="path-empty", nodes=(n1,), edges=(),
-        attack_score=0, confidence=0.0,
-        estimated_impact="None", attack_complexity="Simple",
-        likelihood="Low", reasoning="Empty.", recommendations=(),
+        path_id="path-empty",
+        nodes=(n1,),
+        edges=(),
+        attack_score=0,
+        confidence=0.0,
+        estimated_impact="None",
+        attack_complexity="Simple",
+        likelihood="Low",
+        reasoning="Empty.",
+        recommendations=(),
     )
-    ag = AttackGraph(paths=(p,), total_paths=0, highest_score=0,
-                     average_score=0.0, metadata={})
+    ag = AttackGraph(paths=(p,), total_paths=0, highest_score=0, average_score=0.0, metadata={})
     aps = AttackPathSection(
-        total_paths=0, highest_score=0, average_score=0.0, graph=ag,
+        total_paths=0,
+        highest_score=0,
+        average_score=0.0,
+        graph=ag,
     )
     recs = RecommendationSection(entries=(), total_recommendations=0)
     app = Appendix(
-        scanner_versions={}, total_plugins=0,
-        generated_at=_NOW, generated_by="KingSec Report Builder",
+        scanner_versions={},
+        total_plugins=0,
+        generated_at=_NOW,
+        generated_by="KingSec Report Builder",
     )
     return Report(
         report_id="rpt-empty",
@@ -297,11 +334,22 @@ def _empty_report() -> Report:
 
 
 def _multi_report() -> Report:
-    es = _es(total_findings=5, critical=1, high=2, medium=1, low=1, informational=0,
-             top_score=95, avg_score=60.0, assets=3,
-             text="Security scan found 5 findings across 3 assets.")
+    es = _es(
+        total_findings=5,
+        critical=1,
+        high=2,
+        medium=1,
+        low=1,
+        informational=0,
+        top_score=95,
+        avg_score=60.0,
+        assets=3,
+        text="Security scan found 5 findings across 3 assets.",
+    )
     ts = TechnicalSummary(
-        total_findings=5, total_correlations=5, total_enriched=5,
+        total_findings=5,
+        total_correlations=5,
+        total_enriched=5,
         total_risk_assessments=5,
         severity_breakdown={"CRITICAL": 1, "HIGH": 2, "MEDIUM": 1, "LOW": 1},
         category_breakdown={"vulnerability": 3, "misconfiguration": 1, "info": 1},
@@ -309,7 +357,9 @@ def _multi_report() -> Report:
     )
     rs = RiskSummary(
         score_distribution={"Critical": 1, "High": 2, "Medium": 1, "Low": 1},
-        average_score=60.0, highest_score=95, lowest_score=15,
+        average_score=60.0,
+        highest_score=95,
+        lowest_score=15,
         top_risk_factors=("RCE", "SQLi", "XSS"),
     )
     fe1 = _finding_entry("corr-001", "RCE in Apache", "CRITICAL", 95)
@@ -323,16 +373,17 @@ def _multi_report() -> Report:
     )
     ag = _graph([95, 75, 50])
     aps = AttackPathSection(
-        total_paths=1, highest_score=75, average_score=75.0, graph=ag,
+        total_paths=1,
+        highest_score=75,
+        average_score=75.0,
+        graph=ag,
     )
     ae1 = _asset_entry("10.0.0.1", 2, 95, 85.0)
     ae2 = _asset_entry("10.0.0.2", 2, 75, 62.5)
     ae3 = _asset_entry("10.0.0.3", 1, 50, 50.0)
     asset_sum = AssetSummary(entries=(ae1, ae2, ae3), total_assets=3)
-    re1 = _rec_entry("RCE in Apache", "CRITICAL", 95, "corr-001",
-                     ("Patch Apache", "Update firewall rules"))
-    re2 = _rec_entry("XSS in Web App", "HIGH", 75, "corr-002",
-                     ("Sanitize inputs",))
+    re1 = _rec_entry("RCE in Apache", "CRITICAL", 95, "corr-001", ("Patch Apache", "Update firewall rules"))
+    re2 = _rec_entry("XSS in Web App", "HIGH", 75, "corr-002", ("Sanitize inputs",))
     recs = RecommendationSection(entries=(re1, re2), total_recommendations=3)
     app = Appendix(
         scanner_versions={"nuclei": "3.2.1", "nmap": "7.95", "nikto": "2.5.0"},
@@ -393,26 +444,38 @@ class TestBasicRendering:
         rec_s = RecommendationSection(entries=(re,), total_recommendations=1)
         app = Appendix(
             scanner_versions={"nuclei🚀": "3.0"},
-            total_plugins=1, generated_at=_NOW,
+            total_plugins=1,
+            generated_at=_NOW,
             generated_by="KingSec",
         )
         ts = TechnicalSummary(
-            total_findings=1, total_correlations=1, total_enriched=1,
+            total_findings=1,
+            total_correlations=1,
+            total_enriched=1,
             total_risk_assessments=1,
-            severity_breakdown={"HIGH": 1}, category_breakdown={"vuln": 1},
+            severity_breakdown={"HIGH": 1},
+            category_breakdown={"vuln": 1},
             scanner_coverage={"nuclei": 1},
         )
         rs = _rs(dist={"High": 1}, avg=75.0, high=75, low=75)
         aps = AttackPathSection(
-            total_paths=1, highest_score=75, average_score=75.0,
+            total_paths=1,
+            highest_score=75,
+            average_score=75.0,
             graph=_graph(),
         )
         r = Report(
-            report_id="rpt-utf", title="UTF-8 Test", created_at=_NOW,
-            executive_summary=es, technical_summary=ts, risk_summary=rs,
+            report_id="rpt-utf",
+            title="UTF-8 Test",
+            created_at=_NOW,
+            executive_summary=es,
+            technical_summary=ts,
+            risk_summary=rs,
             asset_summary=a_s,
-            finding_section=fs, attack_path_section=aps,
-            recommendation_section=rec_s, appendix=app,
+            finding_section=fs,
+            attack_path_section=aps,
+            recommendation_section=rec_s,
+            appendix=app,
         )
         md = _RENDERER.render(r)
         assert "Résumé" in md
@@ -649,19 +712,29 @@ class TestFileWriting:
         re = _rec_entry(recs=("Fix café",))
         rec_s = RecommendationSection(entries=(re,), total_recommendations=1)
         ts = TechnicalSummary(
-            total_findings=1, total_correlations=1, total_enriched=1,
+            total_findings=1,
+            total_correlations=1,
+            total_enriched=1,
             total_risk_assessments=1,
-            severity_breakdown={"HIGH": 1}, category_breakdown={"vuln": 1},
+            severity_breakdown={"HIGH": 1},
+            category_breakdown={"vuln": 1},
             scanner_coverage={"x": 1},
         )
         rs = _rs(dist={"High": 1}, avg=75.0, high=75, low=75)
         aps = AttackPathSection(total_paths=1, highest_score=75, average_score=75.0, graph=_graph())
         app = Appendix(scanner_versions={"n": "1"}, total_plugins=1, generated_at=_NOW, generated_by="KS")
         r = Report(
-            report_id="rpt-w", title="UTF-8", created_at=_NOW,
-            executive_summary=es, technical_summary=ts, risk_summary=rs,
-            asset_summary=a_s, finding_section=fs, attack_path_section=aps,
-            recommendation_section=rec_s, appendix=app,
+            report_id="rpt-w",
+            title="UTF-8",
+            created_at=_NOW,
+            executive_summary=es,
+            technical_summary=ts,
+            risk_summary=rs,
+            asset_summary=a_s,
+            finding_section=fs,
+            attack_path_section=aps,
+            recommendation_section=rec_s,
+            appendix=app,
         )
         with NamedTemporaryFile(mode="w", suffix=".md", delete=False, encoding="utf-8") as f:
             path = Path(f.name)
@@ -710,13 +783,19 @@ class TestEdgeCases:
     def test_no_top_risk_factors(self) -> None:
         rs = RiskSummary(
             score_distribution={"High": 1},
-            average_score=75.0, highest_score=75, lowest_score=75,
+            average_score=75.0,
+            highest_score=75,
+            lowest_score=75,
             top_risk_factors=(),
         )
         ts = TechnicalSummary(
-            total_findings=1, total_correlations=1, total_enriched=1,
+            total_findings=1,
+            total_correlations=1,
+            total_enriched=1,
             total_risk_assessments=1,
-            severity_breakdown={"HIGH": 1}, category_breakdown={}, scanner_coverage={},
+            severity_breakdown={"HIGH": 1},
+            category_breakdown={},
+            scanner_coverage={},
         )
         fe = _finding_entry()
         fs = FindingSection(entries=(fe,), total_count=1, severity_breakdown={"HIGH": 1})
@@ -726,10 +805,17 @@ class TestEdgeCases:
         aps = AttackPathSection(total_paths=0, highest_score=0, average_score=0.0, graph=_graph([0]))
         recs = RecommendationSection(entries=(), total_recommendations=0)
         r = Report(
-            report_id="rpt-e", title="Edge", created_at=_NOW,
-            executive_summary=_es(total_findings=1), technical_summary=ts,
-            risk_summary=rs, asset_summary=a_s, finding_section=fs,
-            attack_path_section=aps, recommendation_section=recs, appendix=app,
+            report_id="rpt-e",
+            title="Edge",
+            created_at=_NOW,
+            executive_summary=_es(total_findings=1),
+            technical_summary=ts,
+            risk_summary=rs,
+            asset_summary=a_s,
+            finding_section=fs,
+            attack_path_section=aps,
+            recommendation_section=recs,
+            appendix=app,
         )
         md = _RENDERER.render(r)
         assert "## Risk Summary" in md
@@ -737,19 +823,30 @@ class TestEdgeCases:
 
     def test_nullable_finding_fields(self) -> None:
         fe = FindingEntry(
-            correlation_id="c-1", title="Test", severity="LOW",
-            category="info", confidence=0.3,
-            scanner_sources=(), affected_assets=(),
-            service=None, port=None, protocol=None,
-            attack_surface=None, risk_score=0,
-            risk_level="Low", priority="None",
+            correlation_id="c-1",
+            title="Test",
+            severity="LOW",
+            category="info",
+            confidence=0.3,
+            scanner_sources=(),
+            affected_assets=(),
+            service=None,
+            port=None,
+            protocol=None,
+            attack_surface=None,
+            risk_score=0,
+            risk_level="Low",
+            priority="None",
         )
         fs = FindingSection(entries=(fe,), total_count=1, severity_breakdown={"LOW": 1})
         es = _es(total_findings=1, critical=0, high=0, medium=0, low=1, informational=0)
         ts = TechnicalSummary(
-            total_findings=1, total_correlations=1, total_enriched=1,
+            total_findings=1,
+            total_correlations=1,
+            total_enriched=1,
             total_risk_assessments=1,
-            severity_breakdown={"LOW": 1}, category_breakdown={"info": 1},
+            severity_breakdown={"LOW": 1},
+            category_breakdown={"info": 1},
             scanner_coverage={},
         )
         rs = _rs(dist={"Low": 1}, avg=0.0, high=0, low=0)
@@ -757,19 +854,33 @@ class TestEdgeCases:
         a_s = AssetSummary(entries=(ae,), total_assets=1)
         app = Appendix(scanner_versions={"n": "1"}, total_plugins=1, generated_at=_NOW, generated_by="KS")
         n1 = _attack_node("c-1", "Test", 0)
-        p = AttackPath(path_id="path-e", nodes=(n1,), edges=(),
-                       attack_score=0, confidence=0.0,
-                       estimated_impact="None", attack_complexity="Simple",
-                       likelihood="Low", reasoning=".", recommendations=())
-        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=0,
-                         average_score=0.0, metadata={})
+        p = AttackPath(
+            path_id="path-e",
+            nodes=(n1,),
+            edges=(),
+            attack_score=0,
+            confidence=0.0,
+            estimated_impact="None",
+            attack_complexity="Simple",
+            likelihood="Low",
+            reasoning=".",
+            recommendations=(),
+        )
+        ag = AttackGraph(paths=(p,), total_paths=1, highest_score=0, average_score=0.0, metadata={})
         aps = AttackPathSection(total_paths=0, highest_score=0, average_score=0.0, graph=ag)
         recs = RecommendationSection(entries=(), total_recommendations=0)
         r = Report(
-            report_id="rpt-null", title="Null Fields", created_at=_NOW,
-            executive_summary=es, technical_summary=ts, risk_summary=rs,
-            asset_summary=a_s, finding_section=fs, attack_path_section=aps,
-            recommendation_section=recs, appendix=app,
+            report_id="rpt-null",
+            title="Null Fields",
+            created_at=_NOW,
+            executive_summary=es,
+            technical_summary=ts,
+            risk_summary=rs,
+            asset_summary=a_s,
+            finding_section=fs,
+            attack_path_section=aps,
+            recommendation_section=recs,
+            appendix=app,
         )
         md = _RENDERER.render(r)
         assert "N/A" in md

@@ -86,8 +86,7 @@ def _build_recs_lookup(
     return lookup
 
 
-def _row(fe: FindingEntry, recs: dict[str, list[str]],
-         versions: dict[str, str | None]) -> list[str]:
+def _row(fe: FindingEntry, recs: dict[str, list[str]], versions: dict[str, str | None]) -> list[str]:
     """Build a single CSV row from a FindingEntry."""
     return [
         fe.correlation_id,

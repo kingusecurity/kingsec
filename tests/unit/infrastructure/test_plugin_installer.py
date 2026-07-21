@@ -50,6 +50,7 @@ class TestPluginInstaller:
             bak = target + ".bak"
             if os.path.exists(bak):
                 import shutil
+
                 shutil.rmtree(bak)
             os.rename(target, bak)
             result = self.installer.rollback("test-plugin", target)

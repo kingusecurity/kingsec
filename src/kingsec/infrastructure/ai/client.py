@@ -78,21 +78,14 @@ class AIClient:
                 response = self._client.post(url, headers=headers, json=payload)
             except httpx.HTTPError as exc:
                 if attempt <= self._retry_count:
-                    _logger.warning(
-                        "ai request retry", attempt=attempt, reason=type(exc).__name__
-                    )
+                    _logger.warning("ai request retry", attempt=attempt, reason=type(exc).__name__)
                     self._backoff(attempt)
                     continue
                 raise ErrorTranslator.from_exception(exc) from exc
 
             if response.status_code >= 400:
-                if (
-                    response.status_code in RETRYABLE_STATUS_CODES
-                    and attempt <= self._retry_count
-                ):
-                    _logger.warning(
-                        "ai request retry", attempt=attempt, status=response.status_code
-                    )
+                if response.status_code in RETRYABLE_STATUS_CODES and attempt <= self._retry_count:
+                    _logger.warning("ai request retry", attempt=attempt, status=response.status_code)
                     self._backoff(attempt)
                     continue
                 raise ErrorTranslator.from_status(response.status_code, response.text)
@@ -100,9 +93,7 @@ class AIClient:
             try:
                 return cast(dict[str, Any], response.json())
             except (json.JSONDecodeError, ValueError) as exc:
-                raise AIResponseError(
-                    "AI response body was not valid JSON", cause=exc
-                ) from exc
+                raise AIResponseError("AI response body was not valid JSON", cause=exc) from exc
 
         # Unreachable: the loop always returns or raises.
         raise AIResponseError("AI request exhausted retries")  # pragma: no cover

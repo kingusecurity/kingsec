@@ -47,6 +47,7 @@ def create_app(
         A fully configured ``FastAPI`` instance with route mounts.
     """
     from kingsec import __version__
+
     app = FastAPI(
         title="KingSec API",
         version=__version__,
@@ -73,26 +74,32 @@ def create_app(
 
     if registry is not None and scanner is not None:
         from kingsec.interfaces.api.routes.scan import create_scan_router
+
         app.include_router(create_scan_router(registry, scanner, get_current_user=get_current_user))
 
     if report_service is not None:
         from kingsec.interfaces.api.routes.download import create_download_router
         from kingsec.interfaces.api.routes.report import create_report_router
+
         app.include_router(create_report_router(report_service, get_current_user=get_current_user))
         app.include_router(create_download_router(report_service, get_current_user=get_current_user))
 
     if job_service is not None:
         from kingsec.interfaces.api.routes.jobs import create_jobs_router
+
         app.include_router(create_jobs_router(job_service, get_current_user=get_current_user))
 
     if worker_service is not None:
         from kingsec.interfaces.api.routes.worker import create_worker_router
+
         app.include_router(create_worker_router(worker_service, get_current_user=get_current_user))
 
     from kingsec.interfaces.api.errors import register_error_handlers
+
     register_error_handlers(app)
 
     from kingsec.interfaces.api.middleware import register_middleware
+
     register_middleware(app)
 
     return app

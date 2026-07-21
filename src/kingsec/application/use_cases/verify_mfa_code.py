@@ -1,4 +1,5 @@
 """Use case: authenticate with password + TOTP code and issue JWT."""
+
 from __future__ import annotations
 
 from kingsec.application.errors import ApplicationError
@@ -52,27 +53,31 @@ class VerifyMfaCode:
         # Step 1: Look up user.
         user = self._users.find_by_username(request.username)
         if user is None:
-            self._publish_legacy_audit(AuditEntry(
-                action=LegacyAuditAction.FAILED_LOGIN,
-                resource_type="user",
-                success=False,
-                reason="invalid credentials",
-                username=request.username,
-            ))
+            self._publish_legacy_audit(
+                AuditEntry(
+                    action=LegacyAuditAction.FAILED_LOGIN,
+                    resource_type="user",
+                    success=False,
+                    reason="invalid credentials",
+                    username=request.username,
+                )
+            )
             raise ApplicationError("invalid username or password")
 
         # Step 2: Verify password.
         if not self._hasher.verify(request.password, user.password_hash):
-            self._publish_legacy_audit(AuditEntry(
-                action=LegacyAuditAction.FAILED_LOGIN,
-                resource_type="user",
-                resource_id=user.id,
-                success=False,
-                reason="invalid credentials",
-                user_id=user.id,
-                username=user.username,
-                role=user.role.label,
-            ))
+            self._publish_legacy_audit(
+                AuditEntry(
+                    action=LegacyAuditAction.FAILED_LOGIN,
+                    resource_type="user",
+                    resource_id=user.id,
+                    success=False,
+                    reason="invalid credentials",
+                    user_id=user.id,
+                    username=user.username,
+                    role=user.role.label,
+                )
+            )
             raise ApplicationError("invalid username or password")
 
         # Step 3: Check account active.
@@ -82,80 +87,92 @@ class VerifyMfaCode:
         # Step 4: Check MFA is enabled.
         mfa_secret = self._secret_repo.find_by_user_id(user.id)
         if mfa_secret is None or mfa_secret.status.value != "enabled":
-            self._publish_event(AuditEvent(
-                id=AuditEventId(str(uuid.uuid4())),
-                timestamp=datetime.now(UTC).isoformat(),
-                actor_id=user.id,
-                actor_type="user",
-                username=user.username,
-                ip_address="",
-                user_agent="",
-                request_id="",
-                action=AuditAction.AUTHENTICATION_FAILURE,
-                resource_type="mfa",
-                resource_id=user.id,
-                outcome=AuditOutcome.FAILURE,
-                severity=AuditSeverity.WARNING,
-                message="MFA not enabled for user",
-            ))
+            self._publish_event(
+                AuditEvent(
+                    id=AuditEventId(str(uuid.uuid4())),
+                    timestamp=datetime.now(UTC).isoformat(),
+                    actor_id=user.id,
+                    actor_type="user",
+                    username=user.username,
+                    ip_address="",
+                    user_agent="",
+                    request_id="",
+                    action=AuditAction.AUTHENTICATION_FAILURE,
+                    resource_type="mfa",
+                    resource_id=user.id,
+                    outcome=AuditOutcome.FAILURE,
+                    severity=AuditSeverity.WARNING,
+                    message="MFA not enabled for user",
+                )
+            )
             raise ApplicationError("MFA is not enabled for this user")
 
         # Step 5: Verify TOTP code.
         if not self._totp_service.verify(mfa_secret.secret_key, request.totp_code):
-            self._publish_event(AuditEvent(
-                id=AuditEventId(str(uuid.uuid4())),
-                timestamp=datetime.now(UTC).isoformat(),
-                actor_id=user.id,
-                actor_type="user",
-                username=user.username,
-                ip_address="",
-                user_agent="",
-                request_id="",
-                action=AuditAction.AUTHENTICATION_FAILURE,
-                resource_type="mfa",
-                resource_id=user.id,
-                outcome=AuditOutcome.FAILURE,
-                severity=AuditSeverity.WARNING,
-                message="Invalid TOTP code",
-            ))
+            self._publish_event(
+                AuditEvent(
+                    id=AuditEventId(str(uuid.uuid4())),
+                    timestamp=datetime.now(UTC).isoformat(),
+                    actor_id=user.id,
+                    actor_type="user",
+                    username=user.username,
+                    ip_address="",
+                    user_agent="",
+                    request_id="",
+                    action=AuditAction.AUTHENTICATION_FAILURE,
+                    resource_type="mfa",
+                    resource_id=user.id,
+                    outcome=AuditOutcome.FAILURE,
+                    severity=AuditSeverity.WARNING,
+                    message="Invalid TOTP code",
+                )
+            )
             raise ApplicationError("invalid TOTP code")
 
         # Step 6: Issue tokens.
         access_token = self._tokens.create_access_token(
-            user_id=user.id, username=user.username, role=user.role.label,
+            user_id=user.id,
+            username=user.username,
+            role=user.role.label,
         )
         refresh_token = self._tokens.create_refresh_token(
-            user_id=user.id, username=user.username, role=user.role.label,
+            user_id=user.id,
+            username=user.username,
+            role=user.role.label,
         )
         user.record_login()
         self._users.save(user)
 
         # Step 7: Audit success.
-        self._publish_legacy_audit(AuditEntry(
-            action=LegacyAuditAction.LOGIN,
-            resource_type="user",
-            resource_id=user.id,
-            success=True,
-            user_id=user.id,
-            username=user.username,
-            role=user.role.label,
-        ))
-        self._publish_event(AuditEvent(
-            id=AuditEventId(str(uuid.uuid4())),
-            timestamp=datetime.now(UTC).isoformat(),
-            actor_id=user.id,
-            actor_type="user",
-            username=user.username,
-            ip_address="",
-            user_agent="",
-            request_id="",
-            action=AuditAction.LOGIN_SUCCESS,
-            resource_type="mfa",
-            resource_id=user.id,
-            outcome=AuditOutcome.SUCCESS,
-            severity=AuditSeverity.INFO,
-            message="MFA verification successful",
-        ))
+        self._publish_legacy_audit(
+            AuditEntry(
+                action=LegacyAuditAction.LOGIN,
+                resource_type="user",
+                resource_id=user.id,
+                success=True,
+                user_id=user.id,
+                username=user.username,
+                role=user.role.label,
+            )
+        )
+        self._publish_event(
+            AuditEvent(
+                id=AuditEventId(str(uuid.uuid4())),
+                timestamp=datetime.now(UTC).isoformat(),
+                actor_id=user.id,
+                actor_type="user",
+                username=user.username,
+                ip_address="",
+                user_agent="",
+                request_id="",
+                action=AuditAction.LOGIN_SUCCESS,
+                resource_type="mfa",
+                resource_id=user.id,
+                outcome=AuditOutcome.SUCCESS,
+                severity=AuditSeverity.INFO,
+                message="MFA verification successful",
+            )
+        )
 
         return VerifyMfaCodeResponse(
             user_id=user.id,

@@ -99,12 +99,19 @@ class InMemorySessionRepo(SessionRepository):
         s = self.sessions.get(session_id)
         if s:
             self.sessions[str(s.id)] = Session(
-                id=s.id, user_id=s.user_id, session_type=s.session_type,
-                jti=s.jti, refresh_jti=s.refresh_jti,
-                issued_at=s.issued_at, expires_at=s.expires_at,
-                last_activity=s.last_activity, client_ip=s.client_ip,
-                user_agent=s.user_agent, device_info=s.device_info,
-                status=SessionStatus.REVOKED, idle_timeout_seconds=s.idle_timeout_seconds,
+                id=s.id,
+                user_id=s.user_id,
+                session_type=s.session_type,
+                jti=s.jti,
+                refresh_jti=s.refresh_jti,
+                issued_at=s.issued_at,
+                expires_at=s.expires_at,
+                last_activity=s.last_activity,
+                client_ip=s.client_ip,
+                user_agent=s.user_agent,
+                device_info=s.device_info,
+                status=SessionStatus.REVOKED,
+                idle_timeout_seconds=s.idle_timeout_seconds,
             )
 
     def revoke_all_by_user(self, user_id: str, exclude_session_id: str | None = None) -> None:
@@ -121,12 +128,19 @@ class InMemorySessionRepo(SessionRepository):
         s = self.sessions.get(session_id)
         if s:
             self.sessions[str(s.id)] = Session(
-                id=s.id, user_id=s.user_id, session_type=s.session_type,
-                jti=s.jti, refresh_jti=new_refresh_jti,
-                issued_at=s.issued_at, expires_at=s.expires_at,
-                last_activity=s.last_activity, client_ip=s.client_ip,
-                user_agent=s.user_agent, device_info=s.device_info,
-                status=s.status, idle_timeout_seconds=s.idle_timeout_seconds,
+                id=s.id,
+                user_id=s.user_id,
+                session_type=s.session_type,
+                jti=s.jti,
+                refresh_jti=new_refresh_jti,
+                issued_at=s.issued_at,
+                expires_at=s.expires_at,
+                last_activity=s.last_activity,
+                client_ip=s.client_ip,
+                user_agent=s.user_agent,
+                device_info=s.device_info,
+                status=s.status,
+                idle_timeout_seconds=s.idle_timeout_seconds,
             )
 
     def delete_expired(self, before: str) -> int:
@@ -167,15 +181,11 @@ def app() -> FastAPI:
 
     container.register_factory(
         CreateSession,
-        lambda c: CreateSession(
-            c.resolve(SessionRepository), c.resolve(ClockPort)
-        ),
+        lambda c: CreateSession(c.resolve(SessionRepository), c.resolve(ClockPort)),
     )
     container.register_factory(
         ValidateSession,
-        lambda c: ValidateSession(
-            c.resolve(SessionRepository), c.resolve(ClockPort)
-        ),
+        lambda c: ValidateSession(c.resolve(SessionRepository), c.resolve(ClockPort)),
     )
     container.register_factory(
         RefreshSession,
@@ -225,19 +235,21 @@ class TestSessionAPI:
 
     def test_list_sessions(self, app: FastAPI) -> None:
         repo: InMemorySessionRepo = app.state.kingsec_app.resolve(SessionRepository)
-        repo.save(Session(
-            id=SessionId(value="s1"),
-            user_id="u1",
-            session_type=SessionType.USER,
-            jti="jti1",
-            refresh_jti="rjti1",
-            issued_at="2025-01-01T00:00:00+00:00",
-            expires_at="2025-01-08T00:00:00+00:00",
-            last_activity="2025-01-01T00:00:00+00:00",
-            client_ip="1.2.3.4",
-            user_agent="curl",
-            device_info=DeviceInfo(platform="Windows", browser="Chrome"),
-        ))
+        repo.save(
+            Session(
+                id=SessionId(value="s1"),
+                user_id="u1",
+                session_type=SessionType.USER,
+                jti="jti1",
+                refresh_jti="rjti1",
+                issued_at="2025-01-01T00:00:00+00:00",
+                expires_at="2025-01-08T00:00:00+00:00",
+                last_activity="2025-01-01T00:00:00+00:00",
+                client_ip="1.2.3.4",
+                user_agent="curl",
+                device_info=DeviceInfo(platform="Windows", browser="Chrome"),
+            )
+        )
         client = TestClient(app)
         resp = client.get("/api/v1/sessions")
         assert resp.status_code == 200
@@ -249,19 +261,21 @@ class TestSessionAPI:
 
     def test_get_current_session(self, app: FastAPI) -> None:
         repo: InMemorySessionRepo = app.state.kingsec_app.resolve(SessionRepository)
-        repo.save(Session(
-            id=SessionId(value="s1"),
-            user_id="u1",
-            session_type=SessionType.USER,
-            jti="test_jti",
-            refresh_jti="rjti1",
-            issued_at="2025-01-01T00:00:00+00:00",
-            expires_at="2025-01-08T00:00:00+00:00",
-            last_activity="2025-01-01T00:00:00+00:00",
-            client_ip="1.2.3.4",
-            user_agent="curl",
-            device_info=DeviceInfo(platform="Linux", browser="Firefox"),
-        ))
+        repo.save(
+            Session(
+                id=SessionId(value="s1"),
+                user_id="u1",
+                session_type=SessionType.USER,
+                jti="test_jti",
+                refresh_jti="rjti1",
+                issued_at="2025-01-01T00:00:00+00:00",
+                expires_at="2025-01-08T00:00:00+00:00",
+                last_activity="2025-01-01T00:00:00+00:00",
+                client_ip="1.2.3.4",
+                user_agent="curl",
+                device_info=DeviceInfo(platform="Linux", browser="Firefox"),
+            )
+        )
         client = TestClient(app)
         resp = client.get("/api/v1/sessions/current")
         assert resp.status_code == 200
@@ -271,18 +285,20 @@ class TestSessionAPI:
 
     def test_logout_current(self, app: FastAPI) -> None:
         repo: InMemorySessionRepo = app.state.kingsec_app.resolve(SessionRepository)
-        repo.save(Session(
-            id=SessionId(value="s1"),
-            user_id="u1",
-            session_type=SessionType.USER,
-            jti="test_jti",
-            refresh_jti="rjti1",
-            issued_at="2025-01-01T00:00:00+00:00",
-            expires_at="2025-01-08T00:00:00+00:00",
-            last_activity="2025-01-01T00:00:00+00:00",
-            client_ip="1.2.3.4",
-            user_agent="curl",
-        ))
+        repo.save(
+            Session(
+                id=SessionId(value="s1"),
+                user_id="u1",
+                session_type=SessionType.USER,
+                jti="test_jti",
+                refresh_jti="rjti1",
+                issued_at="2025-01-01T00:00:00+00:00",
+                expires_at="2025-01-08T00:00:00+00:00",
+                last_activity="2025-01-01T00:00:00+00:00",
+                client_ip="1.2.3.4",
+                user_agent="curl",
+            )
+        )
         client = TestClient(app)
         resp = client.delete("/api/v1/sessions/current")
         assert resp.status_code == 204
@@ -291,18 +307,20 @@ class TestSessionAPI:
     def test_logout_all(self, app: FastAPI) -> None:
         repo: InMemorySessionRepo = app.state.kingsec_app.resolve(SessionRepository)
         for i in range(3):
-            repo.save(Session(
-                id=SessionId(value=f"s{i}"),
-                user_id="u1",
-                session_type=SessionType.USER,
-                jti=f"jti{i}",
-                refresh_jti=f"rjti{i}",
-                issued_at="2025-01-01T00:00:00+00:00",
-                expires_at="2025-01-08T00:00:00+00:00",
-                last_activity="2025-01-01T00:00:00+00:00",
-                client_ip="1.2.3.4",
-                user_agent="curl",
-            ))
+            repo.save(
+                Session(
+                    id=SessionId(value=f"s{i}"),
+                    user_id="u1",
+                    session_type=SessionType.USER,
+                    jti=f"jti{i}",
+                    refresh_jti=f"rjti{i}",
+                    issued_at="2025-01-01T00:00:00+00:00",
+                    expires_at="2025-01-08T00:00:00+00:00",
+                    last_activity="2025-01-01T00:00:00+00:00",
+                    client_ip="1.2.3.4",
+                    user_agent="curl",
+                )
+            )
         client = TestClient(app)
         resp = client.delete("/api/v1/sessions")
         assert resp.status_code == 204

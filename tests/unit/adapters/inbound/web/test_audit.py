@@ -62,12 +62,14 @@ class TestEnrichedAuditPublisher:
             request.state.audit_correlation_id = "corr-123"
 
             publisher = EnrichedAuditPublisher(inner, request)
-            publisher.record(AuditEntry(
-                action=AuditAction.LOGIN,
-                ip_address="10.0.0.1",
-                user_agent="ExistingAgent",
-                correlation_id="existing-id",
-            ))
+            publisher.record(
+                AuditEntry(
+                    action=AuditAction.LOGIN,
+                    ip_address="10.0.0.1",
+                    user_agent="ExistingAgent",
+                    correlation_id="existing-id",
+                )
+            )
             return Response("ok")
 
         app = FastAPI(routes=[Route("/test", _endpoint)])
