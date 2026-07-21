@@ -55,7 +55,8 @@ class Argon2PasswordHasher(PasswordHasher):
 
     def _hash_argon2(self, password: str) -> str:
         """Hash using argon2id."""
-        from argon2 import PasswordHasher as Argon2Hasher, Type as Argon2Type
+        from argon2 import PasswordHasher as Argon2Hasher
+        from argon2 import Type as Argon2Type
 
         hasher = Argon2Hasher(
             time_cost=3,
@@ -69,7 +70,8 @@ class Argon2PasswordHasher(PasswordHasher):
 
     def _verify_argon2(self, password: str, password_hash: str) -> bool:
         """Verify against argon2id hash."""
-        from argon2 import PasswordHasher as Argon2Hasher, Type as Argon2Type
+        from argon2 import PasswordHasher as Argon2Hasher
+        from argon2 import Type as Argon2Type
         from argon2.exceptions import InvalidHashError, VerifyMismatchError
 
         hasher = Argon2Hasher(

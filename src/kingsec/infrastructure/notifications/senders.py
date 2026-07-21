@@ -11,11 +11,10 @@ from __future__ import annotations
 import json
 from urllib.request import Request, urlopen
 
-from kingsec.infrastructure.logging import get_logger
-from kingsec.infrastructure.notifications.url_validator import SSRFError, validate_url
-
 from kingsec.application.ports.outbound import NotificationSenderPort
 from kingsec.domain.notification import Notification, NotificationChannel
+from kingsec.infrastructure.logging import get_logger
+from kingsec.infrastructure.notifications.url_validator import SSRFError, validate_url
 
 logger = get_logger("kingsec.infrastructure.notifications.senders")
 

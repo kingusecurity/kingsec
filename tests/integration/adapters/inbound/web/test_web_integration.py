@@ -4,29 +4,30 @@ from __future__ import annotations
 
 import io
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 
 from kingsec.adapters.inbound.web.app import create_fastapi_app
-from kingsec.adapters.inbound.web.auth import CurrentUser, get_current_user, require_analyst, require_viewer
-from kingsec.application.ports import TokenClaims
-from kingsec.application.ports.inbound.service_api import ServiceAPI
+from kingsec.adapters.inbound.web.auth import (
+    CurrentUser,
+    get_current_user,
+    require_analyst,
+    require_viewer,
+)
+from kingsec.application.ports import ScannerPort, TokenClaims
 from kingsec.bootstrap.application import Application
 from kingsec.bootstrap.composition import create_wired_application
-from kingsec.domain import Finding, Severity, Target
-from kingsec.application.ports import ScannerPort
+from kingsec.domain import Finding, Role, Severity, Target
 from kingsec.infrastructure.persistence import create_database_engine, create_schema
-from kingsec.domain import Role
-
 
 _TEST_FERNET_KEY = Fernet.generate_key().decode()
 
 
 def _make_fake_user() -> CurrentUser:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return CurrentUser(
         user_id="user-001",
         username="testuser",
@@ -79,7 +80,6 @@ def integration_client(wired_app: Application) -> TestClient:
 class TestFullHTTPFlow:
     def test_create_start_get_report(self, integration_client: TestClient) -> None:
         """Full lifecycle: create → start → poll → get → report, all over HTTP."""
-
         # 1. Create assessment
         resp = integration_client.post(
             "/api/v1/assessments",

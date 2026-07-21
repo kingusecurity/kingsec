@@ -11,10 +11,10 @@ from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.domain.schedule import (
     RetryPolicy,
     RetryStrategy,
+    ScanSchedule,
     ScheduleId,
     ScheduleStatus,
     ScheduleType,
-    ScanSchedule,
 )
 
 from .schedule_dto import CreateScheduleRequest, CreateScheduleResponse, ScheduleView

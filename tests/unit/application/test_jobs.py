@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -12,7 +12,6 @@ from kingsec.application.jobs import (
     ScanJobResult,
     validate_transition,
 )
-
 
 # ===========================================================================
 # JobStatus — enum values + terminal check
@@ -237,7 +236,7 @@ class TestInMemoryJobServiceGetResult:
         self.service.transition_job(self.job.id.value, JobStatus.COMPLETED)
         result = ScanJobResult(
             job_id=self.job.id.value,
-            completed_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(UTC),
             findings=({"port": 80, "status": "open"},),
         )
         self.service.store_result(self.job.id.value, result)

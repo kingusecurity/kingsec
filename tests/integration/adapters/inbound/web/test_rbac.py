@@ -10,12 +10,10 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from kingsec.adapters.inbound.web.auth import CurrentUser
 from kingsec.application import Login, RefreshToken, RegisterUser
-from kingsec.application.auth import AuthorizationService, Permission
+from kingsec.application.auth import AuthorizationService
 from kingsec.application.ports import TokenClaims, TokenService
-from kingsec.domain import Role, User
-
+from kingsec.domain import User
 
 # ── Stubs (same pattern as test_auth_integration) ─────────────────────────
 
@@ -123,7 +121,7 @@ class StubServiceAPI:
     import uuid as _uuid
 
     def list_assessments(self, request: object):
-        from kingsec.application.dto import ListAssessmentsResponse, AssessmentSummary
+        from kingsec.application.dto import ListAssessmentsResponse
         return ListAssessmentsResponse(items=(), total=0, limit=50, offset=0)
 
     def create_assessment(self, request: object):

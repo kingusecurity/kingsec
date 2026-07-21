@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class SecretType(str, Enum):
+class SecretType(StrEnum):
     DATABASE_PASSWORD = "database_password"
     JWT_SIGNING_KEY = "jwt_signing_key"
     JWT_REFRESH_KEY = "jwt_refresh_key"

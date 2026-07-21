@@ -31,8 +31,16 @@ from kingsec.infrastructure.logging import get_logger
 from . import schemas
 
 logger = get_logger("kingsec.adapters.inbound.web.routes")
-from .auth import CurrentApiKey, CurrentUser, get_current_api_key, require_analyst, require_permission, require_viewer
 from kingsec.application.auth import Permission
+
+from .auth import (
+    CurrentApiKey,
+    CurrentUser,
+    get_current_api_key,
+    require_analyst,
+    require_permission,
+    require_viewer,
+)
 from .dependencies import get_service
 
 router = APIRouter(prefix="/api/v1")
@@ -117,9 +125,9 @@ async def login(
 def _create_session_for_login(request: Request, result: object) -> None:
     try:
         app: Application = request.app.state.kingsec_app
+        from kingsec.application.ports import TokenService
         from kingsec.application.use_cases.create_session import CreateSession
         from kingsec.application.use_cases.session_dto import CreateSessionRequest
-        from kingsec.application.ports import TokenService
         from kingsec.domain.session import DeviceInfo
 
         token_svc: TokenService = app.resolve(TokenService)

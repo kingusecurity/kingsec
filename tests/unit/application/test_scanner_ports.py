@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import inspect
-
 import pytest
 
 from kingsec.application.errors import (
@@ -21,7 +19,6 @@ from kingsec.application.ports import (
     ScannerPluginRegistry,
 )
 
-
 # ===========================================================================
 # ScannerPluginPort
 # ===========================================================================
@@ -34,7 +31,7 @@ class TestScannerPluginPort:
 
     def test_incomplete_implementation_cannot_instantiate(self) -> None:
         class PartialPlugin(ScannerPluginPort):
-            def metadata(self):  # noqa: ANN201
+            def metadata(self):
                 pass
 
             # missing: capabilities, is_available, scan
@@ -44,14 +41,14 @@ class TestScannerPluginPort:
 
     def test_complete_implementation_can_instantiate(self) -> None:
         from kingsec.domain import (
+            OutputFormat,
             PluginAvailability,
             PluginConfig,
+            ScanCategory,
             ScannerCapability,
+            ScannerId,
             ScannerPluginMetadata,
             ScannerResult,
-            ScannerId,
-            ScanCategory,
-            OutputFormat,
             Target,
             TargetType,
         )
@@ -91,12 +88,12 @@ class TestScannerPluginPort:
         assert isinstance(plugin, ScannerPluginPort)
 
     def test_health_check_default_calls_is_available(self) -> None:
+        from kingsec.application.errors import ScannerUnavailableError
         from kingsec.domain import (
             PluginAvailability,
             ScannerId,
             ScannerPluginMetadata,
         )
-        from kingsec.application.errors import ScannerUnavailableError
 
         class UnavailablePlugin(ScannerPluginPort):
             def metadata(self) -> ScannerPluginMetadata:
@@ -109,7 +106,7 @@ class TestScannerPluginPort:
                     api_version="1.0",
                 )
 
-            def capabilities(self):  # noqa: ANN201
+            def capabilities(self):
                 return ()
 
             def is_available(self) -> PluginAvailability:
@@ -117,7 +114,7 @@ class TestScannerPluginPort:
                     available=False, reason="binary not found"
                 )
 
-            def scan(self, target, config):  # noqa: ANN201, ARG002
+            def scan(self, target, config):
                 raise AssertionError("should not be called")
 
         plugin = UnavailablePlugin()
@@ -126,16 +123,16 @@ class TestScannerPluginPort:
 
     def test_health_check_passes_when_available(self) -> None:
         from kingsec.domain import (
+            OutputFormat,
             PluginAvailability,
             PluginConfig,
+            ScanCategory,
             ScannerCapability,
             ScannerId,
             ScannerPluginMetadata,
             ScannerResult,
             Target,
             TargetType,
-            ScanCategory,
-            OutputFormat,
         )
 
         class AvailablePlugin(ScannerPluginPort):
@@ -169,14 +166,14 @@ class TestScannerPluginPort:
 
     def test_shutdown_default_is_noop(self) -> None:
         from kingsec.domain import (
+            OutputFormat,
             PluginAvailability,
             PluginConfig,
+            ScanCategory,
             ScannerCapability,
             ScannerId,
             ScannerPluginMetadata,
             ScannerResult,
-            ScanCategory,
-            OutputFormat,
             Target,
             TargetType,
         )
@@ -228,7 +225,7 @@ class TestScannerPluginRegistry:
 
     def test_incomplete_implementation_cannot_instantiate(self) -> None:
         class PartialRegistry(ScannerPluginRegistry):
-            def register(self, plugin):  # noqa: ANN201, ARG002
+            def register(self, plugin):
                 pass
 
             # missing: get, resolve, list_all
@@ -254,7 +251,7 @@ class TestScannerExecutor:
 
     def test_incomplete_implementation_cannot_instantiate(self) -> None:
         class PartialExecutor(ScannerExecutor):
-            def execute(self, plugin, target, config):  # noqa: ANN201, ARG002
+            def execute(self, plugin, target, config):
                 pass
 
             # missing: execute_all

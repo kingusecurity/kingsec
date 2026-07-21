@@ -1,16 +1,14 @@
 """Part 2: test classes."""
-# flake8: noqa: F811
 
 import pytest
-from kingsec.application.attack_path import (
-    AttackEdge, AttackGraph, AttackNode, AttackPath, AttackPathAnalyzer,
-)
-from kingsec.application.enrichment import EnrichedFinding
-from kingsec.application.risk import RiskAssessment, RiskFactor
-from kingsec.domain import Severity
-
 from test_attack_path import _ENGINE, _make_assessment, _make_finding
 
+from kingsec.application.attack_path import (
+    AttackEdge,
+    AttackGraph,
+    AttackNode,
+    AttackPath,
+)
 
 # ===========================================================================
 # AttackNode construction

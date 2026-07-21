@@ -18,7 +18,7 @@ from kingsec.infrastructure.persistence.audit_repository import SqlAlchemyAuditR
 from kingsec.infrastructure.persistence.models import Base
 
 
-@pytest.fixture()
+@pytest.fixture
 def engine(tmp_path):
     """Create a file-backed SQLite engine for thread-safe concurrent access."""
     db_path = tmp_path / "test_audit.db"
@@ -38,12 +38,12 @@ def engine(tmp_path):
     return eng
 
 
-@pytest.fixture()
+@pytest.fixture
 def session_factory(engine):
     return sessionmaker(bind=engine, expire_on_commit=False, future=True)
 
 
-@pytest.fixture()
+@pytest.fixture
 def repo(session_factory):
     return SqlAlchemyAuditRepository(session_factory)
 

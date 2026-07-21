@@ -9,7 +9,6 @@ from kingsec.application.ports.outbound import WorkerServicePort
 from kingsec.domain.worker import WorkerHeartbeat, WorkerId, WorkerStatus
 from kingsec.infrastructure.logging import get_logger
 
-
 _logger = get_logger("kingsec.infrastructure.worker.polling_worker")
 
 
@@ -97,7 +96,7 @@ class PollingWorkerService(WorkerServicePort):
 
     def heartbeat(self) -> WorkerHeartbeat:
         now = datetime.now(UTC).isoformat()
-        uptime = time.monotonic() - (self._start_time or time.monotonic())
+        time.monotonic() - (self._start_time or time.monotonic())
         with self._lock:
             return WorkerHeartbeat(
                 worker_id=self._worker_id,

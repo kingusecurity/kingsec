@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import io
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from kingsec.domain import (
     Assessment,
@@ -21,12 +21,11 @@ from kingsec.infrastructure.logging import configure_logging
 
 configure_logging(LoggingSettings(level="ERROR", json_format=True), stream=io.StringIO())
 
-_FIXED = datetime(2026, 7, 7, 12, 0, 0, tzinfo=timezone.utc)
+_FIXED = datetime(2026, 7, 7, 12, 0, 0, tzinfo=UTC)
 
 
 def build_report(*, title: str = "SQL Injection", with_findings: bool = True) -> Report:
     """Build a Report snapshot from a completed assessment."""
-
     assessment = Assessment.create(Target("10.0.0.5", TargetType.IP_ADDRESS))
     assessment.authorize(Authorization("tester", _FIXED, scope="10.0.0.5"))
     assessment.start()

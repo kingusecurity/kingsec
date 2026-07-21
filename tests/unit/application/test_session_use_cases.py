@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-import pytest
-
 from kingsec.application.ports.outbound.clock_port import ClockPort
 from kingsec.application.ports.outbound.session_repository import SessionRepository
 from kingsec.application.use_cases.create_session import CreateSession
@@ -169,7 +167,7 @@ class TestCreateSession:
             client_ip="1.2.3.4",
             user_agent="curl",
         )
-        resp = uc.execute(req)
+        uc.execute(req)
         assert repo.find_by_id("s0") is None or repo.find_by_id("s0").status == SessionStatus.REVOKED
         assert repo.count_active_by_user("u1") <= 5
 

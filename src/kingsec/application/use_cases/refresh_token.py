@@ -18,11 +18,10 @@ Security considerations:
 
 from __future__ import annotations
 
+from kingsec.application.dto import RefreshTokenRequest, RefreshTokenResponse
+from kingsec.application.errors import ApplicationError
+from kingsec.application.ports import AuditPublisher, TokenService, UserRepository
 from kingsec.domain.audit import AuditAction, AuditEntry
-
-from ..dto import RefreshTokenRequest, RefreshTokenResponse
-from ..errors import ApplicationError
-from ..ports import AuditPublisher, TokenService, UserRepository
 
 
 class RefreshToken:

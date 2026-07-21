@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import tempfile
 
@@ -11,7 +10,6 @@ from kingsec.domain.plugin_package import (
     PluginCompatibility,
     PluginDependency,
     PluginManifest,
-    PluginSignature,
     PluginVersion,
 )
 from kingsec.infrastructure.plugin.validator import PluginValidator

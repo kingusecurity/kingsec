@@ -11,13 +11,13 @@ from .senders import (
 from .templates import JinjaTemplateRenderer
 
 __all__ = [
-    "NotificationORM",
-    "SQLAlchemyNotificationRepository",
-    "EmailSender",
-    "WebhookSender",
-    "SlackSender",
     "DiscordSender",
-    "TeamsSender",
+    "EmailSender",
     "InAppSender",
     "JinjaTemplateRenderer",
+    "NotificationORM",
+    "SQLAlchemyNotificationRepository",
+    "SlackSender",
+    "TeamsSender",
+    "WebhookSender",
 ]

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -15,6 +15,7 @@ from kingsec.application.attack_path import (
     AttackNode,
     AttackPath,
 )
+from kingsec.application.renderers.sarif_renderer import SarifRenderer
 from kingsec.application.report import (
     Appendix,
     AssetEntry,
@@ -29,14 +30,13 @@ from kingsec.application.report import (
     RiskSummary,
     TechnicalSummary,
 )
-from kingsec.application.renderers.sarif_renderer import SarifRenderer
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 _RENDERER = SarifRenderer()
-_NOW = datetime(2026, 7, 17, tzinfo=timezone.utc)
+_NOW = datetime(2026, 7, 17, tzinfo=UTC)
 
 
 def _es(
@@ -833,7 +833,7 @@ class TestFileWriting:
         try:
             _RENDERER.write(_unicode_report(), path)
             content = path.read_bytes()
-            assert "Café".encode("utf-8") in content
+            assert "Café".encode() in content
         finally:
             path.unlink(missing_ok=True)
 

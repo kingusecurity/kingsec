@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class NotificationChannel(str, Enum):
+class NotificationChannel(StrEnum):
     EMAIL = "email"
     WEBHOOK = "webhook"
     SLACK = "slack"
@@ -15,14 +15,14 @@ class NotificationChannel(str, Enum):
     IN_APP = "in_app"
 
 
-class NotificationStatus(str, Enum):
+class NotificationStatus(StrEnum):
     PENDING = "pending"
     SENT = "sent"
     FAILED = "failed"
     READ = "read"
 
 
-class NotificationPriority(str, Enum):
+class NotificationPriority(StrEnum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"

@@ -37,7 +37,7 @@ class TestPollingWorkerService:
 
     def test_execute_next_job_processes_oldest_first(self) -> None:
         job1 = self.job_service.submit_scan(target="first.com")
-        job2 = self.job_service.submit_scan(target="second.com")
+        self.job_service.submit_scan(target="second.com")
         result = self.worker.execute_next_job()
         assert result == job1.id.value
 

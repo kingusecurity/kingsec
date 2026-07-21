@@ -20,8 +20,8 @@ from kingsec.application.use_cases.secret_dto import (
     StoreSecretRequest,
 )
 from kingsec.application.use_cases.store_secret import StoreSecret
-from kingsec.application.use_cases.validate_configuration import ValidateConfiguration
 from kingsec.application.use_cases.validate_configuration import (
+    ValidateConfiguration,
     ValidateConfigurationRequest,
 )
 

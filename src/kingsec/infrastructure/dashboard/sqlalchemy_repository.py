@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select, text
@@ -11,8 +10,8 @@ from kingsec.domain.dashboard import (
     DashboardSummary,
     JobStatistics,
     NotificationStatistics,
-    ScheduleStatistics,
     ScannerStatistics,
+    ScheduleStatistics,
     SeverityBreakdown,
     TrendPoint,
     WorkerStatistics,
@@ -24,8 +23,8 @@ class SQLAlchemyDashboardRepository(DashboardRepositoryPort):
         self._session = session
 
     def get_summary(self) -> DashboardSummary:
-        from kingsec.infrastructure.persistence.models import AssessmentORM, FindingORM
         from kingsec.infrastructure.notifications.orm import NotificationORM
+        from kingsec.infrastructure.persistence.models import AssessmentORM, FindingORM
 
         # Single GROUP BY query for assessment status counts
         status_counts: dict[str, int] = {}

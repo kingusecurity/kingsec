@@ -147,7 +147,7 @@ class TestAllRenderers:
             app.csv_renderer,
             app.sarif_renderer,
         ]
-        assert len(set(id(r) for r in renderers)) == 6
+        assert len({id(r) for r in renderers}) == 6
 
 
 # ===========================================================================
@@ -275,7 +275,7 @@ class TestDependencyGraph:
     def test_orchestrator_wired_to_registry(self) -> None:
         app = create_production_application()
         # The orchestrator should be using the same registry instance
-        registry_plugins = app.scanner_registry.list_all()
+        app.scanner_registry.list_all()
         # Verify orchestrator can resolve plugins
         from kingsec.domain import Target, TargetType
         target = Target(value="example.com", type=TargetType.HOSTNAME)

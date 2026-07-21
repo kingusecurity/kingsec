@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
-from kingsec.application.dto import RefreshTokenRequest, RefreshTokenResponse
+from kingsec.application.dto import RefreshTokenRequest
 from kingsec.application.ports import TokenClaims, TokenService, UserRepository
 from kingsec.application.use_cases.refresh_token import RefreshToken, TokenRefreshError
 from kingsec.domain import Role, User
-
 
 # --- Stubs --------------------------------------------------------------------
 
@@ -47,8 +46,8 @@ class StubTokenService(TokenService):
             role="Viewer",
             token_type=token_type,
             jti="jti-1",
-            issued_at=datetime.now(timezone.utc),
-            expires_at=datetime.now(timezone.utc),
+            issued_at=datetime.now(UTC),
+            expires_at=datetime.now(UTC),
         )
 
     def revoke_token(self, jti: str) -> None:

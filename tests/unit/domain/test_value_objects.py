@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import dataclasses
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
+from tests.unit.domain.conftest import utc
 
 from kingsec.domain import (
     AssessmentId,
@@ -18,7 +19,6 @@ from kingsec.domain import (
     Target,
     TargetType,
 )
-from tests.unit.domain.conftest import utc
 
 
 class TestIdentifiers:
@@ -77,7 +77,7 @@ class TestEvidence:
 
     def test_create_stamps_utc(self) -> None:
         ev = Evidence.create("summary", "detail")
-        assert ev.collected_at.tzinfo is timezone.utc
+        assert ev.collected_at.tzinfo is UTC
         assert ev.collected_at.tzinfo is not None
 
 

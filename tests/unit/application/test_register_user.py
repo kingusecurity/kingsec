@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from kingsec.application.dto import RegisterUserRequest, RegisterUserResponse
+from kingsec.application.dto import RegisterUserRequest
 from kingsec.application.ports import PasswordHasher, UserRepository
 from kingsec.application.use_cases.register_user import RegisterUser, RegistrationError
-from kingsec.domain import Role, User
+from kingsec.domain import User
 from kingsec.domain.user import PasswordValidationError
-
 
 # --- Stubs --------------------------------------------------------------------
 

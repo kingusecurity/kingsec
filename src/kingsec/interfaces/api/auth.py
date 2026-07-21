@@ -51,11 +51,11 @@ async def get_current_user(
 
     try:
         role = Role[claims.role.upper()]
-    except KeyError:
+    except KeyError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"invalid role in token: {claims.role}",
-        )
+        ) from exc
 
     return CurrentUser(
         user_id=claims.user_id,

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
@@ -11,13 +10,11 @@ from kingsec.application.errors import ScannerPluginError
 from kingsec.application.ports import ScannerPluginRegistry, ScannerPort
 from kingsec.domain import (
     Finding,
-    FindingStatus,
     PluginAvailability,
     ScannerId,
     ScannerPluginMetadata,
     Severity,
     Target,
-    TargetType,
 )
 from kingsec.interfaces.api.app import create_app
 
@@ -446,14 +443,16 @@ class TestDependencyInjection:
 class TestNoInfrastructureLeaks:
     def test_no_infrastructure_imports_in_routes(self) -> None:
         """The scan route module should not import infrastructure packages."""
-        import kingsec.interfaces.api.routes.scan as scan_module
         import inspect
+
+        import kingsec.interfaces.api.routes.scan as scan_module
         source = inspect.getsource(scan_module)
         assert "infrastructure" not in source.lower()
 
     def test_no_infrastructure_imports_in_app(self) -> None:
         """The app module should not import infrastructure packages."""
-        import kingsec.interfaces.api.app as app_module
         import inspect
+
+        import kingsec.interfaces.api.app as app_module
         source = inspect.getsource(app_module)
         assert "infrastructure" not in source.lower()

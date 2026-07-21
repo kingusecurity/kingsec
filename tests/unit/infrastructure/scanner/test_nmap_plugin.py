@@ -6,7 +6,6 @@ import pytest
 
 from kingsec.application.ports.scanner_plugin import ScannerPluginPort
 from kingsec.domain import (
-    PluginAvailability,
     PluginConfig,
     ScanCategory,
     ScannerId,
@@ -199,9 +198,9 @@ class TestScan:
 
 class TestProvisioning:
     def test_registry_contains_nmap_plugin(self) -> None:
+        from kingsec.bootstrap import Container
         from kingsec.infrastructure.config import Settings
         from kingsec.infrastructure.scanner import register_scanner
-        from kingsec.bootstrap import Container
 
         container = Container()
         runner = FakeRunner(CommandResult(0, _SAMPLE_XML, "", 0.0))
@@ -213,12 +212,12 @@ class TestProvisioning:
         assert isinstance(scanner, ScannerOrchestrator)
 
     def test_orchestrator_resolves_nmap(self) -> None:
+        from kingsec.application import ScannerPort
+        from kingsec.bootstrap import Container
         from kingsec.infrastructure.config.models import NmapSettings
         from kingsec.infrastructure.scanner.orchestrator import ScannerOrchestrator
         from kingsec.infrastructure.scanner.plugins.nmap import NmapPlugin
         from kingsec.infrastructure.scanner.registry import InMemoryPluginRegistry
-        from kingsec.application import ScannerPort
-        from kingsec.bootstrap import Container
 
         container = Container()
         runner = FakeRunner(CommandResult(0, _SAMPLE_XML, "", 0.0))

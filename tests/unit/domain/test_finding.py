@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from tests.unit.domain.conftest import make_finding
 
 from kingsec.domain import (
     Evidence,
@@ -14,7 +15,6 @@ from kingsec.domain import (
     Recommendation,
     Severity,
 )
-from tests.unit.domain.conftest import make_finding
 
 
 class TestConstruction:

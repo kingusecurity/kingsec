@@ -123,7 +123,14 @@ class SQLAlchemyAgentRepository(AgentRepositoryPort):
             return [self._row_to_agent(r._mapping) for r in rows]
 
     def _row_to_agent(self, row) -> Agent:
-        from kingsec.domain.agent import AgentArchitecture, AgentCapability, AgentHealth, AgentPlatform, AgentState, AgentStatistics
+        from kingsec.domain.agent import (
+            AgentArchitecture,
+            AgentCapability,
+            AgentHealth,
+            AgentPlatform,
+            AgentState,
+            AgentStatistics,
+        )
         return Agent(
             id=AgentId(row["id"]),
             name=row.get("name", ""),

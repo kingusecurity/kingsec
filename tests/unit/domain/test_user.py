@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import UTC
+
 import pytest
-from datetime import datetime, timezone
 
 from kingsec.domain import Role, User
 from kingsec.domain.errors import InvariantViolation
@@ -11,10 +12,8 @@ from kingsec.domain.user import (
     InvalidCredentialsError,
     PasswordValidationError,
     UserDisabledError,
-    UserError,
     UserNotFoundError,
 )
-
 
 # --- Role enum tests ----------------------------------------------------------
 
@@ -79,7 +78,7 @@ class TestUser:
         assert user.last_login_at is None
         user.record_login()
         assert user.last_login_at is not None
-        assert user.last_login_at.tzinfo == timezone.utc
+        assert user.last_login_at.tzinfo == UTC
 
     def test_disable_user(self) -> None:
         user = self._make_user()

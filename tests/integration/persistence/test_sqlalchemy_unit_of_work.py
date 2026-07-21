@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.orm import Session
@@ -59,7 +59,7 @@ def uow(session) -> SQLAlchemyUnitOfWork:
 
 def make_assessment() -> Assessment:
     a = Assessment(AssessmentId.generate(), Target("example.com", TargetType.HOSTNAME))
-    a.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=timezone.utc), scope="*"))
+    a.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=UTC), scope="*"))
     a.start()
     a.record_finding(Finding.create("Vuln", "desc", Severity.MEDIUM))
     a.complete()
@@ -217,7 +217,7 @@ class TestCrossRepository:
                 asset = Asset(
                     id="asset-uow-1",
                     target=Target("10.0.0.1", TargetType.IP_ADDRESS),
-                    discovered_at=datetime.now(timezone.utc),
+                    discovered_at=datetime.now(UTC),
                 )
                 uow.asset_repository.add(asset)
                 uow.commit()
@@ -238,7 +238,7 @@ class TestCrossRepository:
                     Asset(
                         id="asset-rb",
                         target=Target("10.0.0.2", TargetType.IP_ADDRESS),
-                        discovered_at=datetime.now(timezone.utc),
+                        discovered_at=datetime.now(UTC),
                     )
                 )
 

@@ -4,17 +4,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from uuid import uuid4
 
 
-class SessionStatus(str, Enum):
+class SessionStatus(StrEnum):
     ACTIVE = "active"
     REVOKED = "revoked"
     EXPIRED = "expired"
 
 
-class SessionType(str, Enum):
+class SessionType(StrEnum):
     USER = "user"
     API_KEY = "api_key"
 

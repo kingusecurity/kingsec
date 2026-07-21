@@ -48,7 +48,7 @@ class NucleiPlugin(ScannerPluginPort):
         settings: ScannerSettings,
         runner: CommandRunner | None = None,
     ) -> None:
-        from ...nuclei import NucleiScannerAdapter
+        from kingsec.infrastructure.scanner.nuclei import NucleiScannerAdapter
 
         self._adapter: NucleiScannerAdapter = NucleiScannerAdapter(settings, runner=runner)
         self._settings = settings

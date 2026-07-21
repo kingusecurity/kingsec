@@ -4,7 +4,6 @@ import pytest
 
 from kingsec.application.unit_of_work import UnitOfWorkPort
 
-
 # ===========================================================================
 # Abstractness
 # ===========================================================================
@@ -121,9 +120,8 @@ class TestUnitOfWorkPortContextManager:
                 self.calls.append("close")
 
         uow = Tracking()
-        with pytest.raises(RuntimeError):
-            with uow:
-                raise RuntimeError("boom")
+        with pytest.raises(RuntimeError), uow:
+            raise RuntimeError("boom")
         assert "rollback" in uow.calls
         assert "close" in uow.calls
         assert "commit" not in uow.calls

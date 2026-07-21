@@ -45,7 +45,7 @@ class NmapPlugin(ScannerPluginPort):
         settings: NmapSettings,
         runner: CommandRunner | None = None,
     ) -> None:
-        from ...nmap import NmapScannerAdapter
+        from kingsec.infrastructure.scanner.nmap import NmapScannerAdapter
 
         self._adapter: NmapScannerAdapter = NmapScannerAdapter(settings, runner=runner)
         self._settings = settings

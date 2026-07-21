@@ -8,19 +8,18 @@ conclusions-first summary DTO.
 
 from __future__ import annotations
 
-from kingsec.domain import Report
-from kingsec.domain.audit import AuditAction, AuditEntry
-
-from .._support import to_assessment_id
-from ..dto import GenerateReportRequest, GenerateReportResponse, SeverityCount
-from ..events import EVENT_REPORT_READY, AssessmentEvent
-from ..ports import (
+from kingsec.application._support import to_assessment_id
+from kingsec.application.dto import GenerateReportRequest, GenerateReportResponse, SeverityCount
+from kingsec.application.events import EVENT_REPORT_READY, AssessmentEvent
+from kingsec.application.ports import (
     AssessmentRepository,
     AuditPublisher,
     EventPublisher,
     ReportGeneratorPort,
     ReportRepository,
 )
+from kingsec.domain import Report
+from kingsec.domain.audit import AuditAction, AuditEntry
 
 
 class GenerateReport:

@@ -2,28 +2,23 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-
 import pytest
 
 from kingsec.application.errors import ScannerDuplicateError, ScannerPluginError
 from kingsec.application.ports.scanner_plugin import ScannerPluginPort
 from kingsec.domain import (
-    Finding,
+    OutputFormat,
     PluginAvailability,
     PluginConfig,
+    ScanCategory,
     ScannerCapability,
     ScannerId,
     ScannerPluginMetadata,
     ScannerResult,
-    Severity,
     Target,
     TargetType,
-    ScanCategory,
-    OutputFormat,
 )
 from kingsec.infrastructure.scanner.registry import InMemoryPluginRegistry
-
 
 # ---------------------------------------------------------------------------
 # Helpers: fake plugin implementations
@@ -267,7 +262,7 @@ class TestListAll:
         registry.register(_FakePlugin(plugin_id="nuclei"))
         result = registry.list_all()
         assert len(result) == 1
-        meta, avail = result[0]
+        meta, _avail = result[0]
         assert meta.id == ScannerId("nuclei")
         assert meta.name == "Fake Scanner"
 

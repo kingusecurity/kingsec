@@ -10,12 +10,11 @@ The domain is not involved — deletion is a repository concern.
 
 from __future__ import annotations
 
+from kingsec.application._support import to_assessment_id
+from kingsec.application.dto import DeleteAssessmentRequest, DeleteAssessmentResponse
+from kingsec.application.events import EVENT_ASSESSMENT_DELETED, AssessmentEvent
+from kingsec.application.ports import AssessmentRepository, AuditPublisher, EventPublisher
 from kingsec.domain.audit import AuditAction, AuditEntry
-
-from .._support import to_assessment_id
-from ..dto import DeleteAssessmentRequest, DeleteAssessmentResponse
-from ..events import EVENT_ASSESSMENT_DELETED, AssessmentEvent
-from ..ports import AssessmentRepository, AuditPublisher, EventPublisher
 
 
 class DeleteAssessment:

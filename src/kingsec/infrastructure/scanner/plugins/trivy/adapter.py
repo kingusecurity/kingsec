@@ -45,7 +45,7 @@ class TrivyPlugin(ScannerPluginPort):
         settings: TrivySettings,
         runner: CommandRunner | None = None,
     ) -> None:
-        from ...trivy import TrivyScannerAdapter
+        from kingsec.infrastructure.scanner.trivy import TrivyScannerAdapter
 
         self._adapter: TrivyScannerAdapter = TrivyScannerAdapter(settings, runner=runner)
         self._settings = settings

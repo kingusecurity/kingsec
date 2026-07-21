@@ -11,17 +11,21 @@ from __future__ import annotations
 
 import uuid
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from kingsec.application.ports.outbound.audit_event_repository import AuditEventRepository
 from kingsec.application.use_cases.record_audit_event import RecordAuditEvent
 from kingsec.application.use_cases.search_audit_events import SearchAuditEvents
-from kingsec.application.use_cases.audit_dto import RecordAuditEventRequest
-from kingsec.domain.audit_event import AuditEvent, AuditEventId, AuditAction, AuditOutcome, AuditSeverity
+from kingsec.domain.audit_event import (
+    AuditAction,
+    AuditEvent,
+    AuditEventId,
+    AuditOutcome,
+    AuditSeverity,
+)
 
-from .test_auth_integration import StubTokenService, StubUserRepo, StubHasher
+from .test_auth_integration import StubHasher, StubTokenService, StubUserRepo
 
 
 class StubAuditEventRepository(AuditEventRepository):
@@ -78,8 +82,8 @@ def _build_app() -> tuple[FastAPI, StubAuditEventRepository, StubTokenService]:
 
     class _StubApp:
         def resolve(self, service_type: type):
-            from kingsec.application.ports import PasswordHasher, TokenService, UserRepository
             from kingsec.application import Login, RefreshToken, RegisterUser
+            from kingsec.application.ports import PasswordHasher, TokenService, UserRepository
 
             if service_type == TokenService:
                 return token_service
@@ -103,9 +107,9 @@ def _build_app() -> tuple[FastAPI, StubAuditEventRepository, StubTokenService]:
 
     app.state.kingsec_app = _StubApp()  # type: ignore[attr-defined]
 
+    from kingsec.adapters.inbound.web.audit_events import router as audit_events_router
     from kingsec.adapters.inbound.web.error_handlers import register_error_handlers
     from kingsec.adapters.inbound.web.routes import router
-    from kingsec.adapters.inbound.web.audit_events import router as audit_events_router
 
     register_error_handlers(app)
     app.include_router(router)
@@ -214,7 +218,7 @@ class TestAuditEventsIntegration:
         assert resp.status_code == 401
 
     def test_non_admin_returns_403(self) -> None:
-        app, event_repo, token_service = _build_app()
+        app, _event_repo, token_service = _build_app()
         client = TestClient(app, raise_server_exceptions=False)
 
         token = _register_and_login(client, token_service, StubUserRepo(), username="viewer", role="VIEWER")

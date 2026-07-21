@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import pytest
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from kingsec.adapters.inbound.web.auth import get_current_user, CurrentUser
+from kingsec.adapters.inbound.web.auth import CurrentUser, get_current_user
 from kingsec.adapters.inbound.web.error_handlers import register_error_handlers
+from kingsec.adapters.inbound.web.session_routes import router as sessions_router
 from kingsec.application.ports.outbound.clock_port import ClockPort
 from kingsec.application.ports.outbound.session_repository import SessionRepository
 from kingsec.application.ports.outbound.token_service import TokenClaims, TokenService
@@ -18,6 +19,7 @@ from kingsec.application.use_cases.terminate_other_sessions import TerminateOthe
 from kingsec.application.use_cases.validate_session import ValidateSession
 from kingsec.bootstrap.application import Application
 from kingsec.bootstrap.container import Container
+from kingsec.domain import Role
 from kingsec.domain.session import (
     DeviceInfo,
     Session,
@@ -25,10 +27,8 @@ from kingsec.domain.session import (
     SessionStatus,
     SessionType,
 )
-from kingsec.domain import Role
 from kingsec.infrastructure.config import Settings
 from kingsec.infrastructure.rate_limit.system_clock import SystemClock
-from kingsec.adapters.inbound.web.session_routes import router as sessions_router
 
 
 class FakeTokenService(TokenService):

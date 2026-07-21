@@ -5,10 +5,10 @@ from __future__ import annotations
 from kingsec.domain.schedule import (
     RetryPolicy,
     RetryStrategy,
+    ScanSchedule,
     ScheduleId,
     ScheduleStatus,
     ScheduleType,
-    ScanSchedule,
 )
 
 

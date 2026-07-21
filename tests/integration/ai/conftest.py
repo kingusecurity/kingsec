@@ -44,7 +44,7 @@ def _make_handler(state: _State) -> type[BaseHTTPRequestHandler]:
         def log_message(self, *_args) -> None:  # silence server logging
             return
 
-        def do_POST(self) -> None:  # noqa: N802 - required name
+        def do_POST(self) -> None:
             length = int(self.headers.get("Content-Length", 0))
             self.rfile.read(length)  # consume request body
 
@@ -74,7 +74,6 @@ def _make_handler(state: _State) -> type[BaseHTTPRequestHandler]:
 @pytest.fixture
 def ai_server() -> Iterator[tuple[str, _State]]:
     """Start a local OpenAI-compatible server; yield (base_url, state)."""
-
     state = _State()
     server = ThreadingHTTPServer(("127.0.0.1", 0), _make_handler(state))
     thread = threading.Thread(target=server.serve_forever, daemon=True)

@@ -14,7 +14,8 @@ class TestCreateApp:
 
     def test_app_version(self) -> None:
         app = create_app()
-        assert app.version == "0.7.0"
+        from kingsec import __version__
+        assert app.version == __version__
 
     def test_app_description(self) -> None:
         app = create_app()

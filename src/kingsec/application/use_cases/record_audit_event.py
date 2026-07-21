@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from kingsec.application.errors import ApplicationError
+from kingsec.application.ports.outbound.audit_event_repository import AuditEventRepository
 from kingsec.domain.audit_event import (
     AuditAction,
     AuditEvent,
@@ -12,8 +14,6 @@ from kingsec.domain.audit_event import (
     AuditSeverity,
 )
 
-from ..errors import ApplicationError
-from ..ports.outbound.audit_event_repository import AuditEventRepository
 from .audit_dto import RecordAuditEventRequest, RecordAuditEventResponse
 
 
@@ -28,18 +28,18 @@ class RecordAuditEvent:
 
         try:
             action = AuditAction(request.action)
-        except ValueError:
-            raise ApplicationError(f"invalid audit action: {request.action}")
+        except ValueError as exc:
+            raise ApplicationError(f"invalid audit action: {request.action}") from exc
 
         try:
             outcome = AuditOutcome(request.outcome)
-        except ValueError:
-            raise ApplicationError(f"invalid audit outcome: {request.outcome}")
+        except ValueError as exc:
+            raise ApplicationError(f"invalid audit outcome: {request.outcome}") from exc
 
         try:
             severity = AuditSeverity(request.severity)
-        except ValueError:
-            raise ApplicationError(f"invalid audit severity: {request.severity}")
+        except ValueError as exc:
+            raise ApplicationError(f"invalid audit severity: {request.severity}") from exc
 
         event_id = AuditEventId(str(uuid.uuid4()))
         event = AuditEvent(

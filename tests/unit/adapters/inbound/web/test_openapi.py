@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from kingsec.adapters.inbound.web.openapi import configure_openapi
 from kingsec.infrastructure.config.models import AppSettings
-from kingsec.adapters.inbound.web.openapi import configure_openapi, TAGS
 
 
 def _build_app() -> FastAPI:

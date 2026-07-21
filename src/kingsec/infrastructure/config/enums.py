@@ -15,10 +15,10 @@ carrying the validation guarantees of an enum.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class Environment(str, Enum):
+class Environment(StrEnum):
     """The deployment context KingSec is running in.
 
     This drives environment-specific safety rules (e.g. "debug must be off in
@@ -30,7 +30,7 @@ class Environment(str, Enum):
     PRODUCTION = "production"
 
 
-class LogLevel(str, Enum):
+class LogLevel(StrEnum):
     """Standard Python logging severities.
 
     Module 2.2 (structlog) will consume ``LoggingSettings.level``. We define the

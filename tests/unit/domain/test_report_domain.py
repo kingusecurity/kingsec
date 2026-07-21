@@ -5,13 +5,13 @@ from __future__ import annotations
 import dataclasses
 
 import pytest
+from tests.unit.domain.conftest import make_finding
 
 from kingsec.domain import (
     IllegalStateTransition,
     Report,
     Severity,
 )
-from tests.unit.domain.conftest import make_finding
 
 
 def _complete(running, findings) -> None:

@@ -3,25 +3,20 @@
 from __future__ import annotations
 
 import threading
-import time
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 
 from kingsec.application.dto import SubmitAssessmentRequest, SubmitAssessmentResponse
 from kingsec.application.errors import AssessmentNotFoundError
-from kingsec.application.job import JobId
-from kingsec.application.ports.outbound.job_runner import JobRunner
 from kingsec.application.submit_assessment import SubmitAssessment
 from kingsec.domain import Assessment, AssessmentId, Finding, Severity, Target, TargetType
 from kingsec.domain.authorization import Authorization
 from kingsec.domain.enums import AssessmentStatus
 from kingsec.domain.errors import IllegalStateTransition
 from kingsec.domain.evidence import Recommendation
-
 
 # --- Fakes and Stubs --------------------------------------------------------
 
@@ -118,12 +113,12 @@ def _make_assessment(
     """Build an Assessment in the desired state."""
     a = Assessment(assessment_id=AssessmentId(assessment_id), target=Target(target, TargetType.IP_ADDRESS))
     if status == AssessmentStatus.AUTHORIZED:
-        a.authorize(Authorization("test-user", datetime.now(timezone.utc), scope="test-scope"))
+        a.authorize(Authorization("test-user", datetime.now(UTC), scope="test-scope"))
     elif status == AssessmentStatus.RUNNING:
-        a.authorize(Authorization("test-user", datetime.now(timezone.utc), scope="test-scope"))
+        a.authorize(Authorization("test-user", datetime.now(UTC), scope="test-scope"))
         a.start()
     elif status == AssessmentStatus.COMPLETED:
-        a.authorize(Authorization("test-user", datetime.now(timezone.utc), scope="test-scope"))
+        a.authorize(Authorization("test-user", datetime.now(UTC), scope="test-scope"))
         a.start()
         a.complete()
     return a

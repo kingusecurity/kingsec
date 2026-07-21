@@ -16,22 +16,22 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
+from .agent_routes import router as v1_agent_router
 from .audit import router as v1_audit_router
 from .audit_events import router as v1_audit_events_router
+from .backup_routes import router as v1_backup_router
+from .dashboard_routes import router as v1_dashboard_router
+from .health_routes import router as v1_health_router
 from .mfa_routes import router as v1_mfa_router
+from .notification_routes import router as v1_notification_router
+from .pipeline_routes import router as v1_pipeline_router
+from .plugin_routes import router as v1_plugin_router
+from .queue_routes import router as v1_queue_router
 from .routes import router as v1_router
 from .schedule_routes import router as v1_schedule_router
 from .secret_routes import router as v1_secret_router
 from .session_routes import router as v1_sessions_router
 from .sse import router as v1_sse_router
-from .notification_routes import router as v1_notification_router
-from .dashboard_routes import router as v1_dashboard_router
-from .plugin_routes import router as v1_plugin_router
-from .agent_routes import router as v1_agent_router
-from .queue_routes import router as v1_queue_router
-from .pipeline_routes import router as v1_pipeline_router
-from .backup_routes import router as v1_backup_router
-from .health_routes import router as v1_health_router
 
 
 def register_versioned_routes(app: FastAPI) -> None:

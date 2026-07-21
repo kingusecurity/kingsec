@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from tests.unit.application.conftest import InMemoryAssessmentRepository
 
 from kingsec.application import (
     AssessmentNotFoundError,
@@ -17,7 +18,6 @@ from kingsec.domain import (
     Target,
     TargetType,
 )
-from tests.unit.application.conftest import InMemoryAssessmentRepository
 
 
 def _draft(assessments: InMemoryAssessmentRepository) -> Assessment:

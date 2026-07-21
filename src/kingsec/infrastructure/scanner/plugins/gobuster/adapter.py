@@ -45,7 +45,7 @@ class GobusterPlugin(ScannerPluginPort):
         settings: GobusterSettings,
         runner: CommandRunner | None = None,
     ) -> None:
-        from ...gobuster import GobusterScannerAdapter
+        from kingsec.infrastructure.scanner.gobuster import GobusterScannerAdapter
 
         self._adapter: GobusterScannerAdapter = GobusterScannerAdapter(settings, runner=runner)
         self._settings = settings

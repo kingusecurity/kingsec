@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
-import pytest
-from fastapi.testclient import TestClient
-
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+
 from kingsec.application.ports import TokenClaims
 from kingsec.domain import Role
 from kingsec.domain.notification import (

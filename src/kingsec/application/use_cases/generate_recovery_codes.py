@@ -1,9 +1,9 @@
 """Use case: generate initial recovery codes for MFA."""
 from __future__ import annotations
 
+from kingsec.application.ports.outbound.recovery_code_repository import RecoveryCodeRepository
 from kingsec.domain.mfa import MfaRecoveryCode, RecoveryCodeStatus
 
-from ..ports.outbound.recovery_code_repository import RecoveryCodeRepository
 from .mfa_dto import GenerateRecoveryCodesRequest, GenerateRecoveryCodesResponse
 
 

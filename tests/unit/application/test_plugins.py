@@ -27,7 +27,6 @@ from kingsec.application.use_cases.plugins import (
     ValidatePlugin,
 )
 from kingsec.domain.plugin_package import (
-    PluginCompatibility,
     PluginDependency,
     PluginHealth,
     PluginInstallStatus,
@@ -42,17 +41,16 @@ from kingsec.infrastructure.plugin.validator import PluginValidator
 
 def _create_plugin_zip(manifest: dict | None = None) -> str:
     fd, path = tempfile.mkstemp(suffix=".zip")
-    with os.fdopen(fd, "wb") as f:
-        with zipfile.ZipFile(f, "w", zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr("manifest.json", json.dumps(manifest or {
-                "id": "test-plugin",
-                "name": "Test Plugin",
-                "version": "1.0.0",
-                "author": "KingSec",
-                "license": "MIT",
-                "description": "Test plugin",
-            }))
-            zf.writestr("main.py", "print('hello')")
+    with os.fdopen(fd, "wb") as f, zipfile.ZipFile(f, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("manifest.json", json.dumps(manifest or {
+            "id": "test-plugin",
+            "name": "Test Plugin",
+            "version": "1.0.0",
+            "author": "KingSec",
+            "license": "MIT",
+            "description": "Test plugin",
+        }))
+        zf.writestr("main.py", "print('hello')")
     return path
 
 
@@ -235,9 +233,8 @@ class TestValidatePlugin:
 
     def test_validate_missing_manifest(self) -> None:
         fd, path = tempfile.mkstemp(suffix=".zip")
-        with os.fdopen(fd, "wb") as f:
-            with zipfile.ZipFile(f, "w", zipfile.ZIP_DEFLATED) as zf:
-                zf.writestr("some_file.txt", "hello")
+        with os.fdopen(fd, "wb") as f, zipfile.ZipFile(f, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("some_file.txt", "hello")
         try:
             with pytest.raises(PluginValidationError, match="Missing manifest.json"):
                 self.uc.execute(path)
@@ -299,7 +296,8 @@ class TestExportPlugin:
         self.repo.save(pkg)
         data = self.uc.execute("test-plugin")
         assert data is not None
-        import zipfile, io
+        import io
+        import zipfile
         with zipfile.ZipFile(io.BytesIO(data)) as zf:
             assert "manifest.json" in zf.namelist()
 

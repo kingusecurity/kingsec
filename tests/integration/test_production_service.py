@@ -14,7 +14,7 @@ from kingsec.application.ports.outbound import (
 from kingsec.application.ports.outbound.audit_publisher import AuditPublisher
 from kingsec.application.ports.production_service import ProductionServicePort
 from kingsec.application.production_service import ProductionService
-from kingsec.domain.audit import AuditAction, AuditEntry
+from kingsec.domain.audit import AuditEntry
 from kingsec.domain.system_health import (
     DependencyHealth,
     HealthCheck,

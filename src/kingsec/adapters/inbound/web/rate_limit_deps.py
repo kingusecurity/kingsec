@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 from fastapi import Depends, Request, Response
 
 from kingsec.application.use_cases.check_rate_limit import CheckRateLimit
@@ -12,9 +11,8 @@ from kingsec.domain.rate_limit import (
     RateLimitPolicy,
 )
 
+from .auth import get_current_api_key, get_current_user
 from .dependencies import get_application
-from .auth import get_current_user, get_current_api_key
-
 
 DEFAULT_POLICIES: dict[RateLimitGroup, tuple[int, int, RateLimitKeyType]] = {
     RateLimitGroup.LOGIN: (5, 900, RateLimitKeyType.IP_USER),

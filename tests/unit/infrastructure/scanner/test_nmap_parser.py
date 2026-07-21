@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
-
 from kingsec.domain import Severity
 from kingsec.infrastructure.scanner.nmap_parser import parse_nmap_xml
-
 
 # ---------------------------------------------------------------------------
 # Fixtures: sample XML outputs
@@ -182,7 +179,7 @@ class TestParseNmapXml:
 
     def test_port_with_version_is_low(self) -> None:
         findings = parse_nmap_xml(_SINGLE_HOST_XML)
-        port22 = [f for f in findings if "22" in f.title][0]
+        port22 = next(f for f in findings if "22" in f.title)
         assert port22.severity is Severity.LOW
 
     def test_port_without_version_is_informational(self) -> None:
@@ -226,17 +223,17 @@ class TestScriptFindings:
 
     def test_ssl_poodle_is_high(self) -> None:
         findings = parse_nmap_xml(_SCRIPT_OUTPUT_XML)
-        poodle = [f for f in findings if "ssl-poodle" in f.title][0]
+        poodle = next(f for f in findings if "ssl-poodle" in f.title)
         assert poodle.severity is Severity.HIGH
 
     def test_ssl_enum_ciphers_is_medium(self) -> None:
         findings = parse_nmap_xml(_SCRIPT_OUTPUT_XML)
-        enum = [f for f in findings if "ssl-enum-ciphers" in f.title][0]
+        enum = next(f for f in findings if "ssl-enum-ciphers" in f.title)
         assert enum.severity is Severity.MEDIUM
 
     def test_script_has_evidence(self) -> None:
         findings = parse_nmap_xml(_SCRIPT_OUTPUT_XML)
-        poodle = [f for f in findings if "ssl-poodle" in f.title][0]
+        poodle = next(f for f in findings if "ssl-poodle" in f.title)
         assert len(poodle.evidence) == 1
         assert "ssl-poodle" in poodle.evidence[0].summary
 

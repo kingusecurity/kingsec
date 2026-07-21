@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-
 import pytest
 
 from kingsec.application.errors import ScannerPluginError
@@ -11,8 +9,10 @@ from kingsec.application.ports.scanner_plugin import ScannerPluginPort
 from kingsec.application.ports.services import ScannerPort
 from kingsec.domain import (
     Finding,
+    OutputFormat,
     PluginAvailability,
     PluginConfig,
+    ScanCategory,
     ScannerCapability,
     ScannerId,
     ScannerPluginMetadata,
@@ -20,12 +20,9 @@ from kingsec.domain import (
     Severity,
     Target,
     TargetType,
-    ScanCategory,
-    OutputFormat,
 )
 from kingsec.infrastructure.scanner.orchestrator import ScannerOrchestrator
 from kingsec.infrastructure.scanner.registry import InMemoryPluginRegistry
-
 
 # ---------------------------------------------------------------------------
 # Helpers: fake plugins
@@ -187,7 +184,7 @@ class TestExecute:
         health_called = False
 
         class TrackingPlugin(_StubPlugin):
-            def health_check(self_nonlocal) -> None:  # noqa: ANN202
+            def health_check(self_nonlocal) -> None:
                 nonlocal health_called
                 health_called = True
 
@@ -199,7 +196,7 @@ class TestExecute:
         scan_called = False
 
         class TrackingPlugin(_StubPlugin):
-            def scan(self_nonlocal, target, config) -> ScannerResult:  # noqa: ANN201, ARG002
+            def scan(self_nonlocal, target, config) -> ScannerResult:
                 nonlocal scan_called
                 scan_called = True
                 return ScannerResult(
@@ -270,7 +267,7 @@ class TestExecuteAll:
         received_configs: list[PluginConfig] = []
 
         class ConfigCapture(_StubPlugin):
-            def scan(self_nonlocal, target, config) -> ScannerResult:  # noqa: ANN201, ARG002
+            def scan(self_nonlocal, target, config) -> ScannerResult:
                 received_configs.append(config)
                 return ScannerResult(
                     scanner_id=ScannerId("cap"),
@@ -291,7 +288,7 @@ class TestExecuteAll:
         received_configs: list[PluginConfig] = []
 
         class ConfigCapture(_StubPlugin):
-            def scan(self_nonlocal, target, config) -> ScannerResult:  # noqa: ANN201, ARG002
+            def scan(self_nonlocal, target, config) -> ScannerResult:
                 received_configs.append(config)
                 return ScannerResult(
                     scanner_id=ScannerId("cap"),
@@ -310,7 +307,7 @@ class TestExecuteAll:
         order: list[str] = []
 
         class OrderPlugin(_StubPlugin):
-            def scan(self_nonlocal, target, config) -> ScannerResult:  # noqa: ANN201, ARG002
+            def scan(self_nonlocal, target, config) -> ScannerResult:
                 order.append(self_nonlocal._id)
                 return ScannerResult(
                     scanner_id=ScannerId(self_nonlocal._id),

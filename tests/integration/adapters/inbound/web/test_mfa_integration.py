@@ -14,10 +14,6 @@ Verifies:
 """
 from __future__ import annotations
 
-import hashlib
-import uuid
-
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -33,10 +29,10 @@ from kingsec.application.use_cases.get_mfa_status import GetMfaStatus
 from kingsec.application.use_cases.rotate_recovery_codes import RotateRecoveryCodes
 from kingsec.application.use_cases.use_recovery_code import UseRecoveryCode
 from kingsec.application.use_cases.verify_mfa_code import VerifyMfaCode
-from kingsec.domain.mfa import MfaRecoveryCode, MfaSecret, MfaStatus, RecoveryCodeStatus
+from kingsec.domain.mfa import MfaRecoveryCode, MfaSecret, RecoveryCodeStatus
 
-from .test_auth_integration import StubTokenService, StubUserRepo, StubHasher
 from .test_audit_events_integration import StubAuditEventRepository as EventRepo
+from .test_auth_integration import StubHasher, StubTokenService, StubUserRepo
 
 
 class StubTotpService(TotpServicePort):
@@ -142,8 +138,8 @@ def _build_app() -> tuple[FastAPI, StubUserRepo, StubTokenService, StubMfaSecret
     app.state.kingsec_app = _StubApp()  # type: ignore[attr-defined]
 
     from kingsec.adapters.inbound.web.error_handlers import register_error_handlers
-    from kingsec.adapters.inbound.web.routes import router
     from kingsec.adapters.inbound.web.mfa_routes import router as mfa_router
+    from kingsec.adapters.inbound.web.routes import router
 
     register_error_handlers(app)
     app.include_router(router)
@@ -162,7 +158,7 @@ def _register_and_login(client: TestClient, username: str = "testuser", role: st
 
 class TestMfaIntegration:
     def test_status_disabled_by_default(self) -> None:
-        app, _, token_service, _, _, _ = _build_app()
+        app, _, _token_service, _, _, _ = _build_app()
         client = TestClient(app, raise_server_exceptions=False)
         token = _register_and_login(client, username="user1")
         resp = client.get("/api/v1/mfa/status", headers={"Authorization": f"Bearer {token}"})
@@ -170,7 +166,7 @@ class TestMfaIntegration:
         assert resp.json()["enabled"] is False
 
     def test_enable_returns_secret_and_uri(self) -> None:
-        app, _, token_service, _, _, _ = _build_app()
+        app, _, _token_service, _, _, _ = _build_app()
         client = TestClient(app, raise_server_exceptions=False)
         token = _register_and_login(client, username="user2")
         resp = client.post("/api/v1/mfa/enable", headers={"Authorization": f"Bearer {token}"})
@@ -182,7 +178,7 @@ class TestMfaIntegration:
         assert "otpauth://" in data["uri"]
 
     def test_status_enabled_after_enable(self) -> None:
-        app, _, token_service, mfa_repo, _, _ = _build_app()
+        app, _, _token_service, _mfa_repo, _, _ = _build_app()
         client = TestClient(app, raise_server_exceptions=False)
         token = _register_and_login(client, username="user3")
 
@@ -191,7 +187,7 @@ class TestMfaIntegration:
         assert resp.json()["enabled"] is True
 
     def test_verify_valid_totp(self) -> None:
-        app, _, token_service, mfa_repo, _, _ = _build_app()
+        app, _, _token_service, _mfa_repo, _, _ = _build_app()
         client = TestClient(app, raise_server_exceptions=False)
 
         token = _register_and_login(client, username="user4")
@@ -205,7 +201,7 @@ class TestMfaIntegration:
         assert data["username"] == "user4"
 
     def test_verify_invalid_totp(self) -> None:
-        app, _, token_service, _, _, _ = _build_app()
+        app, _, _token_service, _, _, _ = _build_app()
         client = TestClient(app, raise_server_exceptions=False)
 
         token = _register_and_login(client, username="user5")
@@ -215,7 +211,7 @@ class TestMfaIntegration:
         assert resp.status_code == 401
 
     def test_verify_wrong_password(self) -> None:
-        app, _, token_service, _, _, _ = _build_app()
+        app, _, _token_service, _, _, _ = _build_app()
         client = TestClient(app, raise_server_exceptions=False)
 
         token = _register_and_login(client, username="user6")
@@ -225,7 +221,7 @@ class TestMfaIntegration:
         assert resp.status_code == 401
 
     def test_disable_mfa(self) -> None:
-        app, _, token_service, mfa_repo, _, _ = _build_app()
+        app, _, _token_service, _mfa_repo, _, _ = _build_app()
         client = TestClient(app, raise_server_exceptions=False)
 
         token = _register_and_login(client, username="user7")
@@ -236,7 +232,7 @@ class TestMfaIntegration:
         assert resp.json()["enabled"] is False
 
     def test_disable_admin_removes_other_user_mfa(self) -> None:
-        app, user_repo, token_service, mfa_repo, _, _ = _build_app()
+        app, _user_repo, _token_service, _mfa_repo, _, _ = _build_app()
         client = TestClient(app, raise_server_exceptions=False)
 
         # Admin user
@@ -253,7 +249,7 @@ class TestMfaIntegration:
         assert status_resp.json()["enabled"] is False
 
     def test_recovery_code_authentication(self) -> None:
-        app, _, token_service, mfa_repo, recovery_repo, _ = _build_app()
+        app, _, _token_service, _mfa_repo, _recovery_repo, _ = _build_app()
         client = TestClient(app, raise_server_exceptions=False)
 
         token = _register_and_login(client, username="user8")
@@ -267,7 +263,7 @@ class TestMfaIntegration:
         assert "access_token" in resp.json()
 
     def test_recovery_code_used_once(self) -> None:
-        app, _, token_service, _, recovery_repo, _ = _build_app()
+        app, _, _token_service, _, _recovery_repo, _ = _build_app()
         client = TestClient(app, raise_server_exceptions=False)
 
         token = _register_and_login(client, username="user9")
@@ -285,7 +281,7 @@ class TestMfaIntegration:
         assert resp2.status_code == 401
 
     def test_recovery_rotate(self) -> None:
-        app, _, token_service, _, recovery_repo, _ = _build_app()
+        app, _, _token_service, _, _recovery_repo, _ = _build_app()
         client = TestClient(app, raise_server_exceptions=False)
 
         token = _register_and_login(client, username="user10")

@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import secrets
 
+from kingsec.application.dto import CreateApiKeyRequest, CreateApiKeyResponse
+from kingsec.application.errors import ApplicationError
+from kingsec.application.ports import ApiKeyHasher, ApiKeyRepository
 from kingsec.domain.api_key import ApiKey, ApiKeyScope, ApiKeyStatus
-
-from ..dto import CreateApiKeyRequest, CreateApiKeyResponse
-from ..errors import ApplicationError
-from ..ports import ApiKeyHasher, ApiKeyRepository
 
 
 class CreateApiKey:
@@ -32,8 +31,8 @@ class CreateApiKey:
 
         try:
             scope = ApiKeyScope(request.scope)
-        except ValueError:
-            raise ApiKeyError(f"invalid scope: {request.scope}")
+        except ValueError as exc:
+            raise ApiKeyError(f"invalid scope: {request.scope}") from exc
 
         key = ApiKey(
             id=key_id,

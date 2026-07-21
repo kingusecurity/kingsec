@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 from kingsec.application.ports.outbound import (
     PluginInstallerPort,
     PluginMarketplacePort,
@@ -47,7 +46,8 @@ class PluginService(PluginServicePort):
         self._export_uc = ExportPlugin(repo)
 
     def _extract_manifest(self, package_path: str, filename: str | None = None):
-        import zipfile, json
+        import json
+        import zipfile
         with zipfile.ZipFile(package_path, "r") as zf:
             if "manifest.json" not in zf.namelist():
                 from kingsec.application.errors import PluginValidationError
@@ -69,8 +69,10 @@ class PluginService(PluginServicePort):
         )
 
     def install(self, package_path: str, filename: str) -> PluginPackage:
+        import json
+        import zipfile
+
         from kingsec.domain.plugin_package import PluginManifest, PluginVersion
-        import zipfile, json
         with zipfile.ZipFile(package_path, "r") as zf:
             if "manifest.json" not in zf.namelist():
                 from kingsec.application.errors import PluginValidationError
@@ -101,8 +103,10 @@ class PluginService(PluginServicePort):
         return self._disable_uc.execute(plugin_id)
 
     def update(self, plugin_id: str, package_path: str, filename: str) -> PluginPackage:
+        import json
+        import zipfile
+
         from kingsec.domain.plugin_package import PluginManifest, PluginVersion
-        import zipfile, json
         with zipfile.ZipFile(package_path, "r") as zf:
             if "manifest.json" not in zf.namelist():
                 from kingsec.application.errors import PluginValidationError

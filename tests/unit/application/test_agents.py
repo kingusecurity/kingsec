@@ -4,7 +4,6 @@ import pytest
 
 from kingsec.application.agent_service import AgentService
 from kingsec.domain.agent import (
-    Agent,
     AgentArchitecture,
     AgentCapability,
     AgentHealth,

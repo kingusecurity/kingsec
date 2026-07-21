@@ -2,17 +2,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class MfaStatus(str, Enum):
+class MfaStatus(StrEnum):
     """Whether MFA is enabled for a user."""
 
     DISABLED = "disabled"
     ENABLED = "enabled"
 
 
-class RecoveryCodeStatus(str, Enum):
+class RecoveryCodeStatus(StrEnum):
     """Status of a single recovery code."""
 
     ACTIVE = "active"

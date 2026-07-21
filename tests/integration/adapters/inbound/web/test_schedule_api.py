@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from kingsec.adapters.inbound.web.auth import CurrentUser, get_current_user
@@ -30,12 +30,12 @@ from kingsec.application.use_cases.update_schedule import UpdateSchedule
 from kingsec.bootstrap.application import Application
 from kingsec.bootstrap.container import Container
 from kingsec.domain import Role
-from kingsec.domain.audit import AuditAction, AuditEntry
-from kingsec.infrastructure.config import Settings, load_settings
-from kingsec.infrastructure.scheduler.in_process_scheduler import InProcessScheduler
+from kingsec.domain.audit import AuditEntry
+from kingsec.infrastructure.config import load_settings
 from kingsec.infrastructure.rate_limit.system_clock import SystemClock
+from kingsec.infrastructure.scheduler.in_process_scheduler import InProcessScheduler
 
-from .test_session_api import FakeTokenService, TokenClaims
+from .test_session_api import TokenClaims
 
 
 class InMemoryScheduleRepo(ScheduleRepositoryPort):

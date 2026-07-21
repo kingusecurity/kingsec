@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from ..dto import ValidateApiKeyRequest, ValidateApiKeyResponse
-from ..errors import ApplicationError
-from ..ports import ApiKeyHasher, ApiKeyRepository
+from kingsec.application.dto import ValidateApiKeyRequest, ValidateApiKeyResponse
+from kingsec.application.errors import ApplicationError
+from kingsec.application.ports import ApiKeyHasher, ApiKeyRepository
 
 from .revoke_api_key import ApiKeyNotFoundError
 
@@ -33,7 +33,7 @@ class ValidateApiKey:
         try:
             key_id = _parse_api_key(request.api_key)
         except ValueError as exc:
-            raise ApplicationError(str(exc))
+            raise ApplicationError(str(exc)) from exc
 
         key = self._repo.find_by_id(key_id)
         if key is None:

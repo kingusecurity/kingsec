@@ -2,25 +2,30 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 from kingsec.application.attack_path import (
-    AttackEdge, AttackGraph, AttackNode, AttackPath,
+    AttackEdge,
+    AttackGraph,
+    AttackNode,
+    AttackPath,
 )
-from kingsec.application.correlation import CorrelatedFinding
-from kingsec.application.enrichment import EnrichedFinding
-from kingsec.application.normalization import NormalizedFinding
-from kingsec.application.risk import RiskAssessment, RiskFactor
 from kingsec.application.report import (
-    Appendix, AssetEntry, AssetSummary, AttackPathSection,
-    ExecutiveSummary, FindingEntry, FindingSection,
-    RecommendationEntry, RecommendationSection, Report, RiskSummary,
+    Appendix,
+    AssetEntry,
+    AssetSummary,
+    AttackPathSection,
+    ExecutiveSummary,
+    FindingEntry,
+    FindingSection,
+    RecommendationEntry,
+    RecommendationSection,
+    Report,
+    RiskSummary,
     TechnicalSummary,
 )
-from kingsec.domain import Severity
-
 
 # ===========================================================================
 # Fixtures
@@ -804,7 +809,7 @@ class TestRecommendationSectionConstruction:
 
 class TestAppendixConstruction:
     def test_creates_with_valid_data(self) -> None:
-        dt = datetime(2026, 7, 17, tzinfo=timezone.utc)
+        dt = datetime(2026, 7, 17, tzinfo=UTC)
         a = Appendix(
             scanner_versions={"nuclei": "3.2.1", "nmap": "7.95"},
             total_plugins=2,
@@ -815,7 +820,7 @@ class TestAppendixConstruction:
         assert a.generated_by == "KingSec v1.0.0"
 
     def test_frozen(self) -> None:
-        dt = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        dt = datetime(2026, 1, 1, tzinfo=UTC)
         a = Appendix(
             scanner_versions={"nuclei": "1.0"},
             total_plugins=1,
@@ -829,7 +834,7 @@ class TestAppendixConstruction:
         a = Appendix(
             scanner_versions={},
             total_plugins=0,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
             generated_by="KingSec",
         )
         assert a.scanner_versions == {}
@@ -839,7 +844,7 @@ class TestAppendixConstruction:
             Appendix(
                 scanner_versions={"nuclei": "1.0"},
                 total_plugins=-1,
-                generated_at=datetime.now(timezone.utc),
+                generated_at=datetime.now(UTC),
                 generated_by="KingSec",
             )
 
@@ -848,12 +853,12 @@ class TestAppendixConstruction:
             Appendix(
                 scanner_versions={"nuclei": "1.0"},
                 total_plugins=1,
-                generated_at=datetime.now(timezone.utc),
+                generated_at=datetime.now(UTC),
                 generated_by="",
             )
 
     def test_equality(self) -> None:
-        dt = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        dt = datetime(2026, 1, 1, tzinfo=UTC)
         a1 = Appendix(
             scanner_versions={"nuclei": "1.0"},
             total_plugins=1,
@@ -869,7 +874,7 @@ class TestAppendixConstruction:
         assert a1 == a2
 
     def test_hashable(self) -> None:
-        dt = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        dt = datetime(2026, 1, 1, tzinfo=UTC)
         a = Appendix(
             scanner_versions={"nuclei": "1.0"},
             total_plugins=1,
@@ -928,13 +933,13 @@ class TestReportConstruction:
         app = Appendix(
             scanner_versions={"nuclei": "3.2"},
             total_plugins=1,
-            generated_at=datetime(2026, 7, 17, tzinfo=timezone.utc),
+            generated_at=datetime(2026, 7, 17, tzinfo=UTC),
             generated_by="KingSec v1.0",
         )
         r = Report(
             report_id="rpt-001",
             title="Security Scan Report",
-            created_at=datetime(2026, 7, 17, tzinfo=timezone.utc),
+            created_at=datetime(2026, 7, 17, tzinfo=UTC),
             executive_summary=es,
             technical_summary=ts,
             risk_summary=rs,
@@ -989,13 +994,13 @@ class TestReportConstruction:
         app = Appendix(
             scanner_versions={"nuclei": "1.0"},
             total_plugins=1,
-            generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            generated_at=datetime(2026, 1, 1, tzinfo=UTC),
             generated_by="KingSec",
         )
         r = Report(
             report_id="rpt-001",
             title="T",
-            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            created_at=datetime(2026, 1, 1, tzinfo=UTC),
             executive_summary=es,
             technical_summary=ts,
             risk_summary=rs,
@@ -1050,14 +1055,14 @@ class TestReportConstruction:
         app = Appendix(
             scanner_versions={"nuclei": "1.0"},
             total_plugins=1,
-            generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            generated_at=datetime(2026, 1, 1, tzinfo=UTC),
             generated_by="KingSec",
         )
         with pytest.raises(ValueError, match="report_id"):
             Report(
                 report_id="",
                 title="T",
-                created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                created_at=datetime(2026, 1, 1, tzinfo=UTC),
                 executive_summary=es,
                 technical_summary=ts,
                 risk_summary=rs,
@@ -1110,14 +1115,14 @@ class TestReportConstruction:
         app = Appendix(
             scanner_versions={"nuclei": "1.0"},
             total_plugins=1,
-            generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            generated_at=datetime(2026, 1, 1, tzinfo=UTC),
             generated_by="KingSec",
         )
         with pytest.raises(ValueError, match="title"):
             Report(
                 report_id="rpt-001",
                 title="",
-                created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                created_at=datetime(2026, 1, 1, tzinfo=UTC),
                 executive_summary=es,
                 technical_summary=ts,
                 risk_summary=rs,
@@ -1170,13 +1175,13 @@ class TestReportConstruction:
         app = Appendix(
             scanner_versions={"nuclei": "1.0"},
             total_plugins=1,
-            generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            generated_at=datetime(2026, 1, 1, tzinfo=UTC),
             generated_by="KingSec",
         )
         r = Report(
             report_id="rpt-001",
             title="T",
-            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            created_at=datetime(2026, 1, 1, tzinfo=UTC),
             executive_summary=es,
             technical_summary=ts,
             risk_summary=rs,
@@ -1194,7 +1199,7 @@ class TestReportConstruction:
         sample_recommendation_entry: RecommendationEntry,
         sample_attack_graph: AttackGraph,
     ) -> None:
-        dt = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        dt = datetime(2026, 1, 1, tzinfo=UTC)
         base_kw = dict(
             report_id="rpt-001",
             title="T",
@@ -1249,7 +1254,7 @@ class TestReportConstruction:
         sample_recommendation_entry: RecommendationEntry,
         sample_attack_graph: AttackGraph,
     ) -> None:
-        dt = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        dt = datetime(2026, 1, 1, tzinfo=UTC)
         r = Report(
             report_id="rpt-001",
             title="T",

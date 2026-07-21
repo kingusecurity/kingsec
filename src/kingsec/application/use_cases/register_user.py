@@ -18,13 +18,12 @@ Security considerations:
 
 from __future__ import annotations
 
+from kingsec.application.dto import RegisterUserRequest, RegisterUserResponse
+from kingsec.application.errors import ApplicationError
+from kingsec.application.ports import AuditPublisher, PasswordHasher, UserRepository
 from kingsec.domain import Role, User
 from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.domain.user import PasswordValidationError
-
-from ..dto import RegisterUserRequest, RegisterUserResponse
-from ..errors import ApplicationError
-from ..ports import AuditPublisher, PasswordHasher, UserRepository
 
 
 class RegisterUser:
@@ -58,8 +57,8 @@ class RegisterUser:
         # Step 5: Parse role.
         try:
             role = Role[request.role.upper()]
-        except KeyError:
-            raise RegistrationError(f"invalid role: {request.role}")
+        except KeyError as exc:
+            raise RegistrationError(f"invalid role: {request.role}") from exc
 
         # Step 6: Create the user entity.
         import uuid

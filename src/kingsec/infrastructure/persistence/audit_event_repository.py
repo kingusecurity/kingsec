@@ -13,7 +13,13 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from kingsec.application.ports.outbound.audit_event_repository import AuditEventRepository
-from kingsec.domain.audit_event import AuditAction, AuditEvent, AuditEventId, AuditOutcome, AuditSeverity
+from kingsec.domain.audit_event import (
+    AuditAction,
+    AuditEvent,
+    AuditEventId,
+    AuditOutcome,
+    AuditSeverity,
+)
 from kingsec.infrastructure.logging import get_logger
 from kingsec.shared.errors import PersistenceError, log_exception
 
@@ -61,7 +67,7 @@ class SqlAlchemyAuditEventRepository(AuditEventRepository):
                 cause=exc,
             )
             log_exception(_logger, error)
-            raise error
+            raise error from exc
 
     def find_by_id(self, event_id: AuditEventId) -> AuditEvent | None:
         try:
@@ -76,7 +82,7 @@ class SqlAlchemyAuditEventRepository(AuditEventRepository):
                 cause=exc,
             )
             log_exception(_logger, error)
-            raise error
+            raise error from exc
 
     def search(
         self,
@@ -141,7 +147,7 @@ class SqlAlchemyAuditEventRepository(AuditEventRepository):
                 cause=exc,
             )
             log_exception(_logger, error)
-            raise error
+            raise error from exc
 
 
 def _to_domain(orm: AuditEventORM) -> AuditEvent:

@@ -14,9 +14,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 
+from kingsec.application.dto import RenderedReport
 from kingsec.domain import Finding, Recommendation, Report, Target
-
-from ..dto import RenderedReport
 
 
 class ScannerPort(ABC):

@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from kingsec.application.ports.queue_service import QueueServicePort
 from kingsec.application.errors import QueueEntryNotFoundError
+from kingsec.application.ports.queue_service import QueueServicePort
 from kingsec.bootstrap.application import Application
+from kingsec.domain import Role
 
 from .auth import CurrentUser, get_current_user
 from .dependencies import get_application
-from kingsec.domain import Role
 
 router = APIRouter(prefix="/api/v1/queue", tags=["queue"])
 

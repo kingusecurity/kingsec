@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 from freezegun import freeze_time
@@ -15,7 +15,7 @@ from kingsec.interfaces.api.models import ApiError
 class TestApiErrorModel:
     def test_required_fields(self) -> None:
         error = ApiError(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             request_id="123e4567-e89b-12d3-a456-426614174000",
             status=422,
             error="TEST_ERROR",
@@ -32,7 +32,7 @@ class TestApiErrorModel:
 
     def test_details_optional(self) -> None:
         error = ApiError(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             request_id="123e4567-e89b-12d3-a456-426614174000",
             status=500,
             error="INTERNAL_ERROR",
@@ -44,7 +44,7 @@ class TestApiErrorModel:
 
     def test_serializes_to_json(self) -> None:
         error = ApiError(
-            timestamp=datetime(2026, 7, 18, 12, 0, 0, tzinfo=timezone.utc),
+            timestamp=datetime(2026, 7, 18, 12, 0, 0, tzinfo=UTC),
             request_id="123e4567-e89b-12d3-a456-426614174000",
             status=422,
             error="VALIDATION_ERROR",

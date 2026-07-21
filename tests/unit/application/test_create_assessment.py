@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
+import pytest
+from tests.unit.application.conftest import InMemoryAssessmentRepository
+
 from kingsec.application import (
     CreateAssessment,
     CreateAssessmentRequest,
     InputValidationError,
 )
 from kingsec.domain import AssessmentId, AssessmentStatus
-import pytest
-
-from tests.unit.application.conftest import InMemoryAssessmentRepository
 
 
 def _request(**overrides: str) -> CreateAssessmentRequest:

@@ -14,7 +14,6 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from kingsec.application.errors import ScannerPluginError
-from kingsec.infrastructure.logging import get_logger
 from kingsec.application.ports.scanner_executor import ScannerExecutor
 from kingsec.application.ports.scanner_plugin import ScannerPluginPort
 from kingsec.application.ports.scanner_registry import ScannerPluginRegistry
@@ -26,7 +25,7 @@ from kingsec.domain import (
     ScannerResult,
     Target,
 )
-
+from kingsec.infrastructure.logging import get_logger
 
 _logger = get_logger("kingsec.infrastructure.scanner.orchestrator")
 

@@ -9,11 +9,9 @@ canned JSONL, or sleeps, or exits non-zero, depending on the requested mode.
 from __future__ import annotations
 
 import io
-import os
 import stat
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any
 
 import pytest
 

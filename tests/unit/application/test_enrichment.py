@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -11,12 +11,11 @@ from kingsec.application.enrichment import EnrichedFinding, FindingEnricher
 from kingsec.application.normalization import NormalizedFinding
 from kingsec.domain import Evidence, Severity
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-_NOW = datetime.now(timezone.utc)
+_NOW = datetime.now(UTC)
 
 _ENGINE = FindingEnricher()
 

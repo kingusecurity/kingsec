@@ -38,7 +38,7 @@ class SqlAlchemyMfaSecretRepository(MfaSecretRepository):
         except SQLAlchemyError as exc:
             error = PersistenceError("failed to find MFA secret", context={"user_id": user_id}, cause=exc)
             log_exception(_logger, error)
-            raise error
+            raise error from exc
 
     def save(self, secret: MfaSecret) -> None:
         try:
@@ -60,7 +60,7 @@ class SqlAlchemyMfaSecretRepository(MfaSecretRepository):
         except SQLAlchemyError as exc:
             error = PersistenceError("failed to save MFA secret", context={"user_id": secret.user_id}, cause=exc)
             log_exception(_logger, error)
-            raise error
+            raise error from exc
 
     def delete_by_user_id(self, user_id: str) -> None:
         try:
@@ -73,4 +73,4 @@ class SqlAlchemyMfaSecretRepository(MfaSecretRepository):
         except SQLAlchemyError as exc:
             error = PersistenceError("failed to delete MFA secret", context={"user_id": user_id}, cause=exc)
             log_exception(_logger, error)
-            raise error
+            raise error from exc

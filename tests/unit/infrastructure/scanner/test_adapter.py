@@ -33,7 +33,7 @@ class TestArgumentBuilding:
         )
         adapter.scan(_TARGET)
 
-        argv, timeout = runner.calls[0]
+        argv, _timeout = runner.calls[0]
         # Target is a single argv element (cannot inject args), and flags are set.
         assert argv[0] == "/opt/nuclei"
         assert argv[1:3] == ["-u", "10.0.0.5"]

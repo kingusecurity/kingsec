@@ -7,7 +7,7 @@ of repeating multi-step setup.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -23,8 +23,7 @@ from kingsec.domain import (
 
 def utc(year: int = 2026, month: int = 1, day: int = 1) -> datetime:
     """A fixed, timezone-aware timestamp for deterministic tests."""
-
-    return datetime(year, month, day, tzinfo=timezone.utc)
+    return datetime(year, month, day, tzinfo=UTC)
 
 
 @pytest.fixture

@@ -95,7 +95,7 @@ async def verify_mfa(
             totp_code=body["totp_code"],
         ))
     except ApplicationError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
 
     return {
         "user_id": result.user_id,
@@ -179,7 +179,7 @@ async def use_recovery_code(
             recovery_code=body["recovery_code"],
         ))
     except ApplicationError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
 
     return {
         "user_id": result.user_id,
@@ -227,8 +227,8 @@ async def rotate_recovery_codes(
     request: Request,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict:
-    from kingsec.application.use_cases.rotate_recovery_codes import RotateRecoveryCodes
     from kingsec.application.use_cases.mfa_dto import RotateRecoveryCodesRequest
+    from kingsec.application.use_cases.rotate_recovery_codes import RotateRecoveryCodes
 
     app = _get_app(request)
     use_case: RotateRecoveryCodes = app.resolve(RotateRecoveryCodes)

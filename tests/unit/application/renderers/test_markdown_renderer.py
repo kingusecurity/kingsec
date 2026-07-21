@@ -2,29 +2,38 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-import pytest
-
 from kingsec.application.attack_path import (
-    AttackEdge, AttackGraph, AttackNode, AttackPath,
-)
-from kingsec.application.report import (
-    Appendix, AssetEntry, AssetSummary, AttackPathSection,
-    ExecutiveSummary, FindingEntry, FindingSection,
-    RecommendationEntry, RecommendationSection, Report, RiskSummary,
-    TechnicalSummary,
+    AttackEdge,
+    AttackGraph,
+    AttackNode,
+    AttackPath,
 )
 from kingsec.application.renderers import MarkdownReportRenderer
+from kingsec.application.report import (
+    Appendix,
+    AssetEntry,
+    AssetSummary,
+    AttackPathSection,
+    ExecutiveSummary,
+    FindingEntry,
+    FindingSection,
+    RecommendationEntry,
+    RecommendationSection,
+    Report,
+    RiskSummary,
+    TechnicalSummary,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 _RENDERER = MarkdownReportRenderer()
-_NOW = datetime(2026, 7, 17, tzinfo=timezone.utc)
+_NOW = datetime(2026, 7, 17, tzinfo=UTC)
 
 
 def _es(
@@ -372,7 +381,7 @@ class TestBasicRendering:
     def test_no_trailing_whitespace(self) -> None:
         md = _RENDERER.render(_minimal_report())
         for line in md.split("\n"):
-            assert line == line.rstrip(), f"Line has trailing whitespace: {repr(line)}"
+            assert line == line.rstrip(), f"Line has trailing whitespace: {line!r}"
 
     def test_utf8_compatibility(self) -> None:
         es = _es(text="Résumé with émoji 🛡️")

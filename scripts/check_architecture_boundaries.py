@@ -63,7 +63,7 @@ def check_domain_isolation() -> None:
     """Domain layer must not import from application, infrastructure, or adapters."""
     for f in _collect_python_files(DOMAIN_DIR):
         for lineno, mod in _extract_imports(f):
-            root = _get_module_root(f)
+            _get_module_root(f)
             if any(
                 _is_submodule_of(mod, target)
                 for target in ["application", "infrastructure", "adapters"]
@@ -78,7 +78,7 @@ def check_application_isolation() -> None:
     """Application layer must not import from infrastructure or adapters."""
     for f in _collect_python_files(APPLICATION_DIR):
         for lineno, mod in _extract_imports(f):
-            root = _get_module_root(f)
+            _get_module_root(f)
             if any(
                 _is_submodule_of(mod, target) for target in ["infrastructure", "adapters"]
             ):

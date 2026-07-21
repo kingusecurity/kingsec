@@ -11,7 +11,7 @@ from kingsec.infrastructure.persistence.audit_repository import SqlAlchemyAuditR
 from kingsec.infrastructure.persistence.models import Base
 
 
-@pytest.fixture()
+@pytest.fixture
 def engine():
     """Create an in-memory SQLite engine with foreign keys enabled."""
     eng = create_engine("sqlite:///:memory:", future=True)
@@ -26,12 +26,12 @@ def engine():
     return eng
 
 
-@pytest.fixture()
+@pytest.fixture
 def session_factory(engine):
     return sessionmaker(bind=engine, expire_on_commit=False, future=True)
 
 
-@pytest.fixture()
+@pytest.fixture
 def repo(session_factory):
     return SqlAlchemyAuditRepository(session_factory)
 
@@ -163,7 +163,7 @@ class TestSqlAlchemyAuditRepository:
         assert entries == []
 
     def test_clamped_limit(self, repo: SqlAlchemyAuditRepository) -> None:
-        for i in range(5):
+        for _i in range(5):
             repo.record(AuditEntry(action=AuditAction.LOGIN))
         # Limit > 200 should be clamped
         entries = repo.list_entries(limit=500)

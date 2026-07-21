@@ -139,7 +139,12 @@ class SQLAlchemyPluginRepository(PluginRepositoryPort):
             session.commit()
 
     def _row_to_package(self, row) -> PluginPackage:
-        from kingsec.domain.plugin_package import PluginHealth, PluginInstallStatus, PluginManifest, PluginVersion
+        from kingsec.domain.plugin_package import (
+            PluginHealth,
+            PluginInstallStatus,
+            PluginManifest,
+            PluginVersion,
+        )
         manifest = PluginManifest(
             id=row["id"],
             name=row.get("name", ""),

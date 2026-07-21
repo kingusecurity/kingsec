@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from ..dto import ApiKeyView, ListApiKeysRequest
-from ..ports import ApiKeyRepository
+from kingsec.application.dto import ApiKeyView, ListApiKeysRequest
+from kingsec.application.ports import ApiKeyRepository
 
 
 class ListApiKeys:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -17,12 +17,10 @@ from kingsec.application.normalization import (
 from kingsec.domain import (
     Evidence,
     Finding,
-    Recommendation,
     ScannerId,
     ScannerResult,
     Severity,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -40,7 +38,7 @@ def _make_finding(
         Evidence(
             summary="Evidence summary",
             detail=evidence_text,
-            collected_at=datetime.now(timezone.utc),
+            collected_at=datetime.now(UTC),
         )
     )
     return finding
@@ -81,7 +79,7 @@ class TestNormalizedFindingConstruction:
             references=(),
             affected_assets=(),
             raw_data="raw",
-            discovered_at=datetime.now(timezone.utc),
+            discovered_at=datetime.now(UTC),
             tags=(),
             category="vulnerability",
         )
@@ -101,7 +99,7 @@ class TestNormalizedFindingConstruction:
             references=(),
             affected_assets=(),
             raw_data="",
-            discovered_at=datetime.now(timezone.utc),
+            discovered_at=datetime.now(UTC),
             tags=(),
             category="information",
         )
@@ -122,7 +120,7 @@ class TestNormalizedFindingConstruction:
                 references=(),
                 affected_assets=(),
                 raw_data="",
-                discovered_at=datetime.now(timezone.utc),
+                discovered_at=datetime.now(UTC),
                 tags=(),
                 category="information",
             )
@@ -141,7 +139,7 @@ class TestNormalizedFindingConstruction:
                 references=(),
                 affected_assets=(),
                 raw_data="",
-                discovered_at=datetime.now(timezone.utc),
+                discovered_at=datetime.now(UTC),
                 tags=(),
                 category="information",
             )
@@ -160,7 +158,7 @@ class TestNormalizedFindingConstruction:
                 references=(),
                 affected_assets=(),
                 raw_data="",
-                discovered_at=datetime.now(timezone.utc),
+                discovered_at=datetime.now(UTC),
                 tags=(),
                 category="information",
             )

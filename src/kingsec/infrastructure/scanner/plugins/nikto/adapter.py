@@ -45,7 +45,7 @@ class NiktoPlugin(ScannerPluginPort):
         settings: NiktoSettings,
         runner: CommandRunner | None = None,
     ) -> None:
-        from ...nikto import NiktoScannerAdapter
+        from kingsec.infrastructure.scanner.nikto import NiktoScannerAdapter
 
         self._adapter: NiktoScannerAdapter = NiktoScannerAdapter(settings, runner=runner)
         self._settings = settings

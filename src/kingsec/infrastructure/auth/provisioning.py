@@ -6,10 +6,16 @@ on the DI container. The composition root calls ``register_auth()``.
 
 from __future__ import annotations
 
-from kingsec.application.ports import ApiKeyHasher, ApiKeyRepository, PasswordHasher, TokenService, UserRepository
+from kingsec.application.ports import (
+    ApiKeyHasher,
+    ApiKeyRepository,
+    PasswordHasher,
+    TokenService,
+    UserRepository,
+)
 from kingsec.infrastructure.config.settings import Settings
+from kingsec.infrastructure.persistence.user_repository import SqlAlchemyUserRepository
 
-from ..persistence.user_repository import SqlAlchemyUserRepository
 from .jwt_service import JWTTokenService
 
 
@@ -48,8 +54,9 @@ def register_api_key_auth(container: object, session_factory: callable, settings
         session_factory: SQLAlchemy session factory.
         settings: Application settings (contains secrets.* config).
     """
+    from kingsec.infrastructure.persistence.api_key_repository import SqlAlchemyApiKeyRepository
+
     from .api_key_hasher import HmacApiKeyHasher
-    from ..persistence.api_key_repository import SqlAlchemyApiKeyRepository
 
     pepper = settings.secrets.api_key_pepper.get_secret_value() if settings else "CHANGE-ME-IN-PRODUCTION-DO-NOT-USE-DEFAULT"
     hasher = HmacApiKeyHasher(pepper)

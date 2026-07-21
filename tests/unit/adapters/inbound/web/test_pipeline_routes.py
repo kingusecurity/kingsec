@@ -12,7 +12,6 @@ from kingsec.domain.pipeline import (
     PIPELINE_ORDER,
     PipelineExecution,
     PipelineId,
-    PipelineResult,
     PipelineStage,
     PipelineState,
 )

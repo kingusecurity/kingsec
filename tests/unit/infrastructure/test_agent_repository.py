@@ -4,7 +4,6 @@ from kingsec.domain.agent import (
     Agent,
     AgentArchitecture,
     AgentCapability,
-    AgentHealth,
     AgentId,
     AgentPlatform,
     AgentState,

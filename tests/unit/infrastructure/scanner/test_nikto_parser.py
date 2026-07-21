@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
-
 from kingsec.domain import Severity
 from kingsec.infrastructure.scanner.nikto_parser import parse_nikto_output
-
 
 # ---------------------------------------------------------------------------
 # Fixtures: sample Nikto outputs

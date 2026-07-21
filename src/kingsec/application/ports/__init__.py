@@ -1,40 +1,40 @@
 """Port definitions - the boundaries between the core and the outside."""
 
+from .agent_service import AgentServicePort
+from .analytics_service import AnalyticsServicePort
+from .backup_service import BackupServicePort
 from .inbound import ServiceAPI
 from .job_service import JobServicePort
-from .analytics_service import AnalyticsServicePort
 from .notification_service import NotificationServicePort
-from .agent_service import AgentServicePort
-from .plugin_service import PluginServicePort
-from .backup_service import BackupServicePort
-from .pipeline_service import PipelineServicePort
-from .production_service import ProductionServicePort
 from .outbound.api_key_hasher import ApiKeyHasher
+from .outbound.api_key_repository import ApiKeyRepository
+from .outbound.audit_event_repository import AuditEventRepository
+from .outbound.audit_publisher import AuditPublisher
+from .outbound.clock_port import ClockPort
+from .outbound.dashboard_repository import DashboardRepositoryPort
 from .outbound.encryption_service import EncryptionServicePort
+from .outbound.event_publisher import EventPublisher
+from .outbound.job_runner import JobRunner
+from .outbound.lockout_repository import LockoutRepository
+from .outbound.metrics_calculator import MetricsCalculatorPort
+from .outbound.mfa_secret_repository import MfaSecretRepository
+from .outbound.notification_repository import NotificationRepositoryPort
+from .outbound.notification_sender import NotificationSenderPort
+from .outbound.password_hasher import PasswordHasher
+from .outbound.rate_limiter import RateLimiterPort
+from .outbound.recovery_code_repository import RecoveryCodeRepository
 from .outbound.schedule_repository import ScheduleRepositoryPort
 from .outbound.scheduler_service import SchedulerServicePort
 from .outbound.secret_provider import SecretProviderPort
-from .outbound.worker_service import WorkerServicePort
-from .outbound.notification_repository import NotificationRepositoryPort
-from .outbound.notification_sender import NotificationSenderPort
-from .outbound.template_renderer import TemplateRendererPort
-from .outbound.dashboard_repository import DashboardRepositoryPort
-from .outbound.metrics_calculator import MetricsCalculatorPort
-from .outbound.api_key_repository import ApiKeyRepository
-from .outbound.audit_event_repository import AuditEventRepository
-from .outbound.clock_port import ClockPort
-from .outbound.lockout_repository import LockoutRepository
-from .outbound.mfa_secret_repository import MfaSecretRepository
-from .outbound.rate_limiter import RateLimiterPort
-from .outbound.recovery_code_repository import RecoveryCodeRepository
 from .outbound.session_repository import SessionRepository
-from .outbound.totp_service import TotpServicePort
-from .outbound.audit_publisher import AuditPublisher
-from .outbound.event_publisher import EventPublisher
-from .outbound.job_runner import JobRunner
-from .outbound.password_hasher import PasswordHasher
+from .outbound.template_renderer import TemplateRendererPort
 from .outbound.token_service import TokenClaims, TokenExpiredError, TokenInvalidError, TokenService
+from .outbound.totp_service import TotpServicePort
 from .outbound.user_repository import UserRepository
+from .outbound.worker_service import WorkerServicePort
+from .pipeline_service import PipelineServicePort
+from .plugin_service import PluginServicePort
+from .production_service import ProductionServicePort
 from .report_service import ReportGenerationResult, ReportServicePort
 from .repositories import (
     AssessmentRepository,
@@ -52,25 +52,35 @@ from .unit_of_work import UnitOfWork, UnitOfWorkFactory
 
 __all__ = [
     "AIPort",
+    "AgentServicePort",
+    "AnalyticsServicePort",
     "ApiKeyHasher",
     "ApiKeyRepository",
     "AssessmentRepository",
-    "AuditEventRepository",
     "Asset",
     "AssetRepositoryPort",
+    "AuditEventRepository",
     "AuditPublisher",
+    "BackupServicePort",
     "ClockPort",
+    "DashboardRepositoryPort",
+    "EncryptionServicePort",
     "EventPublisher",
-    "LockoutRepository",
-    "MfaSecretRepository",
-    "RateLimiterPort",
-    "RecoveryCodeRepository",
-    "SessionRepository",
-    "TotpServicePort",
     "JobRepositoryPort",
     "JobRunner",
     "JobServicePort",
+    "LockoutRepository",
+    "MetricsCalculatorPort",
+    "MfaSecretRepository",
+    "NotificationRepositoryPort",
+    "NotificationSenderPort",
+    "NotificationServicePort",
     "PasswordHasher",
+    "PipelineServicePort",
+    "PluginServicePort",
+    "ProductionServicePort",
+    "RateLimiterPort",
+    "RecoveryCodeRepository",
     "ReportGenerationResult",
     "ReportGeneratorPort",
     "ReportRepository",
@@ -80,29 +90,19 @@ __all__ = [
     "ScannerPluginPort",
     "ScannerPluginRegistry",
     "ScannerPort",
+    "ScheduleRepositoryPort",
+    "SchedulerServicePort",
+    "SecretProviderPort",
     "ServiceAPI",
+    "SessionRepository",
+    "TemplateRendererPort",
     "TokenClaims",
     "TokenExpiredError",
     "TokenInvalidError",
     "TokenService",
+    "TotpServicePort",
     "UnitOfWork",
     "UnitOfWorkFactory",
     "UserRepository",
-    "EncryptionServicePort",
-    "ScheduleRepositoryPort",
-    "SchedulerServicePort",
-    "SecretProviderPort",
     "WorkerServicePort",
-    "NotificationServicePort",
-    "PluginServicePort",
-    "NotificationRepositoryPort",
-    "NotificationSenderPort",
-    "TemplateRendererPort",
-    "AnalyticsServicePort",
-    "AgentServicePort",
-    "DashboardRepositoryPort",
-    "MetricsCalculatorPort",
-    "BackupServicePort",
-    "PipelineServicePort",
-    "ProductionServicePort",
 ]

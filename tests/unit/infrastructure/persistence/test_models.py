@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 
 from kingsec.infrastructure.persistence import (
@@ -14,9 +14,7 @@ from kingsec.infrastructure.persistence import (
     ScanModel,
     create_database_engine,
     create_schema,
-    create_session_factory,
 )
-
 
 # ===========================================================================
 # Fixtures
@@ -320,8 +318,8 @@ class TestSqliteRoundTrip:
             id="scan-1",
             target="example.com",
             status="COMPLETED",
-            created_at=datetime.now(timezone.utc).isoformat(),
-            completed_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
+            completed_at=datetime.now(UTC).isoformat(),
             scanner_count=2,
         )
         finding = FindingModel(
@@ -331,7 +329,7 @@ class TestSqliteRoundTrip:
             description="HTTP service detected",
             severity="MEDIUM",
             scanner="nmap",
-            created_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
         )
         session.add(scan)
         session.add(finding)
@@ -348,13 +346,13 @@ class TestSqliteRoundTrip:
             id="scan-2",
             target="test.com",
             status="COMPLETED",
-            created_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
         )
         report = ReportModel(
             id="rpt-1",
             scan_id="scan-2",
             format="pdf",
-            created_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
             content="%PDF mock content",
         )
         session.add(scan)
@@ -370,8 +368,8 @@ class TestSqliteRoundTrip:
             id="job-1",
             status="PENDING",
             target="example.com",
-            created_at=datetime.now(timezone.utc).isoformat(),
-            updated_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
+            updated_at=datetime.now(UTC).isoformat(),
         )
         session.add(job)
         session.commit()
@@ -388,7 +386,7 @@ class TestSqliteRoundTrip:
             operating_system="Linux 6.8",
             owner="security-team",
             criticality="HIGH",
-            created_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
         )
         session.add(asset)
         session.commit()
@@ -402,7 +400,7 @@ class TestSqliteRoundTrip:
             id="scan-3",
             target="example.com",
             status="COMPLETED",
-            created_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
         )
         finding = FindingModel(
             id="find-2",
@@ -410,7 +408,7 @@ class TestSqliteRoundTrip:
             title="Vuln",
             description="desc",
             severity="HIGH",
-            created_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
         )
         session.add(scan)
         session.add(finding)
@@ -426,12 +424,12 @@ class TestSqliteRoundTrip:
             id="scan-4",
             target="example.com",
             status="COMPLETED",
-            created_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
         )
         asset = AssetModel(
             id="asset-2",
             hostname="db01.example.com",
-            created_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
         )
         finding = FindingModel(
             id="find-3",
@@ -440,7 +438,7 @@ class TestSqliteRoundTrip:
             description="MySQL on 3306",
             severity="HIGH",
             asset_id="asset-2",
-            created_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
         )
         session.add_all([scan, asset, finding])
         session.commit()

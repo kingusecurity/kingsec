@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
@@ -40,7 +40,7 @@ def _prime_job(status: JobStatus = JobStatus.COMPLETED) -> str:
     service.transition_job(job.id.value, JobStatus.COMPLETED)
     result = ScanJobResult(
         job_id=job.id.value,
-        completed_at=datetime.now(timezone.utc),
+        completed_at=datetime.now(UTC),
         findings=({"port": 443, "status": "open"},),
     )
     service.store_result(job.id.value, result)

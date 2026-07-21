@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
@@ -31,7 +31,7 @@ class _MockReportService(ReportServicePort):
         return ReportGenerationResult(
             report_id=f"report-{scan_id}",
             status="completed",
-            generated_at=datetime(2025, 6, 15, 14, 30, 0, tzinfo=timezone.utc),
+            generated_at=datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC),
             finding_count=5,
         )
 
@@ -295,13 +295,15 @@ class TestDependencyInjection:
 
 class TestNoInfrastructureLeaks:
     def test_no_infrastructure_imports_in_routes(self) -> None:
-        import kingsec.interfaces.api.routes.download as download_module
         import inspect
+
+        import kingsec.interfaces.api.routes.download as download_module
         source = inspect.getsource(download_module)
         assert "infrastructure" not in source.lower()
 
     def test_no_infrastructure_imports_in_app(self) -> None:
-        import kingsec.interfaces.api.app as app_module
         import inspect
+
+        import kingsec.interfaces.api.app as app_module
         source = inspect.getsource(app_module)
         assert "infrastructure" not in source.lower()

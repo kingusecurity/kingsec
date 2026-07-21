@@ -53,7 +53,7 @@ class CreateBackup:
         )
         self._repo.save_backup(backup)
         try:
-            data = f"backup-data-{bid.value}".encode("utf-8")
+            data = f"backup-data-{bid.value}".encode()
             if compress:
                 data = self._compression.compress(data)
             if encrypt:
@@ -147,7 +147,7 @@ class RestoreBackup:
                 data = self._compression.decompress(data)
             expected = backup.checksum
             if expected:
-                actual = hashlib.sha256(
+                hashlib.sha256(
                     self._encryption.encrypt(data) if backup.encrypted else
                     self._compression.compress(data) if backup.compressed else data
                 ).hexdigest()
@@ -320,7 +320,7 @@ class CleanupExpiredBackups:
         self._policy = policy or RetentionPolicy()
 
     def execute(self) -> int:
-        now = datetime.now(UTC)
+        datetime.now(UTC)
         backups = self._repo.find_all_backups()
         full_backups = [b for b in backups if b.backup_type == BackupType.FULL]
         inc_backups = [b for b in backups if b.backup_type == BackupType.INCREMENTAL]

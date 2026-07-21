@@ -7,11 +7,10 @@ import json
 import anyio
 import pytest
 from fastapi import FastAPI
-from httpx import AsyncByteStream, AsyncClient, AsyncBaseTransport, Request, Response
+from httpx import AsyncBaseTransport, AsyncByteStream, AsyncClient, Request, Response
 
-from kingsec.adapters.inbound.web.dependencies import get_application
 from kingsec.adapters.inbound.web.sse import _get_event_publisher, router
-from kingsec.application.events import AssessmentEvent, EVENT_ASSESSMENT_CREATED
+from kingsec.application.events import EVENT_ASSESSMENT_CREATED, AssessmentEvent
 from kingsec.application.ports.outbound.event_publisher import EventPublisher
 from kingsec.infrastructure.events.in_memory_bus import InMemoryEventBus
 

@@ -17,7 +17,7 @@ class FilesystemHealthCheck:
             usage = 0.0
             try:
                 import shutil
-                total, used, free = shutil.disk_usage(self._path)
+                total, used, _free = shutil.disk_usage(self._path)
                 usage = (used / total) * 100
             except (ImportError, AttributeError):
                 pass

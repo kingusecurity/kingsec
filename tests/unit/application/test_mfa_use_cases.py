@@ -27,10 +27,13 @@ from kingsec.application.use_cases.rotate_recovery_codes import RotateRecoveryCo
 from kingsec.application.use_cases.use_recovery_code import UseRecoveryCode
 from kingsec.application.use_cases.verify_mfa_code import VerifyMfaCode
 from kingsec.domain import Role
-from kingsec.domain.audit_event import AuditAction, AuditEvent, AuditEventId, AuditOutcome, AuditSeverity
+from kingsec.domain.audit_event import (
+    AuditAction,
+    AuditEvent,
+    AuditEventId,
+)
 from kingsec.domain.mfa import MfaRecoveryCode, MfaSecret, MfaStatus, RecoveryCodeStatus
 from kingsec.domain.user import User
-
 
 # ── Stubs ────────────────────────────────────────────────────────────────────
 
@@ -295,7 +298,7 @@ class TestGenerateRecoveryCodes:
 
         stored = repo.find_by_user_id("user-1")
         assert len(stored) == 10
-        for plaintext, stored_code in zip(result.codes, stored):
+        for plaintext, stored_code in zip(result.codes, stored, strict=False):
             expected_hash = hashlib.sha256(plaintext.encode()).hexdigest()
             assert stored_code.code_hash == expected_hash
             assert stored_code.status == RecoveryCodeStatus.ACTIVE
@@ -358,7 +361,6 @@ class TestUseRecoveryCode:
 
 class TestRotateRecoveryCodes:
     def test_rotates_all_codes(self) -> None:
-        import hashlib
 
         repo = StubRecoveryCodeRepo()
         audit = StubAuditRepo()

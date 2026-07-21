@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.requests import Request
@@ -22,10 +21,9 @@ class InMemoryAuditPublisher:
 
 class TestEnrichedAuditPublisher:
     def test_enriches_with_request_context(self) -> None:
-        from starlette.testclient import TestClient as StarletteClient
-        from starlette.requests import Request
         from starlette.responses import Response
         from starlette.routing import Route
+
         from kingsec.adapters.inbound.web.audit import EnrichedAuditPublisher
 
         inner = InMemoryAuditPublisher()
@@ -51,9 +49,9 @@ class TestEnrichedAuditPublisher:
         assert entry.correlation_id == "corr-123"
 
     def test_does_not_overwrite_existing_context(self) -> None:
-        from starlette.requests import Request
         from starlette.responses import Response
         from starlette.routing import Route
+
         from kingsec.adapters.inbound.web.audit import EnrichedAuditPublisher
 
         inner = InMemoryAuditPublisher()

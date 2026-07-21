@@ -127,9 +127,9 @@ async def refresh_session(
     body: schemas.RefreshTokenBody,
     request: Request,
 ) -> schemas.RefreshTokenResponse:
+    from kingsec.application.ports import TokenService
     from kingsec.application.use_cases.refresh_session import RefreshSession
     from kingsec.application.use_cases.session_dto import RefreshSessionRequest as RLDTO
-    from kingsec.application.ports import TokenService
 
     app: Application = request.app.state.kingsec_app
     token_svc: TokenService = app.resolve(TokenService)

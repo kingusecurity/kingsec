@@ -182,6 +182,7 @@ class SQLAlchemyQueueRepository(QueueRepositoryPort):
 
     def statistics(self) -> QueueStatistics:
         from datetime import UTC, datetime
+
         from sqlalchemy import text
 
         with self._session_factory() as session:

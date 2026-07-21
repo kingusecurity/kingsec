@@ -3,7 +3,11 @@ from __future__ import annotations
 import re
 
 from kingsec.application.ports.outbound import TemplateRendererPort
-from kingsec.domain.notification import NotificationChannel, NotificationPriority, NotificationTemplate
+from kingsec.domain.notification import (
+    NotificationChannel,
+    NotificationPriority,
+    NotificationTemplate,
+)
 
 _DEFAULT_TEMPLATES: dict[tuple[str, str], NotificationTemplate] = {
     ("scan_started", "email"): NotificationTemplate(

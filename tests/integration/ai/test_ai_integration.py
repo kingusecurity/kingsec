@@ -17,7 +17,7 @@ from kingsec.application import (
     StartAssessment,
     StartAssessmentRequest,
 )
-from kingsec.domain import Evidence, Finding, Severity, Target, TargetType
+from kingsec.domain import Evidence, Finding, Severity, Target
 from kingsec.infrastructure.ai import (
     AIClient,
     AIProviderAdapter,

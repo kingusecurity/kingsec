@@ -28,7 +28,6 @@ from kingsec.domain.rate_limit import (
     RateLimitDecision,
     RateLimitExceeded,
     RateLimitGroup,
-    RateLimitKeyType,
     RateLimitPolicy,
 )
 

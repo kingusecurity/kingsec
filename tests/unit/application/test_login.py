@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
-from kingsec.application.dto import LoginRequest, LoginResponse
+from kingsec.application.dto import LoginRequest
 from kingsec.application.ports import PasswordHasher, TokenClaims, TokenService, UserRepository
 from kingsec.application.use_cases.login import AuthenticationError, Login
 from kingsec.domain import Role, User
-
 
 # --- Stubs --------------------------------------------------------------------
 
@@ -48,8 +46,8 @@ class StubTokenService(TokenService):
         return TokenClaims(
             user_id="user-001", username="test", role="Viewer",
             token_type="access", jti="jti-1",
-            issued_at=datetime.now(timezone.utc),
-            expires_at=datetime.now(timezone.utc),
+            issued_at=datetime.now(UTC),
+            expires_at=datetime.now(UTC),
         )
 
     def verify_refresh_token(self, token: str) -> TokenClaims:

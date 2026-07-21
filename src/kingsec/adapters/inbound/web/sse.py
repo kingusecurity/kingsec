@@ -44,6 +44,7 @@ from starlette.background import BackgroundTask
 from kingsec.application.events import AssessmentEvent
 from kingsec.application.ports.outbound.event_publisher import EventPublisher
 from kingsec.bootstrap.application import Application
+from kingsec.infrastructure.events.in_memory_bus import InMemoryEventBus
 from kingsec.infrastructure.logging import get_logger
 
 from .dependencies import get_application
@@ -80,7 +81,7 @@ def _format_sse(event: AssessmentEvent) -> str:
 
 
 async def _sse_generator(
-    event_bus: InMemoryEventBus,  # type: ignore[name-defined]
+    event_bus: InMemoryEventBus,
     assessment_id: str | None,
     client_id: str,
 ) -> AsyncGenerator[str, None]:
@@ -127,7 +128,7 @@ async def _sse_generator(
 async def stream_events(
     request: Request,
     assessment_id: str | None = Query(default=None, description="Filter by assessment ID"),
-    event_bus: InMemoryEventBus = Depends(_get_event_publisher),  # type: ignore[name-defined]
+    event_bus: InMemoryEventBus = Depends(_get_event_publisher),
 ) -> StreamingResponse:
     """Stream assessment lifecycle events via Server-Sent Events.
 

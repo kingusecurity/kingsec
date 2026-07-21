@@ -4,11 +4,8 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
 from kingsec.domain import Severity
 from kingsec.infrastructure.scanner.semgrep_parser import parse_semgrep_json
-
 
 # ---------------------------------------------------------------------------
 # Fixtures: sample Semgrep JSON outputs

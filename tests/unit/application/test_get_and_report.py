@@ -3,6 +3,13 @@
 from __future__ import annotations
 
 import pytest
+from tests.unit.application.conftest import (
+    InMemoryAssessmentRepository,
+    InMemoryReportRepository,
+    StubReportGenerator,
+    StubScanner,
+    make_findings,
+)
 
 from kingsec.application import (
     AssessmentNotFoundError,
@@ -27,13 +34,6 @@ from kingsec.domain import (
     Severity,
     Target,
     TargetType,
-)
-from tests.unit.application.conftest import (
-    InMemoryAssessmentRepository,
-    InMemoryReportRepository,
-    StubReportGenerator,
-    StubScanner,
-    make_findings,
 )
 
 

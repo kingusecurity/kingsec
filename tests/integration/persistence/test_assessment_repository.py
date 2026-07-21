@@ -7,7 +7,7 @@ would use it.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.orm import Session
@@ -31,7 +31,6 @@ from kingsec.infrastructure.persistence import (
 from kingsec.infrastructure.persistence.repositories import (
     SQLAlchemyAssessmentRepository,
 )
-
 
 # ===========================================================================
 # Fixtures
@@ -87,7 +86,7 @@ def make_completed_assessment(
 ) -> Assessment:
     """Build a fully lifecycle-completed assessment with findings."""
     a = make_assessment(assessment_id=assessment_id, target=target)
-    a.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=timezone.utc), scope="*"))
+    a.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=UTC), scope="*"))
     a.start()
     finding = Finding.create("Test Finding", "A test", Severity.MEDIUM)
     a.record_finding(finding)
@@ -237,14 +236,14 @@ class TestList:
         assert len(result) == 2
 
     def test_list_ordered_by_created_at_desc(self, repo: SQLAlchemyAssessmentRepository, session: Session) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         a_early = make_assessment(
             target=Target("early.com", TargetType.HOSTNAME),
             created_at=now,
         )
         a_late = make_assessment(
             target=Target("late.com", TargetType.HOSTNAME),
-            created_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
+            created_at=datetime(2025, 1, 1, tzinfo=UTC),
         )
         repo.save(a_early)
         repo.save(a_late)
@@ -333,11 +332,11 @@ class TestMapping:
 
     def test_round_trips_evidence_and_recommendations(self, repo: SQLAlchemyAssessmentRepository, session: Session) -> None:
         assessment = make_assessment()
-        assessment.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=timezone.utc), scope="*"))
+        assessment.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=UTC), scope="*"))
         assessment.start()
 
         finding = Finding.create("XSS", "Cross-site scripting", Severity.HIGH)
-        finding.add_evidence(Evidence("Payload", "<script>alert(1)</script>", datetime(2026, 1, 2, tzinfo=timezone.utc)))
+        finding.add_evidence(Evidence("Payload", "<script>alert(1)</script>", datetime(2026, 1, 2, tzinfo=UTC)))
         finding.add_recommendation(Recommendation("Sanitize input", "Use output encoding", Severity.HIGH))
         assessment.record_finding(finding)
         assessment.complete()
@@ -413,7 +412,7 @@ class TestEdgeCases:
         assert ids1.isdisjoint(ids2)
 
     def test_timestamps_preserved_exactly(self, repo: SQLAlchemyAssessmentRepository, session: Session) -> None:
-        created_at = datetime(2025, 6, 15, 14, 30, 0, 123456, tzinfo=timezone.utc)
+        created_at = datetime(2025, 6, 15, 14, 30, 0, 123456, tzinfo=UTC)
         assessment = make_assessment(created_at=created_at)
         repo.save(assessment)
         session.flush()

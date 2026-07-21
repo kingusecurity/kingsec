@@ -8,12 +8,10 @@ import pytest
 
 from kingsec.application.ports.scanner_plugin import ScannerPluginPort
 from kingsec.domain import (
-    PluginAvailability,
     PluginConfig,
     ScanCategory,
     ScannerId,
     ScannerResult,
-    Severity,
     Target,
     TargetType,
 )
@@ -227,9 +225,9 @@ class TestScan:
 
 class TestProvisioning:
     def test_registry_contains_trivy_plugin(self) -> None:
+        from kingsec.bootstrap import Container
         from kingsec.infrastructure.config import Settings
         from kingsec.infrastructure.scanner import register_scanner
-        from kingsec.bootstrap import Container
 
         container = Container()
         runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.0))
@@ -241,11 +239,11 @@ class TestProvisioning:
         assert isinstance(scanner, ScannerOrchestrator)
 
     def test_orchestrator_resolves_trivy(self) -> None:
+        from kingsec.application import ScannerPort
+        from kingsec.bootstrap import Container
         from kingsec.infrastructure.scanner.orchestrator import ScannerOrchestrator
         from kingsec.infrastructure.scanner.plugins.trivy import TrivyPlugin
         from kingsec.infrastructure.scanner.registry import InMemoryPluginRegistry
-        from kingsec.application import ScannerPort
-        from kingsec.bootstrap import Container
 
         container = Container()
         runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.0))

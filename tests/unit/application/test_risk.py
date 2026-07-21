@@ -8,7 +8,6 @@ from kingsec.application.enrichment import EnrichedFinding
 from kingsec.application.risk import RiskAssessment, RiskFactor, RiskScorer
 from kingsec.domain import Severity
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -253,31 +252,31 @@ class TestSeverityContribution:
     def test_critical_contributes_30(self) -> None:
         ef = _make_ef(severity=Severity.CRITICAL)
         ra = _ENGINE.score(ef)
-        sev = [f for f in ra.factors if f.name == "severity"][0]
+        sev = next(f for f in ra.factors if f.name == "severity")
         assert sev.contribution == 30
 
     def test_high_contributes_22(self) -> None:
         ef = _make_ef(severity=Severity.HIGH)
         ra = _ENGINE.score(ef)
-        sev = [f for f in ra.factors if f.name == "severity"][0]
+        sev = next(f for f in ra.factors if f.name == "severity")
         assert sev.contribution == 22
 
     def test_medium_contributes_14(self) -> None:
         ef = _make_ef(severity=Severity.MEDIUM)
         ra = _ENGINE.score(ef)
-        sev = [f for f in ra.factors if f.name == "severity"][0]
+        sev = next(f for f in ra.factors if f.name == "severity")
         assert sev.contribution == 14
 
     def test_low_contributes_6(self) -> None:
         ef = _make_ef(severity=Severity.LOW)
         ra = _ENGINE.score(ef)
-        sev = [f for f in ra.factors if f.name == "severity"][0]
+        sev = next(f for f in ra.factors if f.name == "severity")
         assert sev.contribution == 6
 
     def test_informational_contributes_0(self) -> None:
         ef = _make_ef(severity=Severity.INFORMATIONAL)
         ra = _ENGINE.score(ef)
-        sev = [f for f in ra.factors if f.name == "severity"][0]
+        sev = next(f for f in ra.factors if f.name == "severity")
         assert sev.contribution == 0
 
 
@@ -290,31 +289,31 @@ class TestConfidenceContribution:
     def test_confidence_1_contributes_15(self) -> None:
         ef = _make_ef(confidence=1.0)
         ra = _ENGINE.score(ef)
-        cf = [f for f in ra.factors if f.name == "confidence"][0]
+        cf = next(f for f in ra.factors if f.name == "confidence")
         assert cf.contribution == 15
 
     def test_confidence_0_contributes_0(self) -> None:
         ef = _make_ef(confidence=0.0)
         ra = _ENGINE.score(ef)
-        cf = [f for f in ra.factors if f.name == "confidence"][0]
+        cf = next(f for f in ra.factors if f.name == "confidence")
         assert cf.contribution == 0
 
     def test_confidence_0_5_contributes_7(self) -> None:
         ef = _make_ef(confidence=0.5)
         ra = _ENGINE.score(ef)
-        cf = [f for f in ra.factors if f.name == "confidence"][0]
+        cf = next(f for f in ra.factors if f.name == "confidence")
         assert cf.contribution == 7
 
     def test_confidence_0_33_contributes_4(self) -> None:
         ef = _make_ef(confidence=0.33)
         ra = _ENGINE.score(ef)
-        cf = [f for f in ra.factors if f.name == "confidence"][0]
+        cf = next(f for f in ra.factors if f.name == "confidence")
         assert cf.contribution == 4
 
     def test_confidence_0_99_contributes_14(self) -> None:
         ef = _make_ef(confidence=0.99)
         ra = _ENGINE.score(ef)
-        cf = [f for f in ra.factors if f.name == "confidence"][0]
+        cf = next(f for f in ra.factors if f.name == "confidence")
         assert cf.contribution == 14
 
 
@@ -327,25 +326,25 @@ class TestExploitLikelihoodContribution:
     def test_high_contributes_15(self) -> None:
         ef = _make_ef(exploit_likelihood="High")
         ra = _ENGINE.score(ef)
-        el = [f for f in ra.factors if f.name == "exploit_likelihood"][0]
+        el = next(f for f in ra.factors if f.name == "exploit_likelihood")
         assert el.contribution == 15
 
     def test_medium_contributes_10(self) -> None:
         ef = _make_ef(exploit_likelihood="Medium")
         ra = _ENGINE.score(ef)
-        el = [f for f in ra.factors if f.name == "exploit_likelihood"][0]
+        el = next(f for f in ra.factors if f.name == "exploit_likelihood")
         assert el.contribution == 10
 
     def test_low_contributes_5(self) -> None:
         ef = _make_ef(exploit_likelihood="Low")
         ra = _ENGINE.score(ef)
-        el = [f for f in ra.factors if f.name == "exploit_likelihood"][0]
+        el = next(f for f in ra.factors if f.name == "exploit_likelihood")
         assert el.contribution == 5
 
     def test_none_contributes_0(self) -> None:
         ef = _make_ef(exploit_likelihood=None)
         ra = _ENGINE.score(ef)
-        el = [f for f in ra.factors if f.name == "exploit_likelihood"][0]
+        el = next(f for f in ra.factors if f.name == "exploit_likelihood")
         assert el.contribution == 0
 
 
@@ -358,31 +357,31 @@ class TestBusinessImpactContribution:
     def test_critical_contributes_15(self) -> None:
         ef = _make_ef(business_impact="Critical")
         ra = _ENGINE.score(ef)
-        bi = [f for f in ra.factors if f.name == "business_impact"][0]
+        bi = next(f for f in ra.factors if f.name == "business_impact")
         assert bi.contribution == 15
 
     def test_high_contributes_11(self) -> None:
         ef = _make_ef(business_impact="High")
         ra = _ENGINE.score(ef)
-        bi = [f for f in ra.factors if f.name == "business_impact"][0]
+        bi = next(f for f in ra.factors if f.name == "business_impact")
         assert bi.contribution == 11
 
     def test_medium_contributes_7(self) -> None:
         ef = _make_ef(business_impact="Medium")
         ra = _ENGINE.score(ef)
-        bi = [f for f in ra.factors if f.name == "business_impact"][0]
+        bi = next(f for f in ra.factors if f.name == "business_impact")
         assert bi.contribution == 7
 
     def test_low_contributes_3(self) -> None:
         ef = _make_ef(business_impact="Low")
         ra = _ENGINE.score(ef)
-        bi = [f for f in ra.factors if f.name == "business_impact"][0]
+        bi = next(f for f in ra.factors if f.name == "business_impact")
         assert bi.contribution == 3
 
     def test_none_contributes_0(self) -> None:
         ef = _make_ef(business_impact=None)
         ra = _ENGINE.score(ef)
-        bi = [f for f in ra.factors if f.name == "business_impact"][0]
+        bi = next(f for f in ra.factors if f.name == "business_impact")
         assert bi.contribution == 0
 
 
@@ -395,67 +394,67 @@ class TestAttackSurfaceContribution:
     def test_web_application_contributes_10(self) -> None:
         ef = _make_ef(attack_surface="Web Application")
         ra = _ENGINE.score(ef)
-        a = [f for f in ra.factors if f.name == "attack_surface"][0]
+        a = next(f for f in ra.factors if f.name == "attack_surface")
         assert a.contribution == 10
 
     def test_api_contributes_9(self) -> None:
         ef = _make_ef(attack_surface="API")
         ra = _ENGINE.score(ef)
-        a = [f for f in ra.factors if f.name == "attack_surface"][0]
+        a = next(f for f in ra.factors if f.name == "attack_surface")
         assert a.contribution == 9
 
     def test_network_service_contributes_8(self) -> None:
         ef = _make_ef(attack_surface="Network Service")
         ra = _ENGINE.score(ef)
-        a = [f for f in ra.factors if f.name == "attack_surface"][0]
+        a = next(f for f in ra.factors if f.name == "attack_surface")
         assert a.contribution == 8
 
     def test_database_contributes_8(self) -> None:
         ef = _make_ef(attack_surface="Database")
         ra = _ENGINE.score(ef)
-        a = [f for f in ra.factors if f.name == "attack_surface"][0]
+        a = next(f for f in ra.factors if f.name == "attack_surface")
         assert a.contribution == 8
 
     def test_cloud_contributes_7(self) -> None:
         ef = _make_ef(attack_surface="Cloud")
         ra = _ENGINE.score(ef)
-        a = [f for f in ra.factors if f.name == "attack_surface"][0]
+        a = next(f for f in ra.factors if f.name == "attack_surface")
         assert a.contribution == 7
 
     def test_authentication_contributes_7(self) -> None:
         ef = _make_ef(attack_surface="Authentication")
         ra = _ENGINE.score(ef)
-        a = [f for f in ra.factors if f.name == "attack_surface"][0]
+        a = next(f for f in ra.factors if f.name == "attack_surface")
         assert a.contribution == 7
 
     def test_container_contributes_6(self) -> None:
         ef = _make_ef(attack_surface="Container")
         ra = _ENGINE.score(ef)
-        a = [f for f in ra.factors if f.name == "attack_surface"][0]
+        a = next(f for f in ra.factors if f.name == "attack_surface")
         assert a.contribution == 6
 
     def test_file_system_contributes_6(self) -> None:
         ef = _make_ef(attack_surface="File System")
         ra = _ENGINE.score(ef)
-        a = [f for f in ra.factors if f.name == "attack_surface"][0]
+        a = next(f for f in ra.factors if f.name == "attack_surface")
         assert a.contribution == 6
 
     def test_network_infrastructure_contributes_5(self) -> None:
         ef = _make_ef(attack_surface="Network Infrastructure")
         ra = _ENGINE.score(ef)
-        a = [f for f in ra.factors if f.name == "attack_surface"][0]
+        a = next(f for f in ra.factors if f.name == "attack_surface")
         assert a.contribution == 5
 
     def test_dns_contributes_4(self) -> None:
         ef = _make_ef(attack_surface="DNS")
         ra = _ENGINE.score(ef)
-        a = [f for f in ra.factors if f.name == "attack_surface"][0]
+        a = next(f for f in ra.factors if f.name == "attack_surface")
         assert a.contribution == 4
 
     def test_none_contributes_0(self) -> None:
         ef = _make_ef(attack_surface=None)
         ra = _ENGINE.score(ef)
-        a = [f for f in ra.factors if f.name == "attack_surface"][0]
+        a = next(f for f in ra.factors if f.name == "attack_surface")
         assert a.contribution == 0
 
 
@@ -468,31 +467,31 @@ class TestScannerCountContribution:
     def test_scanner_count_4_contributes_10(self) -> None:
         ef = _make_ef(scanner_sources=("a", "b", "c", "d"))
         ra = _ENGINE.score(ef)
-        s = [f for f in ra.factors if f.name == "scanner_count"][0]
+        s = next(f for f in ra.factors if f.name == "scanner_count")
         assert s.contribution == 10
 
     def test_scanner_count_3_contributes_8(self) -> None:
         ef = _make_ef(scanner_sources=("a", "b", "c"))
         ra = _ENGINE.score(ef)
-        s = [f for f in ra.factors if f.name == "scanner_count"][0]
+        s = next(f for f in ra.factors if f.name == "scanner_count")
         assert s.contribution == 8
 
     def test_scanner_count_2_contributes_6(self) -> None:
         ef = _make_ef(scanner_sources=("a", "b"))
         ra = _ENGINE.score(ef)
-        s = [f for f in ra.factors if f.name == "scanner_count"][0]
+        s = next(f for f in ra.factors if f.name == "scanner_count")
         assert s.contribution == 6
 
     def test_scanner_count_1_contributes_3(self) -> None:
         ef = _make_ef(scanner_sources=("nuclei",))
         ra = _ENGINE.score(ef)
-        s = [f for f in ra.factors if f.name == "scanner_count"][0]
+        s = next(f for f in ra.factors if f.name == "scanner_count")
         assert s.contribution == 3
 
     def test_scanner_count_0_contributes_0(self) -> None:
         ef = _make_ef(scanner_sources=())
         ra = _ENGINE.score(ef)
-        s = [f for f in ra.factors if f.name == "scanner_count"][0]
+        s = next(f for f in ra.factors if f.name == "scanner_count")
         assert s.contribution == 0
 
 
@@ -505,31 +504,31 @@ class TestRiskFactorCountContribution:
     def test_risk_factor_count_4_contributes_5(self) -> None:
         ef = _make_ef(risk_factors=("a", "b", "c", "d"))
         ra = _ENGINE.score(ef)
-        r = [f for f in ra.factors if f.name == "risk_factors"][0]
+        r = next(f for f in ra.factors if f.name == "risk_factors")
         assert r.contribution == 5
 
     def test_risk_factor_count_3_contributes_4(self) -> None:
         ef = _make_ef(risk_factors=("a", "b", "c"))
         ra = _ENGINE.score(ef)
-        r = [f for f in ra.factors if f.name == "risk_factors"][0]
+        r = next(f for f in ra.factors if f.name == "risk_factors")
         assert r.contribution == 4
 
     def test_risk_factor_count_2_contributes_3(self) -> None:
         ef = _make_ef(risk_factors=("a", "b"))
         ra = _ENGINE.score(ef)
-        r = [f for f in ra.factors if f.name == "risk_factors"][0]
+        r = next(f for f in ra.factors if f.name == "risk_factors")
         assert r.contribution == 3
 
     def test_risk_factor_count_1_contributes_2(self) -> None:
         ef = _make_ef(risk_factors=("Remote Code Execution",))
         ra = _ENGINE.score(ef)
-        r = [f for f in ra.factors if f.name == "risk_factors"][0]
+        r = next(f for f in ra.factors if f.name == "risk_factors")
         assert r.contribution == 2
 
     def test_risk_factor_count_0_contributes_0(self) -> None:
         ef = _make_ef(risk_factors=())
         ra = _ENGINE.score(ef)
-        r = [f for f in ra.factors if f.name == "risk_factors"][0]
+        r = next(f for f in ra.factors if f.name == "risk_factors")
         assert r.contribution == 0
 
 
@@ -735,7 +734,7 @@ class TestReasoning:
         descs = [f.description for f in ra.factors]
         assert any("CRITICAL" in d for d in descs)
         assert any("0.99" in d for d in descs)
-        assert any("High" in d for d in descs or "High" in d)
+        assert any("High" in d for d in descs)
         assert any("API" in d or "unknown" in d for d in descs)
         assert any("3 scanner" in d for d in descs)
         assert any("2 risk factor" in d for d in descs)
@@ -785,19 +784,19 @@ class TestEdgeCases:
     def test_unknown_attack_surface(self) -> None:
         ef = _make_ef(attack_surface="Quantum Network")
         ra = _ENGINE.score(ef)
-        a = [f for f in ra.factors if f.name == "attack_surface"][0]
+        a = next(f for f in ra.factors if f.name == "attack_surface")
         assert a.contribution == 0
 
     def test_empty_scanner_sources(self) -> None:
         ef = _make_ef(scanner_sources=())
         ra = _ENGINE.score(ef)
-        s = [f for f in ra.factors if f.name == "scanner_count"][0]
+        s = next(f for f in ra.factors if f.name == "scanner_count")
         assert s.contribution == 0
 
     def test_single_risk_factor(self) -> None:
         ef = _make_ef(risk_factors=("Remote Code Execution",))
         ra = _ENGINE.score(ef)
-        r = [f for f in ra.factors if f.name == "risk_factors"][0]
+        r = next(f for f in ra.factors if f.name == "risk_factors")
         assert r.contribution == 2
 
     def test_various_severity_with_all_high_inputs(self) -> None:

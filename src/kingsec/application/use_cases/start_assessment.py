@@ -16,18 +16,23 @@ Observability for those failures is added at the adapter, which can log them.
 
 from __future__ import annotations
 
-from kingsec.domain import Finding
-from kingsec.domain.audit import AuditAction, AuditEntry
-
-from .._support import to_assessment_id
-from ..dto import StartAssessmentRequest, StartAssessmentResponse
-from ..events import (
+from kingsec.application._support import to_assessment_id
+from kingsec.application.dto import StartAssessmentRequest, StartAssessmentResponse
+from kingsec.application.events import (
     EVENT_ASSESSMENT_COMPLETED,
     EVENT_ASSESSMENT_FAILED,
     EVENT_ASSESSMENT_RUNNING,
     AssessmentEvent,
 )
-from ..ports import AIPort, AssessmentRepository, AuditPublisher, EventPublisher, ScannerPort
+from kingsec.application.ports import (
+    AIPort,
+    AssessmentRepository,
+    AuditPublisher,
+    EventPublisher,
+    ScannerPort,
+)
+from kingsec.domain import Finding
+from kingsec.domain.audit import AuditAction, AuditEntry
 
 
 class StartAssessment:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -11,7 +11,7 @@ from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
 from kingsec.application import AssessmentNotFoundError
-from kingsec.application.jobs import IllegalJobTransitionError, JobStatus
+from kingsec.application.jobs import JobStatus
 from kingsec.application.ports.repositories import Asset
 from kingsec.application.unit_of_work import UnitOfWorkPort
 from kingsec.bootstrap.production import (
@@ -36,7 +36,6 @@ from kingsec.infrastructure.config.models import StorageSettings
 from kingsec.infrastructure.persistence import (
     create_database_engine,
     create_schema,
-    create_session_factory,
 )
 from kingsec.infrastructure.persistence.repositories import (
     SQLAlchemyAssessmentRepository,
@@ -47,7 +46,6 @@ from kingsec.infrastructure.persistence.repositories import (
 )
 from kingsec.infrastructure.persistence.unit_of_work import SQLAlchemyUnitOfWork
 
-
 # ===========================================================================
 # Helpers — domain object factories
 # ===========================================================================
@@ -55,7 +53,7 @@ from kingsec.infrastructure.persistence.unit_of_work import SQLAlchemyUnitOfWork
 
 def make_assessment() -> Assessment:
     a = Assessment(AssessmentId.generate(), Target("example.com", TargetType.HOSTNAME))
-    a.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=timezone.utc), scope="*"))
+    a.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=UTC), scope="*"))
     a.start()
     a.record_finding(Finding.create("Vuln A", "desc", Severity.CRITICAL))
     a.complete()
@@ -75,7 +73,7 @@ def make_asset() -> Asset:
     return Asset(
         id="asset-001",
         target=Target("10.0.0.1", TargetType.IP_ADDRESS),
-        discovered_at=datetime.now(timezone.utc),
+        discovered_at=datetime.now(UTC),
     )
 
 
@@ -172,7 +170,7 @@ class TestApplicationBoot:
     def test_database_initializes(self, app: ProductionApplication) -> None:
         assert isinstance(app.engine, Engine)
         import sqlalchemy
-        with app.engine.connect() as conn:
+        with app.engine.connect():
             tables = sqlalchemy.inspect(app.engine).get_table_names()
         assert "assessments" in tables
         assert "scan_results" in tables
@@ -244,7 +242,7 @@ class TestJobPersistence:
     def test_job_persists(self, uow: SQLAlchemyUnitOfWork) -> None:
         from kingsec.application.jobs import JobId, ScanJob
         job_id = JobId("job-e2e-001")
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         job = ScanJob(id=job_id, target="e2e-test.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now)
         with uow:
             uow.job_repository.save(job)
@@ -255,7 +253,7 @@ class TestJobPersistence:
 
     def test_job_list(self, uow: SQLAlchemyUnitOfWork) -> None:
         from kingsec.application.jobs import JobId, ScanJob
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         jobs = [
             ScanJob(id=JobId(f"job-e2e-{i}"), target=f"t{i}.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now)
             for i in range(3)
@@ -282,7 +280,7 @@ class TestAssetPersistence:
     def test_asset_list(self, session: Session) -> None:
         repo = SQLAlchemyAssetRepository(session)
         for i in range(3):
-            a = Asset(id=f"asset-{i:03d}", target=Target(f"10.0.0.{i}", TargetType.IP_ADDRESS), discovered_at=datetime.now(timezone.utc))
+            a = Asset(id=f"asset-{i:03d}", target=Target(f"10.0.0.{i}", TargetType.IP_ADDRESS), discovered_at=datetime.now(UTC))
             repo.add(a)
         session.commit()
         lst = repo.list()
@@ -298,7 +296,7 @@ class TestUnitOfWorkCommit:
     def test_commit_persists(self, session: Session) -> None:
         uow = SQLAlchemyUnitOfWork(session)
         from kingsec.application.jobs import JobId, ScanJob
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         job = ScanJob(id=JobId("uow-commit-1"), target="commit-test.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now)
         with uow:
             uow.job_repository.save(job)
@@ -312,7 +310,7 @@ class TestUnitOfWorkRollback:
     def test_rollback_discards(self, session: Session) -> None:
         uow = SQLAlchemyUnitOfWork(session)
         from kingsec.application.jobs import JobId, ScanJob
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         job = ScanJob(id=JobId("uow-rollback-1"), target="rollback-test.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now)
         with uow:
             uow.job_repository.save(job)
@@ -332,7 +330,7 @@ class TestCrossSessionPersistence:
         session1 = Session(engine)
         uow1 = SQLAlchemyUnitOfWork(session1)
         from kingsec.application.jobs import JobId, ScanJob
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         job = ScanJob(id=JobId("xsession-001"), target="xsession.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now)
         with uow1:
             uow1.job_repository.save(job)
@@ -526,7 +524,7 @@ class TestAtomicity:
     def test_multi_repo_commit(self, session: Session) -> None:
         uow = SQLAlchemyUnitOfWork(session)
         from kingsec.application.jobs import JobId, ScanJob
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with uow:
             assessment = make_assessment()
             uow.assessment_repository.save(assessment)
@@ -543,7 +541,7 @@ class TestAtomicity:
     def test_rollback_removes_all_pending_writes(self, session: Session) -> None:
         uow = SQLAlchemyUnitOfWork(session)
         from kingsec.application.jobs import JobId, ScanJob
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with uow:
             assessment = make_assessment()
             uow.assessment_repository.save(assessment)
@@ -560,7 +558,7 @@ class TestAtomicity:
     def test_context_manager_rollback_on_exception(self, session: Session) -> None:
         uow = SQLAlchemyUnitOfWork(session)
         from kingsec.application.jobs import JobId, ScanJob
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with pytest.raises(ValueError):
             with uow:
                 uow.job_repository.save(
@@ -573,7 +571,7 @@ class TestAtomicity:
     def test_uncommitted_context_manager_auto_rollback(self, session: Session) -> None:
         uow = SQLAlchemyUnitOfWork(session)
         from kingsec.application.jobs import JobId, ScanJob
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with uow:
             uow.job_repository.save(
                 ScanJob(id=JobId("uncommitted-001"), target="uncommitted.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now)
@@ -590,8 +588,7 @@ class TestAtomicity:
 class TestFailureRecovery:
     def test_failed_transaction_leaves_db_consistent(self, session: Session) -> None:
         uow = SQLAlchemyUnitOfWork(session)
-        from kingsec.application.jobs import JobId, ScanJob
-        now = datetime.now(timezone.utc)
+        datetime.now(UTC)
 
         assessment = make_assessment()
         with uow:
@@ -615,7 +612,7 @@ class TestFailureRecovery:
     def test_isolated_transactions_dont_interfere(self, session: Session) -> None:
         from kingsec.application.jobs import JobId, ScanJob
         uow1 = SQLAlchemyUnitOfWork(session)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with uow1:
             uow1.job_repository.save(
                 ScanJob(id=JobId("isolated-001"), target="first.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now)
@@ -635,7 +632,7 @@ class TestFailureRecovery:
 
     def test_error_during_commit_does_not_corrupt_existing_data(self, session: Session) -> None:
         from kingsec.application.jobs import JobId, ScanJob
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         repo = SQLAlchemyJobRepository(session)
         repo.save(ScanJob(id=JobId("pre-existing"), target="stable.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now))
         session.commit()
@@ -760,7 +757,6 @@ class TestArchitecture:
         assert hasattr(arepo, "SQLAlchemyAssessmentRepository")
 
     def test_unit_of_work_port_unchanged(self) -> None:
-        from kingsec.application.unit_of_work import UnitOfWorkPort
         assert hasattr(UnitOfWorkPort, "begin")
         assert hasattr(UnitOfWorkPort, "commit")
         assert hasattr(UnitOfWorkPort, "rollback")

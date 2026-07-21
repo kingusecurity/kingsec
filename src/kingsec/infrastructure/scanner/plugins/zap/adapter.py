@@ -45,7 +45,7 @@ class ZapPlugin(ScannerPluginPort):
         settings: ZapSettings,
         runner: CommandRunner | None = None,
     ) -> None:
-        from ...zap import ZapScannerAdapter
+        from kingsec.infrastructure.scanner.zap import ZapScannerAdapter
 
         self._adapter: ZapScannerAdapter = ZapScannerAdapter(settings, runner=runner)
         self._settings = settings

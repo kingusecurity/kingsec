@@ -35,7 +35,7 @@ class SqlAlchemyRecoveryCodeRepository(RecoveryCodeRepository):
         except SQLAlchemyError as exc:
             error = PersistenceError("failed to find recovery codes", context={"user_id": user_id}, cause=exc)
             log_exception(_logger, error)
-            raise error
+            raise error from exc
 
     def save_batch(self, user_id: str, codes: Sequence[MfaRecoveryCode]) -> None:
         try:
@@ -56,7 +56,7 @@ class SqlAlchemyRecoveryCodeRepository(RecoveryCodeRepository):
         except SQLAlchemyError as exc:
             error = PersistenceError("failed to save recovery codes", context={"user_id": user_id}, cause=exc)
             log_exception(_logger, error)
-            raise error
+            raise error from exc
 
     def mark_used(self, user_id: str, code_hash: str) -> None:
         try:
@@ -72,7 +72,7 @@ class SqlAlchemyRecoveryCodeRepository(RecoveryCodeRepository):
         except SQLAlchemyError as exc:
             error = PersistenceError("failed to mark recovery code used", context={"user_id": user_id}, cause=exc)
             log_exception(_logger, error)
-            raise error
+            raise error from exc
 
     def delete_by_user_id(self, user_id: str) -> None:
         try:
@@ -86,4 +86,4 @@ class SqlAlchemyRecoveryCodeRepository(RecoveryCodeRepository):
         except SQLAlchemyError as exc:
             error = PersistenceError("failed to delete recovery codes", context={"user_id": user_id}, cause=exc)
             log_exception(_logger, error)
-            raise error
+            raise error from exc

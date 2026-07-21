@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from dataclasses import dataclass
+from datetime import UTC, datetime
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from kingsec.adapters.inbound.web.app import create_fastapi_app
-from kingsec.adapters.inbound.web.auth import CurrentUser, get_current_user, require_analyst, require_viewer
+from kingsec.adapters.inbound.web.auth import (
+    CurrentUser,
+    get_current_user,
+    require_analyst,
+    require_viewer,
+)
 from kingsec.adapters.inbound.web.dependencies import get_service
 from kingsec.application.dto import (
     AssessmentSummary,
@@ -33,17 +36,13 @@ from kingsec.application.dto import (
     SubmitAssessmentRequest,
     SubmitAssessmentResponse,
 )
-from datetime import datetime, timezone
-
 from kingsec.application.ports import TokenClaims
 from kingsec.application.ports.inbound.service_api import ServiceAPI
-from kingsec.bootstrap.application import Application
 from kingsec.domain import Role
-from kingsec.infrastructure.config import Settings
 
 
 def _make_fake_user() -> CurrentUser:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return CurrentUser(
         user_id="user-001",
         username="testuser",
@@ -195,7 +194,6 @@ def stub_service() -> StubServiceAPI:
 @pytest.fixture
 def client(stub_service: StubServiceAPI) -> TestClient:
     """Build a TestClient with a minimal Application-like state."""
-
     app = FastAPI()
 
     # Minimal stub that has a .resolve() method returning the stub service.

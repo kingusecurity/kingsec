@@ -45,7 +45,7 @@ class SemgrepPlugin(ScannerPluginPort):
         settings: SemgrepSettings,
         runner: CommandRunner | None = None,
     ) -> None:
-        from ...semgrep import SemgrepScannerAdapter
+        from kingsec.infrastructure.scanner.semgrep import SemgrepScannerAdapter
 
         self._adapter: SemgrepScannerAdapter = SemgrepScannerAdapter(settings, runner=runner)
         self._settings = settings

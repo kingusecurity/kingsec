@@ -9,8 +9,7 @@ exercising the logging integration.
 from __future__ import annotations
 
 import io
-from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -38,7 +37,7 @@ from kingsec.infrastructure.persistence import (
 
 def utc() -> datetime:
     """Return a timezone-aware UTC datetime (fixed, for deterministic tests)."""
-    return datetime(2026, 1, 1, tzinfo=timezone.utc)
+    return datetime(2026, 1, 1, tzinfo=UTC)
 
 
 def completed_assessment() -> Assessment:

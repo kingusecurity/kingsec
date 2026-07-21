@@ -3,19 +3,18 @@
 from __future__ import annotations
 
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 from PyPDF2 import PdfReader
-
-from kingsec.application.renderers.pdf_renderer import PDFReportRenderer
-
 from tests.unit.application.renderers.test_markdown_renderer import (
     _empty_report,
     _minimal_report,
     _multi_report,
 )
+
+from kingsec.application.renderers.pdf_renderer import PDFReportRenderer
 
 _RENDERER = PDFReportRenderer()
 
@@ -75,7 +74,8 @@ class TestBasicRendering:
 
     def test_render_and_render_bytes_equivalent(self) -> None:
         """render() output file and render_bytes() should produce valid PDFs
-        with the same text content."""
+        with the same text content.
+        """
         pdf_a = _RENDERER.render_bytes(_minimal_report())
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
             path = Path(f.name)
@@ -94,7 +94,7 @@ class TestBasicRendering:
         report = _minimal_report()
         pdf_bytes = _RENDERER.render_bytes(report)
         text = _extract_text(pdf_bytes)
-        ts = report.created_at.astimezone(timezone.utc).strftime("%Y-%m-%d")
+        ts = report.created_at.astimezone(UTC).strftime("%Y-%m-%d")
         assert ts in text
 
 
@@ -260,16 +260,27 @@ class TestErrorHandling:
 def _make_large_report():
     """Build a report with 50 findings for large-render testing."""
     from kingsec.application.attack_path import (
-        AttackEdge, AttackGraph, AttackNode, AttackPath,
+        AttackEdge,
+        AttackGraph,
+        AttackNode,
+        AttackPath,
     )
     from kingsec.application.report import (
-        Appendix, AssetEntry, AssetSummary, AttackPathSection,
-        ExecutiveSummary, FindingEntry, FindingSection,
-        RecommendationEntry, RecommendationSection, Report,
-        RiskSummary, TechnicalSummary,
+        Appendix,
+        AssetEntry,
+        AssetSummary,
+        AttackPathSection,
+        ExecutiveSummary,
+        FindingEntry,
+        FindingSection,
+        RecommendationEntry,
+        RecommendationSection,
+        Report,
+        RiskSummary,
+        TechnicalSummary,
     )
 
-    now = datetime(2026, 7, 17, tzinfo=timezone.utc)
+    now = datetime(2026, 7, 17, tzinfo=UTC)
 
     findings: list[FindingEntry] = []
     recs: list[RecommendationEntry] = []
@@ -441,16 +452,26 @@ def _make_large_report():
 def _make_unicode_report():
     """Build a report with unicode characters."""
     from kingsec.application.attack_path import (
-        AttackEdge, AttackGraph, AttackNode, AttackPath,
+        AttackGraph,
+        AttackNode,
+        AttackPath,
     )
     from kingsec.application.report import (
-        Appendix, AssetEntry, AssetSummary, AttackPathSection,
-        ExecutiveSummary, FindingEntry, FindingSection,
-        RecommendationEntry, RecommendationSection, Report,
-        RiskSummary, TechnicalSummary,
+        Appendix,
+        AssetEntry,
+        AssetSummary,
+        AttackPathSection,
+        ExecutiveSummary,
+        FindingEntry,
+        FindingSection,
+        RecommendationEntry,
+        RecommendationSection,
+        Report,
+        RiskSummary,
+        TechnicalSummary,
     )
 
-    now = datetime(2026, 7, 17, tzinfo=timezone.utc)
+    now = datetime(2026, 7, 17, tzinfo=UTC)
     es = ExecutiveSummary(
         total_findings=1,
         total_correlated=1,

@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
-
 from kingsec.domain import Severity
 from kingsec.infrastructure.scanner.ffuf_parser import parse_ffuf_json
-
 
 # ---------------------------------------------------------------------------
 # Fixtures: sample ffuf JSONL outputs

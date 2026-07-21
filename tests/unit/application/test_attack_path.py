@@ -2,19 +2,12 @@
 
 from __future__ import annotations
 
-import pytest
-
 from kingsec.application.attack_path import (
-    AttackEdge,
-    AttackGraph,
-    AttackNode,
-    AttackPath,
     AttackPathAnalyzer,
 )
 from kingsec.application.enrichment import EnrichedFinding
 from kingsec.application.risk import RiskAssessment, RiskFactor
 from kingsec.domain import Severity
-
 
 # ---------------------------------------------------------------------------
 # Helpers

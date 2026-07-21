@@ -1,14 +1,21 @@
 """Use case: authenticate with password + TOTP code and issue JWT."""
 from __future__ import annotations
 
-from kingsec.domain.audit import AuditAction as LegacyAuditAction, AuditEntry
-from kingsec.domain.audit_event import AuditAction, AuditEvent, AuditEventId, AuditOutcome, AuditSeverity
+from kingsec.application.errors import ApplicationError
+from kingsec.application.ports import AuditPublisher, PasswordHasher, TokenService, UserRepository
+from kingsec.application.ports.outbound.audit_event_repository import AuditEventRepository
+from kingsec.application.ports.outbound.mfa_secret_repository import MfaSecretRepository
+from kingsec.application.ports.outbound.totp_service import TotpServicePort
+from kingsec.domain.audit import AuditAction as LegacyAuditAction
+from kingsec.domain.audit import AuditEntry
+from kingsec.domain.audit_event import (
+    AuditAction,
+    AuditEvent,
+    AuditEventId,
+    AuditOutcome,
+    AuditSeverity,
+)
 
-from ..errors import ApplicationError
-from ..ports import AuditPublisher, PasswordHasher, TokenService, UserRepository
-from ..ports.outbound.audit_event_repository import AuditEventRepository
-from ..ports.outbound.mfa_secret_repository import MfaSecretRepository
-from ..ports.outbound.totp_service import TotpServicePort
 from .mfa_dto import VerifyMfaCodeRequest, VerifyMfaCodeResponse
 
 

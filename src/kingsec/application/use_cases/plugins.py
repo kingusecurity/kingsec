@@ -158,8 +158,8 @@ class ValidatePlugin:
     def execute(self, package_path: str) -> dict:
         from kingsec.application.errors import PluginValidationError
         errors: list[str] = []
-        import zipfile
         import json
+        import zipfile
         try:
             with zipfile.ZipFile(package_path, "r") as zf:
                 if "manifest.json" not in zf.namelist():
@@ -245,8 +245,8 @@ class ImportPlugin:
         self._validator = validator
 
     def execute(self, package_path: str, filename: str) -> PluginPackage:
-        import zipfile
         import json
+        import zipfile
         try:
             with zipfile.ZipFile(package_path, "r") as zf:
                 if "manifest.json" not in zf.namelist():
@@ -269,9 +269,9 @@ class ExportPlugin:
         plugin = self._repo.find_by_id(plugin_id)
         if not plugin:
             return None
-        import zipfile
         import io
         import json
+        import zipfile
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
             manifest_dict = {

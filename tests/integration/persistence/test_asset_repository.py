@@ -5,7 +5,7 @@ Exercises every AssetRepositoryPort method against a real SQLite database.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.orm import Session
@@ -20,7 +20,6 @@ from kingsec.infrastructure.persistence import (
 from kingsec.infrastructure.persistence.repositories import (
     SQLAlchemyAssetRepository,
 )
-
 
 # ===========================================================================
 # Fixtures
@@ -64,7 +63,7 @@ def make_asset(
     return Asset(
         id=asset_id,
         target=target or Target("web01.example.com", TargetType.HOSTNAME),
-        discovered_at=discovered_at or datetime(2026, 1, 1, tzinfo=timezone.utc),
+        discovered_at=discovered_at or datetime(2026, 1, 1, tzinfo=UTC),
         tags=tags or frozenset(),
     )
 
@@ -146,8 +145,8 @@ class TestList:
         assert len(result) == 2
 
     def test_list_ordered_by_discovered_at_desc(self, repo: SQLAlchemyAssetRepository, session: Session) -> None:
-        early = datetime(2025, 1, 1, tzinfo=timezone.utc)
-        late = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        early = datetime(2025, 1, 1, tzinfo=UTC)
+        late = datetime(2026, 1, 1, tzinfo=UTC)
         repo.add(make_asset(asset_id="asset-early", discovered_at=early))
         repo.add(make_asset(asset_id="asset-late", discovered_at=late))
         session.flush()
@@ -199,7 +198,7 @@ class TestMapping:
         assert loaded.target.type == TargetType.IP_ADDRESS
 
     def test_round_trip_preserves_discovered_at(self, repo: SQLAlchemyAssetRepository, session: Session) -> None:
-        discovered_at = datetime(2025, 6, 15, 14, 30, 0, 123456, tzinfo=timezone.utc)
+        discovered_at = datetime(2025, 6, 15, 14, 30, 0, 123456, tzinfo=UTC)
         asset = make_asset(discovered_at=discovered_at)
         repo.add(asset)
         session.flush()

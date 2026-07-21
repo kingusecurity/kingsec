@@ -77,7 +77,7 @@ class ScannerPluginPort(ABC):
         """
         availability = self.is_available()
         if not availability.available:
-            from ..errors import ScannerUnavailableError
+            from kingsec.application.errors import ScannerUnavailableError
 
             raise ScannerUnavailableError(
                 availability.reason or "scanner is not available",

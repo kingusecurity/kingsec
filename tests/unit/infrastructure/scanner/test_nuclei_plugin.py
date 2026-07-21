@@ -2,15 +2,10 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-from unittest.mock import MagicMock
-
 import pytest
 
 from kingsec.application.ports.scanner_plugin import ScannerPluginPort
 from kingsec.domain import (
-    Finding,
-    PluginAvailability,
     PluginConfig,
     ScannerId,
     ScannerResult,
@@ -158,9 +153,9 @@ class TestScan:
 
 class TestProvisioning:
     def test_registry_contains_nuclei_plugin(self) -> None:
+        from kingsec.bootstrap import Container
         from kingsec.infrastructure.config import Settings
         from kingsec.infrastructure.scanner import register_scanner
-        from kingsec.bootstrap import Container
 
         container = Container()
         runner = FakeRunner(CommandResult(0, _SAMPLE, "", 0.0))
@@ -173,10 +168,10 @@ class TestProvisioning:
         assert isinstance(scanner, ScannerOrchestrator)
 
     def test_orchestrator_resolves_nuclei(self) -> None:
+        from kingsec.bootstrap import Container
         from kingsec.infrastructure.config import Settings
         from kingsec.infrastructure.config.models import NmapSettings, ScannerSettings
         from kingsec.infrastructure.scanner import register_scanner
-        from kingsec.bootstrap import Container
 
         container = Container()
         runner = FakeRunner(CommandResult(0, _SAMPLE, "", 0.0))

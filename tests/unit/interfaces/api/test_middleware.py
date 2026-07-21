@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import io
 import re
 import uuid
 
@@ -18,7 +17,6 @@ from kingsec.interfaces.api.middleware import (
     SecurityHeadersMiddleware,
     register_middleware,
 )
-
 
 # ============================================================================
 # Helpers

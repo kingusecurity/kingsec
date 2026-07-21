@@ -31,7 +31,6 @@ from kingsec.application import (
 from kingsec.bootstrap import Application
 from kingsec.bootstrap.composition import create_wired_application
 from kingsec.domain import Finding, Severity, Target
-
 from kingsec.infrastructure.persistence import (
     create_database_engine,
     create_schema,
@@ -48,7 +47,7 @@ def _weasyprint_available() -> bool:
         from weasyprint import HTML
         HTML(string="<p>test</p>").write_pdf()
         return True
-    except Exception:  # noqa: BLE001
+    except Exception:
         return False
 
 

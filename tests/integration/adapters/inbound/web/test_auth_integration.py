@@ -10,14 +10,12 @@ Verifies the complete lifecycle:
 
 from __future__ import annotations
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from kingsec.adapters.inbound.web.auth import CurrentUser
 from kingsec.application import Login, RefreshToken, RegisterUser
 from kingsec.application.ports import TokenClaims, TokenService
-from kingsec.domain import Role, User
+from kingsec.domain import User
 
 
 class StubTokenService(TokenService):
@@ -133,7 +131,7 @@ def _build_app() -> tuple[FastAPI, StubTokenService, StubUserRepo]:
 
     class _StubApp:
         def resolve(self, service_type: type):
-            from kingsec.application.ports import TokenService, UserRepository, PasswordHasher
+            from kingsec.application.ports import PasswordHasher, TokenService, UserRepository
             if service_type == TokenService:
                 return token_service
             if service_type == UserRepository:
@@ -164,7 +162,7 @@ class TestAuthFlowIntegration:
 
     def test_register_login_me_lifecycle(self) -> None:
         """Register → Login → GET /me."""
-        app, token_service, user_repo = _build_app()
+        app, _token_service, _user_repo = _build_app()
         client = TestClient(app)
 
         # Step 1: Register
@@ -208,7 +206,7 @@ class TestAuthFlowIntegration:
 
     def test_refresh_token_lifecycle(self) -> None:
         """Login → Refresh → use new access token."""
-        app, token_service, user_repo = _build_app()
+        app, _token_service, _user_repo = _build_app()
         client = TestClient(app)
 
         # Register + Login
@@ -259,7 +257,7 @@ class TestAuthFlowIntegration:
         assert resp.status_code == 401
 
     def test_wrong_role_returns_403(self) -> None:
-        app, token_service, user_repo = _build_app()
+        app, _token_service, _user_repo = _build_app()
         client = TestClient(app)
 
         # Register with viewer role

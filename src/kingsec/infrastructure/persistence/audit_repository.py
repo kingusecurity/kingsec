@@ -74,7 +74,7 @@ class SqlAlchemyAuditRepository(AuditPublisher):
                 cause=exc,
             )
             log_exception(_logger, error)
-            raise error
+            raise error from exc
 
     def list_entries(
         self,
@@ -131,7 +131,7 @@ class SqlAlchemyAuditRepository(AuditPublisher):
                 cause=exc,
             )
             log_exception(_logger, error)
-            raise error
+            raise error from exc
 
     def count_entries(
         self,
@@ -166,7 +166,7 @@ class SqlAlchemyAuditRepository(AuditPublisher):
                 cause=exc,
             )
             log_exception(_logger, error)
-            raise error
+            raise error from exc
 
 
 def _to_domain(orm: AuditEntryORM) -> AuditEntry:

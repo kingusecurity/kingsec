@@ -110,7 +110,6 @@ class TestBoundaryTranslation:
 
 def create_application_via(make_app: Callable[..., Application]) -> Application:
     """Small indirection so the type checker sees a concrete Application."""
-
     app = make_app()
     assert isinstance(app, Application)
     return app

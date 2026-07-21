@@ -10,7 +10,6 @@ from kingsec.application.use_cases.change_password import ChangePassword, Passwo
 from kingsec.domain import Role, User
 from kingsec.domain.user import PasswordValidationError
 
-
 # --- Stubs --------------------------------------------------------------------
 
 

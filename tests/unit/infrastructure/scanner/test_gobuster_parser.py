@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
-
 from kingsec.domain import Severity
 from kingsec.infrastructure.scanner.gobuster_parser import parse_gobuster_output
-
 
 # ---------------------------------------------------------------------------
 # Fixtures: sample Gobuster outputs

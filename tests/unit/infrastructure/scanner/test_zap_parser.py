@@ -4,11 +4,8 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
 from kingsec.domain import Severity
 from kingsec.infrastructure.scanner.zap_parser import parse_zap_json
-
 
 # ---------------------------------------------------------------------------
 # Fixtures: sample ZAP JSON outputs

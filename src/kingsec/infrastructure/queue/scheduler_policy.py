@@ -27,7 +27,7 @@ class DefaultSchedulingPolicy(SchedulerPolicyPort):
         now = datetime.now(UTC)
         scored: list[tuple[int, float, str, QueueEntry]] = []
 
-        for i, entry in enumerate(ready_entries):
+        for _i, entry in enumerate(ready_entries):
             priority = entry.priority.value
             try:
                 created = datetime.fromisoformat(entry.created_at)

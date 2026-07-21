@@ -9,10 +9,17 @@ was submitted for background execution.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from kingsec.adapters.inbound.web.auth import CurrentUser, get_current_user, require_analyst, require_viewer
+from kingsec.adapters.inbound.web.auth import (
+    CurrentUser,
+    get_current_user,
+    require_analyst,
+    require_viewer,
+)
 from kingsec.adapters.inbound.web.dependencies import get_service
 from kingsec.application.dto import (
     AssessmentView,
@@ -37,11 +44,10 @@ from kingsec.application.dto import (
 from kingsec.application.ports import TokenClaims
 from kingsec.application.ports.inbound.service_api import ServiceAPI
 from kingsec.domain import Role
-from datetime import datetime, timezone
 
 
 def _make_fake_user() -> CurrentUser:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return CurrentUser(
         user_id="user-001",
         username="testuser",

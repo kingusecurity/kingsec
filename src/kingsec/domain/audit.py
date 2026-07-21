@@ -22,10 +22,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 
 
-class AuditAction(str, Enum):
+class AuditAction(StrEnum):
     """Every auditable action in KingSec.
 
     Using ``str, Enum`` so values are human-readable in logs and DB

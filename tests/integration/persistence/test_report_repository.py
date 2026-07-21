@@ -5,13 +5,12 @@ Exercises every public method against a real SQLite database.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.orm import Session
 
 from kingsec.application import (
-    AssessmentNotFoundError,
     ReportNotFoundError,
 )
 from kingsec.domain import (
@@ -31,7 +30,6 @@ from kingsec.infrastructure.persistence import (
 from kingsec.infrastructure.persistence.repositories import (
     SQLAlchemyReportRepository,
 )
-
 
 # ===========================================================================
 # Fixtures
@@ -74,7 +72,7 @@ def make_report(
     a_id = assessment_id or AssessmentId.generate()
     target = Target("example.com", TargetType.HOSTNAME)
     assessment = Assessment(a_id, target)
-    assessment.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=timezone.utc), scope="*"))
+    assessment.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=UTC), scope="*"))
     assessment.start()
 
     finding = Finding.create("XSS", "Cross-site scripting", Severity.HIGH)
@@ -202,12 +200,12 @@ class TestMapping:
 
         loaded = repo.get(AssessmentId(report.assessment_id))
         assert len(loaded.severity_counts) == len(report.severity_counts)
-        for (sev_a, cnt_a), (sev_b, cnt_b) in zip(loaded.severity_counts, report.severity_counts):
+        for (sev_a, cnt_a), (sev_b, cnt_b) in zip(loaded.severity_counts, report.severity_counts, strict=False):
             assert sev_a == sev_b
             assert cnt_a == cnt_b
 
     def test_round_trip_preserves_generated_at(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
-        generated_at = datetime(2025, 6, 15, 14, 30, 0, 123456, tzinfo=timezone.utc)
+        generated_at = datetime(2025, 6, 15, 14, 30, 0, 123456, tzinfo=UTC)
         report = make_report(generated_at=generated_at)
         repo.save(report)
         session.flush()
@@ -226,7 +224,7 @@ class TestEdgeCases:
     def test_save_and_get_unicode(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
         a_id = AssessmentId.generate()
         assessment = Assessment(a_id, Target("über-unicod€.com", TargetType.HOSTNAME))
-        assessment.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=timezone.utc), scope="*"))
+        assessment.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=UTC), scope="*"))
         assessment.start()
         assessment.record_finding(Finding.create("Öné", "Desc", Severity.LOW))
         assessment.complete()

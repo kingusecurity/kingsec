@@ -5,7 +5,7 @@ Exercises every JobRepositoryPort method against a real SQLite database.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.orm import Session
@@ -20,7 +20,6 @@ from kingsec.infrastructure.persistence import (
 from kingsec.infrastructure.persistence.repositories import (
     SQLAlchemyJobRepository,
 )
-
 
 # ===========================================================================
 # Fixtures
@@ -62,7 +61,7 @@ def make_job(
     created_at: datetime | None = None,
     updated_at: datetime | None = None,
 ) -> ScanJob:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return ScanJob(
         id=JobId(job_id),
         target=target,
@@ -182,8 +181,8 @@ class TestList:
         assert len(result) == 2
 
     def test_list_ordered_by_created_at_desc(self, repo: SQLAlchemyJobRepository, session: Session) -> None:
-        early = datetime(2025, 1, 1, tzinfo=timezone.utc)
-        late = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        early = datetime(2025, 1, 1, tzinfo=UTC)
+        late = datetime(2026, 1, 1, tzinfo=UTC)
         repo.save(make_job(job_id="job-1", created_at=early, updated_at=early))
         repo.save(make_job(job_id="job-2", created_at=late, updated_at=late))
         session.flush()
@@ -227,8 +226,8 @@ class TestMapping:
             assert loaded.status == status
 
     def test_round_trip_preserves_timestamps(self, repo: SQLAlchemyJobRepository, session: Session) -> None:
-        created_at = datetime(2025, 6, 15, 14, 30, 0, 123456, tzinfo=timezone.utc)
-        updated_at = datetime(2025, 6, 16, 10, 0, 0, tzinfo=timezone.utc)
+        created_at = datetime(2025, 6, 15, 14, 30, 0, 123456, tzinfo=UTC)
+        updated_at = datetime(2025, 6, 16, 10, 0, 0, tzinfo=UTC)
         job = make_job(created_at=created_at, updated_at=updated_at)
         repo.save(job)
         session.flush()

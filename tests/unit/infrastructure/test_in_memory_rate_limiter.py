@@ -3,9 +3,7 @@ from __future__ import annotations
 import threading
 import time
 
-import pytest
-
-from kingsec.domain.rate_limit import RateLimitDecision, RateLimitGroup, RateLimitPolicy
+from kingsec.domain.rate_limit import RateLimitGroup, RateLimitPolicy
 from kingsec.infrastructure.rate_limit.in_memory_rate_limiter import (
     InMemoryRateLimiter,
 )

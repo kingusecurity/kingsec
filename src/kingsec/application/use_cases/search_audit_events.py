@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from ..ports.outbound.audit_event_repository import AuditEventRepository
+from kingsec.application.ports.outbound.audit_event_repository import AuditEventRepository
+
 from .audit_dto import AuditEventView, SearchAuditEventsRequest, SearchAuditEventsResponse
 
 

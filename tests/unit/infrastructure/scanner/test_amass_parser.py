@@ -4,11 +4,8 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
 from kingsec.domain import Severity
 from kingsec.infrastructure.scanner.amass_parser import parse_amass_json
-
 
 # ---------------------------------------------------------------------------
 # Fixtures: sample Amass JSON outputs

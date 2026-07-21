@@ -6,7 +6,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from kingsec.application.ports.outbound.schedule_repository import ScheduleRepositoryPort
-from kingsec.domain.schedule import RetryPolicy, RetryStrategy, ScheduleId, ScheduleStatus, ScheduleType, ScanSchedule
+from kingsec.domain.schedule import (
+    RetryPolicy,
+    RetryStrategy,
+    ScanSchedule,
+    ScheduleId,
+    ScheduleStatus,
+    ScheduleType,
+)
 
 
 class SqlAlchemyScheduleRepository(ScheduleRepositoryPort):

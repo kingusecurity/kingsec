@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-import pytest
+from tests.unit.application.conftest import InMemoryAssessmentRepository
 
 from kingsec.application import (
     AssessmentSummary,
@@ -16,11 +16,9 @@ from kingsec.domain import (
     Assessment,
     AssessmentStatus,
     Authorization,
-    Severity,
     Target,
     TargetType,
 )
-from tests.unit.application.conftest import InMemoryAssessmentRepository
 
 
 def _make_assessment(
@@ -30,7 +28,7 @@ def _make_assessment(
 ) -> Assessment:
     assessment = Assessment.create(
         Target(target_value, TargetType.IP_ADDRESS),
-        created_at=datetime(2026, 1, day, tzinfo=timezone.utc),
+        created_at=datetime(2026, 1, day, tzinfo=UTC),
     )
     assessment.authorize(Authorization.grant("tester", scope=target_value))
     return assessment
@@ -151,7 +149,7 @@ class TestAssessmentSummary:
     def test_from_domain_mapping(self) -> None:
         assessment = Assessment.create(
             Target("10.0.0.5", TargetType.IP_ADDRESS),
-            created_at=datetime(2026, 6, 15, 12, 0, tzinfo=timezone.utc),
+            created_at=datetime(2026, 6, 15, 12, 0, tzinfo=UTC),
         )
 
         summary = AssessmentSummary.from_domain(assessment)

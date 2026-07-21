@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -17,8 +16,7 @@ from kingsec.application import (
     ValidateApiKey,
 )
 from kingsec.application.auth import AuthorizationService
-from kingsec.application.ports import ApiKeyHasher, ApiKeyRepository, TokenClaims, TokenService
-from kingsec.domain import Role, User
+from kingsec.application.ports import ApiKeyHasher, ApiKeyRepository, TokenService
 from kingsec.domain.api_key import ApiKey
 
 from .test_auth_integration import StubHasher, StubTokenService, StubUserRepo
@@ -66,7 +64,7 @@ def _build_app() -> tuple[FastAPI, StubTokenService, StubUserRepo, StubApiKeyRep
 
     class _StubApp:
         def resolve(self, service_type: type):
-            from kingsec.application.ports import PasswordHasher, TokenService, UserRepository
+            from kingsec.application.ports import PasswordHasher, UserRepository
             if service_type == TokenService:
                 return token_service
             if service_type == UserRepository:
@@ -132,7 +130,7 @@ class TestApiKeyIntegration:
         return login_resp.json()["access_token"]
 
     def test_create_and_list_api_keys(self) -> None:
-        app, token_service, user_repo, key_repo, key_hasher = _build_app()
+        app, token_service, user_repo, _key_repo, _key_hasher = _build_app()
         client = TestClient(app)
 
         token = self._register_and_login(client, token_service, user_repo)
@@ -161,7 +159,7 @@ class TestApiKeyIntegration:
         assert any(item["api_key_id"] == body["api_key_id"] for item in list_body["items"])
 
     def test_use_api_key_for_authentication(self) -> None:
-        app, token_service, user_repo, key_repo, key_hasher = _build_app()
+        app, token_service, user_repo, _key_repo, _key_hasher = _build_app()
         client = TestClient(app)
 
         token = self._register_and_login(client, token_service, user_repo)
@@ -186,7 +184,7 @@ class TestApiKeyIntegration:
         assert body["status"] == "active"
 
     def test_api_key_via_bearer_header(self) -> None:
-        app, token_service, user_repo, key_repo, key_hasher = _build_app()
+        app, token_service, user_repo, _key_repo, _key_hasher = _build_app()
         client = TestClient(app)
 
         token = self._register_and_login(client, token_service, user_repo)
@@ -208,7 +206,7 @@ class TestApiKeyIntegration:
         assert body["scope"] == "full_access"
 
     def test_revoke_api_key(self) -> None:
-        app, token_service, user_repo, key_repo, key_hasher = _build_app()
+        app, token_service, user_repo, _key_repo, _key_hasher = _build_app()
         client = TestClient(app)
 
         token = self._register_and_login(client, token_service, user_repo)
@@ -235,7 +233,7 @@ class TestApiKeyIntegration:
         assert me_resp.status_code == 401
 
     def test_rotate_api_key(self) -> None:
-        app, token_service, user_repo, key_repo, key_hasher = _build_app()
+        app, token_service, user_repo, _key_repo, _key_hasher = _build_app()
         client = TestClient(app)
 
         token = self._register_and_login(client, token_service, user_repo)
@@ -275,7 +273,7 @@ class TestApiKeyIntegration:
         assert new_resp.json()["scope"] == "full_access"
 
     def test_missing_api_key_returns_401(self) -> None:
-        app, token_service, user_repo, key_repo, key_hasher = _build_app()
+        app, _token_service, _user_repo, _key_repo, _key_hasher = _build_app()
         client = TestClient(app)
 
         resp = client.get("/api/v1/apikeys/me")
@@ -283,7 +281,7 @@ class TestApiKeyIntegration:
         assert "missing" in resp.json()["detail"].lower()
 
     def test_invalid_api_key_returns_401(self) -> None:
-        app, token_service, user_repo, key_repo, key_hasher = _build_app()
+        app, _token_service, _user_repo, _key_repo, _key_hasher = _build_app()
         client = TestClient(app)
 
         resp = client.get(

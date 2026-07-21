@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import ipaddress
 import socket
-from typing import Iterable
+from collections.abc import Iterable
 from urllib.parse import urlparse
 
 # ---------------------------------------------------------------------------

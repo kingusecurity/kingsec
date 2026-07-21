@@ -1,11 +1,17 @@
 """Use case: rotate (replace) recovery codes for a user."""
 from __future__ import annotations
 
-from kingsec.domain.audit_event import AuditAction, AuditEvent, AuditEventId, AuditOutcome, AuditSeverity
+from kingsec.application.ports.outbound.audit_event_repository import AuditEventRepository
+from kingsec.application.ports.outbound.recovery_code_repository import RecoveryCodeRepository
+from kingsec.domain.audit_event import (
+    AuditAction,
+    AuditEvent,
+    AuditEventId,
+    AuditOutcome,
+    AuditSeverity,
+)
 from kingsec.domain.mfa import MfaRecoveryCode, RecoveryCodeStatus
 
-from ..ports.outbound.audit_event_repository import AuditEventRepository
-from ..ports.outbound.recovery_code_repository import RecoveryCodeRepository
 from .mfa_dto import RotateRecoveryCodesRequest, RotateRecoveryCodesResponse
 
 

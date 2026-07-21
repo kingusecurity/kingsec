@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from kingsec.application.job import JobId
+from kingsec.application.jobs import JobStatus, ScanJob
 from kingsec.application.ports.job_service import JobServicePort
 from kingsec.application.ports.outbound.audit_publisher import AuditPublisher
 from kingsec.application.ports.outbound.schedule_repository import ScheduleRepositoryPort
-from kingsec.application.ports.outbound.scheduler_service import SchedulerServicePort
 from kingsec.application.use_cases.create_schedule import CreateSchedule
 from kingsec.application.use_cases.delete_schedule import DeleteSchedule
 from kingsec.application.use_cases.disable_schedule import DisableSchedule
@@ -32,14 +33,9 @@ from kingsec.application.use_cases.schedule_dto import (
 from kingsec.application.use_cases.trigger_schedule_now import TriggerScheduleNow
 from kingsec.application.use_cases.update_schedule import UpdateSchedule
 from kingsec.domain.audit import AuditAction, AuditEntry
-from kingsec.application.job import JobId
 from kingsec.domain.schedule import (
-    ScheduleId,
-    ScheduleStatus,
-    ScheduleType,
     ScanSchedule,
 )
-from kingsec.application.jobs import ScanJob, JobStatus
 
 
 class InMemoryScheduleRepo(ScheduleRepositoryPort):
@@ -135,7 +131,7 @@ class TestUpdateSchedule:
         create_uc.execute(
             CreateScheduleRequest(name="Old Name", target="10.0.0.1", owner_user_id="u1")
         )
-        sid = list(repo._schedules.keys())[0]
+        sid = next(iter(repo._schedules.keys()))
 
         update_uc = UpdateSchedule(repo, audit)
         result = update_uc.execute(
@@ -160,7 +156,7 @@ class TestDeleteSchedule:
         audit = FakeAuditPublisher()
         create_uc = CreateSchedule(repo, audit)
         create_uc.execute(CreateScheduleRequest(name="Del", target="10.0.0.1", owner_user_id="u1"))
-        sid = list(repo._schedules.keys())[0]
+        sid = next(iter(repo._schedules.keys()))
 
         delete_uc = DeleteSchedule(repo, audit)
         result = delete_uc.execute(DeleteScheduleRequest(schedule_id=sid))
@@ -182,7 +178,7 @@ class TestPauseSchedule:
         audit = FakeAuditPublisher()
         create_uc = CreateSchedule(repo, audit)
         create_uc.execute(CreateScheduleRequest(name="Pausable", target="10.0.0.1", owner_user_id="u1"))
-        sid = list(repo._schedules.keys())[0]
+        sid = next(iter(repo._schedules.keys()))
 
         uc = PauseSchedule(repo, audit)
         result = uc.execute(PauseScheduleRequest(schedule_id=sid))
@@ -197,7 +193,7 @@ class TestResumeSchedule:
         audit = FakeAuditPublisher()
         create_uc = CreateSchedule(repo, audit)
         create_uc.execute(CreateScheduleRequest(name="Resumable", target="10.0.0.1", owner_user_id="u1"))
-        sid = list(repo._schedules.keys())[0]
+        sid = next(iter(repo._schedules.keys()))
 
         pause_uc = PauseSchedule(repo, audit)
         pause_uc.execute(PauseScheduleRequest(schedule_id=sid))
@@ -214,7 +210,7 @@ class TestEnableDisable:
         audit = FakeAuditPublisher()
         create_uc = CreateSchedule(repo, audit)
         create_uc.execute(CreateScheduleRequest(name="Toggle", target="10.0.0.1", owner_user_id="u1"))
-        sid = list(repo._schedules.keys())[0]
+        sid = next(iter(repo._schedules.keys()))
 
         disable_uc = DisableSchedule(repo, audit)
         dresult = disable_uc.execute(DisableScheduleRequest(schedule_id=sid))
@@ -234,7 +230,7 @@ class TestTriggerScheduleNow:
         job_svc = FakeJobService()
         create_uc = CreateSchedule(repo, audit)
         create_uc.execute(CreateScheduleRequest(name="Triggerable", target="10.0.0.1", owner_user_id="u1"))
-        sid = list(repo._schedules.keys())[0]
+        sid = next(iter(repo._schedules.keys()))
 
         uc = TriggerScheduleNow(repo, job_svc, audit)
         result = uc.execute(TriggerScheduleNowRequest(schedule_id=sid))
@@ -284,7 +280,7 @@ class TestGetSchedule:
         audit = FakeAuditPublisher()
         create_uc = CreateSchedule(repo, audit)
         create_uc.execute(CreateScheduleRequest(name="Test", target="10.0.0.1", owner_user_id="u1"))
-        sid = list(repo._schedules.keys())[0]
+        sid = next(iter(repo._schedules.keys()))
 
         uc = GetSchedule(repo)
         result = uc.execute(GetScheduleRequest(schedule_id=sid))
@@ -308,7 +304,7 @@ class TestFindDueSchedules:
         create_uc.execute(CreateScheduleRequest(name="Due", target="10.0.0.1", owner_user_id="u1"))
 
         # Manually set next_run in the past
-        sid = list(repo._schedules.keys())[0]
+        sid = next(iter(repo._schedules.keys()))
         existing = repo._schedules[sid]
         repo._schedules[sid] = ScanSchedule(
             id=existing.id, name=existing.name, description=existing.description,

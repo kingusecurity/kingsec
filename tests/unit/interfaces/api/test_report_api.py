@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
@@ -17,7 +17,7 @@ from .helpers import fake_get_current_user
 # Mock port
 # ---------------------------------------------------------------------------
 
-_NOW = datetime(2025, 6, 15, 14, 30, 0, tzinfo=timezone.utc)
+_NOW = datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC)
 
 
 class _MockReportService(ReportServicePort):
@@ -438,13 +438,15 @@ class TestDependencyInjection:
 
 class TestNoInfrastructureLeaks:
     def test_no_infrastructure_imports_in_routes(self) -> None:
-        import kingsec.interfaces.api.routes.report as report_module
         import inspect
+
+        import kingsec.interfaces.api.routes.report as report_module
         source = inspect.getsource(report_module)
         assert "infrastructure" not in source.lower()
 
     def test_no_infrastructure_imports_in_app(self) -> None:
-        import kingsec.interfaces.api.app as app_module
         import inspect
+
+        import kingsec.interfaces.api.app as app_module
         source = inspect.getsource(app_module)
         assert "infrastructure" not in source.lower()

@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
+
 from kingsec.application.notification_service import NotificationService
 from kingsec.application.ports.outbound import (
     NotificationRepositoryPort,
@@ -168,7 +169,7 @@ class TestListNotifications:
     def test_list_all(self) -> None:
         n = _make_notification()
         self.service.send(n)
-        notifications, total = self.service.list_all()
+        _notifications, total = self.service.list_all()
         assert total == 1
 
 
@@ -187,8 +188,9 @@ class TestGetNotification:
         assert str(fetched.id) == str(n.id)
 
     def test_get_nonexistent_raises(self) -> None:
-        from kingsec.application.errors import NotificationNotFoundError
         import pytest
+
+        from kingsec.application.errors import NotificationNotFoundError
         with pytest.raises(NotificationNotFoundError):
             self.service.get(NotificationId("no-such"))
 
@@ -207,8 +209,9 @@ class TestMarkNotificationRead:
         assert result.status == NotificationStatus.READ
 
     def test_mark_read_nonexistent_raises(self) -> None:
-        from kingsec.application.errors import NotificationNotFoundError
         import pytest
+
+        from kingsec.application.errors import NotificationNotFoundError
         with pytest.raises(NotificationNotFoundError):
             self.service.mark_read(NotificationId("no-such"))
 

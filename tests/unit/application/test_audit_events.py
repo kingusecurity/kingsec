@@ -1,15 +1,22 @@
 """Tests for enterprise audit event use cases."""
 from __future__ import annotations
 
-from collections.abc import Sequence
-
 import pytest
 
 from kingsec.application.ports.outbound.audit_event_repository import AuditEventRepository
-from kingsec.application.use_cases.audit_dto import RecordAuditEventRequest, SearchAuditEventsRequest
+from kingsec.application.use_cases.audit_dto import (
+    RecordAuditEventRequest,
+    SearchAuditEventsRequest,
+)
 from kingsec.application.use_cases.record_audit_event import RecordAuditEvent
 from kingsec.application.use_cases.search_audit_events import SearchAuditEvents
-from kingsec.domain.audit_event import AuditAction, AuditEvent, AuditEventId, AuditOutcome, AuditSeverity
+from kingsec.domain.audit_event import (
+    AuditAction,
+    AuditEvent,
+    AuditEventId,
+    AuditOutcome,
+    AuditSeverity,
+)
 
 
 class StubAuditEventRepository(AuditEventRepository):

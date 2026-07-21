@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class RateLimitKeyType(str, Enum):
+class RateLimitKeyType(StrEnum):
     IP = "ip"
     USER = "user"
     API_KEY = "api_key"
@@ -14,7 +14,7 @@ class RateLimitKeyType(str, Enum):
     IP_USER = "ip_user"
 
 
-class RateLimitGroup(str, Enum):
+class RateLimitGroup(StrEnum):
     LOGIN = "login"
     API = "api"
     SCAN = "scan"

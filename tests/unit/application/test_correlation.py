@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 from kingsec.application.correlation import (
-    CorrelationEngine,
     CorrelatedFinding,
+    CorrelationEngine,
     _compute_confidence,
     _derive_description,
     _derive_title,
@@ -18,12 +18,11 @@ from kingsec.application.correlation import (
 from kingsec.application.normalization import NormalizedFinding
 from kingsec.domain import Evidence, Recommendation, Severity
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-_NOW = datetime.now(timezone.utc)
+_NOW = datetime.now(UTC)
 
 
 def _make_nf(

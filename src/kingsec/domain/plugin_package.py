@@ -7,11 +7,11 @@ PluginManifest, PluginSignature, PluginHealth, PluginInstallStatus.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from functools import total_ordering
 
 
-class PluginInstallStatus(str, Enum):
+class PluginInstallStatus(StrEnum):
     NOT_INSTALLED = "not_installed"
     INSTALLING = "installing"
     INSTALLED = "installed"
@@ -21,7 +21,7 @@ class PluginInstallStatus(str, Enum):
     ROLLED_BACK = "rolled_back"
 
 
-class PluginHealth(str, Enum):
+class PluginHealth(StrEnum):
     UNKNOWN = "unknown"
     HEALTHY = "healthy"
     DEGRADED = "degraded"

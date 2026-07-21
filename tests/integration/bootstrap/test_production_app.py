@@ -10,8 +10,6 @@ across repositories.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
-
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -38,7 +36,6 @@ from kingsec.infrastructure.scanner import (
     InMemoryPluginRegistry,
     ScannerOrchestrator,
 )
-
 
 # ===========================================================================
 # Fixtures

@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 from kingsec.application.attack_path import (
-    AttackEdge, AttackGraph, AttackNode, AttackPath,
+    AttackEdge,
+    AttackGraph,
+    AttackNode,
+    AttackPath,
 )
 from kingsec.application.enrichment import EnrichedFinding
 from kingsec.application.executive_summary import (
-    ExecutiveSummary, ExecutiveSummaryGenerator,
+    ExecutiveSummary,
+    ExecutiveSummaryGenerator,
 )
 from kingsec.application.risk import RiskAssessment, RiskFactor
 from kingsec.domain import Severity
@@ -21,7 +25,7 @@ from kingsec.domain import Severity
 # ---------------------------------------------------------------------------
 
 _GENERATOR = ExecutiveSummaryGenerator()
-_NOW = datetime(2026, 7, 17, tzinfo=timezone.utc)
+_NOW = datetime(2026, 7, 17, tzinfo=UTC)
 
 
 def _make_factor(name: str = "severity", contribution: int = 22) -> RiskFactor:

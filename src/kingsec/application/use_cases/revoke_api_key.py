@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from ..dto import RevokeApiKeyRequest
-from ..errors import ApplicationError
-from ..ports import ApiKeyRepository
+from kingsec.application.dto import RevokeApiKeyRequest
+from kingsec.application.errors import ApplicationError
+from kingsec.application.ports import ApiKeyRepository
 
 
 class RevokeApiKey:

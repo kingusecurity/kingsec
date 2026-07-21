@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from kingsec.application.jobs import ScanJob
+from kingsec.application.ports.repositories import Asset
 from kingsec.domain import (
     Assessment,
     AssessmentId,
@@ -345,8 +347,6 @@ def asset_to_domain(orm: AssetModel) -> Asset:
     Note: ``tags`` are not stored in the current ORM schema and are returned
     as an empty frozenset.  A future migration can add a column for them.
     """
-    from kingsec.application.ports.repositories import Asset
-
     return Asset(
         id=orm.id,
         target=_infer_target(orm),

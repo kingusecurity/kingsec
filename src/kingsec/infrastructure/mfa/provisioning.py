@@ -7,7 +7,9 @@ from kingsec.application.ports.outbound.mfa_secret_repository import MfaSecretRe
 from kingsec.application.ports.outbound.recovery_code_repository import RecoveryCodeRepository
 from kingsec.application.ports.outbound.totp_service import TotpServicePort
 from kingsec.infrastructure.persistence.mfa_secret_repository import SqlAlchemyMfaSecretRepository
-from kingsec.infrastructure.persistence.recovery_code_repository import SqlAlchemyRecoveryCodeRepository
+from kingsec.infrastructure.persistence.recovery_code_repository import (
+    SqlAlchemyRecoveryCodeRepository,
+)
 
 from .totp_service import TotpService
 

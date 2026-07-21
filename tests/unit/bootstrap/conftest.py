@@ -46,7 +46,6 @@ def log_stream() -> io.StringIO:
 @pytest.fixture
 def make_app(log_stream: io.StringIO) -> Callable[..., object]:
     """Build an application wired to JSON logging on the test stream."""
-
     from kingsec.bootstrap import create_application
 
     def _make(**overrides: object) -> object:

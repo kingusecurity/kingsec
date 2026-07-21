@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from .._support import to_assessment_id
-from ..dto import AssessmentView, GetAssessmentRequest
-from ..ports import AssessmentRepository
+from kingsec.application._support import to_assessment_id
+from kingsec.application.dto import AssessmentView, GetAssessmentRequest
+from kingsec.application.ports import AssessmentRepository
 
 
 class GetAssessment:

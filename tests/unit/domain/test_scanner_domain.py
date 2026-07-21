@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 
 import pytest
+from tests.unit.domain.conftest import make_finding
 
 from kingsec.domain import (
     Finding,
@@ -20,8 +21,6 @@ from kingsec.domain import (
     Severity,
     TargetType,
 )
-from tests.unit.domain.conftest import make_finding
-
 
 # ---------------------------------------------------------------------------
 # Helpers

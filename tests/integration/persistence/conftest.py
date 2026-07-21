@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from pathlib import Path
-
 import io
+from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 
@@ -31,12 +30,11 @@ from kingsec.infrastructure.persistence import (
 
 
 def utc(day: int = 1) -> datetime:
-    return datetime(2026, 1, day, tzinfo=timezone.utc)
+    return datetime(2026, 1, day, tzinfo=UTC)
 
 
 def completed_assessment() -> Assessment:
     """A COMPLETED assessment with one enriched, confirmed finding."""
-
     assessment = Assessment.create(Target("10.0.0.5", TargetType.IP_ADDRESS))
     assessment.authorize(Authorization("tester", utc(), scope="10.0.0.5"))
     assessment.start()

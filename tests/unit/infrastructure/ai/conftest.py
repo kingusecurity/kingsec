@@ -22,7 +22,6 @@ def quiet_logging() -> None:
 
 def openai_response(enrichment: dict) -> httpx.Response:
     """An OpenAI-compatible 200 response wrapping an enrichment JSON string."""
-
     return httpx.Response(
         200, json={"choices": [{"message": {"content": json.dumps(enrichment)}}]}
     )
@@ -49,7 +48,6 @@ def sequence_transport(responses: list) -> httpx.MockTransport:
 
     Items may be ``httpx.Response`` objects or exception instances (raised).
     """
-
     calls = {"n": 0}
 
     def handler(request: httpx.Request) -> httpx.Response:

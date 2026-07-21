@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from datetime import timedelta
 
-from kingsec.application.ports import TokenExpiredError, TokenInvalidError
+from kingsec.application.ports import TokenInvalidError
 from kingsec.infrastructure.auth.jwt_service import JWTTokenService
 from kingsec.infrastructure.config.models import JWTSettings
 

@@ -4,21 +4,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 
 
-class AgentPlatform(str, Enum):
+class AgentPlatform(StrEnum):
     WINDOWS = "windows"
     LINUX = "linux"
     MACOS = "macos"
 
 
-class AgentArchitecture(str, Enum):
+class AgentArchitecture(StrEnum):
     AMD64 = "amd64"
     ARM64 = "arm64"
 
 
-class AgentState(str, Enum):
+class AgentState(StrEnum):
     OFFLINE = "offline"
     ONLINE = "online"
     BUSY = "busy"

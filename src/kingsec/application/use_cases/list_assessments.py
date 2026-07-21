@@ -11,12 +11,12 @@ port if the database grows large enough to warrant it.
 
 from __future__ import annotations
 
-from ..dto import (
+from kingsec.application.dto import (
     AssessmentSummary,
     ListAssessmentsRequest,
     ListAssessmentsResponse,
 )
-from ..ports import AssessmentRepository
+from kingsec.application.ports import AssessmentRepository
 
 
 class ListAssessments:

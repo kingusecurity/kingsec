@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from kingsec.application.ports.outbound.audit_publisher import AuditPublisher
 from kingsec.application.ports.outbound.schedule_repository import ScheduleRepositoryPort
 from kingsec.domain.audit import AuditAction, AuditEntry
-from kingsec.domain.schedule import ScheduleType, ScanSchedule
+from kingsec.domain.schedule import ScanSchedule, ScheduleType
 
 from .create_schedule import _to_view
 from .schedule_dto import UpdateScheduleRequest, UpdateScheduleResponse

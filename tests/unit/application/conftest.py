@@ -12,8 +12,10 @@ from collections.abc import Sequence
 
 import pytest
 
+# RenderedReport is an APPLICATION DTO (output of ReportGeneratorPort), not domain.
 from kingsec.application import (
     AssessmentNotFoundError,
+    RenderedReport,
     ReportNotFoundError,
 )
 from kingsec.application.ports import (
@@ -23,8 +25,6 @@ from kingsec.application.ports import (
     ReportRepository,
     ScannerPort,
 )
-# RenderedReport is an APPLICATION DTO (output of ReportGeneratorPort), not domain.
-from kingsec.application import RenderedReport
 from kingsec.domain import (
     Assessment,
     AssessmentId,
@@ -34,7 +34,6 @@ from kingsec.domain import (
     Severity,
     Target,
 )
-
 
 # --- fake repositories -------------------------------------------------------
 

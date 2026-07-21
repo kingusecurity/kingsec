@@ -7,10 +7,11 @@ sessions, transactions roll back on error, and the API layer is unaffected.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.orm import Session
+from tests.unit.interfaces.api.helpers import fake_get_current_user
 
 from kingsec.application.errors import IllegalJobTransitionError, JobNotFoundError
 from kingsec.application.jobs import JobStatus, ScanJob
@@ -18,9 +19,7 @@ from kingsec.application.ports.job_service import JobServicePort
 from kingsec.application.services.persistent_job_service import PersistentJobService
 from kingsec.infrastructure.persistence import create_database_engine, create_schema
 from kingsec.infrastructure.persistence.repositories import SQLAlchemyJobRepository
-from tests.unit.interfaces.api.helpers import fake_get_current_user
 from kingsec.infrastructure.persistence.unit_of_work import SQLAlchemyUnitOfWork
-
 
 # ===========================================================================
 # Fixtures
@@ -82,9 +81,9 @@ class TestCreateJob:
         assert str(job.id)
 
     def test_submit_scan_sets_created_at(self, service: PersistentJobService) -> None:
-        before = datetime.now(timezone.utc)
+        before = datetime.now(UTC)
         job = service.submit_scan("example.com")
-        after = datetime.now(timezone.utc)
+        after = datetime.now(UTC)
         assert before <= job.created_at <= after
 
     def test_submit_scan_default_config(self, service: PersistentJobService) -> None:
@@ -207,7 +206,7 @@ class TestFindOldestPending:
 
     def test_returns_oldest_pending(self, service: PersistentJobService) -> None:
         job1 = service.submit_scan("first.com")
-        job2 = service.submit_scan("second.com")
+        service.submit_scan("second.com")
         oldest = service.find_oldest_pending()
         assert oldest is not None
         assert oldest.id == job1.id
@@ -385,6 +384,7 @@ class TestApiIntegration:
 
     def test_jobs_endpoint_returns_jobs(self, api_env) -> None:
         from fastapi.testclient import TestClient
+
         from kingsec.interfaces.api.app import create_app
 
         session, _ = api_env
@@ -401,6 +401,7 @@ class TestApiIntegration:
 
     def test_create_job_via_api(self, api_env) -> None:
         from fastapi.testclient import TestClient
+
         from kingsec.interfaces.api.app import create_app
 
         session, _ = api_env
@@ -417,6 +418,7 @@ class TestApiIntegration:
 
     def test_get_job_via_api(self, api_env) -> None:
         from fastapi.testclient import TestClient
+
         from kingsec.interfaces.api.app import create_app
 
         session, _ = api_env
@@ -433,6 +435,7 @@ class TestApiIntegration:
 
     def test_cancel_job_via_api(self, api_env) -> None:
         from fastapi.testclient import TestClient
+
         from kingsec.interfaces.api.app import create_app
 
         session, _ = api_env

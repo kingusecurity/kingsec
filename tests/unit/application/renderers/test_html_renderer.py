@@ -2,19 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-
-import pytest
-
-from kingsec.application.renderers.html_renderer import HTMLReportRenderer
 
 from tests.unit.application.renderers.test_markdown_renderer import (
     _empty_report,
     _minimal_report,
     _multi_report,
 )
+
+from kingsec.application.renderers.html_renderer import HTMLReportRenderer
 
 _RENDERER = HTMLReportRenderer()
 
@@ -67,16 +65,25 @@ class TestBasicRendering:
         assert "UTC" in html_out
 
     def test_utf8_encoding(self) -> None:
-        from kingsec.application.report import (
-            Appendix, AssetEntry, AssetSummary, AttackPathSection,
-            ExecutiveSummary, FindingEntry, FindingSection,
-            RecommendationEntry, RecommendationSection, Report,
-            RiskSummary, TechnicalSummary,
-        )
         from kingsec.application.attack_path import (
-            AttackGraph, AttackNode, AttackPath,
+            AttackGraph,
+            AttackNode,
+            AttackPath,
         )
-        from kingsec.domain import Severity
+        from kingsec.application.report import (
+            Appendix,
+            AssetEntry,
+            AssetSummary,
+            AttackPathSection,
+            ExecutiveSummary,
+            FindingEntry,
+            FindingSection,
+            RecommendationEntry,
+            RecommendationSection,
+            Report,
+            RiskSummary,
+            TechnicalSummary,
+        )
         es = ExecutiveSummary(
             total_findings=1, total_correlated=1, total_enriched=1,
             total_risk_assessments=1, critical_count=0, high_count=1,
@@ -122,10 +129,10 @@ class TestBasicRendering:
                                  recommendations=("Fix café",))
         recs = RecommendationSection(entries=(re,), total_recommendations=1)
         app = Appendix(scanner_versions={"nuc🚀": "1"}, total_plugins=1,
-                       generated_at=datetime(2026, 7, 17, tzinfo=timezone.utc),
+                       generated_at=datetime(2026, 7, 17, tzinfo=UTC),
                        generated_by="KingSec")
         r = Report(report_id="rpt-u", title="UTF-8 Test",
-                   created_at=datetime(2026, 7, 17, tzinfo=timezone.utc),
+                   created_at=datetime(2026, 7, 17, tzinfo=UTC),
                    executive_summary=es, technical_summary=ts, risk_summary=rs,
                    asset_summary=a_s, finding_section=fs,
                    attack_path_section=aps, recommendation_section=recs,
@@ -144,14 +151,21 @@ class TestBasicRendering:
 
 class TestEscaping:
     def test_html_escaping_in_title(self) -> None:
-        from kingsec.application.report import (
-            Appendix, AssetEntry, AssetSummary, AttackPathSection,
-            ExecutiveSummary, FindingEntry, FindingSection,
-            RecommendationEntry, RecommendationSection, Report,
-            RiskSummary, TechnicalSummary,
-        )
         from kingsec.application.attack_path import (
-            AttackGraph, AttackNode, AttackPath,
+            AttackGraph,
+            AttackNode,
+            AttackPath,
+        )
+        from kingsec.application.report import (
+            Appendix,
+            AssetSummary,
+            AttackPathSection,
+            ExecutiveSummary,
+            FindingSection,
+            RecommendationSection,
+            Report,
+            RiskSummary,
+            TechnicalSummary,
         )
         es = ExecutiveSummary(
             total_findings=0, total_correlated=0, total_enriched=0,
@@ -184,10 +198,10 @@ class TestEscaping:
                                 average_score=0.0, graph=ag)
         recs = RecommendationSection(entries=(), total_recommendations=0)
         app = Appendix(scanner_versions={"<x>": "1"}, total_plugins=1,
-                       generated_at=datetime(2026, 7, 17, tzinfo=timezone.utc),
+                       generated_at=datetime(2026, 7, 17, tzinfo=UTC),
                        generated_by="<script>")
         r = Report(report_id="<rpt>", title="<escape test>",
-                   created_at=datetime(2026, 7, 17, tzinfo=timezone.utc),
+                   created_at=datetime(2026, 7, 17, tzinfo=UTC),
                    executive_summary=es, technical_summary=ts, risk_summary=rs,
                    asset_summary=AssetSummary(entries=(), total_assets=0),
                    finding_section=fs, attack_path_section=aps,

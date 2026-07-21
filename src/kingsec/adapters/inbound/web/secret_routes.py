@@ -4,17 +4,17 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request, status
 
+from kingsec.application.services.configuration_security_service import ConfigurationSecurityService
 from kingsec.application.use_cases.delete_secret import DeleteSecret
 from kingsec.application.use_cases.list_secrets import ListSecrets
 from kingsec.application.use_cases.rotate_secrets import RotateSecrets
-from kingsec.application.use_cases.store_secret import StoreSecret
 from kingsec.application.use_cases.secret_dto import (
     DeleteSecretRequest,
     ListSecretsRequest,
     RotateSecretsRequest,
     StoreSecretRequest,
 )
-from kingsec.application.services.configuration_security_service import ConfigurationSecurityService
+from kingsec.application.use_cases.store_secret import StoreSecret
 from kingsec.bootstrap.application import Application
 
 from .auth import require_admin

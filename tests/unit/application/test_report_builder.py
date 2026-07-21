@@ -2,22 +2,24 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 from kingsec.application.attack_path import (
-    AttackEdge, AttackGraph, AttackNode, AttackPath,
+    AttackEdge,
+    AttackGraph,
+    AttackNode,
+    AttackPath,
 )
 from kingsec.application.correlation import CorrelatedFinding
 from kingsec.application.enrichment import EnrichedFinding
 from kingsec.application.normalization import NormalizedFinding
-from kingsec.application.risk import RiskAssessment, RiskFactor
 from kingsec.application.report import (
-    AssetSummary, FindingEntry, FindingSection,
-    RecommendationSection, Report,
+    Report,
 )
 from kingsec.application.report_builder import ReportBuilder
+from kingsec.application.risk import RiskAssessment, RiskFactor
 from kingsec.domain import Evidence, Recommendation, Severity
 
 # ---------------------------------------------------------------------------
@@ -25,7 +27,7 @@ from kingsec.domain import Evidence, Recommendation, Severity
 # ---------------------------------------------------------------------------
 
 _BUILDER = ReportBuilder()
-_NOW = datetime(2026, 7, 17, tzinfo=timezone.utc)
+_NOW = datetime(2026, 7, 17, tzinfo=UTC)
 
 
 def _make_evidence(text: str = "evidence text") -> Evidence:
@@ -751,7 +753,7 @@ class TestFindingSection:
 
 class TestAttackPathSection:
     def test_passes_attack_graph(self) -> None:
-        nfs, cfs, efs, ras, ag = _make_pipeline_single()
+        nfs, cfs, efs, ras, _ag = _make_pipeline_single()
         ag2 = _make_attack_graph(highest_score=75)
         report = _BUILDER.build(nfs, cfs, efs, ras, ag2)
         assert report.attack_path_section.total_paths == 1
@@ -914,7 +916,7 @@ class TestDeterministicOrdering:
                          average_score=71.0, metadata={})
         r1 = _BUILDER.build(nfs, cfs, efs, ras, ag)
         r2 = _BUILDER.build(nfs, cfs, efs, ras, ag)
-        for e1, e2 in zip(r1.finding_section.entries, r2.finding_section.entries):
+        for e1, e2 in zip(r1.finding_section.entries, r2.finding_section.entries, strict=False):
             assert e1.correlation_id == e2.correlation_id
 
 

@@ -45,7 +45,7 @@ class AmassPlugin(ScannerPluginPort):
         settings: AmassSettings,
         runner: CommandRunner | None = None,
     ) -> None:
-        from ...amass import AmassScannerAdapter
+        from kingsec.infrastructure.scanner.amass import AmassScannerAdapter
 
         self._adapter: AmassScannerAdapter = AmassScannerAdapter(settings, runner=runner)
         self._settings = settings

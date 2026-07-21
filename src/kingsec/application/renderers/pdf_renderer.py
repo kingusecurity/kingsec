@@ -392,7 +392,7 @@ class PDFReportRenderer:
             ["Informational", str(es.informational_count)],
         ]
         sev_table = Table(
-            [["Severity", "Count"]] + sev_data,
+            [["Severity", "Count"], *sev_data],
             colWidths=[8 * cm, 4 * cm],
             repeatRows=1,
             hAlign="LEFT",
@@ -425,7 +425,7 @@ class PDFReportRenderer:
             ["Total Severe (Critical + High)", str(es.total_severe)],
         ]
         metrics_table = Table(
-            [["Metric", "Value"]] + metrics_data,
+            [["Metric", "Value"], *metrics_data],
             colWidths=[8 * cm, 4 * cm],
             repeatRows=1,
             hAlign="LEFT",
@@ -462,7 +462,7 @@ class PDFReportRenderer:
             ["Lowest Score", str(rs.lowest_score)],
         ]
         score_table = Table(
-            [["Metric", "Value"]] + score_data,
+            [["Metric", "Value"], *score_data],
             colWidths=[8 * cm, 4 * cm],
             repeatRows=1,
             hAlign="LEFT",
@@ -489,7 +489,7 @@ class PDFReportRenderer:
             for label, count in sorted(dist.items(), key=lambda x: -x[1]):
                 dist_data.append([label, str(count)])
             dist_table = Table(
-                [["Category", "Count"]] + dist_data,
+                [["Category", "Count"], *dist_data],
                 colWidths=[8 * cm, 4 * cm],
                 repeatRows=1,
                 hAlign="LEFT",
@@ -534,8 +534,6 @@ class PDFReportRenderer:
         headers = ["ID", "Title", "Severity", "Score", "Assets"]
         col_widths = [2 * cm, 5.5 * cm, 2.2 * cm, 1.8 * cm, 4.5 * cm]
 
-        seen_assets: dict[str, str] = {}
-        asset_counter = 0
         rows: list[list[str]] = []
         for fe in fs.entries:
             assets_str = ", ".join(fe.affected_assets) if fe.affected_assets else "—"
@@ -575,7 +573,7 @@ class PDFReportRenderer:
             ["Average Score", f"{aps.average_score:.1f}"],
         ]
         m_table = Table(
-            [["Metric", "Value"]] + metrics_data,
+            [["Metric", "Value"], *metrics_data],
             colWidths=[8 * cm, 4 * cm],
             repeatRows=1,
             hAlign="LEFT",
@@ -609,7 +607,7 @@ class PDFReportRenderer:
                 ["Likelihood", path.likelihood],
             ]
             pm_table = Table(
-                [["Attribute", "Value"]] + path_metrics,
+                [["Attribute", "Value"], *path_metrics],
                 colWidths=[4 * cm, 8 * cm],
                 repeatRows=1,
                 hAlign="LEFT",
@@ -757,7 +755,7 @@ class PDFReportRenderer:
                 scanner_data.append([name, ver_str])
 
             s_table = Table(
-                [["Scanner", "Version"]] + scanner_data,
+                [["Scanner", "Version"], *scanner_data],
                 colWidths=[6 * cm, 6 * cm],
                 repeatRows=1,
                 hAlign="LEFT",

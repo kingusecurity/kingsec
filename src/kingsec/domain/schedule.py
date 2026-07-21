@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 
-class ScheduleType(str, Enum):
+class ScheduleType(StrEnum):
     ONE_TIME = "one_time"
     HOURLY = "hourly"
     DAILY = "daily"
@@ -15,7 +15,7 @@ class ScheduleType(str, Enum):
     CRON = "cron"
 
 
-class ScheduleStatus(str, Enum):
+class ScheduleStatus(StrEnum):
     ACTIVE = "active"
     PAUSED = "paused"
     DISABLED = "disabled"
@@ -23,7 +23,7 @@ class ScheduleStatus(str, Enum):
     FAILED = "failed"
 
 
-class RetryStrategy(str, Enum):
+class RetryStrategy(StrEnum):
     NO_RETRY = "no_retry"
     FIXED = "fixed"
 

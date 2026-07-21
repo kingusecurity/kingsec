@@ -18,11 +18,10 @@ Security considerations:
 
 from __future__ import annotations
 
+from kingsec.application.dto import ChangePasswordRequest
+from kingsec.application.errors import ApplicationError
+from kingsec.application.ports import AuditPublisher, PasswordHasher, UserRepository
 from kingsec.domain.audit import AuditAction, AuditEntry
-
-from ..dto import ChangePasswordRequest
-from ..errors import ApplicationError
-from ..ports import AuditPublisher, PasswordHasher, UserRepository
 
 
 class ChangePassword:

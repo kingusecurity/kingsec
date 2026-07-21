@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import io
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -52,7 +52,7 @@ def _weasyprint_available() -> bool:
         from weasyprint import HTML
         HTML(string="<p>test</p>").write_pdf()
         return True
-    except Exception:  # noqa: BLE001
+    except Exception:
         return False
 
 
@@ -64,7 +64,7 @@ needs_weasyprint = pytest.mark.skipif(
 
 def _report() -> Report:
     a = Assessment.create(Target("10.0.0.5", TargetType.IP_ADDRESS))
-    a.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=timezone.utc), scope="s"))
+    a.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=UTC), scope="s"))
     a.start()
     a.record_finding(Finding.create("SQLi", "x", Severity.CRITICAL))
     a.complete()

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from kingsec.application.ports.agent_service import AgentServicePort
 from kingsec.bootstrap.application import Application
+from kingsec.domain import Role
 from kingsec.domain.agent import (
     AgentArchitecture,
     AgentCapability,
@@ -14,8 +15,6 @@ from kingsec.domain.agent import (
     AgentRegistration,
     AgentState,
 )
-
-from kingsec.domain import Role
 
 from .auth import CurrentUser, get_current_user
 from .dependencies import get_application

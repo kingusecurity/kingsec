@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
-from kingsec.application.auth import AuthorizationService, Permission, ROLE_PERMISSIONS
+from kingsec.application.auth import ROLE_PERMISSIONS, AuthorizationService, Permission
 from kingsec.domain import Role
 
 
@@ -61,7 +59,7 @@ class TestAuthorizationService:
         assert self.authz.has_permission(Role.VIEWER, Permission.READ_HEALTH)
 
     def test_unknown_role_has_no_permissions(self) -> None:
-        from kingsec.application.auth.permissions import Permission, ROLE_PERMISSIONS
+        from kingsec.application.auth.permissions import ROLE_PERMISSIONS, Permission
         assert Permission.CREATE_SCAN not in ROLE_PERMISSIONS.get(None, frozenset())  # type: ignore[arg-type]
 
     # ── has_any_role ───────────────────────────────────────────────────

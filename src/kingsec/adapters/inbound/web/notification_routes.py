@@ -61,9 +61,10 @@ async def send_notification(
     user: CurrentUser = Depends(require_viewer),
 ) -> dict:
     service = _get_service(request)
-    from kingsec.domain.notification import Notification, NotificationStatus
     from datetime import UTC, datetime
     from uuid import uuid4
+
+    from kingsec.domain.notification import Notification, NotificationStatus
     now = datetime.now(UTC).isoformat()
     notification = Notification(
         id=NotificationId(str(uuid4())),
@@ -91,9 +92,10 @@ async def send_bulk(
     user: CurrentUser = Depends(require_admin),
 ) -> dict:
     service = _get_service(request)
-    from kingsec.domain.notification import Notification, NotificationStatus
     from datetime import UTC, datetime
     from uuid import uuid4
+
+    from kingsec.domain.notification import Notification, NotificationStatus
     now = datetime.now(UTC).isoformat()
     items = body.get("notifications", [])
     notifications = []

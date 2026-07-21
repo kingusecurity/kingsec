@@ -13,11 +13,9 @@ from __future__ import annotations
 
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
-import pytest
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, inspect
 
 # Project root — three levels up from this test file (tests/integration/).
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -36,7 +34,6 @@ def _run_alembic(*args: str, database_url: str | None = None) -> subprocess.Comp
     Raises:
         subprocess.CalledProcessError: If the Alembic command exits non-zero.
     """
-
     import os
 
     env = os.environ.copy()
@@ -55,7 +52,6 @@ def _run_alembic(*args: str, database_url: str | None = None) -> subprocess.Comp
 
 def _get_tables(database_url: str) -> set[str]:
     """Return the set of table names in the given database."""
-
     engine = create_engine(database_url, future=True)
     try:
         inspector = inspect(engine)
@@ -66,7 +62,6 @@ def _get_tables(database_url: str) -> set[str]:
 
 def _get_indexes(database_url: str, table_name: str) -> dict[str, bool]:
     """Return index info for a table: {name: is_unique}."""
-
     engine = create_engine(database_url, future=True)
     try:
         inspector = inspect(engine)
@@ -107,7 +102,6 @@ class TestMigrationUpgrade:
 
     def test_upgrade_creates_all_tables(self, tmp_path: Path) -> None:
         """Upgrade head must create every expected table."""
-
         db_path = tmp_path / "test.db"
         db_url = f"sqlite:///{db_path}"
 
@@ -119,7 +113,6 @@ class TestMigrationUpgrade:
 
     def test_upgrade_is_idempotent(self, tmp_path: Path) -> None:
         """Running upgrade head twice must not fail."""
-
         db_path = tmp_path / "test.db"
         db_url = f"sqlite:///{db_path}"
 
@@ -131,7 +124,6 @@ class TestMigrationUpgrade:
 
     def test_upgrade_creates_expected_indexes(self, tmp_path: Path) -> None:
         """Tables must have their expected indexes after upgrade."""
-
         db_path = tmp_path / "test.db"
         db_url = f"sqlite:///{db_path}"
 
@@ -154,7 +146,6 @@ class TestMigrationDowngrade:
 
     def test_downgrade_removes_all_tables(self, tmp_path: Path) -> None:
         """Downgrade base must drop every table."""
-
         db_path = tmp_path / "test.db"
         db_url = f"sqlite:///{db_path}"
 
@@ -176,7 +167,6 @@ class TestMigrationRoundTrip:
 
     def test_upgrade_downgrade_upgrade_cycle(self, tmp_path: Path) -> None:
         """Full round-trip must succeed and produce the expected schema."""
-
         db_path = tmp_path / "test.db"
         db_url = f"sqlite:///{db_path}"
 
@@ -204,7 +194,6 @@ class TestMigrationAutogenerate:
 
     def test_autogenerate_on_clean_state_produces_no_changes(self, tmp_path: Path) -> None:
         """After upgrade, autogenerate should detect no new changes."""
-
         db_path = tmp_path / "test.db"
         db_url = f"sqlite:///{db_path}"
 
@@ -228,7 +217,6 @@ class TestMigrationMetadata:
 
     def test_metadata_has_all_tables(self) -> None:
         """The metadata imported by env.py must know about every ORM table."""
-
         import importlib.util
 
         models_path = (
@@ -241,7 +229,7 @@ class TestMigrationMetadata:
         spec.loader.exec_module(module)
 
         table_names = set(module.Base.metadata.tables.keys())
-        assert EXPECTED_TABLES == table_names, (
+        assert table_names == EXPECTED_TABLES, (
             f"Metadata tables mismatch.\n"
             f"  Missing from metadata: {EXPECTED_TABLES - table_names}\n"
             f"  Extra in metadata:     {table_names - EXPECTED_TABLES}"

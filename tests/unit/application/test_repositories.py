@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import inspect
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -11,8 +11,7 @@ from kingsec.application.ports.repositories import (
     JobRepositoryPort,
     ScanRepositoryPort,
 )
-from kingsec.domain import ScannerResult, Target, TargetType, ScannerId
-
+from kingsec.domain import ScannerResult, Target, TargetType
 
 # ===========================================================================
 # Asset dataclass
@@ -24,7 +23,7 @@ class TestAssetDataclass:
         asset = Asset(
             id="asset-1",
             target=Target("10.0.0.1", TargetType.IP_ADDRESS),
-            discovered_at=datetime.now(timezone.utc),
+            discovered_at=datetime.now(UTC),
         )
         with pytest.raises(AttributeError):
             asset.id = "changed"  # type: ignore[misc]
@@ -33,7 +32,7 @@ class TestAssetDataclass:
         asset = Asset(
             id="asset-1",
             target=Target("example.com", TargetType.HOSTNAME),
-            discovered_at=datetime.now(timezone.utc),
+            discovered_at=datetime.now(UTC),
         )
         assert asset.tags == frozenset()
 
@@ -41,7 +40,7 @@ class TestAssetDataclass:
         asset = Asset(
             id="asset-1",
             target=Target("10.0.0.1", TargetType.IP_ADDRESS),
-            discovered_at=datetime.now(timezone.utc),
+            discovered_at=datetime.now(UTC),
             tags=frozenset({"production", "web"}),
         )
         assert "production" in asset.tags
@@ -207,17 +206,17 @@ class TestAssetRepositoryPortSignatures:
 
 class TestExports:
     def test_scan_repository_port_exported(self) -> None:
-        from kingsec.application.ports import ScanRepositoryPort  # noqa: F811
+        from kingsec.application.ports import ScanRepositoryPort
         assert ScanRepositoryPort is not None
 
     def test_job_repository_port_exported(self) -> None:
-        from kingsec.application.ports import JobRepositoryPort  # noqa: F811
+        from kingsec.application.ports import JobRepositoryPort
         assert JobRepositoryPort is not None
 
     def test_asset_repository_port_exported(self) -> None:
-        from kingsec.application.ports import AssetRepositoryPort  # noqa: F811
+        from kingsec.application.ports import AssetRepositoryPort
         assert AssetRepositoryPort is not None
 
     def test_asset_dataclass_exported(self) -> None:
-        from kingsec.application.ports.repositories import Asset  # noqa: F811
+        from kingsec.application.ports.repositories import Asset
         assert Asset is not None

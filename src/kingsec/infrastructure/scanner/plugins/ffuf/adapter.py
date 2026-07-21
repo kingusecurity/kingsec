@@ -45,7 +45,7 @@ class FfufPlugin(ScannerPluginPort):
         settings: FfufSettings,
         runner: CommandRunner | None = None,
     ) -> None:
-        from ...ffuf import FfufScannerAdapter
+        from kingsec.infrastructure.scanner.ffuf import FfufScannerAdapter
 
         self._adapter: FfufScannerAdapter = FfufScannerAdapter(settings, runner=runner)
         self._settings = settings

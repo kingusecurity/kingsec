@@ -11,8 +11,8 @@ from kingsec.application.dto import (
     RotateApiKeyRequest,
     ValidateApiKeyRequest,
 )
-from kingsec.application.ports import ApiKeyHasher, ApiKeyRepository
 from kingsec.application.errors import ApplicationError
+from kingsec.application.ports import ApiKeyHasher, ApiKeyRepository
 from kingsec.application.use_cases.create_api_key import ApiKeyError, CreateApiKey
 from kingsec.application.use_cases.list_api_keys import ListApiKeys
 from kingsec.application.use_cases.revoke_api_key import (
@@ -23,7 +23,6 @@ from kingsec.application.use_cases.revoke_api_key import (
 from kingsec.application.use_cases.rotate_api_key import RotateApiKey
 from kingsec.application.use_cases.validate_api_key import ValidateApiKey
 from kingsec.domain.api_key import ApiKey, ApiKeyScope, ApiKeyStatus
-
 
 # ── Stubs ──────────────────────────────────────────────────────────────────────
 

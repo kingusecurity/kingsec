@@ -5,8 +5,6 @@ Exercises every ScanRepositoryPort method against a real SQLite database.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 import pytest
 from sqlalchemy.orm import Session
 
@@ -24,7 +22,6 @@ from kingsec.infrastructure.persistence import (
 from kingsec.infrastructure.persistence.repositories import (
     SQLAlchemyScanRepository,
 )
-
 
 # ===========================================================================
 # Fixtures

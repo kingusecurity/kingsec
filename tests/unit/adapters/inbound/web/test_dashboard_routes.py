@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+
 from kingsec.application.ports import TokenClaims
 from kingsec.domain import Role
 from kingsec.domain.dashboard import (

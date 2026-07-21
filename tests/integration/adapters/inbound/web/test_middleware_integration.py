@@ -6,15 +6,12 @@ correlation ID, rate limiting, request logging.
 
 from __future__ import annotations
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from kingsec.infrastructure.config.models import (
-    CORSSettings,
     RateLimitSettings,
     SecurityHeadersSettings,
-    MiddlewareSettings,
 )
 from kingsec.infrastructure.middleware import (
     CorrelationIDMiddleware,

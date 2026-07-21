@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-import json
-import os
-import tempfile
-from pathlib import Path
-
 import pytest
-from fastapi import FastAPI, Depends
+from cryptography.fernet import Fernet
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from kingsec.adapters.inbound.web.auth import get_current_user, CurrentUser
+from kingsec.adapters.inbound.web.auth import CurrentUser, get_current_user
 from kingsec.adapters.inbound.web.error_handlers import register_error_handlers
 from kingsec.application.ports.outbound.encryption_service import EncryptionServicePort
 from kingsec.application.ports.outbound.secret_provider import SecretProviderPort
@@ -25,14 +21,12 @@ from kingsec.application.use_cases.store_secret import StoreSecret
 from kingsec.bootstrap.application import Application
 from kingsec.bootstrap.container import Container
 from kingsec.domain import Role
-from kingsec.infrastructure.config import Settings, load_settings
-from cryptography.fernet import Fernet
-
+from kingsec.infrastructure.config import load_settings
 from kingsec.infrastructure.secrets.fernet_encryption_service import (
     FernetEncryptionService,
 )
 
-from .test_session_api import FakeTokenService, TokenClaims
+from .test_session_api import TokenClaims
 
 _TEST_FERNET_KEY = Fernet.generate_key()
 

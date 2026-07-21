@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import secrets
 
+from kingsec.application.dto import RotateApiKeyRequest, RotateApiKeyResponse
+from kingsec.application.ports import ApiKeyHasher, ApiKeyRepository
 from kingsec.domain.api_key import ApiKeyStatus
-
-from ..dto import RotateApiKeyRequest, RotateApiKeyResponse
-from ..ports import ApiKeyHasher, ApiKeyRepository
 
 from .revoke_api_key import ApiKeyNotFoundError, ApiKeyUnauthorizedError
 

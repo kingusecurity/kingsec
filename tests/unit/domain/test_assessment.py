@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from tests.unit.domain.conftest import make_finding
 
 from kingsec.domain import (
     Assessment,
@@ -12,7 +13,6 @@ from kingsec.domain import (
     InvariantViolation,
     Severity,
 )
-from tests.unit.domain.conftest import make_finding
 
 
 class TestAuthorizationGate:

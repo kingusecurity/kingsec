@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -16,6 +16,7 @@ from kingsec.application.attack_path import (
     AttackNode,
     AttackPath,
 )
+from kingsec.application.renderers.csv_renderer import _HEADERS, CsvReportRenderer
 from kingsec.application.report import (
     Appendix,
     AssetEntry,
@@ -30,14 +31,13 @@ from kingsec.application.report import (
     RiskSummary,
     TechnicalSummary,
 )
-from kingsec.application.renderers.csv_renderer import CsvReportRenderer, _HEADERS
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 _RENDERER = CsvReportRenderer()
-_NOW = datetime(2026, 7, 17, tzinfo=timezone.utc)
+_NOW = datetime(2026, 7, 17, tzinfo=UTC)
 _COLUMN_COUNT = len(_HEADERS)
 
 

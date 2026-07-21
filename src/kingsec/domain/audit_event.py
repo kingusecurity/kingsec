@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 
-class AuditAction(str, Enum):
+class AuditAction(StrEnum):
     """Every auditable action in KingSec (enterprise enumeration)."""
 
     LOGIN_SUCCESS = "login_success"
@@ -67,7 +67,7 @@ class AuditAction(str, Enum):
     AGENT_JOB_FAILED = "agent_job_failed"
 
 
-class AuditSeverity(str, Enum):
+class AuditSeverity(StrEnum):
     """Severity level of an audit event."""
 
     INFO = "info"
@@ -76,7 +76,7 @@ class AuditSeverity(str, Enum):
     CRITICAL = "critical"
 
 
-class AuditOutcome(str, Enum):
+class AuditOutcome(StrEnum):
     """Outcome of an auditable action."""
 
     SUCCESS = "success"

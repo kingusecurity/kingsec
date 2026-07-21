@@ -73,10 +73,10 @@ class InProcessScheduler(SchedulerServicePort):
         from zoneinfo import ZoneInfo
 
         try:
-            tz = ZoneInfo(timezone)
+            ZoneInfo(timezone)
         except Exception:
             # Fall back to UTC for unknown/invalid timezone strings.
-            tz = UTC
+            pass
 
         base = datetime.fromisoformat(after) if after else datetime.now(UTC)
         base_utc = base.astimezone(UTC).replace(tzinfo=None)
@@ -122,7 +122,7 @@ class InProcessScheduler(SchedulerServicePort):
 
         for schedule in due:
             try:
-                job = self._job_service.submit_scan(
+                self._job_service.submit_scan(
                     target=schedule.target,
                     config={
                         "schedule_id": str(schedule.id),

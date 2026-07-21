@@ -1,18 +1,16 @@
 from __future__ import annotations
 
-import sys
-
 import pytest
-from fastapi import FastAPI, Depends
+from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
 from kingsec.adapters.inbound.web.error_handlers import register_error_handlers
+from kingsec.adapters.inbound.web.rate_limit_deps import require_rate_limit
 from kingsec.application.ports.outbound.clock_port import ClockPort
 from kingsec.application.ports.outbound.lockout_repository import LockoutRepository
 from kingsec.application.ports.outbound.rate_limiter import RateLimiterPort
 from kingsec.application.use_cases.check_account_lockout import CheckAccountLockout
 from kingsec.application.use_cases.check_rate_limit import CheckRateLimit
-from kingsec.application.use_cases.rate_limit_dto import CheckRateLimitRequest
 from kingsec.application.use_cases.record_failed_authentication import (
     RecordFailedAuthentication,
 )
@@ -31,7 +29,6 @@ from kingsec.infrastructure.rate_limit.in_memory_rate_limiter import (
     InMemoryRateLimiter,
 )
 from kingsec.infrastructure.rate_limit.system_clock import SystemClock
-from kingsec.adapters.inbound.web.rate_limit_deps import require_rate_limit
 
 
 @pytest.fixture

@@ -4,11 +4,8 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
 from kingsec.domain import Severity
 from kingsec.infrastructure.scanner.trivy_parser import parse_trivy_json
-
 
 # ---------------------------------------------------------------------------
 # Fixtures: sample Trivy JSON outputs

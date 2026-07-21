@@ -164,7 +164,7 @@ class MarkNotificationRead:
                     success=True,
                 )
             )
-        now = datetime.now(UTC).isoformat()
+        datetime.now(UTC).isoformat()
         return _with_status(notification, NotificationStatus.READ)
 
 
@@ -207,8 +207,8 @@ class RetryFailedNotifications:
             return notification
         if notification.retry_count >= notification.max_retries:
             return notification
-        now = datetime.now(UTC).isoformat()
-        retry_count = notification.retry_count + 1
+        datetime.now(UTC).isoformat()
+        notification.retry_count + 1
         error = self._sender.send(notification)
         if error:
             notification = _with_status(notification, NotificationStatus.FAILED, error)

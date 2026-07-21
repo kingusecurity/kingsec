@@ -31,6 +31,9 @@ if TYPE_CHECKING:
     from kingsec.infrastructure.config import Settings
 
 # ── Application layer ──────────────────────────────────────────────────────
+# ── API ────────────────────────────────────────────────────────────────────
+from collections.abc import Callable
+
 from kingsec.application import ReportGenerationResult, ReportServicePort
 from kingsec.application.dto import RenderedReport
 from kingsec.application.executive_summary import ExecutiveSummaryGenerator
@@ -83,10 +86,6 @@ from kingsec.infrastructure.scanner import (
     TrivyPlugin,
     ZapPlugin,
 )
-
-# ── API ────────────────────────────────────────────────────────────────────
-from collections.abc import Callable
-
 from kingsec.interfaces.api.app import create_app
 
 # ============================================================================

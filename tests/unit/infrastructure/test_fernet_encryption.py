@@ -8,7 +8,6 @@ from kingsec.infrastructure.secrets.fernet_encryption_service import (
     FernetEncryptionService,
 )
 
-
 _KEY = Fernet.generate_key()
 
 

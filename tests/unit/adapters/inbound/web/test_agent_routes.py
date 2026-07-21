@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+
 from kingsec.application.ports.agent_service import AgentServicePort
 from kingsec.domain import Role
 from kingsec.domain.agent import (

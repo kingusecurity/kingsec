@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from fastapi import Depends, HTTPException, Request, status
 
-from kingsec.application.use_cases.validate_session import ValidateSession
 from kingsec.application.use_cases.session_dto import ValidateSessionRequest
+from kingsec.application.use_cases.validate_session import ValidateSession
 from kingsec.bootstrap.application import Application
 
 from .auth import CurrentUser, get_current_user

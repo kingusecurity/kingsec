@@ -12,7 +12,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
 
-from ..dto import RenderedReport
+from kingsec.application.dto import RenderedReport
 
 
 @dataclass(frozen=True)

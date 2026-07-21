@@ -15,7 +15,6 @@ from kingsec.infrastructure.config.models import LoggingSettings
 from kingsec.infrastructure.logging import configure_logging
 from kingsec.infrastructure.scanner.runner import CommandResult
 
-
 _SAMPLE_JSONL = (
     '{"template-id":"CVE-2021-1","info":{"name":"Critical RCE",'
     '"severity":"critical","description":"remote code execution",'
