@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, cast
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from kingsec.application.errors import QueueEntryNotFoundError
@@ -17,7 +19,7 @@ ADMIN_ONLY = Role.ADMIN
 
 def _get_service(request: Request) -> QueueServicePort:
     app: Application = get_application(request)
-    return app.resolve(QueueServicePort)
+    return cast(QueueServicePort, app.resolve(QueueServicePort))
 
 
 def _require_admin(user: CurrentUser) -> None:
@@ -28,9 +30,9 @@ def _require_admin(user: CurrentUser) -> None:
 @router.post("/entry")
 async def enqueue(
     request: Request,
-    body: dict,
+    body: dict[str, Any],
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -61,7 +63,7 @@ async def get_entry(
     entry_id: str,
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -89,7 +91,7 @@ async def cancel_entry(
     entry_id: str,
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -103,9 +105,9 @@ async def cancel_entry(
 async def change_priority(
     entry_id: str,
     request: Request,
-    body: dict,
+    body: dict[str, Any],
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -123,9 +125,9 @@ async def change_priority(
 async def move_entry(
     entry_id: str,
     request: Request,
-    body: dict,
+    body: dict[str, Any],
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -144,7 +146,7 @@ async def assign_agent(
     entry_id: str,
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -160,7 +162,7 @@ async def assign_agent(
 async def list_queue(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     entries = service.list_queue()
     return {
@@ -187,7 +189,7 @@ async def list_queue(
 async def get_statistics(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     stats = service.get_statistics()
     return {
@@ -211,7 +213,7 @@ async def get_statistics(
 async def pause_queue(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     service.pause()
@@ -222,7 +224,7 @@ async def pause_queue(
 async def resume_queue(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     service.resume()
@@ -233,7 +235,7 @@ async def resume_queue(
 async def get_next_job(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     entry = service.get_next()

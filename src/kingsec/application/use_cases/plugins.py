@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from kingsec.application.ports.outbound import (
     PluginInstallerPort,
     PluginMarketplacePort,
@@ -155,7 +157,7 @@ class ValidatePlugin:
     def __init__(self, validator: PluginValidatorPort) -> None:
         self._validator = validator
 
-    def execute(self, package_path: str) -> dict:
+    def execute(self, package_path: str) -> dict[str, Any]:
         from kingsec.application.errors import PluginValidationError
         errors: list[str] = []
         import json
@@ -225,7 +227,7 @@ class CheckPluginUpdates:
         self._repo = repo
         self._marketplace = marketplace
 
-    def execute(self, plugin_id: str) -> list[dict]:
+    def execute(self, plugin_id: str) -> list[dict[str, Any]]:
         plugin = self._repo.find_by_id(plugin_id)
         if not plugin:
             from kingsec.application.errors import PluginNotFoundError

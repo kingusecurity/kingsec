@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from kingsec.application.jobs import ScanJob, ScanJobResult
@@ -16,7 +16,7 @@ class JobServicePort(ABC):
     """
 
     @abstractmethod
-    def submit_scan(self, target: str, config: dict | None = None) -> ScanJob:
+    def submit_scan(self, target: str, config: dict[str, Any] | None = None) -> ScanJob:
         """Create a new scan job in PENDING state.
 
         Args:

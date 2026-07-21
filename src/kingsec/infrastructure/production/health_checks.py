@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from kingsec.domain.system_health import HealthCheck, HealthStatus
 
@@ -32,7 +33,7 @@ class FilesystemHealthCheck:
 
 
 class DatabaseHealthCheck:
-    def __init__(self, session_factory=None) -> None:
+    def __init__(self, session_factory: Any = None) -> None:
         self._session_factory = session_factory
 
     def check(self) -> HealthCheck:

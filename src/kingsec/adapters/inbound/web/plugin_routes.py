@@ -2,23 +2,25 @@ from __future__ import annotations
 
 import os
 import tempfile
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 
 from kingsec.application.ports.plugin_service import PluginServicePort
 from kingsec.bootstrap.application import Application
+from kingsec.domain import Role
 
 from .auth import CurrentUser, get_current_user
 from .dependencies import get_application
 
 router = APIRouter(prefix="/api/v1/plugins", tags=["plugins"])
 
-ADMIN_ONLY = "admin"
+ADMIN_ONLY = Role.ADMIN
 
 
 def _get_service(request: Request) -> PluginServicePort:
     app: Application = get_application(request)
-    return app.resolve(PluginServicePort)
+    return cast(PluginServicePort, app.resolve(PluginServicePort))
 
 
 def _require_admin(user: CurrentUser) -> None:
@@ -43,7 +45,7 @@ async def _save_upload(file: UploadFile) -> str:
 async def list_plugins(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     plugins = service.list_plugins()
     return {
@@ -67,7 +69,7 @@ async def check_updates(
     request: Request,
     plugin_id: str,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     updates = service.check_updates(plugin_id)
@@ -79,7 +81,7 @@ async def get_plugin(
     plugin_id: str,
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     plugin = service.get_plugin(plugin_id)
     if not plugin:
@@ -110,7 +112,7 @@ async def install_plugin(
     request: Request,
     file: UploadFile,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     path = await _save_upload(file)
@@ -139,7 +141,7 @@ async def uninstall_plugin(
     request: Request,
     plugin_id: str,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -154,7 +156,7 @@ async def enable_plugin(
     request: Request,
     plugin_id: str,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -172,7 +174,7 @@ async def disable_plugin(
     request: Request,
     plugin_id: str,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -191,7 +193,7 @@ async def update_plugin(
     plugin_id: str,
     file: UploadFile,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     path = await _save_upload(file)
@@ -219,7 +221,7 @@ async def rollback_plugin(
     request: Request,
     plugin_id: str,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -228,7 +230,7 @@ async def rollback_plugin(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return {
         "message": f"Plugin '{plugin_id}' rolled back",
-        "plugin": {"id": plugin.id, "status": plugin.status.value if plugin else "rolled_back"},
+        "plugin": {"id": plugin.id if plugin else plugin_id, "status": plugin.status.value if plugin else "rolled_back"},
     }
 
 
@@ -237,7 +239,7 @@ async def validate_plugin(
     request: Request,
     file: UploadFile,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     path = await _save_upload(file)
@@ -258,7 +260,7 @@ async def import_plugin(
     request: Request,
     file: UploadFile,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     path = await _save_upload(file)
@@ -287,7 +289,7 @@ async def export_plugin(
     plugin_id: str,
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     data = service.export_plugin(plugin_id)

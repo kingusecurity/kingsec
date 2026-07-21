@@ -46,7 +46,9 @@ from .errors import (
     ApplicationError,
     AssessmentNotFoundError,
     BackupNotFoundError,
+    IllegalJobTransitionError,
     InputValidationError,
+    JobNotFoundError,
     PipelineNotFoundError,
     PipelineStateConflictError,
     ReportNotFoundError,
@@ -71,9 +73,7 @@ from .events import (
 )
 from .job import JobId
 from .jobs import (
-    IllegalJobTransitionError,
     InMemoryJobService,
-    JobNotFoundError,
     JobStatus,
     ScanJob,
     ScanJobResult,

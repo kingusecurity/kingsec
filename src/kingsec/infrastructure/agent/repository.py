@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from kingsec.application.ports.outbound import AgentRepositoryPort
 from kingsec.domain.agent import Agent, AgentId, AgentState
 
@@ -34,7 +36,7 @@ class InMemoryAgentRepository(AgentRepositoryPort):
 
 
 class SQLAlchemyAgentRepository(AgentRepositoryPort):
-    def __init__(self, session_factory) -> None:
+    def __init__(self, session_factory: Any) -> None:
         self._session_factory = session_factory
 
     def register(self, agent: Agent) -> None:
@@ -122,7 +124,7 @@ class SQLAlchemyAgentRepository(AgentRepositoryPort):
             ).fetchall()
             return [self._row_to_agent(r._mapping) for r in rows]
 
-    def _row_to_agent(self, row) -> Agent:
+    def _row_to_agent(self, row: Any) -> Agent:
         from kingsec.domain.agent import (
             AgentArchitecture,
             AgentCapability,

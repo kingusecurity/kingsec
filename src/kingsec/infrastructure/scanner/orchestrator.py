@@ -12,6 +12,7 @@ by the registry and flattens their results into the ``ScannerPort`` contract.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import cast
 
 from kingsec.application.errors import ScannerPluginError
 from kingsec.application.ports.scanner_executor import ScannerExecutor
@@ -45,7 +46,7 @@ class ScannerOrchestrator(ScannerPort, ScannerExecutor):
 
     def execute(
         self,
-        plugin: ScannerPluginPort,
+        plugin: object,
         target: Target,
         config: PluginConfig,
     ) -> ScannerResult:
@@ -59,13 +60,15 @@ class ScannerOrchestrator(ScannerPort, ScannerExecutor):
         is wrapped in ``ScannerPluginError`` with chaining.
         """
         try:
-            plugin.health_check()
-            return plugin.scan(target, config)
+            p = cast(ScannerPluginPort, plugin)
+            p.health_check()
+            return p.scan(target, config)
         except ScannerPluginError:
             raise
         except Exception as exc:
+            p2 = cast(ScannerPluginPort, plugin)
             raise ScannerPluginError(
-                f"unexpected error in plugin {plugin.metadata().id.value!r}: {exc}"
+                f"unexpected error in plugin {p2.metadata().id.value!r}: {exc}"
             ) from exc
 
     def execute_all(

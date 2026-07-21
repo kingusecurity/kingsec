@@ -8,7 +8,7 @@ how sessions are produced, and how the schema is created. Repositories receive a
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
@@ -22,7 +22,7 @@ if TYPE_CHECKING:  # import for typing only; no runtime coupling to config inter
 _DATABASE_FILENAME = "kingsec.db"
 
 
-def _enable_sqlite_foreign_keys(dbapi_connection, _connection_record) -> None:
+def _enable_sqlite_foreign_keys(dbapi_connection: Any, _connection_record: Any) -> None:
     """Enable foreign-key enforcement for a new SQLite connection.
 
     SQLite does NOT enforce foreign keys by default, which would silently allow

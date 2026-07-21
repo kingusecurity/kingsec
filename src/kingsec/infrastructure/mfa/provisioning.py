@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from kingsec.application.ports.outbound.mfa_secret_repository import MfaSecretRepository
 from kingsec.application.ports.outbound.recovery_code_repository import RecoveryCodeRepository
 from kingsec.application.ports.outbound.totp_service import TotpServicePort
+from kingsec.infrastructure._container import ContainerProtocol
 from kingsec.infrastructure.persistence.mfa_secret_repository import SqlAlchemyMfaSecretRepository
 from kingsec.infrastructure.persistence.recovery_code_repository import (
     SqlAlchemyRecoveryCodeRepository,
@@ -14,10 +15,10 @@ from kingsec.infrastructure.persistence.recovery_code_repository import (
 from .totp_service import TotpService
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.orm import Session, sessionmaker
 
 
-def register_mfa(container: object, session_factory: sessionmaker) -> None:
+def register_mfa(container: ContainerProtocol, session_factory: sessionmaker[Session]) -> None:
     """Register MFA infrastructure on the DI container."""
     totp_service = TotpService()
     secret_repo = SqlAlchemyMfaSecretRepository(session_factory)

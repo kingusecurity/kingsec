@@ -15,8 +15,9 @@ Security considerations:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, Any, cast
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -32,8 +33,8 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 def _get_token_service(request: Request) -> TokenService:
     """Resolve the TokenService from the DI container."""
-    app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
-    return app.resolve(TokenService)  # type: ignore[return-value]
+    app: Application = request.app.state.kingsec_app
+    return cast(TokenService, app.resolve(TokenService))
 
 
 @dataclass(frozen=True)
@@ -90,7 +91,7 @@ async def get_current_user(
     )
 
 
-def require_role(minimum_role: Role):
+def require_role(minimum_role: Role) -> Callable[..., Any]:
     """Dependency factory that enforces a minimum role.
 
     Usage:
@@ -117,11 +118,11 @@ def require_role(minimum_role: Role):
 
 def _get_authz_service(request: Request) -> AuthorizationService:
     """Resolve the ``AuthorizationService`` from the DI container."""
-    app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
-    return app.resolve(AuthorizationService)  # type: ignore[return-value]
+    app: Application = request.app.state.kingsec_app
+    return cast(AuthorizationService, app.resolve(AuthorizationService))
 
 
-def require_permission(permission: Permission):
+def require_permission(permission: Permission) -> Callable[..., Any]:
     """Dependency factory that checks for a specific permission.
 
     Usage::
@@ -150,7 +151,7 @@ def require_permission(permission: Permission):
 # ── Multi-role dependency ───────────────────────────────────────────────────
 
 
-def require_any_role(*roles: Role):
+def require_any_role(*roles: Role) -> Callable[..., Any]:
     """Dependency factory that allows any of the given roles.
 
     Usage::
@@ -187,7 +188,7 @@ class NotAuthorizedError(Exception):
     """
 
 
-def require_self_or_admin(resource_owner_id: str):
+def require_self_or_admin(resource_owner_id: str) -> Callable[..., Any]:
     """Dependency factory that enforces resource ownership.
 
     Admin users bypass the check.  Non-admin users may only act on
@@ -230,9 +231,9 @@ class CurrentApiKey:
     status: str
 
 
-def _get_validate_api_key_use_case(request: Request):
+def _get_validate_api_key_use_case(request: Request) -> Any:
     """Resolve the ``ValidateApiKey`` use case from the DI container."""
-    app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
+    app: Application = request.app.state.kingsec_app
     from kingsec.application import ValidateApiKey
     return app.resolve(ValidateApiKey)
 

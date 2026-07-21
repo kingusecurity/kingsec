@@ -11,6 +11,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from kingsec.application.dto import RenderedReport
 
@@ -33,11 +34,11 @@ class ReportServicePort(ABC):
         """Generate a report for the given scan/assessment ID."""
 
     @abstractmethod
-    def get_report(self, report_id: str) -> dict:
+    def get_report(self, report_id: str) -> dict[str, Any]:
         """Return the full report as a JSON-compatible dictionary."""
 
     @abstractmethod
-    def get_summary(self, report_id: str) -> dict:
+    def get_summary(self, report_id: str) -> dict[str, Any]:
         """Return executive summary + risk summary as a dictionary."""
 
     @abstractmethod

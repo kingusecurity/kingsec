@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 from kingsec.application.ports.outbound import MetricsCollectorPort
 from kingsec.domain.system_health import ResourceUsage
 
@@ -10,8 +12,8 @@ class ProcessMetricsCollector(MetricsCollectorPort):
 
     def collect_cpu(self) -> float:
         try:
-            import psutil
-            return psutil.cpu_percent(interval=0.1)
+            import psutil  # type: ignore[import-untyped]
+            return cast(float, psutil.cpu_percent(interval=0.1))
         except ImportError:
             return 0.0
 

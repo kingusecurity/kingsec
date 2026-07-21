@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, cast
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from kingsec.application.ports.agent_service import AgentServicePort
@@ -26,7 +28,7 @@ ADMIN_ONLY = Role.ADMIN
 
 def _get_service(request: Request) -> AgentServicePort:
     app: Application = get_application(request)
-    return app.resolve(AgentServicePort)
+    return cast(AgentServicePort, app.resolve(AgentServicePort))
 
 
 def _require_admin(user: CurrentUser) -> None:
@@ -37,9 +39,9 @@ def _require_admin(user: CurrentUser) -> None:
 @router.post("/register")
 async def register_agent(
     request: Request,
-    body: dict,
+    body: dict[str, Any],
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -76,9 +78,9 @@ async def register_agent(
 @router.post("/heartbeat")
 async def agent_heartbeat(
     request: Request,
-    body: dict,
+    body: dict[str, Any],
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -106,7 +108,7 @@ async def agent_heartbeat(
 async def list_agents(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     agents = service.list_agents()
     return {
@@ -134,7 +136,7 @@ async def get_agent(
     agent_id: str,
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     agent = service.get_agent(agent_id)
     if not agent:
@@ -165,7 +167,7 @@ async def disable_agent(
     agent_id: str,
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -180,7 +182,7 @@ async def enable_agent(
     agent_id: str,
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -195,7 +197,7 @@ async def remove_agent(
     agent_id: str,
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -208,9 +210,9 @@ async def remove_agent(
 @router.post("/jobs/next")
 async def assign_next_job(
     request: Request,
-    body: dict,
+    body: dict[str, Any],
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     agent_id = body.get("agent_id", "")
@@ -223,9 +225,9 @@ async def assign_next_job(
 @router.post("/jobs/progress")
 async def report_job_progress(
     request: Request,
-    body: dict,
+    body: dict[str, Any],
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -238,9 +240,9 @@ async def report_job_progress(
 @router.post("/jobs/complete")
 async def complete_job(
     request: Request,
-    body: dict,
+    body: dict[str, Any],
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -253,9 +255,9 @@ async def complete_job(
 @router.post("/jobs/fail")
 async def fail_job(
     request: Request,
-    body: dict,
+    body: dict[str, Any],
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:

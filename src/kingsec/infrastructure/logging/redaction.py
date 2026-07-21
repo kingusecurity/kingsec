@@ -30,7 +30,7 @@ Fail closed
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, cast
 
 from structlog.typing import EventDict, WrappedLogger
 
@@ -117,7 +117,7 @@ def redact_processor(
     appear inside a rendered traceback string.
     """
     try:
-        return _redact(event_dict)  # type: ignore[return-value]
+        return cast(EventDict, _redact(event_dict))
     except Exception:
         # Fail closed: discard the potentially-secret-bearing event and emit a
         # safe marker so operators still see that *something* was logged.

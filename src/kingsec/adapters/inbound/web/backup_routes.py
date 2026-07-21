@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from typing import Any, cast
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from kingsec.application.errors import BackupNotFoundError, SnapshotNotFoundError
 from kingsec.application.ports.backup_service import BackupServicePort
 from kingsec.bootstrap.application import Application
 from kingsec.domain import Role
+from kingsec.domain.backup import BackupMetadata
 
 from .auth import CurrentUser, get_current_user
 from .dependencies import get_application
@@ -17,7 +20,7 @@ ADMIN_ONLY = Role.ADMIN
 
 def _get_service(request: Request) -> BackupServicePort:
     app: Application = get_application(request)
-    return app.resolve(BackupServicePort)
+    return cast(BackupServicePort, app.resolve(BackupServicePort))
 
 
 def _require_admin(user: CurrentUser) -> None:
@@ -25,7 +28,7 @@ def _require_admin(user: CurrentUser) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
 
 
-def _backup_to_dict(backup) -> dict:
+def _backup_to_dict(backup: BackupMetadata) -> dict[str, Any]:
     return {
         "backup_id": backup.backup_id.value,
         "backup_type": backup.backup_type.value,
@@ -46,7 +49,7 @@ def _backup_to_dict(backup) -> dict:
 async def list_backups(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     backups = service.list_backups()
     return {"backups": [_backup_to_dict(b) for b in backups], "total": len(backups)}
@@ -55,9 +58,9 @@ async def list_backups(
 @router.post("/backups")
 async def create_backup(
     request: Request,
-    body: dict,
+    body: dict[str, Any],
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -78,7 +81,7 @@ async def get_backup(
     backup_id: str,
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     backups = service.list_backups()
     for b in backups:
@@ -92,7 +95,7 @@ async def delete_backup(
     backup_id: str,
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -106,9 +109,9 @@ async def delete_backup(
 async def restore_backup(
     backup_id: str,
     request: Request,
-    body: dict,
+    body: dict[str, Any],
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -127,7 +130,7 @@ async def verify_backup(
     backup_id: str,
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -141,7 +144,7 @@ async def verify_backup(
 async def cleanup_backups(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     deleted = service.cleanup_expired()
@@ -152,7 +155,7 @@ async def cleanup_backups(
 async def list_snapshots(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     snapshots = service.list_snapshots()
@@ -173,9 +176,9 @@ async def list_snapshots(
 @router.post("/snapshots")
 async def create_snapshot(
     request: Request,
-    body: dict,
+    body: dict[str, Any],
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -200,7 +203,7 @@ async def restore_snapshot(
     snapshot_id: str,
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:

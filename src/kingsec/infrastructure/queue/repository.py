@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from kingsec.application.ports.outbound import QueueRepositoryPort
 from kingsec.domain.queue import (
@@ -85,7 +86,7 @@ class InMemoryQueueRepository(QueueRepositoryPort):
 
 
 class SQLAlchemyQueueRepository(QueueRepositoryPort):
-    def __init__(self, session_factory) -> None:
+    def __init__(self, session_factory: Any) -> None:
         self._session_factory = session_factory
 
     def enqueue(self, entry: QueueEntry) -> None:
@@ -231,7 +232,7 @@ class SQLAlchemyQueueRepository(QueueRepositoryPort):
             ).fetchall()
             return [self._row_to_entry(r._mapping) for r in rows]
 
-    def _row_to_entry(self, row) -> QueueEntry:
+    def _row_to_entry(self, row: Any) -> QueueEntry:
         return QueueEntry(
             entry_id=row.get("entry_id", ""),
             job_id=row.get("job_id", ""),

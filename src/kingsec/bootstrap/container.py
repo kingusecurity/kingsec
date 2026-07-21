@@ -27,29 +27,34 @@ T = TypeVar("T")
 
 
 class Container:
-    """A tiny, explicit, type-keyed service container."""
+    """A tiny, explicit, type-keyed service container.
+
+    Keys are ``type[Any]`` rather than ``type[T]`` so that abstract
+    interfaces and Protocols can be used as registration keys — a
+    standard DI-container pattern that mypy's ``type-abstract`` check
+    otherwise rejects.
+    """
 
     def __init__(self) -> None:
         self._instances: dict[type, Any] = {}
         self._factories: dict[type, Callable[[Container], Any]] = {}
         self._shutdown_hooks: list[Callable[[], None]] = []
 
-    def register_instance(self, service_type: type[T], instance: T) -> None:
+    def register_instance(self, service_type: type[Any], instance: T) -> None:
         """Register an already-constructed singleton under its type."""
         self._instances[service_type] = instance
 
     def register_factory(
-        self, service_type: type[T], factory: Callable[[Container], T]
+        self, service_type: type[Any], factory: Callable[[Container], T]
     ) -> None:
         """Register a lazy factory; the result is cached as a singleton."""
         self._factories[service_type] = factory
 
-    def resolve(self, service_type: type[T]) -> T:
+    def resolve(self, service_type: type[Any]) -> Any:
         """Return the service for ``service_type``, building it lazily if needed."""
         if service_type in self._instances:
             return self._instances[service_type]
         if service_type in self._factories:
-            # Build once, then cache so every caller shares one instance.
             instance = self._factories[service_type](self)
             self._instances[service_type] = instance
             return instance

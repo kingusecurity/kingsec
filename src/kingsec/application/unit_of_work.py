@@ -20,6 +20,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from types import TracebackType
 
+from kingsec.application.ports.repositories import JobRepositoryPort
+
 
 class UnitOfWorkPort(ABC):
     """Atomic transaction boundary for persistence operations.
@@ -29,6 +31,11 @@ class UnitOfWorkPort(ABC):
 
     def __init__(self) -> None:
         self._committed: bool = False
+
+    @property
+    @abstractmethod
+    def job_repository(self) -> JobRepositoryPort:
+        """Repository for scan-job persistence within this transaction."""
 
     @abstractmethod
     def begin(self) -> None:
@@ -72,8 +79,7 @@ class UnitOfWorkPort(ABC):
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool:
+    ) -> None:
         if exc_type is not None or not self._committed:
             self.rollback()
         self.close()
-        return False  # do not suppress any exception

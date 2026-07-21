@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from kingsec.application.ports.outbound.event_publisher import EventPublisher
+from kingsec.infrastructure._container import ContainerProtocol
 
 from .in_memory_bus import InMemoryEventBus
 
 
-def register_events(container: object, *, maxsize: int = 100) -> None:
+def register_events(container: ContainerProtocol, *, maxsize: int = 100) -> None:
     """Register the event bus and add a shutdown hook.
 
     Args:

@@ -20,6 +20,7 @@ from __future__ import annotations
 import threading
 import time
 from collections import defaultdict
+from typing import Any
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
@@ -65,7 +66,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     # Paths that use the stricter auth rate limit.
     _AUTH_PATHS = frozenset({"/api/v1/auth/login", "/api/v1/auth/register"})
 
-    def __init__(self, app, settings: RateLimitSettings) -> None:
+    def __init__(self, app: Any, settings: RateLimitSettings) -> None:
         super().__init__(app)
         self._settings = settings
         self._buckets: dict[str, _TokenBucket] = defaultdict(self._make_bucket)

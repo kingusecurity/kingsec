@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from kingsec.application.ports.outbound import DashboardRepositoryPort
 from kingsec.domain.dashboard import (
@@ -17,10 +18,10 @@ from kingsec.domain.dashboard import (
 
 class InMemoryDashboardRepository(DashboardRepositoryPort):
     def __init__(self) -> None:
-        self._assessments: list[dict] = []
-        self._findings: list[dict] = []
-        self._notifications: list[dict] = []
-        self._schedules: list[dict] = []
+        self._assessments: list[dict[str, Any]] = []
+        self._findings: list[dict[str, Any]] = []
+        self._notifications: list[dict[str, Any]] = []
+        self._schedules: list[dict[str, Any]] = []
 
     def seed_assessment(self, status: str, target: str = "example.com", created_at: str | None = None) -> None:
         self._assessments.append({
@@ -120,7 +121,7 @@ class InMemoryDashboardRepository(DashboardRepositoryPort):
             read_count=sum(1 for n in self._notifications if n["status"] == "read"),
         )
 
-    def get_recent_activity(self, limit: int = 20) -> list[dict]:
+    def get_recent_activity(self, limit: int = 20) -> list[dict[str, Any]]:
         sorted_a = sorted(self._assessments, key=lambda a: a.get("created_at", ""), reverse=True)
         return [
             {"id": a["id"], "type": "assessment", "action": a["status"], "target": a["target_value"], "timestamp": a.get("created_at", "")}

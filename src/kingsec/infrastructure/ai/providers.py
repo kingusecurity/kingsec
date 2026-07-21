@@ -16,6 +16,8 @@ Adding a provider means adding one strategy and one registry entry.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
+from typing import Any
 
 from .errors import AIError, AIResponseError
 
@@ -42,15 +44,15 @@ class ProviderConfig(ABC):
         model: str,
         temperature: float,
         max_tokens: int,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Return the JSON request body."""
 
     @abstractmethod
-    def extract_text(self, response: dict) -> str:
+    def extract_text(self, response: dict[str, Any]) -> str:
         """Extract the generated text from a parsed response body."""
 
 
-def _extract(response: dict, *path) -> str:
+def _extract(response: dict[str, Any], *path: Any) -> str:
     """Safely walk ``path`` (keys/indices) into ``response`` or raise AIResponseError."""
     node: object = response
     try:
@@ -76,7 +78,7 @@ class OpenAICompatibleProvider(ProviderConfig):
     def build_headers(self, api_key: str) -> dict[str, str]:
         return {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
-    def build_payload(self, system_prompt, user_prompt, model, temperature, max_tokens) -> dict:
+    def build_payload(self, system_prompt: str, user_prompt: str, model: str, temperature: float, max_tokens: int) -> dict[str, Any]:
         return {
             "model": model,
             "messages": [
@@ -87,7 +89,7 @@ class OpenAICompatibleProvider(ProviderConfig):
             "max_tokens": max_tokens,
         }
 
-    def extract_text(self, response: dict) -> str:
+    def extract_text(self, response: dict[str, Any]) -> str:
         return _extract(response, "choices", 0, "message", "content")
 
 
@@ -107,7 +109,7 @@ class AnthropicProvider(ProviderConfig):
             "Content-Type": "application/json",
         }
 
-    def build_payload(self, system_prompt, user_prompt, model, temperature, max_tokens) -> dict:
+    def build_payload(self, system_prompt: str, user_prompt: str, model: str, temperature: float, max_tokens: int) -> dict[str, Any]:
         return {
             "model": model,
             "system": system_prompt,
@@ -116,7 +118,7 @@ class AnthropicProvider(ProviderConfig):
             "temperature": temperature,
         }
 
-    def extract_text(self, response: dict) -> str:
+    def extract_text(self, response: dict[str, Any]) -> str:
         return _extract(response, "content", 0, "text")
 
 
@@ -132,19 +134,19 @@ class GeminiProvider(ProviderConfig):
     def build_headers(self, api_key: str) -> dict[str, str]:
         return {"x-goog-api-key": api_key, "Content-Type": "application/json"}
 
-    def build_payload(self, system_prompt, user_prompt, model, temperature, max_tokens) -> dict:
+    def build_payload(self, system_prompt: str, user_prompt: str, model: str, temperature: float, max_tokens: int) -> dict[str, Any]:
         return {
             "systemInstruction": {"parts": [{"text": system_prompt}]},
             "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
             "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens},
         }
 
-    def extract_text(self, response: dict) -> str:
+    def extract_text(self, response: dict[str, Any]) -> str:
         return _extract(response, "candidates", 0, "content", "parts", 0, "text")
 
 
 # Registry: provider name (from config) -> factory. Aliases share a strategy.
-_PROVIDER_FACTORIES: dict[str, callable[[], ProviderConfig]] = {
+_PROVIDER_FACTORIES: dict[str, type[ProviderConfig] | Callable[[], ProviderConfig]] = {
     "openai": lambda: OpenAICompatibleProvider("openai", "https://api.openai.com/v1"),
     "openrouter": lambda: OpenAICompatibleProvider("openrouter", "https://openrouter.ai/api/v1"),
     "glm": lambda: OpenAICompatibleProvider("glm", "https://open.bigmodel.cn/api/paas/v4"),

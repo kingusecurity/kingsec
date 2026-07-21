@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -26,9 +27,9 @@ class AssessmentEvent:
     message: str | None = None
     severity_counts: dict[str, int] | None = None
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to a JSON-safe dictionary."""
-        result: dict = {
+        result: dict[str, Any] = {
             "event_type": self.event_type,
             "assessment_id": self.assessment_id,
             "state": self.state,

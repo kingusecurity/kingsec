@@ -22,8 +22,11 @@ Security notes
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, Request, status
 
+from kingsec.application.dto import LoginResponse
 from kingsec.application.ports.inbound.service_api import ServiceAPI
 from kingsec.bootstrap.application import Application
 from kingsec.infrastructure.logging import get_logger
@@ -63,20 +66,20 @@ async def health_check() -> schemas.HealthResponse:
 # ── Auth ─────────────────────────────────────────────────────────────────────
 
 
-def _get_login_use_case(request: Request):
-    app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
+def _get_login_use_case(request: Request) -> Any:
+    app: Application = request.app.state.kingsec_app
     from kingsec.application import Login
     return app.resolve(Login)
 
 
-def _get_refresh_token_use_case(request: Request):
-    app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
+def _get_refresh_token_use_case(request: Request) -> Any:
+    app: Application = request.app.state.kingsec_app
     from kingsec.application import RefreshToken
     return app.resolve(RefreshToken)
 
 
-def _get_register_user_use_case(request: Request):
-    app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
+def _get_register_user_use_case(request: Request) -> Any:
+    app: Application = request.app.state.kingsec_app
     from kingsec.application import RegisterUser
     return app.resolve(RegisterUser)
 
@@ -96,8 +99,8 @@ def _get_register_user_use_case(request: Request):
 )
 async def login(
     body: schemas.LoginBody,
-    login_uc=Depends(_get_login_use_case),
-    request: Request = None,  # type: ignore[assignment]
+    request: Request,
+    login_uc: Any = Depends(_get_login_use_case),
 ) -> schemas.LoginResponse:
     from kingsec.application.dto import LoginRequest
     from kingsec.application.use_cases.login import AuthenticationError
@@ -122,7 +125,7 @@ async def login(
     )
 
 
-def _create_session_for_login(request: Request, result: object) -> None:
+def _create_session_for_login(request: Request, result: LoginResponse) -> None:
     try:
         app: Application = request.app.state.kingsec_app
         from kingsec.application.ports import TokenService
@@ -155,7 +158,7 @@ def _create_session_for_login(request: Request, result: object) -> None:
 def _record_failed_login_audit(request: Request, username: str) -> None:
     """Record a failed login audit entry at the web boundary (best-effort)."""
     try:
-        app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
+        app: Application = request.app.state.kingsec_app
         from kingsec.application.ports import AuditPublisher
         from kingsec.domain.audit import AuditAction, AuditEntry
 
@@ -194,7 +197,7 @@ def _record_failed_login_audit(request: Request, username: str) -> None:
 )
 async def refresh_token(
     body: schemas.RefreshTokenBody,
-    refresh_uc=Depends(_get_refresh_token_use_case),
+    refresh_uc: Any = Depends(_get_refresh_token_use_case),
 ) -> schemas.RefreshTokenResponse:
     from kingsec.application.dto import RefreshTokenRequest
 
@@ -221,7 +224,7 @@ async def refresh_token(
 )
 async def register_user(
     body: schemas.RegisterUserBody,
-    register_uc=Depends(_get_register_user_use_case),
+    register_uc: Any = Depends(_get_register_user_use_case),
 ) -> schemas.RegisterUserResponse:
     from kingsec.application.dto import RegisterUserRequest
 
@@ -256,7 +259,7 @@ async def get_current_user_info(
     request: Request = None,  # type: ignore[assignment]
 ) -> schemas.UserResponse:
     """Return the current authenticated user's profile."""
-    app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
+    app: Application = request.app.state.kingsec_app
     from kingsec.application import UserRepository
     user_repo = app.resolve(UserRepository)
     user = user_repo.find_by_id(current_user.user_id)
@@ -539,26 +542,26 @@ async def delete_assessment(
 # ── API Keys ──────────────────────────────────────────────────────────────────
 
 
-def _get_create_api_key_uc(request: Request):
-    app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
+def _get_create_api_key_uc(request: Request) -> Any:
+    app: Application = request.app.state.kingsec_app
     from kingsec.application import CreateApiKey
     return app.resolve(CreateApiKey)
 
 
-def _get_list_api_keys_uc(request: Request):
-    app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
+def _get_list_api_keys_uc(request: Request) -> Any:
+    app: Application = request.app.state.kingsec_app
     from kingsec.application import ListApiKeys
     return app.resolve(ListApiKeys)
 
 
-def _get_revoke_api_key_uc(request: Request):
-    app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
+def _get_revoke_api_key_uc(request: Request) -> Any:
+    app: Application = request.app.state.kingsec_app
     from kingsec.application import RevokeApiKey
     return app.resolve(RevokeApiKey)
 
 
-def _get_rotate_api_key_uc(request: Request):
-    app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
+def _get_rotate_api_key_uc(request: Request) -> Any:
+    app: Application = request.app.state.kingsec_app
     from kingsec.application import RotateApiKey
     return app.resolve(RotateApiKey)
 
@@ -580,7 +583,7 @@ def _get_rotate_api_key_uc(request: Request):
 async def create_api_key(
     body: schemas.CreateApiKeyBody,
     current_user: CurrentUser = Depends(require_permission(Permission.CREATE_API_KEY)),
-    create_uc=Depends(_get_create_api_key_uc),
+    create_uc: Any = Depends(_get_create_api_key_uc),
 ) -> schemas.CreateApiKeyResponse:
     from kingsec.application.dto import CreateApiKeyRequest
 
@@ -614,7 +617,7 @@ async def list_api_keys(
     limit: int = 50,
     offset: int = 0,
     current_user: CurrentUser = Depends(require_permission(Permission.LIST_API_KEYS)),
-    list_uc=Depends(_get_list_api_keys_uc),
+    list_uc: Any = Depends(_get_list_api_keys_uc),
 ) -> schemas.ApiKeyListResponse:
     from kingsec.application.dto import ListApiKeysRequest
 
@@ -657,7 +660,7 @@ async def get_current_api_key_info(
     request: Request = None,  # type: ignore[assignment]
 ) -> schemas.CurrentApiKeyResponse:
     from kingsec.application.ports import ApiKeyRepository
-    app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
+    app: Application = request.app.state.kingsec_app
     repo = app.resolve(ApiKeyRepository)
     key = repo.find_by_id(current_api_key.api_key_id)
 
@@ -688,7 +691,7 @@ async def get_current_api_key_info(
 async def revoke_api_key(
     api_key_id: str,
     current_user: CurrentUser = Depends(require_permission(Permission.DELETE_API_KEY)),
-    revoke_uc=Depends(_get_revoke_api_key_uc),
+    revoke_uc: Any = Depends(_get_revoke_api_key_uc),
 ) -> None:
     from kingsec.application.dto import RevokeApiKeyRequest
 
@@ -715,7 +718,7 @@ async def revoke_api_key(
 async def rotate_api_key(
     api_key_id: str,
     current_user: CurrentUser = Depends(require_permission(Permission.ROTATE_API_KEY)),
-    rotate_uc=Depends(_get_rotate_api_key_uc),
+    rotate_uc: Any = Depends(_get_rotate_api_key_uc),
 ) -> schemas.RotateApiKeyResponse:
     from kingsec.application.dto import RotateApiKeyRequest
 

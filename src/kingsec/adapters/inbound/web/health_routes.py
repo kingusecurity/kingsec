@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, cast
+
 from fastapi import APIRouter, Depends, Request
 
 from kingsec.application.ports.production_service import ProductionServicePort
@@ -22,7 +24,7 @@ router = APIRouter(prefix="/api/v1", tags=["health"])
 def _get_service(request: Request) -> ProductionServicePort:
     from kingsec.bootstrap.application import Application
     app: Application = get_application(request)
-    return app.resolve(ProductionServicePort)
+    return cast(ProductionServicePort, app.resolve(ProductionServicePort))
 
 
 @router.get("/healthz/live", response_model=LivenessReport)
@@ -66,12 +68,12 @@ def resources(request: Request) -> SystemMetrics:
 
 
 @router.post("/healthz/shutdown", dependencies=[Depends(require_role(Role.ADMIN))])
-def shutdown(request: Request) -> dict:
+def shutdown(request: Request) -> dict[str, Any]:
     _get_service(request).shutdown()
     return {"status": "shutdown_initiated"}
 
 
 @router.post("/healthz/restart", dependencies=[Depends(require_role(Role.ADMIN))])
-def restart(request: Request) -> dict:
+def restart(request: Request) -> dict[str, Any]:
     _get_service(request).restart()
     return {"status": "restart_initiated"}

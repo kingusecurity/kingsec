@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from kingsec.application.ports.job_service import JobServicePort
 from kingsec.application.ports.notification_service import NotificationServicePort
@@ -102,7 +103,7 @@ class PipelineOrchestrator(PipelineOrchestratorPort):
                 job = self._job_service.submit_scan(target=execution.target)
                 result = PipelineResult(
                     queue_entry_id=result.queue_entry_id,
-                    job_id=job.id if hasattr(job, 'id') else str(job),
+                    job_id=str(job.id) if hasattr(job, 'id') else str(job),
                     agent_id=result.agent_id,
                     report_id=result.report_id,
                     notification_ids=result.notification_ids,
@@ -292,7 +293,7 @@ class PipelineOrchestrator(PipelineOrchestratorPort):
     def resume(self, execution: PipelineExecution) -> PipelineExecution:
         return execution
 
-    def _build_failed(self, execution: PipelineExecution, stages: list,
+    def _build_failed(self, execution: PipelineExecution, stages: list[Any],
                       result: PipelineResult, now: str, error: str) -> PipelineExecution:
         current_idx = next((i for i, s in enumerate(PIPELINE_ORDER) if s == execution.state), -1)
         if 0 <= current_idx < len(stages):

@@ -36,6 +36,7 @@ import json
 import queue
 import uuid
 from collections.abc import AsyncGenerator
+from typing import cast
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
@@ -59,7 +60,7 @@ HEARTBEAT_INTERVAL = 15.0  # seconds
 def _get_event_publisher(request: Request) -> EventPublisher:
     """Resolve the EventPublisher from the DI container."""
     app: Application = get_application(request)
-    return app.resolve(EventPublisher)  # type: ignore[return-value]
+    return cast(EventPublisher, app.resolve(EventPublisher))
 
 
 def _format_sse(event: AssessmentEvent) -> str:

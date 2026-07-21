@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from kingsec.application.ports.analytics_service import AnalyticsServicePort
 from kingsec.application.ports.outbound import DashboardRepositoryPort
 from kingsec.application.use_cases.dashboard import (
@@ -65,7 +67,7 @@ class AnalyticsService(AnalyticsServicePort):
     def get_notification_statistics(self) -> NotificationStatistics:
         return self._notifications.execute()
 
-    def get_recent_activity(self, limit: int = 20) -> list[dict]:
+    def get_recent_activity(self, limit: int = 20) -> list[dict[str, Any]]:
         return self._activity.execute(limit=limit)
 
     def get_top_targets(self, limit: int = 10) -> list[tuple[str, int]]:

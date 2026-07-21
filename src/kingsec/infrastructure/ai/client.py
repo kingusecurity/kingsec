@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import time
+from typing import Any, cast
 
 import httpx
 
@@ -53,7 +54,7 @@ class AIClient:
             transport=transport,
         )
 
-    def post_json(self, url: str, headers: dict[str, str], payload: dict) -> dict:
+    def post_json(self, url: str, headers: dict[str, str], payload: dict[str, Any]) -> dict[str, Any]:
         """POST a JSON payload and return the parsed JSON response.
 
         Retries transient transport errors and retryable status codes with
@@ -97,7 +98,7 @@ class AIClient:
                 raise ErrorTranslator.from_status(response.status_code, response.text)
 
             try:
-                return response.json()
+                return cast(dict[str, Any], response.json())
             except (json.JSONDecodeError, ValueError) as exc:
                 raise AIResponseError(
                     "AI response body was not valid JSON", cause=exc

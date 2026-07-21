@@ -7,7 +7,9 @@ autocommit per call, shared engine.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC
+from typing import Any
 
 from sqlalchemy import exists, func, select
 
@@ -23,7 +25,7 @@ _logger = get_logger("kingsec.infrastructure.persistence.user_repository")
 class SqlAlchemyUserRepository(UserRepository):
     """SQLAlchemy-backed user repository."""
 
-    def __init__(self, session_factory: callable) -> None:
+    def __init__(self, session_factory: Callable[..., Any]) -> None:
         self._session_factory = session_factory
 
     def find_by_username(self, username: str) -> User | None:

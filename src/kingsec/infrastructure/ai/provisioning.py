@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import httpx
 
 from kingsec.application import AIPort
+from kingsec.infrastructure._container import ContainerProtocol
 from kingsec.infrastructure.logging import get_logger
 
 from .adapter import AIProviderAdapter
@@ -26,7 +27,7 @@ _logger = get_logger("kingsec.infrastructure.ai")
 
 
 def register_ai(
-    container: object,
+    container: ContainerProtocol,
     settings: Settings,
     *,
     transport: httpx.BaseTransport | None = None,

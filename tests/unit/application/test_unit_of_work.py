@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
 
+from kingsec.application.ports.repositories import JobRepositoryPort
 from kingsec.application.unit_of_work import UnitOfWorkPort
 
 # ===========================================================================
@@ -37,6 +40,9 @@ class TestUnitOfWorkPortIsAbstract:
                 pass
             def close(self) -> None:
                 pass
+            @property
+            def job_repository(self) -> JobRepositoryPort:
+                return MagicMock(spec=JobRepositoryPort)
 
         instance = Full()
         assert isinstance(instance, UnitOfWorkPort)
@@ -79,6 +85,9 @@ class TestUnitOfWorkPortContextManager:
                 self.calls.append("rollback")
             def close(self) -> None:
                 self.calls.append("close")
+            @property
+            def job_repository(self) -> JobRepositoryPort:
+                return MagicMock(spec=JobRepositoryPort)
 
         uow = Tracking()
         with uow:
@@ -98,6 +107,9 @@ class TestUnitOfWorkPortContextManager:
                 self.calls.append("rollback")
             def close(self) -> None:
                 self.calls.append("close")
+            @property
+            def job_repository(self) -> JobRepositoryPort:
+                return MagicMock(spec=JobRepositoryPort)
 
         uow = Tracking()
         with uow:
@@ -118,6 +130,9 @@ class TestUnitOfWorkPortContextManager:
                 self.calls.append("rollback")
             def close(self) -> None:
                 self.calls.append("close")
+            @property
+            def job_repository(self) -> JobRepositoryPort:
+                return MagicMock(spec=JobRepositoryPort)
 
         uow = Tracking()
         with pytest.raises(RuntimeError), uow:
@@ -136,6 +151,9 @@ class TestUnitOfWorkPortContextManager:
                 pass
             def close(self) -> None:
                 pass
+            @property
+            def job_repository(self) -> JobRepositoryPort:
+                return MagicMock(spec=JobRepositoryPort)
 
         uow = Full()
         with uow as ctx:
@@ -151,6 +169,9 @@ class TestUnitOfWorkPortContextManager:
                 pass
             def close(self) -> None:
                 pass
+            @property
+            def job_repository(self) -> JobRepositoryPort:
+                return MagicMock(spec=JobRepositoryPort)
 
         uow = Full()
         with uow as ctx:

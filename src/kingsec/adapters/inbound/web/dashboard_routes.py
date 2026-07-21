@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, cast
+
 from fastapi import APIRouter, Depends, Query, Request
 
 from kingsec.application.ports.analytics_service import AnalyticsServicePort
@@ -13,14 +15,14 @@ router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"])
 
 def _get_service(request: Request) -> AnalyticsServicePort:
     app: Application = get_application(request)
-    return app.resolve(AnalyticsServicePort)
+    return cast(AnalyticsServicePort, app.resolve(AnalyticsServicePort))
 
 
 @router.get("")
 async def dashboard_root(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     summary = service.get_summary()
     severity = service.get_severity_breakdown()
@@ -54,7 +56,7 @@ async def dashboard_root(
 async def dashboard_summary(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     s = service.get_summary()
     return {
@@ -78,7 +80,7 @@ async def dashboard_summary(
 async def severity_breakdown(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     s = service.get_severity_breakdown()
     return {
@@ -96,7 +98,7 @@ async def trend_data(
     period: str = Query("weekly", pattern="^(daily|weekly|monthly)$"),
     limit: int = Query(12, ge=1, le=52),
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     points = service.get_trend_data(period=period, limit=limit)
     return {"period": period, "points": [{"date": p.date, "value": p.value} for p in points]}
@@ -106,7 +108,7 @@ async def trend_data(
 async def scanner_statistics(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     scanners = service.get_scanner_statistics()
     return {
@@ -128,7 +130,7 @@ async def scanner_statistics(
 async def worker_statistics(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     workers = service.get_worker_statistics()
     return {
@@ -150,7 +152,7 @@ async def worker_statistics(
 async def job_statistics(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     j = service.get_job_statistics()
     return {
@@ -167,7 +169,7 @@ async def job_statistics(
 async def schedule_statistics(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     s = service.get_schedule_statistics()
     return {
@@ -182,7 +184,7 @@ async def schedule_statistics(
 async def notification_statistics(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     n = service.get_notification_statistics()
     return {
@@ -199,7 +201,7 @@ async def recent_activity(
     request: Request,
     limit: int = Query(20, ge=1, le=100),
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     activity = service.get_recent_activity(limit=limit)
     return {"activity": activity}

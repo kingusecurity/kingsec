@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
 from .assessment import Assessment
 from .enums import AssessmentStatus, FindingStatus, Severity
@@ -41,7 +42,7 @@ class Verdict:
     action_required: bool
 
     @classmethod
-    def from_findings(cls, findings: tuple) -> Verdict:
+    def from_findings(cls, findings: tuple[Any, ...]) -> Verdict:
         """Derive the overall verdict, ignoring false positives."""
         actionable = [
             f for f in findings if f.status is not FindingStatus.FALSE_POSITIVE

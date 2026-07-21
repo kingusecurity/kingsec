@@ -17,6 +17,8 @@ Storage decisions worth noting:
       aggregate removes its children in one operation.
 """
 
+from typing import Any
+
 from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
@@ -130,8 +132,8 @@ class ReportORM(Base):
     verdict_highest_severity: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # entries: list of dicts; severity_counts: list of [severity_name, count].
-    entries: Mapped[list] = mapped_column(JSON, nullable=False)
-    severity_counts: Mapped[list] = mapped_column(JSON, nullable=False)
+    entries: Mapped[list[Any]] = mapped_column(JSON, nullable=False)
+    severity_counts: Mapped[list[Any]] = mapped_column(JSON, nullable=False)
 
 
 class UserORM(Base):

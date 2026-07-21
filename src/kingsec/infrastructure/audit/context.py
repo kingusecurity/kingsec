@@ -26,10 +26,10 @@ class AuditContextMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         # Capture audit-relevant context before passing to the next middleware.
-        request.state.audit_ip = request.client.host if request.client else "unknown"  # type: ignore[attr-defined]
-        request.state.audit_user_agent = request.headers.get("user-agent", "")  # type: ignore[attr-defined]
+        request.state.audit_ip = request.client.host if request.client else "unknown"
+        request.state.audit_user_agent = request.headers.get("user-agent", "")
         # CorrelationIDMiddleware stores this; fall back to empty string.
-        request.state.audit_correlation_id = getattr(  # type: ignore[attr-defined]
+        request.state.audit_correlation_id = getattr(
             request.state, "request_id", ""
         )
 

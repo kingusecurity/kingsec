@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from kingsec.application.ports.outbound import PluginRepositoryPort
 from kingsec.domain.plugin_package import PluginHealth, PluginInstallStatus, PluginPackage
 
@@ -62,7 +64,7 @@ class InMemoryPluginRepository(PluginRepositoryPort):
 class SQLAlchemyPluginRepository(PluginRepositoryPort):
     """Production SQL persistence for plugins."""
 
-    def __init__(self, session_factory) -> None:
+    def __init__(self, session_factory: Any) -> None:
         self._session_factory = session_factory
 
     def save(self, plugin: PluginPackage) -> None:
@@ -138,7 +140,7 @@ class SQLAlchemyPluginRepository(PluginRepositoryPort):
             )
             session.commit()
 
-    def _row_to_package(self, row) -> PluginPackage:
+    def _row_to_package(self, row: Any) -> PluginPackage:
         from kingsec.domain.plugin_package import (
             PluginHealth,
             PluginInstallStatus,

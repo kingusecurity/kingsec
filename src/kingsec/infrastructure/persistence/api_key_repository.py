@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import func, select
 
@@ -18,7 +20,7 @@ _logger = get_logger("kingsec.infrastructure.persistence.api_key_repository")
 class SqlAlchemyApiKeyRepository(ApiKeyRepository):
     """SQLAlchemy-backed API key repository."""
 
-    def __init__(self, session_factory: callable) -> None:
+    def __init__(self, session_factory: Callable[..., Any]) -> None:
         self._session_factory = session_factory
 
     def find_by_id(self, api_key_id: str) -> ApiKey | None:

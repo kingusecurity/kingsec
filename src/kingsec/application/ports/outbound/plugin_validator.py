@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 from kingsec.domain.plugin_package import PluginManifest, PluginSignature
 
@@ -9,7 +10,7 @@ class PluginValidatorPort(ABC):
     """Validation logic for plugin packages and manifests."""
 
     @abstractmethod
-    def validate_manifest(self, manifest_data: dict) -> PluginManifest:
+    def validate_manifest(self, manifest_data: dict[str, Any]) -> PluginManifest:
         """Parse and validate raw manifest dict into domain object. Raises on failure."""
         ...
 

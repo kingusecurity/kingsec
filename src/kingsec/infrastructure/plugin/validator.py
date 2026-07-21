@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from typing import Any
 
 from kingsec.application.ports.outbound import PluginValidatorPort
 from kingsec.domain.plugin_package import (
@@ -20,7 +21,7 @@ class PluginValidator(PluginValidatorPort):
 
     KINGSEC_API_VERSION = "1.0.0"
 
-    def validate_manifest(self, manifest_data: dict) -> PluginManifest:
+    def validate_manifest(self, manifest_data: dict[str, Any]) -> PluginManifest:
         required = {"id", "name", "version"}
         missing = required - set(manifest_data.keys())
         if missing:

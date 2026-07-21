@@ -190,7 +190,7 @@ class AdvancePipeline:
             resource_type="pipeline",
             resource_id=pipeline_id,
             success=True,
-            detail=f"Advanced to stage '{stage_name}'",
+            reason=f"Advanced to stage '{stage_name}'",
         ))
         return result
 

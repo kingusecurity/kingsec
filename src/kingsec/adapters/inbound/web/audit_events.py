@@ -7,7 +7,7 @@ use cases call the repository directly.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api/v1/audit", tags=["audit_events"])
 
 
 def _get_app(request: Request) -> Application:
-    return request.app.state.kingsec_app  # type: ignore[attr-defined]
+    return cast("Application", request.app.state.kingsec_app)
 
 
 @router.get(
@@ -55,7 +55,7 @@ async def list_audit_events(
     offset: Annotated[int, Query(ge=0, description="Results to skip")] = 0,
     sort_by: Annotated[str, Query(description="Sort field (timestamp, actor_id, action, severity)")] = "timestamp",
     sort_order: Annotated[str, Query(description="Sort order (asc or desc)", pattern="^(asc|desc)$")] = "desc",
-) -> dict:
+) -> dict[str, Any]:
     """Query enterprise audit events with optional filters."""
     app = _get_app(request)
     use_case: SearchAuditEvents = app.resolve(SearchAuditEvents)
@@ -115,7 +115,7 @@ async def list_audit_events(
 async def get_audit_event(
     request: Request,
     event_id: str,
-) -> dict:
+) -> dict[str, Any]:
     """Get a single audit event by its ID."""
     from kingsec.application.ports.outbound.audit_event_repository import AuditEventRepository
     from kingsec.domain.audit_event import AuditEventId

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from kingsec.application.ports.outbound import (
     PluginInstallerPort,
     PluginMarketplacePort,
@@ -45,7 +47,7 @@ class PluginService(PluginServicePort):
         self._import_uc = ImportPlugin(repo, installer, validator)
         self._export_uc = ExportPlugin(repo)
 
-    def _extract_manifest(self, package_path: str, filename: str | None = None):
+    def _extract_manifest(self, package_path: str, filename: str | None = None) -> Any:
         import json
         import zipfile
         with zipfile.ZipFile(package_path, "r") as zf:
@@ -53,11 +55,11 @@ class PluginService(PluginServicePort):
                 from kingsec.application.errors import PluginValidationError
                 raise PluginValidationError("Missing manifest.json in plugin archive")
             data = json.loads(zf.read("manifest.json"))
-        from kingsec.domain.plugin_package import PluginManifest
+        from kingsec.domain.plugin_package import PluginManifest, PluginVersion
         return PluginManifest(
             id=data["id"],
             name=data["name"],
-            version=PluginManifest.version.parse(data["version"]),
+            version=PluginVersion.parse(data["version"]),
             description=data.get("description", ""),
             author=data.get("author", ""),
             license=data.get("license", ""),
@@ -130,7 +132,7 @@ class PluginService(PluginServicePort):
     def rollback(self, plugin_id: str) -> PluginPackage | None:
         return self._rollback_uc.execute(plugin_id)
 
-    def validate(self, package_path: str) -> dict:
+    def validate(self, package_path: str) -> dict[str, Any]:
         return self._validate_uc.execute(package_path)
 
     def list_plugins(self) -> list[PluginPackage]:
@@ -139,7 +141,7 @@ class PluginService(PluginServicePort):
     def get_plugin(self, plugin_id: str) -> PluginPackage | None:
         return self._get_uc.execute(plugin_id)
 
-    def check_updates(self, plugin_id: str) -> list[dict]:
+    def check_updates(self, plugin_id: str) -> list[dict[str, Any]]:
         if not self._check_updates_uc:
             return []
         return self._check_updates_uc.execute(plugin_id)

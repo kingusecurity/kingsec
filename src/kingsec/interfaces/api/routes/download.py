@@ -11,6 +11,7 @@ Business logic remains inside the Application Layer.
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
@@ -39,7 +40,7 @@ _SUPPORTED_FORMATS = frozenset(_FORMAT_MAP)
 def create_download_router(
     service: ReportServicePort,
     *,
-    get_current_user: Callable | None = None,
+    get_current_user: Callable[..., Any] | None = None,
 ) -> APIRouter:
     """Create an ``APIRouter`` with report download endpoints.
 
@@ -51,7 +52,7 @@ def create_download_router(
     async def download_report(
         report_id: str,
         format_name: str,
-        _user=Depends(get_current_user),
+        _user: Any = Depends(get_current_user),
     ) -> Response:
         """Download a report in the specified format."""
         if format_name not in _SUPPORTED_FORMATS:

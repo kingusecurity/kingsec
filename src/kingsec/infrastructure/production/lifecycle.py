@@ -21,7 +21,8 @@ class LifecycleManager(LifecycleManagerPort):
 
     def restart(self) -> None:
         try:
-            os.kill(os.getpid(), signal.SIGHUP)
+            sighup = getattr(signal, "SIGHUP", signal.SIGTERM)
+            os.kill(os.getpid(), sighup)
         except (ImportError, AttributeError, OSError):
             pass
 

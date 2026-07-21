@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from typing import Any, cast
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from kingsec.application.errors import PipelineNotFoundError, PipelineStateConflictError
 from kingsec.application.ports.pipeline_service import PipelineServicePort
 from kingsec.bootstrap.application import Application
 from kingsec.domain import Role
+from kingsec.domain.pipeline import PipelineExecution
 
 from .auth import CurrentUser, get_current_user
 from .dependencies import get_application
@@ -17,7 +20,7 @@ ADMIN_ONLY = Role.ADMIN
 
 def _get_service(request: Request) -> PipelineServicePort:
     app: Application = get_application(request)
-    return app.resolve(PipelineServicePort)
+    return cast(PipelineServicePort, app.resolve(PipelineServicePort))
 
 
 def _require_admin(user: CurrentUser) -> None:
@@ -25,7 +28,7 @@ def _require_admin(user: CurrentUser) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
 
 
-def _to_response(execution) -> dict:
+def _to_response(execution: PipelineExecution) -> dict[str, Any]:
     return {
         "pipeline_id": execution.pipeline_id.value,
         "target": execution.target,
@@ -59,9 +62,9 @@ def _to_response(execution) -> dict:
 @router.post("/start")
 async def start_pipeline(
     request: Request,
-    body: dict,
+    body: dict[str, Any],
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -80,7 +83,7 @@ async def start_pipeline(
 async def list_pipelines(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     executions = service.list_pipelines()
     return {"pipelines": [_to_response(e) for e in executions], "total": len(executions)}
@@ -91,7 +94,7 @@ async def get_pipeline(
     pipeline_id: str,
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     try:
         execution = service.get_pipeline(pipeline_id)
@@ -105,7 +108,7 @@ async def cancel_pipeline(
     pipeline_id: str,
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -122,7 +125,7 @@ async def retry_pipeline(
     pipeline_id: str,
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -139,7 +142,7 @@ async def resume_pipeline(
     pipeline_id: str,
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:
@@ -154,7 +157,7 @@ async def pause_pipeline(
     pipeline_id: str,
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     _require_admin(user)
     service = _get_service(request)
     try:

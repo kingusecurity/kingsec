@@ -53,13 +53,8 @@ class UnitOfWork(ABC):
         exc_type: type[BaseException] | None,
         exc: BaseException | None,
         traceback: TracebackType | None,
-    ) -> bool:
-        """End the transaction: roll back anything not explicitly committed.
-
-        Returns:
-            ``False`` so that exceptions raised inside the block are never
-            suppressed.
-        """
+    ) -> None:
+        """End the transaction: roll back anything not explicitly committed."""
 
     @abstractmethod
     def commit(self) -> None:

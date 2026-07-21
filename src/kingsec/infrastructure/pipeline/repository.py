@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from kingsec.application.ports.outbound import PipelineRepositoryPort
 from kingsec.domain.pipeline import (
@@ -33,7 +34,7 @@ class InMemoryPipelineRepository(PipelineRepositoryPort):
 
 
 class SQLAlchemyPipelineRepository(PipelineRepositoryPort):
-    def __init__(self, session_factory) -> None:
+    def __init__(self, session_factory: Any) -> None:
         self._session_factory = session_factory
 
     def save(self, execution: PipelineExecution) -> None:
@@ -118,7 +119,7 @@ class SQLAlchemyPipelineRepository(PipelineRepositoryPort):
             )
             session.commit()
 
-    def _row_to_execution(self, row) -> PipelineExecution:
+    def _row_to_execution(self, row: Any) -> PipelineExecution:
         import json
         stages_raw = row.get("stages_json", "[]")
         result_raw = row.get("result_json", "{}")

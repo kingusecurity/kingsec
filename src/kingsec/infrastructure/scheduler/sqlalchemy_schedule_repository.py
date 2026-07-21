@@ -81,8 +81,8 @@ class SqlAlchemyScheduleRepository(ScheduleRepositoryPort):
 
     @staticmethod
     def _to_domain(orm: object) -> ScanSchedule:
-
-        o = orm  # type: ORM
+        from typing import Any
+        o: Any = orm
         return ScanSchedule(
             id=ScheduleId(value=o.id),
             name=o.name,
@@ -111,8 +111,8 @@ class SqlAlchemyScheduleRepository(ScheduleRepositoryPort):
 
     @staticmethod
     def _update_orm(orm: object, s: ScanSchedule) -> None:
-
-        o = orm  # type: ORM
+        from typing import Any
+        o: Any = orm
         o.name = s.name
         o.description = s.description
         o.owner_user_id = s.owner_user_id

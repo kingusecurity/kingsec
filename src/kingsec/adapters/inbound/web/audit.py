@@ -11,7 +11,7 @@ to the audit trail. It requires ADMIN role.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, Query, Request
 
@@ -70,8 +70,8 @@ class EnrichedAuditPublisher(AuditPublisher):
 
 def _get_audit_repository(request: Request) -> SqlAlchemyAuditRepository:
     """Resolve the audit repository from the DI container."""
-    app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
-    return app.resolve(AuditPublisher)  # type: ignore[return-value]
+    app: Application = request.app.state.kingsec_app
+    return cast("SqlAlchemyAuditRepository", app.resolve(AuditPublisher))
 
 
 @router.get(
@@ -99,10 +99,10 @@ async def list_audit_entries(
     success: Annotated[bool | None, Query(description="Filter by success/failure")] = None,
     limit: Annotated[int, Query(ge=1, le=200, description="Max results")] = 50,
     offset: Annotated[int, Query(ge=0, description="Results to skip")] = 0,
-) -> dict:
+) -> dict[str, Any]:
     """Query audit trail entries with optional filters."""
-    app: Application = request.app.state.kingsec_app  # type: ignore[attr-defined]
-    repo: SqlAlchemyAuditRepository = app.resolve(AuditPublisher)  # type: ignore[assignment]
+    app: Application = request.app.state.kingsec_app
+    repo: SqlAlchemyAuditRepository = app.resolve(AuditPublisher)
 
     entries = repo.list_entries(
         user_id=user_id,

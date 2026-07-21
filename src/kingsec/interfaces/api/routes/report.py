@@ -10,7 +10,7 @@ Business logic remains inside the Application Layer.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 
@@ -25,7 +25,7 @@ from kingsec.application.errors import ReportNotFoundError
 def create_report_router(
     service: ReportServicePort,
     *,
-    get_current_user: Callable | None = None,
+    get_current_user: Callable[..., Any] | None = None,
 ) -> APIRouter:
     """Create an ``APIRouter`` with report endpoints wired to the given port.
 
@@ -37,9 +37,9 @@ def create_report_router(
 
     @router.post("")
     async def generate_report(
-        body: Annotated[dict, Body()],
-        _user=Depends(get_current_user),
-    ) -> dict:
+        body: Annotated[dict[str, Any], Body()],
+        _user: Any = Depends(get_current_user),
+    ) -> dict[str, Any]:
         """Generate a report for a completed scan."""
         raw_id = _extract_scan_id(body)
         result = service.generate_report(raw_id)
@@ -55,8 +55,8 @@ def create_report_router(
     @router.get("/{report_id}")
     async def get_report(
         report_id: str,
-        _user=Depends(get_current_user),
-    ) -> dict:
+        _user: Any = Depends(get_current_user),
+    ) -> dict[str, Any]:
         """Return the native JSON report."""
         if not report_id or not report_id.strip():
             raise HTTPException(
@@ -76,8 +76,8 @@ def create_report_router(
     @router.get("/{report_id}/summary")
     async def get_summary(
         report_id: str,
-        _user=Depends(get_current_user),
-    ) -> dict:
+        _user: Any = Depends(get_current_user),
+    ) -> dict[str, Any]:
         """Return executive summary + risk summary."""
         if not report_id or not report_id.strip():
             raise HTTPException(
@@ -97,7 +97,7 @@ def create_report_router(
     @router.get("/{report_id}/formats")
     async def get_formats(
         report_id: str,
-        _user=Depends(get_current_user),
+        _user: Any = Depends(get_current_user),
     ) -> list[str]:
         """Return available output formats."""
         if not report_id or not report_id.strip():
@@ -121,7 +121,7 @@ def create_report_router(
 # ---------------------------------------------------------------------------
 
 
-def _extract_scan_id(body: dict) -> str:
+def _extract_scan_id(body: dict[str, Any]) -> str:
     """Extract and validate the scan_id from the request body."""
     raw = body.get("scan_id")
     if not raw or not isinstance(raw, str) or not raw.strip():

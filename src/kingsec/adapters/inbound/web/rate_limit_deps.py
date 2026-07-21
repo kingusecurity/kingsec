@@ -11,7 +11,7 @@ from kingsec.domain.rate_limit import (
     RateLimitPolicy,
 )
 
-from .auth import get_current_api_key, get_current_user
+from .auth import bearer_scheme, get_current_api_key, get_current_user
 from .dependencies import get_application
 
 DEFAULT_POLICIES: dict[RateLimitGroup, tuple[int, int, RateLimitKeyType]] = {
@@ -46,19 +46,19 @@ async def _resolve_identifier(
             return f"ip:{client_ip}"
     elif policy.key_type == RateLimitKeyType.USER:
         try:
-            user = await get_current_user(request)
+            creds = await bearer_scheme(request)
+            user = await get_current_user(creds)
             return f"user:{user.user_id if hasattr(user, 'user_id') else str(id(user))}"
         except Exception:
             return f"ip:{client_ip}"
     elif policy.key_type == RateLimitKeyType.IP_USER:
         try:
-            user = await get_current_user(request)
+            creds = await bearer_scheme(request)
+            user = await get_current_user(creds)
             uid = user.user_id if hasattr(user, "user_id") else str(id(user))
             return f"ip_user:{client_ip}:{uid}"
         except Exception:
             return f"ip:{client_ip}"
-
-    return f"ip:{client_ip}"
 
 
 def require_rate_limit(group: RateLimitGroup) -> object:

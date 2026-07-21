@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
+from kingsec.application.errors import IllegalJobTransitionError
 from kingsec.application.job import JobId
 from kingsec.application.jobs import (
-    IllegalJobTransitionError,
     JobStatus,
     ScanJob,
     ScanJobResult,
@@ -39,7 +40,7 @@ class PersistentJobService(JobServicePort):
     def __init__(self, uow: UnitOfWorkPort) -> None:
         self._uow = uow
 
-    def submit_scan(self, target: str, config: dict | None = None) -> ScanJob:
+    def submit_scan(self, target: str, config: dict[str, Any] | None = None) -> ScanJob:
         job_id = JobId(str(uuid.uuid4()))
         now = datetime.now(UTC)
         job = ScanJob(

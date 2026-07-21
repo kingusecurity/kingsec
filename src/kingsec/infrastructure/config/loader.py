@@ -72,7 +72,7 @@ def load_settings(env_file: str | Path | None = None) -> Settings:
         if env_file is not None:
             # ``_env_file`` is pydantic-settings' documented per-instance
             # override for the .env path.
-            return Settings(_env_file=env_file)  # type: ignore[call-arg]
+            return Settings(_env_file=env_file)
         return Settings()
     except ValidationError as exc:
         # Convert the library error into our clear, secret-safe message and drop

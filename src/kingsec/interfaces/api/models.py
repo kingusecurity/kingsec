@@ -7,6 +7,7 @@ and information-safe.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -20,4 +21,4 @@ class ApiError(BaseModel):
     error: str = Field(description="Short, stable error-type name")
     message: str = Field(description="User-safe error description")
     path: str = Field(description="The request URL path")
-    details: dict | None = Field(default=None, description="Optional structured context")
+    details: dict[str, Any] | None = Field(default=None, description="Optional structured context")

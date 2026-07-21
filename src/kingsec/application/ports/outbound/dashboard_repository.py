@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 from kingsec.domain.dashboard import (
     DashboardSummary,
@@ -48,7 +49,7 @@ class DashboardRepositoryPort(ABC):
         ...
 
     @abstractmethod
-    def get_recent_activity(self, limit: int = 20) -> list[dict]:
+    def get_recent_activity(self, limit: int = 20) -> list[dict[str, Any]]:
         ...
 
     @abstractmethod

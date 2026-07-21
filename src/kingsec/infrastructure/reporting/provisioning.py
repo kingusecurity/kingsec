@@ -8,6 +8,7 @@ on the Module 2.4 container. The container is duck-typed (needs only
 from __future__ import annotations
 
 from kingsec.application import ReportGeneratorPort
+from kingsec.infrastructure._container import ContainerProtocol
 from kingsec.infrastructure.logging import get_logger
 
 from .adapter import ReportGeneratorAdapter
@@ -16,7 +17,7 @@ _logger = get_logger("kingsec.infrastructure.reporting")
 
 
 def register_reporting(
-    container: object,
+    container: ContainerProtocol,
     *,
     output_format: str = "pdf",
     brand_name: str = "KingSec",

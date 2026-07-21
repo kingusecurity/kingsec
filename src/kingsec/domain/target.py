@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from ._validation import ensure_non_empty
+from .errors import InvariantViolation
 
 
 class TargetType(Enum):
@@ -33,9 +34,7 @@ class Target:
     def __post_init__(self) -> None:
         ensure_non_empty(self.value, "Target value")
         if not isinstance(self.type, TargetType):
-            from .errors import InvariantViolation
-
-            raise InvariantViolation("Target type must be a TargetType")
+            raise InvariantViolation(f"Invalid target type: {self.type}")
 
     def __str__(self) -> str:
         return f"{self.value} ({self.type.value})"

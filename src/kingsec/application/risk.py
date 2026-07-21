@@ -180,7 +180,7 @@ class RiskScorer:
         # 3. Exploit likelihood
         likelihood_pts = _EXPLOIT_LIKELIHOOD_CONTRIBUTION.get(
             finding.exploit_likelihood, 0
-        )
+        ) if finding.exploit_likelihood is not None else 0
         factors.append(RiskFactor(
             name="exploit_likelihood",
             weight=15,
@@ -191,7 +191,7 @@ class RiskScorer:
         # 4. Business impact
         impact_pts = _BUSINESS_IMPACT_CONTRIBUTION.get(
             finding.business_impact, 0
-        )
+        ) if finding.business_impact is not None else 0
         factors.append(RiskFactor(
             name="business_impact",
             weight=15,
@@ -202,7 +202,7 @@ class RiskScorer:
         # 5. Attack surface
         surface_pts = _ATTACK_SURFACE_CONTRIBUTION.get(
             finding.attack_surface, 0
-        )
+        ) if finding.attack_surface is not None else 0
         factors.append(RiskFactor(
             name="attack_surface",
             weight=10,

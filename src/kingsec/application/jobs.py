@@ -5,6 +5,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
+from typing import Any
 
 from kingsec.application.errors import IllegalJobTransitionError, JobNotFoundError
 from kingsec.application.job import JobId
@@ -60,7 +61,7 @@ class ScanJob:
 
     id: JobId
     target: str
-    config: dict
+    config: dict[str, Any]
     status: JobStatus
     created_at: datetime
     updated_at: datetime
@@ -72,7 +73,7 @@ class ScanJobResult:
 
     job_id: str
     completed_at: datetime
-    findings: tuple[dict, ...] = ()
+    findings: tuple[dict[str, Any], ...] = ()
     error: str | None = None
 
 
@@ -92,7 +93,7 @@ class InMemoryJobService(JobServicePort):
     # Port interface
     # ------------------------------------------------------------------
 
-    def submit_scan(self, target: str, config: dict | None = None) -> ScanJob:
+    def submit_scan(self, target: str, config: dict[str, Any] | None = None) -> ScanJob:
         job_id = JobId(str(uuid.uuid4()))
         now = datetime.now(UTC)
         job = ScanJob(

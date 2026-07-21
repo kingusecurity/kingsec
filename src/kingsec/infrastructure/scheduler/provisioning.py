@@ -11,10 +11,10 @@ from .in_process_scheduler import InProcessScheduler
 from .sqlalchemy_schedule_repository import SqlAlchemyScheduleRepository
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.orm import Session, sessionmaker
 
 
-def register_scheduler(container: Any, session_factory: sessionmaker) -> None:
+def register_scheduler(container: Any, session_factory: sessionmaker[Session]) -> None:
     """Register scheduler infrastructure on the DI container."""
     repository = SqlAlchemyScheduleRepository(session_factory)
     container.register_instance(ScheduleRepositoryPort, repository)

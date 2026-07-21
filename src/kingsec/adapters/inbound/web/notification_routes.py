@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from typing import Any, cast
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from kingsec.application.errors import NotificationNotFoundError
 from kingsec.application.ports.notification_service import NotificationServicePort
 from kingsec.bootstrap.application import Application
+from kingsec.domain import Role
 from kingsec.domain.notification import NotificationChannel, NotificationId, NotificationPriority
 
 from .auth import CurrentUser, get_current_user, require_admin, require_viewer
@@ -15,7 +18,7 @@ router = APIRouter(prefix="/api/v1/notifications", tags=["notifications"])
 
 def _get_service(request: Request) -> NotificationServicePort:
     app: Application = get_application(request)
-    return app.resolve(NotificationServicePort)
+    return cast(NotificationServicePort, app.resolve(NotificationServicePort))
 
 
 @router.get("")
@@ -24,9 +27,9 @@ async def list_notifications(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
-    if user.role.value == "admin":
+    if user.role == Role.ADMIN:
         notifications, total = service.list_all(limit=limit, offset=offset)
     else:
         notifications, total = service.list_by_user(user.user_id, limit=limit, offset=offset)
@@ -43,23 +46,23 @@ async def get_notification(
     notification_id: str,
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     try:
         notification = service.get(NotificationId(notification_id))
     except NotificationNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found") from None
-    if user.role.value != "admin" and notification.user_id != user.user_id:
+    if user.role != Role.ADMIN and notification.user_id != user.user_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     return _to_json(notification)
 
 
 @router.post("/send")
 async def send_notification(
-    body: dict,
+    body: dict[str, Any],
     request: Request,
     user: CurrentUser = Depends(require_viewer),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     from datetime import UTC, datetime
     from uuid import uuid4
@@ -87,10 +90,10 @@ async def send_notification(
 
 @router.post("/bulk")
 async def send_bulk(
-    body: dict,
+    body: dict[str, Any],
     request: Request,
     user: CurrentUser = Depends(require_admin),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     from datetime import UTC, datetime
     from uuid import uuid4
@@ -126,14 +129,14 @@ async def mark_read(
     notification_id: str,
     request: Request,
     user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     nid = NotificationId(notification_id)
     try:
         notification = service.get(nid)
     except NotificationNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found") from None
-    if user.role.value != "admin" and notification.user_id != user.user_id:
+    if user.role != Role.ADMIN and notification.user_id != user.user_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     result = service.mark_read(nid)
     return _to_json(result)
@@ -151,17 +154,17 @@ async def delete_notification(
         notification = service.get(nid)
     except NotificationNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found") from None
-    if user.role.value != "admin" and notification.user_id != user.user_id:
+    if user.role != Role.ADMIN and notification.user_id != user.user_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     service.delete(nid)
 
 
 @router.post("/retry")
 async def retry_failed(
-    body: dict,
+    body: dict[str, Any],
     request: Request,
     user: CurrentUser = Depends(require_admin),
-) -> dict:
+) -> dict[str, Any]:
     service = _get_service(request)
     notification_id = body.get("notification_id")
     if not notification_id:
@@ -173,7 +176,7 @@ async def retry_failed(
     return _to_json(result)
 
 
-def _to_json(notification: object) -> dict:
+def _to_json(notification: object) -> dict[str, Any]:
     from kingsec.domain.notification import Notification as N
     if not isinstance(notification, N):
         return {}

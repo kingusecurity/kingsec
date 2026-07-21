@@ -129,9 +129,8 @@ class Application:
     def __enter__(self) -> Application:
         return self.start()
 
-    def __exit__(self, *exc_info: object) -> bool:
+    def __exit__(self, *exc_info: object) -> None:
         self.stop()
-        return False  # never suppress exceptions from the with-block
 
 
 def create_application(

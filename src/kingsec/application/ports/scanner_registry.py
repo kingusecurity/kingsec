@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+from kingsec.application.ports.scanner_plugin import ScannerPluginPort
 from kingsec.domain import PluginAvailability, ScannerId, ScannerPluginMetadata, Target
 
 
@@ -19,7 +20,7 @@ class ScannerPluginRegistry(ABC):
     """Manages the discovery and lookup of scanner plugins."""
 
     @abstractmethod
-    def register(self, plugin: object) -> None:
+    def register(self, plugin: ScannerPluginPort) -> None:
         """Register a scanner plugin.
 
         The plugin must implement ``ScannerPluginPort``. Registration
@@ -37,7 +38,7 @@ class ScannerPluginRegistry(ABC):
         ...
 
     @abstractmethod
-    def get(self, plugin_id: ScannerId) -> object:
+    def get(self, plugin_id: ScannerId) -> ScannerPluginPort:
         """Return the registered plugin for the given id.
 
         Args:
@@ -49,7 +50,7 @@ class ScannerPluginRegistry(ABC):
         ...
 
     @abstractmethod
-    def resolve(self, target: Target) -> tuple[object, ...]:
+    def resolve(self, target: Target) -> tuple[ScannerPluginPort, ...]:
         """Return all plugins capable of scanning this target type.
 
         Returns an empty tuple if no plugins match. The orchestrator

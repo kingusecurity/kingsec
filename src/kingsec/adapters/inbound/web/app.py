@@ -71,7 +71,7 @@ def create_fastapi_app(kingsec_app: Application) -> FastAPI:
     )
 
     # Store the KingSec application for the dependency layer.
-    app.state.kingsec_app = kingsec_app  # type: ignore[attr-defined]
+    app.state.kingsec_app = kingsec_app
 
     # Configure OpenAPI specification.
     configure_openapi(app, settings.app)

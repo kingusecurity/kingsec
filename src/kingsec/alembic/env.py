@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from alembic import context
 from sqlalchemy import Engine, create_engine, event
@@ -115,7 +115,7 @@ def _engine_from_settings(url: str | None = None) -> Engine:
     return create_engine(resolved_url, future=True)
 
 
-def _enable_sqlite_foreign_keys(dbapi_connection, _connection_record) -> None:
+def _enable_sqlite_foreign_keys(dbapi_connection: Any, _connection_record: Any) -> None:
     """Enable foreign-key enforcement for SQLite connections."""
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")

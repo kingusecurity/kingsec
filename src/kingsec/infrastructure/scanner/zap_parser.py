@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from typing import Any
 
 from kingsec.domain import Evidence, Finding, Severity
 from kingsec.infrastructure.logging import get_logger
@@ -44,7 +45,7 @@ def _map_risk(risk: str | int) -> Severity:
     return _RISK_MAP.get(str(risk), Severity.INFORMATIONAL)
 
 
-def _parse_alerts(alerts: list[dict], site_url: str) -> list[Finding]:
+def _parse_alerts(alerts: list[dict[str, Any]], site_url: str) -> list[Finding]:
     """Parse the alerts array from a ZAP site."""
     findings: list[Finding] = []
 
@@ -117,7 +118,7 @@ def parse_zap_json(output: str) -> list[Finding]:
         if not isinstance(site, dict):
             continue
 
-        site_url = site.get("@name", site.get("host", ""))
+        site_url = str(site.get("@name", site.get("host", "")) or "")
         alerts = site.get("alerts", [])
         if isinstance(alerts, list) and alerts:
             findings.extend(_parse_alerts(alerts, site_url))

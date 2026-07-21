@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from fastapi import APIRouter, Depends, Request, status
 
 from kingsec.application.services.configuration_security_service import ConfigurationSecurityService
@@ -32,27 +34,27 @@ router = APIRouter(prefix="/api/v1/admin", dependencies=[Depends(require_admin)]
 
 def _get_store_secret_uc(request: Request) -> StoreSecret:
     app: Application = request.app.state.kingsec_app
-    return app.resolve(StoreSecret)
+    return cast(StoreSecret, app.resolve(StoreSecret))
 
 
 def _get_list_secrets_uc(request: Request) -> ListSecrets:
     app: Application = request.app.state.kingsec_app
-    return app.resolve(ListSecrets)
+    return cast(ListSecrets, app.resolve(ListSecrets))
 
 
 def _get_delete_secret_uc(request: Request) -> DeleteSecret:
     app: Application = request.app.state.kingsec_app
-    return app.resolve(DeleteSecret)
+    return cast(DeleteSecret, app.resolve(DeleteSecret))
 
 
 def _get_rotate_secrets_uc(request: Request) -> RotateSecrets:
     app: Application = request.app.state.kingsec_app
-    return app.resolve(RotateSecrets)
+    return cast(RotateSecrets, app.resolve(RotateSecrets))
 
 
 def _get_config_security_service(request: Request) -> ConfigurationSecurityService:
     app: Application = request.app.state.kingsec_app
-    return app.resolve(ConfigurationSecurityService)
+    return cast(ConfigurationSecurityService, app.resolve(ConfigurationSecurityService))
 
 
 @router.get(

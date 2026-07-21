@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from kingsec.application.ports.outbound import QueueRepositoryPort, SchedulerPolicyPort
 from kingsec.domain.queue import (
     ConcurrencyPolicy,
@@ -208,7 +210,7 @@ class MoveQueuePosition:
 
 class AssignBestAgent:
     def __init__(self, repo: QueueRepositoryPort, policy: SchedulerPolicyPort,
-                 agent_repo) -> None:
+                 agent_repo: Any) -> None:
         self._repo = repo
         self._policy = policy
         self._agent_repo = agent_repo

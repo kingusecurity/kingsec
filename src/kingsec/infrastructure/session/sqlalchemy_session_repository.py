@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any, cast
+
 from kingsec.application.ports.outbound.session_repository import SessionRepository
 from kingsec.domain.session import (
     DeviceInfo,
@@ -12,7 +15,7 @@ from kingsec.infrastructure.persistence.models import SessionORM
 
 
 class SqlAlchemySessionRepository(SessionRepository):
-    def __init__(self, session_factory: callable) -> None:
+    def __init__(self, session_factory: Callable[..., Any]) -> None:
         self._session_factory = session_factory
 
     def _to_domain(self, orm: SessionORM) -> Session:
@@ -102,11 +105,7 @@ class SqlAlchemySessionRepository(SessionRepository):
 
     def count_active_by_user(self, user_id: str) -> int:
         with self._session_factory() as db:
-            return (
-                db.query(SessionORM)
-                .filter_by(user_id=user_id, status="active")
-                .count()
-            )
+            return cast(int, db.query(SessionORM).filter_by(user_id=user_id, status="active").count())
 
     def revoke(self, session_id: str) -> None:
         with self._session_factory() as db:
@@ -147,4 +146,4 @@ class SqlAlchemySessionRepository(SessionRepository):
                 .delete()
             )
             db.commit()
-            return count
+            return cast(int, count)

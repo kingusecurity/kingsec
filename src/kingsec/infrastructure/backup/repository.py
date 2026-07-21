@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from kingsec.application.ports.outbound import BackupRepositoryPort
 from kingsec.domain.backup import (
     BackupId,
@@ -49,7 +51,7 @@ class InMemoryBackupRepository(BackupRepositoryPort):
 
 
 class SQLAlchemyBackupRepository(BackupRepositoryPort):
-    def __init__(self, session_factory) -> None:
+    def __init__(self, session_factory: Any) -> None:
         self._session_factory = session_factory
 
     def save_backup(self, backup: BackupMetadata) -> None:
@@ -200,7 +202,7 @@ class SQLAlchemyBackupRepository(BackupRepositoryPort):
                 error_message=m.get("error_message", ""),
             )
 
-    def _row_to_backup(self, row) -> BackupMetadata:
+    def _row_to_backup(self, row: Any) -> BackupMetadata:
         return BackupMetadata(
             backup_id=BackupId(value=row.get("backup_id", "")),
             backup_type=BackupType(row.get("backup_type", "full")),

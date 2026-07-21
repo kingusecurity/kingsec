@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from kingsec.application import ScannerPort
+from kingsec.infrastructure._container import ContainerProtocol
 from kingsec.infrastructure.logging import get_logger
 
 from .orchestrator import ScannerOrchestrator
@@ -34,7 +35,7 @@ _logger = get_logger("kingsec.infrastructure.scanner")
 
 
 def register_scanner(
-    container: object,
+    container: ContainerProtocol,
     settings: Settings,
     *,
     runner: CommandRunner | None = None,

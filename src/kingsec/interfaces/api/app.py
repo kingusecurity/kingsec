@@ -28,7 +28,7 @@ def create_app(
     job_service: JobServicePort | None = None,
     worker_service: WorkerServicePort | None = None,
     *,
-    get_current_user: Callable | None = None,
+    get_current_user: Callable[..., Any] | None = None,
     app_instance: Any | None = None,
 ) -> FastAPI:
     """Create and return a configured FastAPI application instance.
@@ -57,18 +57,18 @@ def create_app(
     # auth dependencies (get_current_user, require_role, …) can resolve ports
     # from the DI container.
     if app_instance is not None:
-        app.state.kingsec_app = app_instance  # type: ignore[attr-defined]
+        app.state.kingsec_app = app_instance
 
     @app.get("/")
-    async def root() -> dict:
+    async def root() -> dict[str, Any]:
         return {"name": "KingSec", "status": "running"}
 
     @app.get("/health")
-    async def health() -> dict:
+    async def health() -> dict[str, Any]:
         return {"status": "healthy"}
 
     @app.get("/version")
-    async def version() -> dict:
+    async def version() -> dict[str, Any]:
         return {"version": app.version}
 
     if registry is not None and scanner is not None:

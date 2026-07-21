@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from kingsec.application.ports.outbound import DashboardRepositoryPort
 from kingsec.domain.dashboard import (
     DashboardSummary,
@@ -81,7 +83,7 @@ class GetRecentActivity:
     def __init__(self, repo: DashboardRepositoryPort) -> None:
         self._repo = repo
 
-    def execute(self, limit: int = 20) -> list[dict]:
+    def execute(self, limit: int = 20) -> list[dict[str, Any]]:
         return self._repo.get_recent_activity(limit=limit)
 
 

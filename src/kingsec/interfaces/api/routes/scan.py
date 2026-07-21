@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 
@@ -45,7 +45,7 @@ def create_scan_router(
     registry: ScannerPluginRegistry,
     scanner: ScannerPort,
     *,
-    get_current_user: Callable | None = None,
+    get_current_user: Callable[..., Any] | None = None,
 ) -> APIRouter:
     """Create an ``APIRouter`` with scan endpoints wired to the given ports.
 
@@ -57,9 +57,9 @@ def create_scan_router(
 
     @router.post("")
     async def execute_scan(
-        body: Annotated[dict, Body()],
-        _user=Depends(get_current_user),
-    ) -> dict:
+        body: Annotated[dict[str, Any], Body()],
+        _user: Any = Depends(get_current_user),
+    ) -> dict[str, Any]:
         """Run all compatible scanners against the given target."""
         raw_target = _extract_target(body)
         target = _build_target(raw_target)
@@ -78,9 +78,9 @@ def create_scan_router(
 
     @router.post("/custom")
     async def execute_custom_scan(
-        body: Annotated[dict, Body()],
-        _user=Depends(get_current_user),
-    ) -> dict:
+        body: Annotated[dict[str, Any], Body()],
+        _user: Any = Depends(get_current_user),
+    ) -> dict[str, Any]:
         """Run specific scanners against the given target."""
         raw_target = _extract_target(body)
         _validate_target(raw_target)
@@ -106,11 +106,11 @@ def create_scan_router(
 
     @router.get("/scanners")
     async def list_scanners(
-        _user=Depends(get_current_user),
-    ) -> list[dict]:
+        _user: Any = Depends(get_current_user),
+    ) -> list[dict[str, Any]]:
         """Return metadata for every registered scanner plugin."""
         entries = registry.list_all()
-        result: list[dict] = []
+        result: list[dict[str, Any]] = []
         for meta, _ in entries:
             result.append({
                 "id": meta.id.value,
@@ -127,7 +127,7 @@ def create_scan_router(
 # ---------------------------------------------------------------------------
 
 
-def _extract_target(body: dict) -> str:
+def _extract_target(body: dict[str, Any]) -> str:
     """Extract and validate the target from the request body."""
     raw_target = body.get("target")
     if not raw_target or not isinstance(raw_target, str) or not raw_target.strip():

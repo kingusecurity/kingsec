@@ -7,6 +7,8 @@ is generated so they don't interfere with application-level headers.
 
 from __future__ import annotations
 
+from typing import Any
+
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
@@ -17,7 +19,7 @@ from kingsec.infrastructure.config.models import SecurityHeadersSettings
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Middleware that adds security headers to every response."""
 
-    def __init__(self, app, settings: SecurityHeadersSettings) -> None:
+    def __init__(self, app: Any, settings: SecurityHeadersSettings) -> None:
         super().__init__(app)
         self._settings = settings
 

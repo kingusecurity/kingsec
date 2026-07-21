@@ -6,6 +6,9 @@ on the DI container. The composition root calls ``register_auth()``.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
 from kingsec.application.ports import (
     ApiKeyHasher,
     ApiKeyRepository,
@@ -13,13 +16,14 @@ from kingsec.application.ports import (
     TokenService,
     UserRepository,
 )
+from kingsec.infrastructure._container import ContainerProtocol
 from kingsec.infrastructure.config.settings import Settings
 from kingsec.infrastructure.persistence.user_repository import SqlAlchemyUserRepository
 
 from .jwt_service import JWTTokenService
 
 
-def register_auth(container: object, settings: Settings) -> None:
+def register_auth(container: ContainerProtocol, settings: Settings) -> None:
     """Register authentication adapters on the container.
 
     Args:
@@ -35,7 +39,7 @@ def register_auth(container: object, settings: Settings) -> None:
     container.register_instance(TokenService, jwt_service)
 
 
-def register_user_repository(container: object, session_factory: callable) -> None:
+def register_user_repository(container: ContainerProtocol, session_factory: Callable[..., Any]) -> None:
     """Register the user repository on the container.
 
     Args:
@@ -46,7 +50,7 @@ def register_user_repository(container: object, session_factory: callable) -> No
     container.register_instance(UserRepository, repo)
 
 
-def register_api_key_auth(container: object, session_factory: callable, settings: Settings | None = None) -> None:
+def register_api_key_auth(container: ContainerProtocol, session_factory: Callable[..., Any], settings: Settings | None = None) -> None:
     """Register API key hasher and repository on the container.
 
     Args:

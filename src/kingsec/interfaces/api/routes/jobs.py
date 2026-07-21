@@ -1,18 +1,19 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 
 from kingsec.application.errors import IllegalJobTransitionError, JobNotFoundError
+from kingsec.application.jobs import ScanJob
 from kingsec.application.ports.job_service import JobServicePort
 
 
 def create_jobs_router(
     job_service: JobServicePort,
     *,
-    get_current_user: Callable | None = None,
+    get_current_user: Callable[..., Any] | None = None,
 ) -> APIRouter:
     """Create an ``APIRouter`` with scan-job endpoints.
 
@@ -20,7 +21,7 @@ def create_jobs_router(
     """
     router = APIRouter(prefix="/jobs", tags=["jobs"])
 
-    show_401_403 = {
+    show_401_403: dict[str | int, dict[str, str]] = {
         401: {"description": "Missing or invalid token"},
         403: {"description": "Insufficient permissions"},
     }
@@ -34,9 +35,9 @@ def create_jobs_router(
         },
     )
     async def create_job(
-        body: Annotated[dict, Body()],
-        _user=Depends(get_current_user),
-    ) -> dict:
+        body: Annotated[dict[str, Any], Body()],
+        _user: Any = Depends(get_current_user),
+    ) -> dict[str, Any]:
         """Submit a scan target for asynchronous assessment.  Requires ANALYST or ADMIN."""
         raw_target = body.get("target")
         if not raw_target or not isinstance(raw_target, str) or not raw_target.strip():
@@ -58,8 +59,8 @@ def create_jobs_router(
         responses={200: {"description": "List of jobs"}, **show_401_403},
     )
     async def list_jobs(
-        _user=Depends(get_current_user),
-    ) -> list[dict]:
+        _user: Any = Depends(get_current_user),
+    ) -> list[dict[str, Any]]:
         """Return every known scan job, newest first.  Requires ANALYST or ADMIN."""
         jobs = job_service.list_jobs()
         return [_job_to_response(j) for j in jobs]
@@ -70,8 +71,8 @@ def create_jobs_router(
     )
     async def get_job(
         job_id: str,
-        _user=Depends(get_current_user),
-    ) -> dict:
+        _user: Any = Depends(get_current_user),
+    ) -> dict[str, Any]:
         """Return details for a single scan job.  Requires ANALYST or ADMIN."""
         try:
             job = job_service.get_job(job_id)
@@ -89,8 +90,8 @@ def create_jobs_router(
     )
     async def cancel_job(
         job_id: str,
-        _user=Depends(get_current_user),
-    ) -> dict:
+        _user: Any = Depends(get_current_user),
+    ) -> dict[str, Any]:
         """Cancel a pending or running scan job.  Requires ANALYST or ADMIN."""
         try:
             job = job_service.cancel_job(job_id)
@@ -113,8 +114,8 @@ def create_jobs_router(
     )
     async def get_job_result(
         job_id: str,
-        _user=Depends(get_current_user),
-    ) -> dict:
+        _user: Any = Depends(get_current_user),
+    ) -> dict[str, Any]:
         """Return findings for a completed scan job.  Requires ANALYST or ADMIN."""
         try:
             result = job_service.get_job_result(job_id)
@@ -140,13 +141,13 @@ def create_jobs_router(
 # -----------------------------------------------------------------------
 
 
-def _job_to_response(job: object) -> dict:
+def _job_to_response(job: ScanJob) -> dict[str, Any]:
     """Convert a ``ScanJob`` to a plain JSON-safe dict."""
     return {
-        "job_id": job.id.value,  # type: ignore[union-attr]
-        "status": job.status.value,  # type: ignore[union-attr]
-        "target": job.target,  # type: ignore[union-attr]
-        "config": job.config,  # type: ignore[union-attr]
-        "created_at": job.created_at.isoformat(),  # type: ignore[union-attr]
-        "updated_at": job.updated_at.isoformat(),  # type: ignore[union-attr]
+        "job_id": job.id.value,
+        "status": job.status.value,
+        "target": job.target,
+        "config": job.config,
+        "created_at": job.created_at.isoformat(),
+        "updated_at": job.updated_at.isoformat(),
     }

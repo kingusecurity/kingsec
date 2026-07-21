@@ -79,7 +79,8 @@ def app(mock_service: MagicMock) -> TestClient:
         app.state.kingsec_app = app_instance
         client = TestClient(app)
         from kingsec.adapters.inbound.web.auth import get_current_user
-        app.dependency_overrides[get_current_user] = lambda: type("User", (), {"id": "admin", "username": "admin", "role": "admin", "claims": None})()
+        from kingsec.domain import Role
+        app.dependency_overrides[get_current_user] = lambda: type("User", (), {"id": "admin", "username": "admin", "role": Role.ADMIN, "claims": None})()
         return client
 
 

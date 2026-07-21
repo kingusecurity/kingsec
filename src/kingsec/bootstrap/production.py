@@ -21,7 +21,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI
 from sqlalchemy import Engine
@@ -169,7 +169,7 @@ class ProductionReportService(ReportServicePort):
             "csv": csv_renderer,
             "sarif": sarif_renderer,
         }
-        self._reports: dict[str, dict] = {}
+        self._reports: dict[str, dict[str, Any]] = {}
 
     def generate_report(self, scan_id: str) -> ReportGenerationResult:
         rid = str(uuid.uuid4())
@@ -187,11 +187,11 @@ class ProductionReportService(ReportServicePort):
             finding_count=0,
         )
 
-    def get_report(self, report_id: str) -> dict:
+    def get_report(self, report_id: str) -> dict[str, Any]:
         self._ensure_report(report_id)
         return dict(self._reports[report_id])
 
-    def get_summary(self, report_id: str) -> dict:
+    def get_summary(self, report_id: str) -> dict[str, Any]:
         self._ensure_report(report_id)
         return {
             "executive_summary": {
@@ -337,7 +337,7 @@ def create_production_application(
     settings: Settings | None = None,
     env_file: str | Path | None = None,
     *,
-    auth_dependency: Callable | None = None,
+    auth_dependency: Callable[..., Any] | None = None,
 ) -> ProductionApplication:
     """Build and return a fully wired :class:`ProductionApplication`.
 

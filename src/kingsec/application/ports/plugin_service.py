@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 from kingsec.domain.plugin_package import PluginPackage
 
@@ -33,7 +34,7 @@ class PluginServicePort(ABC):
         ...
 
     @abstractmethod
-    def validate(self, package_path: str) -> dict:
+    def validate(self, package_path: str) -> dict[str, Any]:
         ...
 
     @abstractmethod
@@ -45,7 +46,7 @@ class PluginServicePort(ABC):
         ...
 
     @abstractmethod
-    def check_updates(self, plugin_id: str) -> list[dict]:
+    def check_updates(self, plugin_id: str) -> list[dict[str, Any]]:
         ...
 
     @abstractmethod

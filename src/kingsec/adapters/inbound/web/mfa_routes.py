@@ -1,7 +1,7 @@
 """FastAPI routes for MFA (TOTP) management and verification."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api/v1/mfa", tags=["mfa"])
 
 
 def _get_app(request: Request) -> Application:
-    return request.app.state.kingsec_app  # type: ignore[attr-defined]
+    return cast("Application", request.app.state.kingsec_app)
 
 
 @router.get(
@@ -57,7 +57,7 @@ async def get_mfa_status(
 async def enable_mfa(
     request: Request,
     current_user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     from kingsec.application.use_cases.enable_mfa import EnableMfa
     from kingsec.application.use_cases.mfa_dto import EnableMfaRequest
 
@@ -81,9 +81,9 @@ async def enable_mfa(
     },
 )
 async def verify_mfa(
-    body: Annotated[dict, "VerifyMfaBody"],
+    body: Annotated[dict[str, Any], "VerifyMfaBody"],
     request: Request,
-) -> dict:
+) -> dict[str, Any]:
     from kingsec.application.use_cases.verify_mfa_code import VerifyMfaCode
 
     app = _get_app(request)
@@ -120,7 +120,7 @@ async def verify_mfa(
 async def disable_mfa(
     request: Request,
     current_user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     from kingsec.application.use_cases.disable_mfa import DisableMfa
     from kingsec.application.use_cases.mfa_dto import DisableMfaRequest
 
@@ -145,7 +145,7 @@ async def admin_disable_mfa(
     user_id: str,
     request: Request,
     current_user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     from kingsec.application.use_cases.disable_mfa import DisableMfa
     from kingsec.application.use_cases.mfa_dto import DisableMfaRequest
 
@@ -165,9 +165,9 @@ async def admin_disable_mfa(
     },
 )
 async def use_recovery_code(
-    body: Annotated[dict, "UseRecoveryCodeBody"],
+    body: Annotated[dict[str, Any], "UseRecoveryCodeBody"],
     request: Request,
-) -> dict:
+) -> dict[str, Any]:
     from kingsec.application.use_cases.use_recovery_code import UseRecoveryCode
 
     app = _get_app(request)
@@ -204,7 +204,7 @@ async def use_recovery_code(
 async def generate_recovery_codes(
     request: Request,
     current_user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     from kingsec.application.use_cases.generate_recovery_codes import GenerateRecoveryCodes
     from kingsec.application.use_cases.mfa_dto import GenerateRecoveryCodesRequest
 
@@ -226,7 +226,7 @@ async def generate_recovery_codes(
 async def rotate_recovery_codes(
     request: Request,
     current_user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     from kingsec.application.use_cases.mfa_dto import RotateRecoveryCodesRequest
     from kingsec.application.use_cases.rotate_recovery_codes import RotateRecoveryCodes
 

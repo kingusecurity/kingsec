@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from typing import Any
 
 from kingsec.domain import Evidence, Finding, Severity
 from kingsec.infrastructure.logging import get_logger
@@ -42,7 +43,7 @@ def _map_severity(trivy_severity: str) -> Severity:
 
 
 def _parse_vulnerabilities(
-    vulns: list[dict], target: str
+    vulns: list[dict[str, Any]], target: str
 ) -> list[Finding]:
     """Parse the Vulnerabilities array from a Trivy result."""
     findings: list[Finding] = []
@@ -88,7 +89,7 @@ def _parse_vulnerabilities(
 
 
 def _parse_misconfigs(
-    misconfigs: list[dict], target: str
+    misconfigs: list[dict[str, Any]], target: str
 ) -> list[Finding]:
     """Parse the Misconfigurations array from a Trivy result."""
     findings: list[Finding] = []

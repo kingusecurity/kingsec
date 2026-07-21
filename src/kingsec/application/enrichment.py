@@ -196,7 +196,7 @@ _OS_MAP: dict[str, str] = {
     "hp-ux": "HP-UX",
 }
 
-_BUSINESS_IMPACT_PATTERNS: list[tuple[re.Pattern, str]] = [
+_BUSINESS_IMPACT_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"admin|administrator|admin panel|admin login|admin console", re.IGNORECASE), "High"),
     (re.compile(r"database|db |sql|mysql|postgres|oracle|redis|mongodb|cassandra", re.IGNORECASE), "Critical"),
     (re.compile(r"ssh|remote access|shell|rce|remote code|code execution|remote exec", re.IGNORECASE), "Critical"),
@@ -210,7 +210,7 @@ _BUSINESS_IMPACT_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"discovery|subdomain|dns|enumeration|banner|fingerprint", re.IGNORECASE), "Low"),
 ]
 
-_REMEDIATION_PATTERNS: list[tuple[re.Pattern, str]] = [
+_REMEDIATION_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"missing header|csp|hsts|x.?frame|x.?content|x.?permitted|add header|set header|configure header", re.IGNORECASE), "Easy"),
     (re.compile(r"upgrade|update|patch|version|outdated|deprecated|newer|old.?version|bump", re.IGNORECASE), "Medium"),
     (re.compile(r"reconfigur|migrate|redeploy|infrastructure|architecture|redesign|refactor", re.IGNORECASE), "Hard"),
@@ -220,7 +220,7 @@ _REMEDIATION_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"remove|disable|turn.?off|deprecat|delete|drop", re.IGNORECASE), "Easy"),
 ]
 
-_ATTACK_SURFACE_PATTERNS: list[tuple[re.Pattern, str]] = [
+_ATTACK_SURFACE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"web|http|apache|nginx|iis|tomcat|wordpress|drupal|joomla|php|node|express|django|flask|rails|xss|sqli|header|csp|hsts", re.IGNORECASE), "Web Application"),
     (re.compile(r"ssh|openssh|remote|telnet|ftp|smtp|rdp|vnc|snmp", re.IGNORECASE), "Network Service"),
     (re.compile(r"database|sql|mysql|postgres|oracle|redis|mongodb|mariadb|cassandra|elasticsearch", re.IGNORECASE), "Database"),
@@ -233,7 +233,7 @@ _ATTACK_SURFACE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"network|port|firewall|vpn|gateway|router|switch", re.IGNORECASE), "Network Infrastructure"),
 ]
 
-_RISK_FACTOR_PATTERNS: list[tuple[re.Pattern, str]] = [
+_RISK_FACTOR_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"remote|network.?accessible|externally.?accessible|public", re.IGNORECASE), "Remote Exploitable"),
     (re.compile(r"auth.?bypass|authentication.?bypass|no.?auth|without.?auth", re.IGNORECASE), "Authentication Bypass"),
     (re.compile(r"credential|password|secret|api.?key|token|plain.?text|cleartext", re.IGNORECASE), "Credential Exposure"),
@@ -600,10 +600,12 @@ class FindingEnricher:
         score += int(finding.confidence * 30)
 
         impact = self.estimate_business_impact(finding)
-        score += _BUSINESS_IMPACT_WEIGHT.get(impact, 0)
+        if impact is not None:
+            score += _BUSINESS_IMPACT_WEIGHT.get(impact, 0)
 
         likelihood = self.estimate_exploit_likelihood(finding)
-        score += _EXPLOIT_LIKELIHOOD_WEIGHT.get(likelihood, 0)
+        if likelihood is not None:
+            score += _EXPLOIT_LIKELIHOOD_WEIGHT.get(likelihood, 0)
 
         for threshold, label in _PRIORITY_THRESHOLDS:
             if score >= threshold:

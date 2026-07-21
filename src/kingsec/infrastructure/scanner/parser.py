@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from typing import Any
 
 from kingsec.domain import Evidence, Finding, Recommendation, Severity
 from kingsec.infrastructure.logging import get_logger
@@ -35,7 +36,7 @@ def _map_severity(raw: str | None) -> Severity:
     return _SEVERITY_MAP.get((raw or "").strip().lower(), Severity.INFORMATIONAL)
 
 
-def _finding_from_record(record: dict) -> Finding | None:
+def _finding_from_record(record: dict[str, Any]) -> Finding | None:
     """Build a single Finding from one parsed Nuclei JSON record, or None.
 
     Returns None (and logs) if the record lacks the minimum fields needed to be

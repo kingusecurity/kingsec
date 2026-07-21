@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
@@ -111,7 +112,7 @@ class SQLAlchemyDashboardRepository(DashboardRepositoryPort):
             .order_by(text("day"))
         )
         rows = self._session.execute(stmt).all()
-        return [TrendPoint(date=str(row.day), value=float(row.count)) for row in rows]
+        return [TrendPoint(date=str(row.day), value=float(row.count)) for row in rows]  # type: ignore[arg-type]
 
     def get_scanner_statistics(self) -> list[ScannerStatistics]:
         return []
@@ -183,7 +184,7 @@ class SQLAlchemyDashboardRepository(DashboardRepositoryPort):
             read_count=counts.get("read", 0),
         )
 
-    def get_recent_activity(self, limit: int = 20) -> list[dict]:
+    def get_recent_activity(self, limit: int = 20) -> list[dict[str, Any]]:
         from kingsec.infrastructure.persistence.models import AssessmentORM
 
         stmt = (

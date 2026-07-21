@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from kingsec.application.ports.outbound import QueueRepositoryPort, SchedulerPolicyPort
 from kingsec.application.ports.queue_service import QueueServicePort
 from kingsec.application.use_cases.queue import (
@@ -20,7 +22,7 @@ from kingsec.domain.queue import QueueEntry, QueueStatistics
 
 class QueueService(QueueServicePort):
     def __init__(self, repo: QueueRepositoryPort, policy: SchedulerPolicyPort,
-                 agent_repo=None) -> None:
+                 agent_repo: Any = None) -> None:
         self._enqueue_uc = EnqueueJob(repo)
         self._dequeue_uc = DequeueJob(repo)
         self._cancel_uc = CancelQueuedJob(repo)

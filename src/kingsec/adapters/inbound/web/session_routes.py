@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, cast
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from kingsec.application.ports.outbound.session_repository import SessionRepository
@@ -24,32 +26,32 @@ from .auth import CurrentUser, get_current_user
 router = APIRouter(prefix="/api/v1/sessions", tags=["sessions"])
 
 
-def _get_create_session_uc(request: Request):
+def _get_create_session_uc(request: Request) -> Any:
     app: Application = request.app.state.kingsec_app
     return app.resolve(CreateSession)
 
 
-def _get_list_sessions_uc(request: Request):
+def _get_list_sessions_uc(request: Request) -> Any:
     app: Application = request.app.state.kingsec_app
     return app.resolve(ListUserSessions)
 
 
-def _get_revoke_session_uc(request: Request):
+def _get_revoke_session_uc(request: Request) -> Any:
     app: Application = request.app.state.kingsec_app
     return app.resolve(RevokeSession)
 
 
-def _get_revoke_all_uc(request: Request):
+def _get_revoke_all_uc(request: Request) -> Any:
     app: Application = request.app.state.kingsec_app
     return app.resolve(RevokeAllSessions)
 
 
-def _get_terminate_other_uc(request: Request):
+def _get_terminate_other_uc(request: Request) -> Any:
     app: Application = request.app.state.kingsec_app
     return app.resolve(TerminateOtherSessions)
 
 
-def _get_session_repo(request: Request):
+def _get_session_repo(request: Request) -> Any:
     app: Application = request.app.state.kingsec_app
     return app.resolve(SessionRepository)
 
@@ -57,17 +59,17 @@ def _get_session_repo(request: Request):
 @router.get("", response_model=list[SessionView])
 async def list_sessions(
     current_user: CurrentUser = Depends(get_current_user),
-    list_uc=Depends(_get_list_sessions_uc),
+    list_uc: Any = Depends(_get_list_sessions_uc),
 ) -> list[SessionView]:
     req = ListUserSessionsRequest(user_id=current_user.user_id)
     result = list_uc.execute(req)
-    return result.sessions
+    return cast(list[SessionView], result.sessions)
 
 
 @router.get("/current", response_model=SessionView)
 async def get_current_session(
     current_user: CurrentUser = Depends(get_current_user),
-    repo=Depends(_get_session_repo),
+    repo: Any = Depends(_get_session_repo),
 ) -> SessionView:
     session = repo.find_by_jti(current_user.claims.jti)
     if session is None:
@@ -92,8 +94,8 @@ async def get_current_session(
 @router.delete("/current", status_code=status.HTTP_204_NO_CONTENT)
 async def logout_current(
     current_user: CurrentUser = Depends(get_current_user),
-    revoke_uc=Depends(_get_revoke_session_uc),
-    repo=Depends(_get_session_repo),
+    revoke_uc: Any = Depends(_get_revoke_session_uc),
+    repo: Any = Depends(_get_session_repo),
 ) -> None:
     session = repo.find_by_jti(current_user.claims.jti)
     if session:
@@ -104,8 +106,8 @@ async def logout_current(
 async def revoke_session_by_id(
     session_id: str,
     current_user: CurrentUser = Depends(get_current_user),
-    revoke_uc=Depends(_get_revoke_session_uc),
-    repo=Depends(_get_session_repo),
+    revoke_uc: Any = Depends(_get_revoke_session_uc),
+    repo: Any = Depends(_get_session_repo),
 ) -> None:
     session = repo.find_by_id(session_id)
     if session and session.user_id != current_user.user_id:
@@ -116,7 +118,7 @@ async def revoke_session_by_id(
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
 async def logout_all(
     current_user: CurrentUser = Depends(get_current_user),
-    revoke_all_uc=Depends(_get_revoke_all_uc),
+    revoke_all_uc: Any = Depends(_get_revoke_all_uc),
 ) -> None:
     req = RevokeAllSessionsRequest(user_id=current_user.user_id)
     revoke_all_uc.execute(req)

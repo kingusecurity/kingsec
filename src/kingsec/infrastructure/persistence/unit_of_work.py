@@ -20,6 +20,7 @@ Two UoW styles coexist:
 from __future__ import annotations
 
 from types import TracebackType
+from typing import Protocol
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
@@ -141,17 +142,13 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
         exc_type: type[BaseException] | None,
         exc: BaseException | None,
         traceback: TracebackType | None,
-    ) -> bool:
+    ) -> None:
         assert self._session is not None  # entered => session exists
         try:
-            # Roll back anything not explicitly committed. After a successful
-            # commit this is a harmless no-op; after an exception or a missing
-            # commit it discards the uncommitted work — the safe default.
             self._session.rollback()
         finally:
             self._session.close()
             self._session = None
-        return False  # never suppress an exception raised inside the block
 
     def commit(self) -> None:
         """Commit the transaction, translating any failure to PersistenceError.
@@ -195,12 +192,12 @@ def create_unit_of_work_factory(
     return SqlAlchemyUnitOfWorkFactory(session_factory)
 
 
-class _SupportsRegistration:  # pragma: no cover - typing helper only
+class _SupportsRegistration(Protocol):  # pragma: no cover - typing helper only
     def register_instance(self, service_type: type, instance: object) -> None: ...
 
 
 def register_unit_of_work(
-    container: object, session_factory: sessionmaker[Session]
+    container: _SupportsRegistration, session_factory: sessionmaker[Session]
 ) -> UnitOfWorkFactory:
     """Register a Unit of Work factory on the bootstrap container.
 

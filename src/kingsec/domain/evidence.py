@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 
 from ._validation import ensure_non_empty, ensure_timezone_aware
 from .enums import Severity
+from .errors import InvariantViolation
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +46,4 @@ class Recommendation:
         ensure_non_empty(self.title, "Recommendation title")
         ensure_non_empty(self.description, "Recommendation description")
         if not isinstance(self.priority, Severity):
-            from .errors import InvariantViolation
-
-            raise InvariantViolation("Recommendation priority must be a Severity")
+            raise InvariantViolation(f"Invalid severity: {self.priority}")

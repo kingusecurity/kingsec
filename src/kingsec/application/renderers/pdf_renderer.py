@@ -8,14 +8,14 @@ from __future__ import annotations
 
 from datetime import UTC
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.lib.units import cm
-from reportlab.platypus import (
+from reportlab.lib import colors  # type: ignore[import-untyped]
+from reportlab.lib.enums import TA_CENTER  # type: ignore[import-untyped]
+from reportlab.lib.pagesizes import A4  # type: ignore[import-untyped]
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet  # type: ignore[import-untyped]
+from reportlab.lib.units import cm  # type: ignore[import-untyped]
+from reportlab.platypus import (  # type: ignore[import-untyped]
     HRFlowable,
     PageBreak,
     Paragraph,
@@ -205,7 +205,7 @@ def _make_table(
         data.append([Paragraph(c, _TABLE_CELL) for c in row])
 
     t = Table(data, colWidths=col_widths, repeatRows=1, hAlign="LEFT")
-    style_cmds: list = [
+    style_cmds: list[Any] = [
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e3a5f")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
@@ -235,7 +235,7 @@ def _make_table(
 # ---------------------------------------------------------------------------
 
 
-class _NumberedDocTemplate(SimpleDocTemplate):
+class _NumberedDocTemplate(SimpleDocTemplate):  # type: ignore[misc]
     """SimpleDocTemplate that adds page numbers to footer."""
 
     def __init__(self, *args: object, **kwargs: object) -> None:
@@ -397,7 +397,7 @@ class PDFReportRenderer:
             repeatRows=1,
             hAlign="LEFT",
         )
-        sev_style: list = [
+        sev_style: list[Any] = [
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e3a5f")),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),

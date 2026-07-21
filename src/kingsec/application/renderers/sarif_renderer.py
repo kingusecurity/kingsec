@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from datetime import UTC
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from kingsec.application.report import (
@@ -55,7 +55,7 @@ class SarifRenderer:
     # SARIF document builder
     # ------------------------------------------------------------------
 
-    def _build_sarif(self, report: Report) -> dict:
+    def _build_sarif(self, report: Report) -> dict[str, Any]:
         entries = report.finding_section.entries
         sorted_entries = tuple(sorted(entries, key=lambda e: e.correlation_id))
         recs_by_cid = self._build_recs_lookup(report.recommendation_section)
@@ -120,9 +120,9 @@ class SarifRenderer:
         sorted_entries: tuple[FindingEntry, ...],
         recs_by_cid: dict[str, list[str]],
         report: Report,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         scanner_versions = report.appendix.scanner_versions
-        rules: list[dict] = []
+        rules: list[dict[str, Any]] = []
         for fe in sorted_entries:
             remediation = recs_by_cid.get(fe.correlation_id, [])
             scanners = sorted(fe.scanner_sources)
@@ -131,7 +131,7 @@ class SarifRenderer:
                 for s in scanners
             ]
 
-            rule: dict = {
+            rule: dict[str, Any] = {
                 "id": fe.correlation_id,
                 "name": fe.title,
                 "shortDescription": {
@@ -179,13 +179,13 @@ class SarifRenderer:
     def _build_results(
         sorted_entries: tuple[FindingEntry, ...],
         recs_by_cid: dict[str, list[str]],
-    ) -> list[dict]:
-        results: list[dict] = []
+    ) -> list[dict[str, Any]]:
+        results: list[dict[str, Any]] = []
         for rule_idx, fe in enumerate(sorted_entries):
             level = _SEVERITY_MAP.get(fe.severity.upper(), "note")
             remediation = recs_by_cid.get(fe.correlation_id, [])
 
-            locations: list[dict] = []
+            locations: list[dict[str, Any]] = []
             for asset in sorted(fe.affected_assets):
                 locations.append({
                     "physicalLocation": {
@@ -195,7 +195,7 @@ class SarifRenderer:
                     },
                 })
 
-            result: dict = {
+            result: dict[str, Any] = {
                 "ruleId": fe.correlation_id,
                 "ruleIndex": rule_idx,
                 "level": level,
@@ -225,9 +225,9 @@ class SarifRenderer:
     @staticmethod
     def _build_artifacts(
         entries: tuple[FindingEntry, ...],
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         seen: set[str] = set()
-        artifacts: list[dict] = []
+        artifacts: list[dict[str, Any]] = []
         for fe in entries:
             for asset in fe.affected_assets:
                 if asset not in seen:
