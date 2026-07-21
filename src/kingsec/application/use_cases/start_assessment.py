@@ -16,6 +16,8 @@ Observability for those failures is added at the adapter, which can log them.
 
 from __future__ import annotations
 
+import logging
+
 from kingsec.application._support import to_assessment_id
 from kingsec.application.dto import StartAssessmentRequest, StartAssessmentResponse
 from kingsec.application.events import (
@@ -139,8 +141,8 @@ class StartAssessment:
                         reason=str(exc),
                     )
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                logging.getLogger(__name__).warning("recovery audit failed (best-effort): %s", exc)
             raise
 
     def _enrich(self, finding: Finding) -> None:
@@ -161,8 +163,8 @@ class StartAssessment:
             return
         try:
             self._events.publish(event)
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.getLogger(__name__).warning("event publish failed (best-effort): %s", exc)
 
     def _publish_audit(self, entry: AuditEntry) -> None:
         """Publish an audit entry if a publisher is configured (best-effort)."""
@@ -170,8 +172,8 @@ class StartAssessment:
             return
         try:
             self._audit.record(entry)
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.getLogger(__name__).warning("audit publish failed (best-effort): %s", exc)
 
     @staticmethod
     def _severity_counts(assessment: object) -> dict[str, int] | None:

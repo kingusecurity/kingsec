@@ -47,7 +47,7 @@ _FROZEN = ConfigDict(frozen=True, extra="forbid")
 # Binding to any of these means "listen on every network interface", which
 # exposes the service beyond the local machine. KingSec's frozen trust posture
 # is loopback-by-default, so these require an explicit, deliberate opt-in.
-_WILDCARD_HOSTS = frozenset({"0.0.0.0", "::", "*"})
+_WILDCARD_HOSTS = frozenset({"0.0.0.0", "::", "*"})  # nosec B104 — set of hosts to validate against, not a binding address
 
 
 class AppSettings(BaseModel):

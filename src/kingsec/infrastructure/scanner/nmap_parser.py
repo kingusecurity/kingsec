@@ -13,8 +13,13 @@ Severity mapping (conservative — Nmap itself doesn't rate vulns):
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import xml.etree.ElementTree as ET
+else:
+    import defusedxml.ElementTree as ET
 
 from kingsec.domain import Evidence, Finding, Severity
 from kingsec.infrastructure.logging import get_logger

@@ -8,6 +8,8 @@ conclusions-first summary DTO.
 
 from __future__ import annotations
 
+import logging
+
 from kingsec.application._support import to_assessment_id
 from kingsec.application.dto import GenerateReportRequest, GenerateReportResponse, SeverityCount
 from kingsec.application.events import EVENT_REPORT_READY, AssessmentEvent
@@ -87,8 +89,8 @@ class GenerateReport:
             return
         try:
             self._events.publish(event)
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.getLogger(__name__).warning("event publish failed (best-effort): %s", exc)
 
     def _publish_audit(self, entry: AuditEntry) -> None:
         """Publish an audit entry if a publisher is configured (best-effort)."""
@@ -96,5 +98,5 @@ class GenerateReport:
             return
         try:
             self._audit.record(entry)
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.getLogger(__name__).warning("audit publish failed (best-effort): %s", exc)

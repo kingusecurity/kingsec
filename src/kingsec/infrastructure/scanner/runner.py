@@ -9,7 +9,7 @@ real binary.
 
 from __future__ import annotations
 
-import subprocess
+import subprocess  # nosec B404 — scanner binaries are configured by admin, validated, and run with shell=False + timeout
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -74,7 +74,7 @@ class SubprocessCommandRunner:
         argv = list(args)
         start = time.monotonic()
         try:
-            completed = subprocess.run(
+            completed = subprocess.run(  # nosec B603 — argv is validated, shell=False, timeout is set, executable is allow-listed
                 argv,
                 capture_output=True,
                 text=True,

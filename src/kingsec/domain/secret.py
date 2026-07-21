@@ -7,12 +7,12 @@ from enum import StrEnum
 
 
 class SecretType(StrEnum):
-    DATABASE_PASSWORD = "database_password"
+    DATABASE_PASSWORD = "database_password"  # nosec B105 — SecretType enum value, not a credential
     JWT_SIGNING_KEY = "jwt_signing_key"
     JWT_REFRESH_KEY = "jwt_refresh_key"
     API_KEY_PEPPER = "api_key_pepper"
-    SMTP_PASSWORD = "smtp_password"
-    WEBHOOK_SECRET = "webhook_secret"
+    SMTP_PASSWORD = "smtp_password"  # nosec B105 — SecretType enum value, not a credential
+    WEBHOOK_SECRET = "webhook_secret"  # nosec B105 — SecretType enum value, not a credential
     SCANNER_CREDENTIAL = "scanner_credential"
     SSH_CREDENTIAL = "ssh_credential"
     CLOUD_CREDENTIAL = "cloud_credential"

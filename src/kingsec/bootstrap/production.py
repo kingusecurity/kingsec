@@ -1,5 +1,13 @@
 """Production composition root for the KingSec API stack.
 
+.. deprecated::
+    This module is DEPRECATED. Use ``kingsec.bootstrap.composition`` instead::
+
+        from kingsec.bootstrap.composition import create_wired_application
+
+        app = create_wired_application()
+        ...
+
 Wires persistence (Engine, Session, SQLAlchemy repositories, Unit of Work),
 scanner plugins, registry, orchestrator, renderers, report service,
 job service, and the FastAPI application together.

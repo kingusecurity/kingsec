@@ -57,9 +57,13 @@ def validate_url(url: str, *, allowlist: Iterable[str] | None = None) -> None:
     """
     parsed = urlparse(url)
     hostname = parsed.hostname
+    scheme = parsed.scheme
 
     if not hostname:
         raise SSRFError(f"URL has no hostname: {url!r}")
+
+    if scheme not in ("http", "https"):
+        raise SSRFError(f"URL scheme {scheme!r} is not allowed (only http/https): {url!r}")
 
     allowlist_set = frozenset(allowlist or [])
 

@@ -19,8 +19,8 @@ class RateLimitGroup(StrEnum):
     API = "api"
     SCAN = "scan"
     REPORT = "report"
-    REFRESH_TOKEN = "refresh_token"
-    PASSWORD_CHANGE = "password_change"
+    REFRESH_TOKEN = "refresh_token"  # nosec B105 — rate limit bucket name, not a credential
+    PASSWORD_CHANGE = "password_change"  # nosec B105 — rate limit bucket name, not a credential
     MFA_VERIFY = "mfa_verify"
     API_KEY = "api_key"
 

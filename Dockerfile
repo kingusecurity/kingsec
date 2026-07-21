@@ -63,7 +63,7 @@ EXPOSE 8765
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health')"
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/api/v1/health')"
 
-# Default command: run migrations and start the server
-CMD ["sh", "-c", "alembic upgrade head && uvicorn kingsec.interfaces.api.app:create_app --host 0.0.0.0 --port 8765 --proxy-headers --forwarded-allow-ips='*'"]
+# Default command: run migrations and start the server via python -m kingsec
+CMD ["sh", "-c", "kingsec-migrate && python -m kingsec"]

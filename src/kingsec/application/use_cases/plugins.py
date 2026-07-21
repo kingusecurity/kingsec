@@ -85,7 +85,8 @@ class EnablePlugin:
             raise PluginNotFoundError(f"Plugin '{plugin_id}' not found")
         self._repo.update_status(plugin_id, PluginInstallStatus.ENABLED)
         updated = self._repo.find_by_id(plugin_id)
-        assert updated is not None
+        if updated is None:
+            raise RuntimeError(f"expected plugin {plugin_id!r} to exist after enabling")
         return updated
 
 
@@ -101,7 +102,8 @@ class DisablePlugin:
             raise PluginNotFoundError(f"Plugin '{plugin_id}' not found")
         self._repo.update_status(plugin_id, PluginInstallStatus.DISABLED)
         updated = self._repo.find_by_id(plugin_id)
-        assert updated is not None
+        if updated is None:
+            raise RuntimeError(f"expected plugin {plugin_id!r} to exist after disabling")
         return updated
 
 

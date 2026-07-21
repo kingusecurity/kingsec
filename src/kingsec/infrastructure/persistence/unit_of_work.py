@@ -131,7 +131,8 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
         exc: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        assert self._session is not None  # entered => session exists
+        if self._session is None:
+            raise RuntimeError("unit of work was not entered — no session to exit")
         try:
             self._session.rollback()
         finally:
@@ -144,7 +145,8 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
         Raises:
             PersistenceError: If the commit fails at the database level.
         """
-        assert self._session is not None
+        if self._session is None:
+            raise RuntimeError("unit of work was not entered — cannot commit")
         try:
             self._session.commit()
         except SQLAlchemyError as exc:
@@ -152,7 +154,8 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
 
     def rollback(self) -> None:
         """Discard all changes made in this transaction."""
-        assert self._session is not None
+        if self._session is None:
+            raise RuntimeError("unit of work was not entered — cannot rollback")
         self._session.rollback()
 
 

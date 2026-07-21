@@ -14,17 +14,14 @@ class LifecycleManager(LifecycleManagerPort):
 
     def shutdown(self) -> None:
         self._running = False
+        pid = os.getpid()
         try:
-            os.kill(os.getpid(), signal.SIGTERM)
-        except (ImportError, AttributeError, OSError):
+            os.kill(pid, signal.SIGINT)
+        except OSError:
             pass
 
     def restart(self) -> None:
-        try:
-            sighup = getattr(signal, "SIGHUP", signal.SIGTERM)
-            os.kill(os.getpid(), sighup)
-        except (ImportError, AttributeError, OSError):
-            pass
+        self.shutdown()
 
     def is_running(self) -> bool:
         return self._running

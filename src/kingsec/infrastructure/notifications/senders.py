@@ -20,7 +20,7 @@ logger = get_logger("kingsec.infrastructure.notifications.senders")
 
 
 class EmailSender(NotificationSenderPort):
-    def __init__(self, smtp_host: str = "", smtp_port: int = 0, username: str = "", password: str = "") -> None:
+    def __init__(self, smtp_host: str = "", smtp_port: int = 0, username: str = "", password: str = "") -> None:  # nosec B107 — empty default, actual password provided by DI at runtime
         self._smtp_host = smtp_host
         self._smtp_port = smtp_port
         self._username = username
@@ -56,7 +56,7 @@ class WebhookSender(NotificationSenderPort):
             ).encode()
             req = Request(url, data=payload, method="POST")
             req.add_header("Content-Type", "application/json")
-            with urlopen(req, timeout=10):
+            with urlopen(req, timeout=10):  # nosec B310 — URL is validated by validate_url() which blocks private IPs and non-http schemes
                 pass
             return None
         except SSRFError:
@@ -87,7 +87,7 @@ class SlackSender(NotificationSenderPort):
             ).encode()
             req = Request(url, data=payload, method="POST")
             req.add_header("Content-Type", "application/json")
-            with urlopen(req, timeout=10):
+            with urlopen(req, timeout=10):  # nosec B310 — URL is validated by validate_url() which blocks private IPs and non-http schemes
                 pass
             return None
         except SSRFError:
@@ -118,7 +118,7 @@ class DiscordSender(NotificationSenderPort):
             ).encode()
             req = Request(url, data=payload, method="POST")
             req.add_header("Content-Type", "application/json")
-            with urlopen(req, timeout=10):
+            with urlopen(req, timeout=10):  # nosec B310 — URL is validated by validate_url() which blocks private IPs and non-http schemes
                 pass
             return None
         except SSRFError:
@@ -153,7 +153,7 @@ class TeamsSender(NotificationSenderPort):
             ).encode()
             req = Request(url, data=payload, method="POST")
             req.add_header("Content-Type", "application/json")
-            with urlopen(req, timeout=10):
+            with urlopen(req, timeout=10):  # nosec B310 — URL is validated by validate_url() which blocks private IPs and non-http schemes
                 pass
             return None
         except SSRFError:

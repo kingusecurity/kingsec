@@ -17,6 +17,7 @@ Error handling
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 
 from kingsec.domain import AssessmentId, Finding
@@ -109,8 +110,8 @@ class SubmitAssessment:
             return
         try:
             self._events.publish(event)
-        except Exception:
-            pass  # Best-effort: event bus failure must not break the primary operation.
+        except Exception as exc:
+            logging.getLogger(__name__).warning("event publish failed (best-effort): %s", exc)
 
     def _publish_audit(self, entry: AuditEntry) -> None:
         """Publish an audit entry if a publisher is configured (best-effort)."""
@@ -118,8 +119,8 @@ class SubmitAssessment:
             return
         try:
             self._audit.record(entry)
-        except Exception:
-            pass  # Best-effort: audit failure must not break the primary operation.
+        except Exception as exc:
+            logging.getLogger(__name__).warning("audit publish failed (best-effort): %s", exc)
 
     @staticmethod
     def _make_background_fn(
@@ -192,8 +193,8 @@ def _execute_scan(
                     message=f"Scan failed: {exc}",
                 ),
             )
-        except Exception:
-            pass  # Best-effort: recovery failure must not propagate.
+        except Exception as exc:
+            logging.getLogger(__name__).warning("scan recovery failed (best-effort): %s", exc)
 
 
 def _enrich(finding: Finding, ai: AIPort | None) -> None:
@@ -203,7 +204,8 @@ def _enrich(finding: Finding, ai: AIPort | None) -> None:
     try:
         recommendation = ai.recommend(finding)
         finding.add_recommendation(recommendation)
-    except Exception:
+    except Exception as exc:
+        logging.getLogger(__name__).warning("AI enrichment failed (best-effort): %s", exc)
         return
 
 
@@ -213,8 +215,8 @@ def _publish_event(events: EventPublisher | None, event: AssessmentEvent) -> Non
         return
     try:
         events.publish(event)
-    except Exception:
-        pass  # Best-effort: event bus failure must not break the primary operation.
+    except Exception as exc:
+        logging.getLogger(__name__).warning("event publish failed (best-effort): %s", exc)
 
 
 def _severity_counts(assessment: object) -> dict[str, int] | None:

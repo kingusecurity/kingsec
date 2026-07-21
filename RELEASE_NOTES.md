@@ -64,8 +64,8 @@ docker compose up -d
 
 ```bash
 pip install kingsec
-alembic upgrade head
-uvicorn kingsec.interfaces.api.app:create_app --host 127.0.0.1 --port 8765
+kingsec-migrate
+python -m kingsec
 ```
 
 ## Upgrading from RC1

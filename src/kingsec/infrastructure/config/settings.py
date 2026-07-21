@@ -23,9 +23,10 @@ Environment variable convention
 
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from .enums import Environment
 from .models import (
     AISettings,
     AmassSettings,
@@ -98,3 +99,22 @@ class Settings(BaseSettings):
     rate_limit: RateLimitSettings = Field(default_factory=RateLimitSettings)
     secrets: SecretsSettings = Field(default_factory=SecretsSettings)
     middleware: MiddlewareSettings = Field(default_factory=MiddlewareSettings)
+
+    @model_validator(mode="after")
+    def _guard_default_secrets_in_production(self) -> Settings:
+        if self.app.environment is not Environment.PRODUCTION:
+            return self
+        _default = "CHANGE-ME-IN-PRODUCTION-DO-NOT-USE-DEFAULT"
+        jwt_secret = self.jwt.secret_key.get_secret_value()
+        if jwt_secret == _default:
+            raise ValueError(
+                "KINGSEC_JWT__SECRET_KEY is still set to the insecure default. "
+                "Set it to a unique random value in production."
+            )
+        pepper = self.secrets.api_key_pepper.get_secret_value()
+        if pepper == _default:
+            raise ValueError(
+                "KINGSEC_SECRETS__API_KEY_PEPPER is still set to the insecure default. "
+                "Set it to a unique random value in production."
+            )
+        return self

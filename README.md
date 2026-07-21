@@ -64,10 +64,10 @@ pip install kingsec
 export KINGSEC_JWT__SECRET_KEY="your-production-secret"
 
 # 3. Run database migrations
-alembic upgrade head
+kingsec-migrate
 
 # 4. Start the server
-uvicorn kingsec.interfaces.api.app:create_app --host 127.0.0.1 --port 8765
+python -m kingsec
 ```
 
 ## Database Migrations (Alembic)
@@ -76,13 +76,16 @@ KingSec uses Alembic for versioned database migrations. The migration chain is t
 
 ### First-time setup
 ```bash
-# Apply all migrations to create the schema
+# From a repository checkout (alembic.ini is in the project root):
 alembic upgrade head
+
+# From a pip-installed package (alembic.ini is bundled in the wheel):
+kingsec-migrate
 ```
 
 > **Startup validation:** The application validates that the database has been migrated at startup. If `alembic_version` is missing, it raises `RuntimeError` with instructions to run `alembic upgrade head`. The application will NOT call `create_all()` — use Alembic exclusively for schema management.
 
-### Common commands
+### Common commands (from a repository checkout)
 ```bash
 # Apply all pending migrations
 alembic upgrade head
@@ -114,7 +117,7 @@ alembic revision -m "description of changes"
 | `KINGSEC_STORAGE__DATA_DIR` | SQLite data directory (default: `~/.kingsec`) |
 
 ### Troubleshooting
-- **"No 'script_location' key found"**: Run commands from the project root (`kingsec/`).
+- **"No 'script_location' key found"**: Run commands from the project root (`kingsec/`) or use `kingsec-migrate` if installed via pip.
 - **"No changes detected" after model change**: Ensure the model is imported in `env.py` (it loads `models.py` directly via `importlib.util`).
 - **SQLite foreign key errors**: The engine enables `PRAGMA foreign_keys=ON` automatically.
 - **Downgrade leaves `alembic_version` table**: This is expected — Alembic tracks its version in this table.

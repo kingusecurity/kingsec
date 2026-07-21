@@ -74,9 +74,8 @@ class InProcessScheduler(SchedulerServicePort):
 
         try:
             ZoneInfo(timezone)
-        except Exception:
-            # Fall back to UTC for unknown/invalid timezone strings.
-            pass
+        except Exception as exc:
+            _logger.warning("invalid timezone %r, falling back to UTC: %s", timezone, exc)
 
         base = datetime.fromisoformat(after) if after else datetime.now(UTC)
         base_utc = base.astimezone(UTC).replace(tzinfo=None)

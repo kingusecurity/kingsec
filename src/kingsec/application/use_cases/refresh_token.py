@@ -18,6 +18,8 @@ Security considerations:
 
 from __future__ import annotations
 
+import logging
+
 from kingsec.application.dto import RefreshTokenRequest, RefreshTokenResponse
 from kingsec.application.errors import ApplicationError
 from kingsec.application.ports import AuditPublisher, TokenService, UserRepository
@@ -45,7 +47,7 @@ class RefreshToken:
             raise TokenRefreshError("invalid or expired refresh token") from exc
 
         # Step 2: Verify the token type (prevent access token reuse).
-        if claims.token_type != "refresh":
+        if claims.token_type != "refresh":  # nosec B105 — "refresh" is a JWT token type, not a credential
             raise TokenRefreshError("invalid token type")
 
         # Step 3: Look up the user to ensure they still exist and are active.
@@ -83,8 +85,8 @@ class RefreshToken:
             return
         try:
             self._audit.record(entry)
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.getLogger(__name__).warning("audit publish failed (best-effort): %s", exc)
 
 
 class TokenRefreshError(ApplicationError):

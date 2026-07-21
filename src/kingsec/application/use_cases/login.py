@@ -17,6 +17,8 @@ Security considerations:
 
 from __future__ import annotations
 
+import logging
+
 from kingsec.application.dto import LoginRequest, LoginResponse
 from kingsec.application.errors import ApplicationError
 from kingsec.application.ports import AuditPublisher, PasswordHasher, TokenService, UserRepository
@@ -136,8 +138,8 @@ class Login:
             return
         try:
             self._audit.record(entry)
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.getLogger(__name__).warning("audit publish failed (best-effort): %s", exc)
 
 
 class AuthenticationError(ApplicationError):

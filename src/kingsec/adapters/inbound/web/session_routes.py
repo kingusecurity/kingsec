@@ -139,7 +139,7 @@ async def refresh_session(
     token_svc: TokenService = app.resolve(TokenService)
 
     old_claims = token_svc.verify_refresh_token(body.refresh_token)
-    if old_claims.token_type != "refresh":
+    if old_claims.token_type != "refresh":  # nosec B105 — "refresh" is a JWT token type, not a credential
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid token type")
 
     new_access_token = token_svc.create_access_token(
@@ -177,6 +177,6 @@ async def refresh_session(
 
     return schemas.RefreshTokenResponse(
         access_token=new_access_token,
-        token_type="bearer",
+        token_type="bearer",  # nosec B106 — "bearer" is an OAuth token type identifier, not a credential
         expires_in=1800,
     )

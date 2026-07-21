@@ -158,7 +158,8 @@ def register_error_handlers(app: object) -> None:
     """
     from fastapi import FastAPI
 
-    assert isinstance(app, FastAPI)
+    if not isinstance(app, FastAPI):
+        raise TypeError(f"expected FastAPI instance, got {type(app).__name__}")
 
     # Application errors (most specific first).
     app.exception_handler(InputValidationError)(handle_input_validation_error)

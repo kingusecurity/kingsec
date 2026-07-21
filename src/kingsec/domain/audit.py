@@ -36,11 +36,11 @@ class AuditAction(StrEnum):
     LOGIN = "login"
     FAILED_LOGIN = "failed_login"
     LOGOUT = "logout"
-    TOKEN_REFRESHED = "token_refreshed"
+    TOKEN_REFRESHED = "token_refreshed"  # nosec B105 — audit event type name, not a credential
 
     # User management
     USER_REGISTERED = "user_registered"
-    PASSWORD_CHANGED = "password_changed"
+    PASSWORD_CHANGED = "password_changed"  # nosec B105 — audit event type name, not a credential
 
     # Assessment lifecycle
     ASSESSMENT_CREATED = "assessment_created"

@@ -18,6 +18,8 @@ Security considerations:
 
 from __future__ import annotations
 
+import logging
+
 from kingsec.application.dto import ChangePasswordRequest
 from kingsec.application.errors import ApplicationError
 from kingsec.application.ports import AuditPublisher, PasswordHasher, UserRepository
@@ -75,8 +77,8 @@ class ChangePassword:
             return
         try:
             self._audit.record(entry)
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.getLogger(__name__).warning("audit publish failed (best-effort): %s", exc)
 
     @staticmethod
     def _validate_password(password: str) -> None:

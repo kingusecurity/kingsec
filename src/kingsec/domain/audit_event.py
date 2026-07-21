@@ -12,8 +12,8 @@ class AuditAction(StrEnum):
     LOGIN_SUCCESS = "login_success"
     LOGIN_FAILURE = "login_failure"
     LOGOUT = "logout"
-    TOKEN_REFRESHED = "token_refreshed"
-    PASSWORD_CHANGED = "password_changed"
+    TOKEN_REFRESHED = "token_refreshed"  # nosec B105 — audit event type name, not a credential
+    PASSWORD_CHANGED = "password_changed"  # nosec B105 — audit event type name, not a credential
     API_KEY_CREATED = "api_key_created"
     API_KEY_ROTATED = "api_key_rotated"
     API_KEY_DELETED = "api_key_deleted"
@@ -40,11 +40,11 @@ class AuditAction(StrEnum):
     SESSION_REVOKED = "session_revoked"
     LOGOUT_ALL = "logout_all"
     CONCURRENT_SESSION_LIMIT_EXCEEDED = "concurrent_session_limit_exceeded"
-    REFRESH_TOKEN_REPLAY_DETECTED = "refresh_token_replay_detected"
-    SECRET_CREATED = "secret_created"
-    SECRET_DELETED = "secret_deleted"
-    SECRET_ROTATED = "secret_rotated"
-    SECRET_RETRIEVED = "secret_retrieved"
+    REFRESH_TOKEN_REPLAY_DETECTED = "refresh_token_replay_detected"  # nosec B105 — audit event type name, not a credential
+    SECRET_CREATED = "secret_created"  # nosec B105 — audit event type name, not a credential
+    SECRET_DELETED = "secret_deleted"  # nosec B105 — audit event type name, not a credential
+    SECRET_ROTATED = "secret_rotated"  # nosec B105 — audit event type name, not a credential
+    SECRET_RETRIEVED = "secret_retrieved"  # nosec B105 — audit event type name, not a credential
     NOTIFICATION_SENT = "notification_sent"
     NOTIFICATION_FAILED = "notification_failed"
     NOTIFICATION_RETRIED = "notification_retried"

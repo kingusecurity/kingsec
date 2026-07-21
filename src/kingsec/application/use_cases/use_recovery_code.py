@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 
 from kingsec.application.errors import ApplicationError
 from kingsec.application.ports import AuditPublisher, PasswordHasher, TokenService, UserRepository
@@ -171,13 +172,13 @@ class UseRecoveryCode:
             return
         try:
             self._legacy_audit.record(entry)
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.getLogger(__name__).warning("audit publish failed (best-effort): %s", exc)
 
     def _publish_event(self, event: AuditEvent) -> None:
         if self._audit_repo is None:
             return
         try:
             self._audit_repo.save(event)
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.getLogger(__name__).warning("audit save failed (best-effort): %s", exc)
