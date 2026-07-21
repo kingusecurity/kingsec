@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import io
-import logging
 import re
 import uuid
 
 from fastapi import Request
 from fastapi.testclient import TestClient
+from structlog.testing import CapturingLogger
 
 from kingsec.interfaces.api.app import create_app
 from kingsec.interfaces.api.middleware import (
@@ -18,22 +18,6 @@ from kingsec.interfaces.api.middleware import (
     SecurityHeadersMiddleware,
     register_middleware,
 )
-
-
-# ============================================================================
-# Custom log handler that captures LogRecords
-# ============================================================================
-
-
-class RecordCaptureHandler(logging.Handler):
-    """Captures log records for assertion."""
-
-    def __init__(self) -> None:
-        super().__init__(level=logging.INFO)
-        self.records: list[logging.LogRecord] = []
-
-    def emit(self, record: logging.LogRecord) -> None:
-        self.records.append(record)
 
 
 # ============================================================================
@@ -305,55 +289,77 @@ class TestGZipMiddleware:
 # ============================================================================
 
 
+_LOG_FIELDS = frozenset({"request_id", "method", "path", "status", "elapsed_ms"})
+
+
 class TestLoggingMiddleware:
     def setup_method(self) -> None:
-        self.capture = RecordCaptureHandler()
-        self.logger = logging.getLogger("kingsec.api.request")
-        self.logger.handlers.clear()
-        self.logger.addHandler(self.capture)
-        self.logger.setLevel(logging.INFO)
+        import kingsec.interfaces.api.middleware as mw
 
+        self._original_logger = mw._request_logger
+        self.capture = CapturingLogger()
+        mw._request_logger = self.capture
         self.client = TestClient(_build_app())
 
     def teardown_method(self) -> None:
-        self.logger.handlers.clear()
+        import kingsec.interfaces.api.middleware as mw
+
+        mw._request_logger = self._original_logger
+
+    @property
+    def _call(self) -> CapturingLogger.CapturedCall | None:
+        return self.capture.calls[0] if self.capture.calls else None
 
     def test_logs_request_completed(self) -> None:
         self.client.get("/health")
-        assert len(self.capture.records) == 1
-        assert self.capture.records[0].msg == "request completed"
+        assert self._call is not None
+        assert self._call.args[0] == "request completed"
 
     def test_logs_request_id(self) -> None:
         self.client.get("/health")
-        assert self.capture.records[0].request_id is not None
-        parsed = uuid.UUID(self.capture.records[0].request_id, version=4)
+        assert self._call is not None
+        rid = self._call.kwargs["request_id"]
+        assert rid is not None
+        parsed = uuid.UUID(rid, version=4)
         assert parsed.version == 4
 
     def test_logs_method(self) -> None:
         self.client.post("/health")
-        assert self.capture.records[0].method == "POST"
+        assert self._call is not None
+        assert self._call.kwargs["method"] == "POST"
 
     def test_logs_path(self) -> None:
         self.client.get("/health")
-        assert self.capture.records[0].path == "/health"
+        assert self._call is not None
+        assert self._call.kwargs["path"] == "/health"
 
     def test_logs_status(self) -> None:
         self.client.get("/health")
-        assert self.capture.records[0].status == 200
+        assert self._call is not None
+        assert self._call.kwargs["status"] == 200
 
     def test_logs_elapsed_ms(self) -> None:
         self.client.get("/health")
-        assert self.capture.records[0].elapsed_ms > 0
+        assert self._call is not None
+        assert self._call.kwargs["elapsed_ms"] > 0
 
     def test_logs_404(self) -> None:
         self.client.get("/nonexistent")
-        assert self.capture.records[0].status == 404
+        assert self._call is not None
+        assert self._call.kwargs["status"] == 404
 
     def test_logs_405(self) -> None:
         self.client.post("/health")
-        assert self.capture.records[0].status == 405
+        assert self._call is not None
+        assert self._call.kwargs["status"] == 405
 
     def test_logs_500_without_bodies(self) -> None:
+        import kingsec.interfaces.api.middleware as mw
+
+        orig = mw._request_logger
+        capture = CapturingLogger()
+        mw._request_logger = capture
+
         from fastapi import FastAPI
 
         app = FastAPI()
@@ -363,32 +369,27 @@ class TestLoggingMiddleware:
         async def crash() -> None:
             raise RuntimeError("test crash")
 
-        capture = RecordCaptureHandler()
-        logger = logging.getLogger("kingsec.api.request")
-        logger.handlers.clear()
-        logger.addHandler(capture)
-        logger.setLevel(logging.INFO)
-
         client = TestClient(app, raise_server_exceptions=False)
         client.get("/crash")
-        assert capture.records[0].status == 500
+        assert capture.calls[0].kwargs["status"] == 500
+        mw._request_logger = orig
 
     def test_does_not_log_request_body(self) -> None:
         self.client.get("/health")
-        record = self.capture.records[0]
-        assert not hasattr(record, "request_body")
-        assert not hasattr(record, "body")
+        assert self._call is not None
+        assert "request_body" not in self._call.kwargs
+        assert "body" not in self._call.kwargs
 
     def test_does_not_log_response_body(self) -> None:
         self.client.get("/health")
-        record = self.capture.records[0]
-        assert not hasattr(record, "response_body")
+        assert self._call is not None
+        assert "response_body" not in self._call.kwargs
 
     def test_extra_fields_present_on_record(self) -> None:
         self.client.get("/health")
-        record = self.capture.records[0]
-        for field in ("request_id", "method", "path", "status", "elapsed_ms"):
-            assert hasattr(record, field), f"Missing log field: {field}"
+        assert self._call is not None
+        for field in _LOG_FIELDS:
+            assert field in self._call.kwargs, f"Missing log field: {field}"
 
 
 # ============================================================================

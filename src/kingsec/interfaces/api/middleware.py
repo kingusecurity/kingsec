@@ -129,13 +129,11 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             request_id = request.scope.get("request_id", "unknown")
             _request_logger.info(
                 "request failed",
-                extra={
-                    "request_id": request_id,
-                    "method": request.method,
-                    "path": request.url.path,
-                    "status": 500,
-                    "elapsed_ms": 0.0,
-                },
+                request_id=request_id,
+                method=request.method,
+                path=request.url.path,
+                status=500,
+                elapsed_ms=0.0,
             )
             raise
         request_id = request.scope.get("request_id", "unknown")
@@ -146,13 +144,11 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             elapsed = 0.0
         _request_logger.info(
             "request completed",
-            extra={
-                "request_id": request_id,
-                "method": request.method,
-                "path": request.url.path,
-                "status": response.status_code,
-                "elapsed_ms": round(elapsed, 3),
-            },
+            request_id=request_id,
+            method=request.method,
+            path=request.url.path,
+            status=response.status_code,
+            elapsed_ms=round(elapsed, 3),
         )
         return response
 
