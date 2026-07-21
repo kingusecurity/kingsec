@@ -7,9 +7,12 @@ the metadata.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from fastapi import FastAPI
 
-from kingsec.infrastructure.config.models import AppSettings
+if TYPE_CHECKING:
+    from kingsec.infrastructure.config.models import AppSettings
 
 # OpenAPI tag descriptions for endpoint grouping.
 TAGS = [

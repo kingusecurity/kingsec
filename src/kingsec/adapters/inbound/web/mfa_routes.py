@@ -19,10 +19,8 @@ if TYPE_CHECKING:
 
 router = APIRouter(prefix="/api/v1/mfa", tags=["mfa"])
 
-
 def _get_app(request: Request) -> Application:
     return cast("Application", request.app.state.kingsec_app)
-
 
 @router.get(
     "/status",
@@ -44,7 +42,6 @@ async def get_mfa_status(
     result = use_case.execute(current_user.user_id)
     return MfaStatusSchema(enabled=result.enabled)
 
-
 @router.post(
     "/enable",
     summary="Enable MFA (TOTP)",
@@ -65,7 +62,6 @@ async def enable_mfa(
     use_case: EnableMfa = app.resolve(EnableMfa)
     result = use_case.execute(EnableMfaRequest(user_id=current_user.user_id))
     return {"secret": result.secret, "uri": result.uri}
-
 
 @router.post(
     "/verify",
@@ -107,7 +103,6 @@ async def verify_mfa(
         "expires_in": result.expires_in,
     }
 
-
 @router.post(
     "/disable",
     summary="Disable MFA",
@@ -128,7 +123,6 @@ async def disable_mfa(
     use_case: DisableMfa = app.resolve(DisableMfa)
     use_case.execute(DisableMfaRequest(user_id=current_user.user_id))
     return {"status": "ok"}
-
 
 @router.post(
     "/disable/{user_id}",
@@ -153,7 +147,6 @@ async def admin_disable_mfa(
     use_case: DisableMfa = app.resolve(DisableMfa)
     use_case.execute(DisableMfaRequest(user_id=user_id))
     return {"status": "ok"}
-
 
 @router.post(
     "/recovery",
@@ -191,7 +184,6 @@ async def use_recovery_code(
         "expires_in": result.expires_in,
     }
 
-
 @router.post(
     "/recovery/generate",
     summary="Generate recovery codes",
@@ -212,7 +204,6 @@ async def generate_recovery_codes(
     use_case: GenerateRecoveryCodes = app.resolve(GenerateRecoveryCodes)
     result = use_case.execute(GenerateRecoveryCodesRequest(user_id=current_user.user_id))
     return {"codes": list(result.codes)}
-
 
 @router.post(
     "/recovery/rotate",

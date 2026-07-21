@@ -24,6 +24,7 @@ import uvicorn
 
 from kingsec.adapters.inbound.web.app import create_fastapi_app
 from kingsec.bootstrap.composition import create_wired_application
+from kingsec.bootstrap.web import register_middleware
 from kingsec.infrastructure.logging import get_logger
 
 
@@ -32,7 +33,7 @@ def main() -> None:
     kingsec_app = create_wired_application()
 
     with kingsec_app:
-        fastapi_app = create_fastapi_app(kingsec_app)
+        fastapi_app = create_fastapi_app(kingsec_app, register_middleware=register_middleware)
 
         logger = get_logger("kingsec.server")
         logger.info(

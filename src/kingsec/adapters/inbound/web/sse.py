@@ -31,6 +31,10 @@ Design decisions:
 
 from __future__ import annotations
 
+import logging
+
+from typing import TYPE_CHECKING
+
 import asyncio
 import json
 import queue
@@ -44,24 +48,23 @@ from starlette.background import BackgroundTask
 
 from kingsec.application.events import AssessmentEvent
 from kingsec.application.ports.outbound.event_publisher import EventPublisher
-from kingsec.bootstrap.application import Application
-from kingsec.infrastructure.events.in_memory_bus import InMemoryEventBus
-from kingsec.infrastructure.logging import get_logger
 
 from .dependencies import get_application
 
-logger = get_logger(__name__)
+if TYPE_CHECKING:
+    from kingsec.bootstrap.application import Application
+    from kingsec.infrastructure.events.in_memory_bus import InMemoryEventBus
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1")
 
 HEARTBEAT_INTERVAL = 15.0  # seconds
 
-
 def _get_event_publisher(request: Request) -> EventPublisher:
     """Resolve the EventPublisher from the DI container."""
     app: Application = get_application(request)
     return cast(EventPublisher, app.resolve(EventPublisher))
-
 
 def _format_sse(event: AssessmentEvent) -> str:
     """Format an AssessmentEvent as an SSE message."""
@@ -79,7 +82,6 @@ def _format_sse(event: AssessmentEvent) -> str:
         f"id: {uuid.uuid4().hex}\n"
         f"\n"
     )
-
 
 async def _sse_generator(
     event_bus: InMemoryEventBus,
@@ -114,7 +116,6 @@ async def _sse_generator(
             yield _format_sse(event)
     finally:
         event_bus.unsubscribe(client_id)
-
 
 @router.get(
     "/events",

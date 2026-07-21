@@ -16,16 +16,15 @@ from typing import TYPE_CHECKING, Annotated, Any, cast
 from fastapi import APIRouter, Depends, Query, Request
 
 from kingsec.application.ports.outbound.audit_publisher import AuditPublisher
-from kingsec.bootstrap.application import Application
 from kingsec.domain.audit import AuditEntry
 
 from .auth import require_admin
 
 if TYPE_CHECKING:
+    from kingsec.bootstrap.application import Application
     from kingsec.infrastructure.persistence.audit_repository import SqlAlchemyAuditRepository
 
 router = APIRouter(prefix="/api/v1")
-
 
 class EnrichedAuditPublisher(AuditPublisher):
     """Decorator that adds HTTP request context to audit entries.
@@ -64,15 +63,12 @@ class EnrichedAuditPublisher(AuditPublisher):
         )
         self._inner.record(enriched)
 
-
 # ── Admin query schemas ──────────────────────────────────────────────────────
-
 
 def _get_audit_repository(request: Request) -> SqlAlchemyAuditRepository:
     """Resolve the audit repository from the DI container."""
     app: Application = request.app.state.kingsec_app
     return cast("SqlAlchemyAuditRepository", app.resolve(AuditPublisher))
-
 
 @router.get(
     "/audit",

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, Path, Request, status
@@ -27,9 +29,11 @@ from kingsec.application.use_cases.schedule_dto import (
     TriggerScheduleNowRequest,
     UpdateScheduleRequest,
 )
+
+if TYPE_CHECKING:
+    from kingsec.bootstrap.application import Application
 from kingsec.application.use_cases.trigger_schedule_now import TriggerScheduleNow
 from kingsec.application.use_cases.update_schedule import UpdateSchedule
-from kingsec.bootstrap.application import Application
 from kingsec.domain import Role
 
 from .auth import CurrentUser, require_role
@@ -50,61 +54,49 @@ from .schedule_schemas import (
 
 router = APIRouter(prefix="/api/v1")
 
-
 def _get_create_schedule_uc(request: Request) -> CreateSchedule:
     app: Application = request.app.state.kingsec_app
     return cast(CreateSchedule, app.resolve(CreateSchedule))
-
 
 def _get_update_schedule_uc(request: Request) -> UpdateSchedule:
     app: Application = request.app.state.kingsec_app
     return cast(UpdateSchedule, app.resolve(UpdateSchedule))
 
-
 def _get_delete_schedule_uc(request: Request) -> DeleteSchedule:
     app: Application = request.app.state.kingsec_app
     return cast(DeleteSchedule, app.resolve(DeleteSchedule))
-
 
 def _get_pause_schedule_uc(request: Request) -> PauseSchedule:
     app: Application = request.app.state.kingsec_app
     return cast(PauseSchedule, app.resolve(PauseSchedule))
 
-
 def _get_resume_schedule_uc(request: Request) -> ResumeSchedule:
     app: Application = request.app.state.kingsec_app
     return cast(ResumeSchedule, app.resolve(ResumeSchedule))
-
 
 def _get_enable_schedule_uc(request: Request) -> EnableSchedule:
     app: Application = request.app.state.kingsec_app
     return cast(EnableSchedule, app.resolve(EnableSchedule))
 
-
 def _get_disable_schedule_uc(request: Request) -> DisableSchedule:
     app: Application = request.app.state.kingsec_app
     return cast(DisableSchedule, app.resolve(DisableSchedule))
-
 
 def _get_trigger_schedule_uc(request: Request) -> TriggerScheduleNow:
     app: Application = request.app.state.kingsec_app
     return cast(TriggerScheduleNow, app.resolve(TriggerScheduleNow))
 
-
 def _get_list_schedules_uc(request: Request) -> ListSchedules:
     app: Application = request.app.state.kingsec_app
     return cast(ListSchedules, app.resolve(ListSchedules))
-
 
 def _get_get_schedule_uc(request: Request) -> GetSchedule:
     app: Application = request.app.state.kingsec_app
     return cast(GetSchedule, app.resolve(GetSchedule))
 
-
 def _get_find_due_uc(request: Request) -> FindDueSchedules:
     app: Application = request.app.state.kingsec_app
     return cast(FindDueSchedules, app.resolve(FindDueSchedules))
-
 
 @router.get(
     "/schedules",
@@ -138,7 +130,6 @@ async def list_schedules(
         }) for s in result.schedules]
     )
 
-
 @router.get(
     "/schedules/due",
     response_model=ListSchedulesResponse,
@@ -165,7 +156,6 @@ async def find_due_schedules(
             "current_retry_count": s.current_retry_count,
         }) for s in result.schedules]
     )
-
 
 @router.post(
     "/schedules",
@@ -212,7 +202,6 @@ async def create_schedule(
         )
     )
 
-
 @router.get(
     "/schedules/{schedule_id}",
     response_model=CreateScheduleResponse,
@@ -241,7 +230,6 @@ async def get_schedule(
             current_retry_count=s.current_retry_count,
         )
     )
-
 
 @router.put(
     "/schedules/{schedule_id}",
@@ -288,7 +276,6 @@ async def update_schedule(
         )
     )
 
-
 @router.delete(
     "/schedules/{schedule_id}",
     status_code=status.HTTP_200_OK,
@@ -308,7 +295,6 @@ async def delete_schedule(
         )
     )
     return DeleteScheduleResponse(success=result.success)
-
 
 @router.post(
     "/schedules/{schedule_id}/pause",
@@ -344,7 +330,6 @@ async def pause_schedule(
         )
     )
 
-
 @router.post(
     "/schedules/{schedule_id}/resume",
     response_model=ResumeScheduleResponse,
@@ -378,7 +363,6 @@ async def resume_schedule(
             current_retry_count=s.current_retry_count,
         )
     )
-
 
 @router.post(
     "/schedules/{schedule_id}/enable",
@@ -414,7 +398,6 @@ async def enable_schedule(
         )
     )
 
-
 @router.post(
     "/schedules/{schedule_id}/disable",
     response_model=DisableScheduleResponse,
@@ -448,7 +431,6 @@ async def disable_schedule(
             current_retry_count=s.current_retry_count,
         )
     )
-
 
 @router.post(
     "/schedules/{schedule_id}/trigger",

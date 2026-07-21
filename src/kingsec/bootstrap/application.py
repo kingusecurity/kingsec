@@ -16,10 +16,10 @@ Ordering rationale (why this exact sequence)
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from kingsec.infrastructure.config import Settings, load_settings
-from kingsec.infrastructure.logging import configure_logging, get_logger
+if TYPE_CHECKING:
+    from kingsec.infrastructure.config import Settings
 
 from .container import Container
 from .errors import BootstrapError
@@ -150,6 +150,10 @@ def create_application(
     ensure_directories:
         Whether ``start()`` should create the configured data directory.
     """
+    # Lazy imports: keep infrastructure out of module-level graph.
+    from kingsec.infrastructure.config import load_settings
+    from kingsec.infrastructure.logging import configure_logging, get_logger
+
     # 1. Config first — fail fast before any subsystem exists.
     settings = load_settings(env_file)
 

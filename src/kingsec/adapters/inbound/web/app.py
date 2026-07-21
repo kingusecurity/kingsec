@@ -22,21 +22,10 @@ Middleware is registered in the correct order (outermost first):
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware
-from starlette.middleware.trustedhost import TrustedHostMiddleware
-
-from kingsec.infrastructure.config.settings import Settings
-from kingsec.infrastructure.middleware import (
-    AuditContextMiddleware,
-    CorrelationIDMiddleware,
-    RateLimitMiddleware,
-    RequestLoggingMiddleware,
-    SecurityHeadersMiddleware,
-)
 
 from .error_handlers import register_error_handlers
 from .openapi import configure_openapi
@@ -44,9 +33,13 @@ from .versioning import register_versioned_routes
 
 if TYPE_CHECKING:
     from kingsec.bootstrap.application import Application
+    from kingsec.infrastructure.config.settings import Settings
 
-
-def create_fastapi_app(kingsec_app: Application) -> FastAPI:
+def create_fastapi_app(
+    kingsec_app: Application,
+    *,
+    register_middleware: Callable | None = None,
+) -> FastAPI:
     """Build a configured FastAPI application.
 
     Args:
@@ -77,7 +70,8 @@ def create_fastapi_app(kingsec_app: Application) -> FastAPI:
     configure_openapi(app, settings.app)
 
     # Register middleware (order matters: last added = outermost).
-    _register_middleware(app, settings)
+    if register_middleware:
+        register_middleware(app, settings)
 
     # Error handlers (must be registered before routes).
     register_error_handlers(app)
@@ -88,50 +82,3 @@ def create_fastapi_app(kingsec_app: Application) -> FastAPI:
     return app
 
 
-def _register_middleware(app: FastAPI, settings: Settings) -> None:
-    """Register all middleware in the correct order.
-
-    Middleware is executed in reverse registration order, so the last
-    middleware added is the outermost (executes first).
-    """
-    # Rate limiting (innermost — runs after all other middleware).
-    app.add_middleware(RateLimitMiddleware, settings=settings.rate_limit)
-
-    # Request logging.
-    if settings.middleware.request_logging:
-        app.add_middleware(RequestLoggingMiddleware)
-
-    # Correlation ID.
-    app.add_middleware(CorrelationIDMiddleware)
-
-    # Audit context (must run AFTER CorrelationID so request_id is available).
-    app.add_middleware(AuditContextMiddleware)
-
-    # Security headers.
-    app.add_middleware(SecurityHeadersMiddleware, settings=settings.security_headers)
-
-    # CORS.
-    if settings.cors.allow_origins:
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=settings.cors.allow_origins,
-            allow_methods=settings.cors.allow_methods,
-            allow_headers=settings.cors.allow_headers,
-            allow_credentials=settings.cors.allow_credentials,
-            expose_headers=settings.cors.expose_headers,
-            max_age=settings.cors.max_age,
-        )
-
-    # Trusted hosts.
-    if settings.middleware.trusted_hosts:
-        app.add_middleware(
-            TrustedHostMiddleware,
-            allowed_hosts=settings.middleware.trusted_hosts,
-        )
-
-    # GZip compression.
-    if settings.middleware.gzip_enabled:
-        app.add_middleware(
-            GZipMiddleware,
-            minimum_size=settings.middleware.gzip_minimum_size,
-        )

@@ -22,18 +22,22 @@ Security notes
 
 from __future__ import annotations
 
+import logging
+
+from typing import TYPE_CHECKING
+
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request, status
 
 from kingsec.application.dto import LoginResponse
 from kingsec.application.ports.inbound.service_api import ServiceAPI
-from kingsec.bootstrap.application import Application
-from kingsec.infrastructure.logging import get_logger
-
 from . import schemas
 
-logger = get_logger("kingsec.adapters.inbound.web.routes")
+if TYPE_CHECKING:
+    from kingsec.bootstrap.application import Application
+
+logger = logging.getLogger("kingsec.adapters.inbound.web.routes")
 from kingsec.application.auth import Permission
 
 from .auth import (
@@ -48,9 +52,7 @@ from .dependencies import get_service
 
 router = APIRouter(prefix="/api/v1")
 
-
 # ── Health ───────────────────────────────────────────────────────────────────
-
 
 @router.get(
     "/health",
@@ -62,27 +64,22 @@ router = APIRouter(prefix="/api/v1")
 async def health_check() -> schemas.HealthResponse:
     return schemas.HealthResponse(status="ok")
 
-
 # ── Auth ─────────────────────────────────────────────────────────────────────
-
 
 def _get_login_use_case(request: Request) -> Any:
     app: Application = request.app.state.kingsec_app
     from kingsec.application import Login
     return app.resolve(Login)
 
-
 def _get_refresh_token_use_case(request: Request) -> Any:
     app: Application = request.app.state.kingsec_app
     from kingsec.application import RefreshToken
     return app.resolve(RefreshToken)
 
-
 def _get_register_user_use_case(request: Request) -> Any:
     app: Application = request.app.state.kingsec_app
     from kingsec.application import RegisterUser
     return app.resolve(RegisterUser)
-
 
 @router.post(
     "/auth/login",
@@ -124,7 +121,6 @@ async def login(
         expires_in=result.expires_in,
     )
 
-
 def _create_session_for_login(request: Request, result: LoginResponse) -> None:
     try:
         app: Application = request.app.state.kingsec_app
@@ -154,7 +150,6 @@ def _create_session_for_login(request: Request, result: LoginResponse) -> None:
     except Exception:
         logger.warning("Failed to create session for login", exc_info=True)
 
-
 def _record_failed_login_audit(request: Request, username: str) -> None:
     """Record a failed login audit entry at the web boundary (best-effort)."""
     try:
@@ -182,7 +177,6 @@ def _record_failed_login_audit(request: Request, username: str) -> None:
     except Exception:
         logger.warning("Failed to record failed login audit", exc_info=True)
 
-
 @router.post(
     "/auth/refresh",
     response_model=schemas.RefreshTokenResponse,
@@ -208,7 +202,6 @@ async def refresh_token(
         token_type=result.token_type,
         expires_in=result.expires_in,
     )
-
 
 @router.post(
     "/auth/register",
@@ -241,7 +234,6 @@ async def register_user(
         email=result.email,
         role=result.role,
     )
-
 
 @router.get(
     "/auth/me",
@@ -278,9 +270,7 @@ async def get_current_user_info(
         last_login_at=user.last_login_at.isoformat() if user.last_login_at else None,
     )
 
-
 # ── List Assessments ─────────────────────────────────────────────────────────
-
 
 @router.get(
     "/assessments",
@@ -320,9 +310,7 @@ async def list_assessments(
         offset=result.offset,
     )
 
-
 # ── Create Assessment ────────────────────────────────────────────────────────
-
 
 @router.post(
     "/assessments",
@@ -358,9 +346,7 @@ async def create_assessment(
         target=result.target,
     )
 
-
 # ── Start Assessment (submits for background execution) ───────────────────────
-
 
 @router.post(
     "/assessments/{assessment_id}/start",
@@ -392,9 +378,7 @@ async def start_assessment(
         job_id=result.job_id,
     )
 
-
 # ── Get Assessment ───────────────────────────────────────────────────────────
-
 
 @router.get(
     "/assessments/{assessment_id}",
@@ -436,9 +420,7 @@ async def get_assessment(
         ],
     )
 
-
 # ── Generate Report ──────────────────────────────────────────────────────────
-
 
 @router.post(
     "/assessments/{assessment_id}/report",
@@ -478,9 +460,7 @@ async def generate_report(
         artifact_bytes=result.artifact_bytes,
     )
 
-
 # ── Cancel Assessment ────────────────────────────────────────────────────────
-
 
 @router.post(
     "/assessments/{assessment_id}/cancel",
@@ -511,9 +491,7 @@ async def cancel_assessment(
         status=result.status,
     )
 
-
 # ── Delete Assessment ────────────────────────────────────────────────────────
-
 
 @router.delete(
     "/assessments/{assessment_id}",
@@ -538,33 +516,27 @@ async def delete_assessment(
     request = DeleteAssessmentRequest(assessment_id=assessment_id)
     service.delete_assessment(request)
 
-
 # ── API Keys ──────────────────────────────────────────────────────────────────
-
 
 def _get_create_api_key_uc(request: Request) -> Any:
     app: Application = request.app.state.kingsec_app
     from kingsec.application import CreateApiKey
     return app.resolve(CreateApiKey)
 
-
 def _get_list_api_keys_uc(request: Request) -> Any:
     app: Application = request.app.state.kingsec_app
     from kingsec.application import ListApiKeys
     return app.resolve(ListApiKeys)
-
 
 def _get_revoke_api_key_uc(request: Request) -> Any:
     app: Application = request.app.state.kingsec_app
     from kingsec.application import RevokeApiKey
     return app.resolve(RevokeApiKey)
 
-
 def _get_rotate_api_key_uc(request: Request) -> Any:
     app: Application = request.app.state.kingsec_app
     from kingsec.application import RotateApiKey
     return app.resolve(RotateApiKey)
-
 
 @router.post(
     "/apikeys",
@@ -600,7 +572,6 @@ async def create_api_key(
         scope=result.scope,
         created_at=result.created_at,
     )
-
 
 @router.get(
     "/apikeys",
@@ -643,7 +614,6 @@ async def list_api_keys(
         total=len(items),
     )
 
-
 @router.get(
     "/apikeys/me",
     response_model=schemas.CurrentApiKeyResponse,
@@ -674,7 +644,6 @@ async def get_current_api_key_info(
         created_at=key.created_at.isoformat() if key else "",
     )
 
-
 @router.delete(
     "/apikeys/{api_key_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -700,7 +669,6 @@ async def revoke_api_key(
         requesting_user_id=current_user.user_id,
     )
     revoke_uc.execute(request)
-
 
 @router.post(
     "/apikeys/{api_key_id}/rotate",

@@ -1,22 +1,24 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from typing import Any, cast
 
 from fastapi import APIRouter, Depends, Query, Request
 
 from kingsec.application.ports.analytics_service import AnalyticsServicePort
-from kingsec.bootstrap.application import Application
 
 from .auth import CurrentUser, get_current_user
 from .dependencies import get_application
 
-router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"])
+if TYPE_CHECKING:
+    from kingsec.bootstrap.application import Application
 
+router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"])
 
 def _get_service(request: Request) -> AnalyticsServicePort:
     app: Application = get_application(request)
     return cast(AnalyticsServicePort, app.resolve(AnalyticsServicePort))
-
 
 @router.get("")
 async def dashboard_root(
@@ -51,7 +53,6 @@ async def dashboard_root(
         },
     }
 
-
 @router.get("/summary")
 async def dashboard_summary(
     request: Request,
@@ -75,7 +76,6 @@ async def dashboard_summary(
         "failed_notifications": s.failed_notifications,
     }
 
-
 @router.get("/severity")
 async def severity_breakdown(
     request: Request,
@@ -91,7 +91,6 @@ async def severity_breakdown(
         "info": s.info,
     }
 
-
 @router.get("/trends")
 async def trend_data(
     request: Request,
@@ -102,7 +101,6 @@ async def trend_data(
     service = _get_service(request)
     points = service.get_trend_data(period=period, limit=limit)
     return {"period": period, "points": [{"date": p.date, "value": p.value} for p in points]}
-
 
 @router.get("/scanners")
 async def scanner_statistics(
@@ -125,7 +123,6 @@ async def scanner_statistics(
         ]
     }
 
-
 @router.get("/workers")
 async def worker_statistics(
     request: Request,
@@ -147,7 +144,6 @@ async def worker_statistics(
         ]
     }
 
-
 @router.get("/jobs")
 async def job_statistics(
     request: Request,
@@ -164,7 +160,6 @@ async def job_statistics(
         "average_duration_seconds": j.average_duration_seconds,
     }
 
-
 @router.get("/schedules")
 async def schedule_statistics(
     request: Request,
@@ -178,7 +173,6 @@ async def schedule_statistics(
         "paused": s.paused,
         "disabled": s.disabled,
     }
-
 
 @router.get("/notifications")
 async def notification_statistics(
@@ -194,7 +188,6 @@ async def notification_statistics(
         "pending": n.pending,
         "read": n.read_count,
     }
-
 
 @router.get("/activity")
 async def recent_activity(

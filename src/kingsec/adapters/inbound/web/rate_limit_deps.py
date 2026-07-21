@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from fastapi import Depends, Request, Response
 
 from kingsec.application.use_cases.check_rate_limit import CheckRateLimit
 from kingsec.application.use_cases.rate_limit_dto import CheckRateLimitRequest
-from kingsec.bootstrap.application import Application
 from kingsec.domain.rate_limit import (
     RateLimitGroup,
     RateLimitKeyType,
     RateLimitPolicy,
 )
+
+if TYPE_CHECKING:
+    from kingsec.bootstrap.application import Application
 
 from .auth import bearer_scheme, get_current_api_key, get_current_user
 from .dependencies import get_application
@@ -24,7 +28,6 @@ DEFAULT_POLICIES: dict[RateLimitGroup, tuple[int, int, RateLimitKeyType]] = {
     RateLimitGroup.MFA_VERIFY: (10, 600, RateLimitKeyType.IP_USER),
     RateLimitGroup.API_KEY: (1000, 3600, RateLimitKeyType.API_KEY),
 }
-
 
 async def _resolve_identifier(
     request: Request,
@@ -59,7 +62,6 @@ async def _resolve_identifier(
             return f"ip_user:{client_ip}:{uid}"
         except Exception:
             return f"ip:{client_ip}"
-
 
 def require_rate_limit(group: RateLimitGroup) -> object:
     max_reqs, window_secs, key_type = DEFAULT_POLICIES[group]

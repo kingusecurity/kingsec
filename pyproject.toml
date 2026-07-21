@@ -242,6 +242,8 @@ exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedE
 # =============================================================================
 [tool.importlinter]
 root_package = "kingsec"
+include_external_packages = true
+exclude_type_checking_imports = true
 
 [[tool.importlinter.contracts]]
 name = "Hexagonal layering (dependencies point inward only)"
