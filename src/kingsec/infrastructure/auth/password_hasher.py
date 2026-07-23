@@ -1,8 +1,8 @@
 """Argon2 password hasher — infrastructure implementation.
 
 Uses argon2-cffi for password hashing, which is the recommended algorithm
-for new applications (OWASP, PHC winner). Falls back to bcrypt if argon2
-is not available.
+for new applications (OWASP, PHC winner). Falls back to PBKDF2-SHA256
+at 600 000 iterations if argon2 is not available.
 
 Security considerations:
     - Uses argon2id (hybrid of argon2i and argon2d) for resistance to both

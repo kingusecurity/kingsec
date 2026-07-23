@@ -78,6 +78,13 @@ class SqlAlchemyUserRepository(UserRepository):
             count = session.execute(select(func.count()).select_from(UserORM)).scalar()
             return count if count else 0
 
+    def count_by_role(self, role: Role) -> int:
+        with self._session_factory() as session:
+            count = session.execute(
+                select(func.count()).select_from(UserORM).where(UserORM.role == role.name)
+            ).scalar()
+            return count if count else 0
+
 
 def _to_domain(orm: UserORM) -> User:
     """Convert a UserORM row to a domain User entity."""

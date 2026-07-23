@@ -28,6 +28,13 @@ dist/
 htmlcov/
 coverage.xml
 
+# Scratch / transient output files
+*_out.txt
+*_err.txt
+
+# Development environment snapshots
+clean-env/
+
 # Local runtime data (KingSec local store, generated reports, logs)
 /data/
 *.sqlite

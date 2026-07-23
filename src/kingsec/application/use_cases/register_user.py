@@ -5,13 +5,17 @@ Steps:
     2. Check that the username is not already taken.
     3. Check that the email is not already registered.
     4. Hash the password.
-    5. Create the user entity.
-    6. Persist the user.
-    7. Publish audit entry.
+    5. Determine the user's role — the very first registered user in a
+       fresh database becomes ADMIN so the system is self-bootstrapping;
+       every subsequent registration receives VIEWER (least privilege).
+    6. Create the user entity.
+    7. Persist the user.
+    8. Publish audit entry.
 
 Security considerations:
     - Passwords are hashed before storage (never stored in plaintext).
-    - Default role is "viewer" (least privilege).
+    - Default role is "viewer" (least privilege) for all users except
+      the very first one, which becomes ADMIN to bootstrap the system.
     - Duplicate username/email are rejected with generic messages.
     - Audit entries record registration attempts for security monitoring.
 """
@@ -56,14 +60,13 @@ class RegisterUser:
         # Step 4: Hash the password.
         password_hash = self._hasher.hash(request.password)
 
-        # Step 5: Parse role.
-        try:
-            role = Role[request.role.upper()]
-        except KeyError as exc:
-            raise RegistrationError(f"invalid role: {request.role}") from exc
-
-        # Step 6: Create the user entity.
+        # Step 5: Determine role — first user in an empty database becomes
+        # ADMIN so the system is self-bootstrapping; all subsequent
+        # registrations receive VIEWER (least privilege).
         import uuid
+
+        is_first_user = self._users.count() == 0
+        role = Role.ADMIN if is_first_user else Role.VIEWER
 
         user = User(
             id=str(uuid.uuid4()),

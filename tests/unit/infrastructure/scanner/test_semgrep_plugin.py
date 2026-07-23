@@ -21,7 +21,7 @@ from kingsec.infrastructure.scanner.plugins.semgrep import SemgrepPlugin
 from kingsec.infrastructure.scanner.runner import CommandResult
 from tests.unit.infrastructure.scanner.conftest import FakeRunner
 
-_TARGET = Target("/app/src", TargetType.HOSTNAME)
+_TARGET = Target("example.com", TargetType.HOSTNAME)
 
 _SAMPLE_JSONL = json.dumps(
     {
@@ -205,7 +205,7 @@ class TestScan:
         plugin = _make_plugin(runner=runner)
         plugin.scan(_TARGET, PluginConfig())
         args = runner.calls[0][0]
-        assert "/app/src" in args
+        assert "example.com" in args
 
     def test_build_args_includes_config_when_rules_set(self) -> None:
         runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))

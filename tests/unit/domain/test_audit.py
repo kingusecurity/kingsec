@@ -15,6 +15,7 @@ class TestAuditAction:
             "logout",
             "token_refreshed",
             "user_registered",
+            "role_changed",
             "password_changed",
             "assessment_created",
             "assessment_started",

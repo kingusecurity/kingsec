@@ -15,7 +15,10 @@ from fastapi.testclient import TestClient
 
 from kingsec.application import Login, RefreshToken, RegisterUser
 from kingsec.application.ports import TokenClaims, TokenService
+from kingsec.application.ports.outbound.rate_limiter import RateLimiterPort
+from kingsec.application.use_cases.check_rate_limit import CheckRateLimit
 from kingsec.domain import User
+from kingsec.domain.rate_limit import RateLimitDecision, RateLimitPolicy
 
 
 class StubTokenService(TokenService):
@@ -123,6 +126,15 @@ class StubHasher:
         return password_hash == f"hashed:{password}"
 
 
+class StubRateLimiter(RateLimiterPort):
+    def check(self, key: str, policy: RateLimitPolicy) -> RateLimitDecision:
+        return RateLimitDecision(allowed=True, limit=policy.max_requests, remaining=policy.max_requests - 1, reset_seconds=policy.window_seconds)
+    def record(self, key: str, policy: RateLimitPolicy) -> None:
+        pass
+    def reset(self, key: str) -> None:
+        pass
+
+
 def _build_app() -> tuple[FastAPI, StubTokenService, StubUserRepo]:
     """Build a FastAPI app with stubbed dependencies."""
     token_service = StubTokenService()
@@ -147,6 +159,8 @@ def _build_app() -> tuple[FastAPI, StubTokenService, StubUserRepo]:
                 return Login(user_repo, hasher, token_service)
             if service_type == RefreshToken:
                 return RefreshToken(user_repo, token_service)
+            if service_type == CheckRateLimit:
+                return CheckRateLimit(StubRateLimiter())
             raise ValueError(f"Unknown service: {service_type}")
 
     app.state.kingsec_app = _StubApp()  # type: ignore[attr-defined]
@@ -164,24 +178,23 @@ class TestAuthFlowIntegration:
     """Full authentication lifecycle tests."""
 
     def test_register_login_me_lifecycle(self) -> None:
-        """Register → Login → GET /me."""
+        """Register → Login → GET /me with token."""
         app, _token_service, _user_repo = _build_app()
         client = TestClient(app)
 
-        # Step 1: Register
+        # Step 1: Register (first user becomes Admin)
         register_resp = client.post(
             "/api/v1/auth/register",
             json={
                 "username": "newuser",
                 "email": "new@example.com",
                 "password": "SecurePass1",
-                "role": "analyst",
             },
         )
         assert register_resp.status_code == 201
         body = register_resp.json()
         assert body["username"] == "newuser"
-        assert body["role"] == "Analyst"
+        assert body["role"] == "Admin"
 
         # Step 2: Login
         login_resp = client.post(
@@ -205,7 +218,7 @@ class TestAuthFlowIntegration:
         assert me_resp.status_code == 200
         me_body = me_resp.json()
         assert me_body["username"] == "newuser"
-        assert me_body["role"] == "Analyst"
+        assert me_body["role"] == "Admin"
 
     def test_refresh_token_lifecycle(self) -> None:
         """Login → Refresh → use new access token."""
@@ -263,14 +276,22 @@ class TestAuthFlowIntegration:
         app, _token_service, _user_repo = _build_app()
         client = TestClient(app)
 
-        # Register with viewer role
+        # Register admin (first user becomes Admin)
+        client.post(
+            "/api/v1/auth/register",
+            json={
+                "username": "admin_bootstrap",
+                "email": "admin@bootstrap.local",
+                "password": "AdminPass99",
+            },
+        )
+        # Register viewer (second user becomes Viewer)
         client.post(
             "/api/v1/auth/register",
             json={
                 "username": "viewer",
                 "email": "viewer@example.com",
                 "password": "SecurePass1",
-                "role": "viewer",
             },
         )
         login_resp = client.post(

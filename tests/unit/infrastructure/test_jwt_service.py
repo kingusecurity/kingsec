@@ -134,3 +134,68 @@ class TestJWTTokenService:
         assert claims.issued_at is not None
         assert claims.expires_at is not None
         assert claims.expires_at > claims.issued_at
+
+    def test_cleanup_expired_removes_expired_rows(self, tmp_path: pytest.TempPathFactory) -> None:
+        from sqlalchemy import create_engine
+
+        from kingsec.infrastructure.persistence.base import Base
+        from kingsec.infrastructure.persistence.models import RevokedTokenORM
+
+        db_path = tmp_path / "test_cleanup.db"
+        engine = create_engine(f"sqlite:///{db_path}")
+        Base.metadata.create_all(engine)
+
+        from sqlalchemy.orm import sessionmaker
+        sf = sessionmaker(bind=engine)
+
+        svc = JWTTokenService(
+            JWTSettings(secret_key="test-secret-key"),
+            session_factory=sf,
+        )
+
+        svc.revoke_token("expired-jti")
+        svc.revoke_token("active-jti")
+
+        with sf() as session:
+            row = session.get(RevokedTokenORM, "expired-jti")
+            row.expires_at = "2000-01-01T00:00:00+00:00"
+            session.commit()
+
+        assert svc.is_revoked("expired-jti") is True
+        assert svc.is_revoked("active-jti") is True
+
+        count = svc.cleanup_expired()
+        assert count == 1
+
+        assert svc.is_revoked("expired-jti") is False
+        assert svc.is_revoked("active-jti") is True
+        with sf() as session:
+            assert session.get(RevokedTokenORM, "expired-jti") is None
+            assert session.get(RevokedTokenORM, "active-jti") is not None
+
+    def test_cleanup_does_not_remove_active_revocations(self, tmp_path: pytest.TempPathFactory) -> None:
+        from sqlalchemy import create_engine
+
+        from kingsec.infrastructure.persistence.base import Base
+        from kingsec.infrastructure.persistence.models import RevokedTokenORM
+
+        db_path = tmp_path / "test_active.db"
+        engine = create_engine(f"sqlite:///{db_path}")
+        Base.metadata.create_all(engine)
+
+        from sqlalchemy.orm import sessionmaker
+        sf = sessionmaker(bind=engine)
+
+        svc = JWTTokenService(
+            JWTSettings(secret_key="test-secret-key"),
+            session_factory=sf,
+        )
+
+        svc.revoke_token("still-active-jti")
+
+        count = svc.cleanup_expired()
+        assert count == 0
+
+        assert svc.is_revoked("still-active-jti") is True
+        with sf() as session:
+            assert session.get(RevokedTokenORM, "still-active-jti") is not None

@@ -23,19 +23,20 @@ from kingsec.infrastructure.persistence.user_repository import SqlAlchemyUserRep
 from .jwt_service import JWTTokenService
 
 
-def register_auth(container: ContainerProtocol, settings: Settings) -> None:
+def register_auth(container: ContainerProtocol, settings: Settings, session_factory: Callable[..., Any] | None = None) -> None:
     """Register authentication adapters on the container.
 
     Args:
         container: The DI container.
         settings: Application settings (contains jwt.* config).
+        session_factory: Optional SQLAlchemy session factory for persistent token revocation.
     """
     from .password_hasher import Argon2PasswordHasher
 
     hasher = Argon2PasswordHasher()
     container.register_instance(PasswordHasher, hasher)
 
-    jwt_service = JWTTokenService(settings.jwt)
+    jwt_service = JWTTokenService(settings.jwt, session_factory=session_factory)
     container.register_instance(TokenService, jwt_service)
 
 

@@ -21,7 +21,7 @@ from kingsec.infrastructure.scanner.plugins.trivy import TrivyPlugin
 from kingsec.infrastructure.scanner.runner import CommandResult
 from tests.unit.infrastructure.scanner.conftest import FakeRunner
 
-_TARGET = Target("/app", TargetType.HOSTNAME)
+_TARGET = Target("example.com", TargetType.HOSTNAME)
 
 _SAMPLE_JSONL = json.dumps(
     {
@@ -218,7 +218,7 @@ class TestScan:
         plugin = _make_plugin(runner=runner)
         plugin.scan(_TARGET, PluginConfig())
         args = runner.calls[0][0]
-        assert "/app" in args
+        assert "example.com" in args
 
 
 # ===========================================================================

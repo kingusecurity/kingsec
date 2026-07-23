@@ -283,6 +283,20 @@ class SessionORM(Base):
     idle_timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=1800)
 
 
+class RevokedTokenORM(Base):
+    """A revoked JWT token tracked by its unique JTI.
+
+    Tokens are persisted so revocation survives restarts. Expired entries are
+    periodically cleaned up by a background task or on next verification.
+    """
+
+    __tablename__ = "revoked_tokens"
+
+    jti: Mapped[str] = mapped_column(String, primary_key=True)
+    revoked_at: Mapped[str] = mapped_column(String, nullable=False)  # ISO-8601
+    expires_at: Mapped[str] = mapped_column(String, nullable=False, index=True)  # ISO-8601
+
+
 # ===========================================================================
 #  Notification model
 # ===========================================================================

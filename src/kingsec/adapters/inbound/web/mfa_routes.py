@@ -11,8 +11,10 @@ from kingsec.application.use_cases.mfa_dto import (
     UseRecoveryCodeRequest,
     VerifyMfaCodeRequest,
 )
+from kingsec.domain import RateLimitGroup
 
 from .auth import CurrentUser, get_current_user, require_admin
+from .rate_limit_deps import require_rate_limit
 from .schemas import MfaStatusResponse as MfaStatusSchema
 
 if TYPE_CHECKING:
@@ -84,6 +86,7 @@ async def enable_mfa(
 async def verify_mfa(
     body: Annotated[dict[str, Any], "VerifyMfaBody"],
     request: Request,
+    _rate_limit: None = Depends(require_rate_limit(RateLimitGroup.MFA_VERIFY)),
 ) -> dict[str, Any]:
     from kingsec.application.use_cases.verify_mfa_code import VerifyMfaCode
 
@@ -170,6 +173,7 @@ async def admin_disable_mfa(
 async def use_recovery_code(
     body: Annotated[dict[str, Any], "UseRecoveryCodeBody"],
     request: Request,
+    _rate_limit: None = Depends(require_rate_limit(RateLimitGroup.MFA_VERIFY)),
 ) -> dict[str, Any]:
     from kingsec.application.use_cases.use_recovery_code import UseRecoveryCode
 

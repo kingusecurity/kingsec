@@ -39,32 +39,32 @@ def readiness(request: Request) -> ReadinessReport:
     return _get_service(request).get_readiness()
 
 
-@router.get("/healthz/health", response_model=HealthCheck)
+@router.get("/healthz/health", response_model=HealthCheck, dependencies=[Depends(require_role(Role.ADMIN))])
 def health(request: Request) -> HealthCheck:
     return _get_service(request).get_health()
 
 
-@router.get("/healthz/metrics", response_model=SystemMetrics)
+@router.get("/healthz/metrics", response_model=SystemMetrics, dependencies=[Depends(require_role(Role.ADMIN))])
 def metrics(request: Request) -> SystemMetrics:
     return _get_service(request).collect_metrics()
 
 
-@router.get("/healthz/startup", response_model=list[StartupCheck])
+@router.get("/healthz/startup", response_model=list[StartupCheck], dependencies=[Depends(require_role(Role.ADMIN))])
 def startup(request: Request) -> list[StartupCheck]:
     return _get_service(request).validate_startup()
 
 
-@router.get("/healthz/configuration", response_model=list[StartupCheck])
+@router.get("/healthz/configuration", response_model=list[StartupCheck], dependencies=[Depends(require_role(Role.ADMIN))])
 def configuration(request: Request) -> list[StartupCheck]:
     return _get_service(request).validate_configuration()
 
 
-@router.get("/healthz/dependencies", response_model=list[DependencyHealth])
+@router.get("/healthz/dependencies", response_model=list[DependencyHealth], dependencies=[Depends(require_role(Role.ADMIN))])
 def dependencies(request: Request) -> list[DependencyHealth]:
     return _get_service(request).list_dependencies()
 
 
-@router.get("/healthz/resources", response_model=SystemMetrics)
+@router.get("/healthz/resources", response_model=SystemMetrics, dependencies=[Depends(require_role(Role.ADMIN))])
 def resources(request: Request) -> SystemMetrics:
     return _get_service(request).get_system_resources()
 

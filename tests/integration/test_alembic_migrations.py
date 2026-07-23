@@ -84,6 +84,7 @@ EXPECTED_TABLES = frozenset(
         "notifications",
         "recommendations",
         "reports",
+        "revoked_tokens",
         "scan_findings",
         "scan_jobs",
         "scan_reports",

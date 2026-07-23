@@ -7,7 +7,7 @@ import pytest
 from kingsec.application.dto import RegisterUserRequest
 from kingsec.application.ports import PasswordHasher, UserRepository
 from kingsec.application.use_cases.register_user import RegisterUser, RegistrationError
-from kingsec.domain import User
+from kingsec.domain import Role, User
 from kingsec.domain.user import PasswordValidationError
 
 # --- Stubs --------------------------------------------------------------------
@@ -50,7 +50,10 @@ class StubUserRepository(UserRepository):
         return []
 
     def count(self) -> int:
-        return 0
+        return len(self.saved_users)
+
+    def count_by_role(self, role: Role) -> int:
+        return sum(1 for u in self.saved_users if u.role == role)
 
 
 # --- Tests --------------------------------------------------------------------
@@ -66,13 +69,12 @@ class TestRegisterUser:
             username="newuser",
             email="new@example.com",
             password="SecurePass1",
-            role="viewer",
         )
         result = register.execute(request)
 
         assert result.username == "newuser"
         assert result.email == "new@example.com"
-        assert result.role == "Viewer"
+        assert result.role == "Admin"
         assert len(repo.saved_users) == 1
 
     def test_registration_with_duplicate_username(self) -> None:
@@ -145,31 +147,56 @@ class TestRegisterUser:
         with pytest.raises(PasswordValidationError, match="digit"):
             register.execute(request)
 
-    def test_registration_with_invalid_role(self) -> None:
+    def test_second_user_becomes_viewer(self) -> None:
         repo = StubUserRepository()
         hasher = StubPasswordHasher()
 
+        # First user becomes ADMIN.
         register = RegisterUser(repo, hasher)
-        request = RegisterUserRequest(
-            username="newuser",
-            email="new@example.com",
+        first_req = RegisterUserRequest(
+            username="admin",
+            email="admin@example.com",
             password="SecurePass1",
-            role="superadmin",
         )
+        first_result = register.execute(first_req)
+        assert first_result.role == "Admin"
 
-        with pytest.raises(RegistrationError, match="invalid role"):
-            register.execute(request)
+        # Second user becomes VIEWER.
+        second_req = RegisterUserRequest(
+            username="viewer",
+            email="viewer@example.com",
+            password="SecurePass1",
+        )
+        second_result = register.execute(second_req)
+        assert second_result.role == "Viewer"
 
-    def test_registration_default_role_is_viewer(self) -> None:
+    def test_first_user_is_admin_on_empty_database(self) -> None:
         repo = StubUserRepository()
         hasher = StubPasswordHasher()
 
         register = RegisterUser(repo, hasher)
         request = RegisterUserRequest(
-            username="newuser",
-            email="new@example.com",
+            username="first",
+            email="first@example.com",
             password="SecurePass1",
         )
         result = register.execute(request)
 
-        assert result.role == "Viewer"
+        assert result.role == "Admin"
+        assert repo.saved_users[0].role == Role.ADMIN
+
+    def test_third_user_becomes_viewer(self) -> None:
+        repo = StubUserRepository()
+        hasher = StubPasswordHasher()
+
+        register = RegisterUser(repo, hasher)
+        for i in range(3):
+            result = register.execute(
+                RegisterUserRequest(
+                    username=f"user{i}",
+                    email=f"user{i}@example.com",
+                    password="SecurePass1",
+                )
+            )
+            expected = "Admin" if i == 0 else "Viewer"
+            assert result.role == expected, f"user{i}: expected {expected}, got {result.role}"

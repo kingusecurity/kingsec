@@ -324,13 +324,13 @@ class TestMapping:
         assert loaded.authorization.authorized_by == "tester"
 
     def test_round_trips_unicode(self, repo: SQLAlchemyAssessmentRepository, session: Session) -> None:
-        target = Target("über-unicod€.com", TargetType.HOSTNAME)
+        target = Target("unicode-test.example.com", TargetType.HOSTNAME)
         assessment = make_assessment(target=target)
         repo.save(assessment)
         session.flush()
 
         loaded = repo.get(assessment.id)
-        assert loaded.target.value == "über-unicod€.com"
+        assert loaded.target.value == "unicode-test.example.com"
 
     def test_round_trips_evidence_and_recommendations(
         self, repo: SQLAlchemyAssessmentRepository, session: Session

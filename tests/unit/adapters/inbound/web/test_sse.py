@@ -9,9 +9,11 @@ import pytest
 from fastapi import FastAPI
 from httpx import AsyncBaseTransport, AsyncByteStream, AsyncClient, Request, Response
 
+from kingsec.adapters.inbound.web.auth import CurrentUser, get_current_user
 from kingsec.adapters.inbound.web.sse import _get_event_publisher, router
 from kingsec.application.events import EVENT_ASSESSMENT_CREATED, AssessmentEvent
 from kingsec.application.ports.outbound.event_publisher import EventPublisher
+from kingsec.domain import Role
 from kingsec.infrastructure.events.in_memory_bus import InMemoryEventBus
 
 
@@ -56,6 +58,12 @@ async def transport(event_bus: InMemoryEventBus) -> _StreamingTransport:
     register_error_handlers(app)
     app.include_router(router)
     app.dependency_overrides[_get_event_publisher] = lambda: event_bus
+    app.dependency_overrides[get_current_user] = lambda: CurrentUser(
+        user_id="test-user",
+        username="testuser",
+        role=Role.VIEWER,
+        claims=None,  # type: ignore[arg-type]
+    )
 
     return _StreamingTransport(app, raise_app_exceptions=False)
 

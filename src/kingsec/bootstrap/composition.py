@@ -24,6 +24,7 @@ from kingsec.application import (
     ApiKeyHasher,
     ApiKeyRepository,
     AssessmentRepository,
+    AssignRole,
     AuditEventRepository,
     AuditPublisher,
     CalculateNextRun,
@@ -66,6 +67,7 @@ from kingsec.application import (
     MfaSecretRepository,
     PasswordHasher,
     PauseSchedule,
+    PluginInstallerPort,
     RateLimiterPort,
     RecordAuditEvent,
     RecordFailedAuthentication,
@@ -201,7 +203,7 @@ def _register_adapters(
     register_unit_of_work(container, session_factory)
 
     # Auth: password hasher + JWT token service + user repository.
-    register_auth(container, settings)
+    register_auth(container, settings, session_factory)
     register_user_repository(container, session_factory)
     register_api_key_auth(container, session_factory, settings)
 
@@ -233,6 +235,15 @@ def _register_adapters(
     register_reporting(container, output_format=report_format, brand_name=brand_name)
     register_jobs(container)
     register_events(container)
+
+    # Plugin installer: filesystem-based, backed by storage data dir.
+    from kingsec.application.ports.outbound import PluginInstallerPort
+    from kingsec.infrastructure.plugin import PluginInstaller
+
+    def _make_installer(_c: Any) -> PluginInstallerPort:
+        return PluginInstaller(base_dir=str(settings.storage.data_dir / "plugins"))
+
+    container.register_factory(PluginInstallerPort, _make_installer)
 
 
 def _register_job_service(container: Container, session_factory: Any) -> None:
@@ -365,6 +376,13 @@ def _register_use_cases(container: Container) -> None:
         ),
     )
     container.register_factory(
+        AssignRole,
+        lambda c: AssignRole(
+            c.resolve(UserRepository),
+            c.resolve(AuditPublisher),
+        ),
+    )
+    container.register_factory(
         ChangePassword,
         lambda c: ChangePassword(
             c.resolve(UserRepository),
@@ -488,15 +506,15 @@ def _register_use_cases(container: Container) -> None:
     )
     container.register_factory(
         RefreshSession,
-        lambda c: RefreshSession(c.resolve(SessionRepository)),
+        lambda c: RefreshSession(c.resolve(SessionRepository), c.resolve(TokenService)),
     )
     container.register_factory(
         RevokeSession,
-        lambda c: RevokeSession(c.resolve(SessionRepository)),
+        lambda c: RevokeSession(c.resolve(SessionRepository), c.resolve(TokenService)),
     )
     container.register_factory(
         RevokeAllSessions,
-        lambda c: RevokeAllSessions(c.resolve(SessionRepository)),
+        lambda c: RevokeAllSessions(c.resolve(SessionRepository), c.resolve(TokenService)),
     )
     container.register_factory(
         ListUserSessions,
@@ -504,7 +522,7 @@ def _register_use_cases(container: Container) -> None:
     )
     container.register_factory(
         TerminateOtherSessions,
-        lambda c: TerminateOtherSessions(c.resolve(SessionRepository)),
+        lambda c: TerminateOtherSessions(c.resolve(SessionRepository), c.resolve(TokenService)),
     )
 
     # Rate limiting use cases.

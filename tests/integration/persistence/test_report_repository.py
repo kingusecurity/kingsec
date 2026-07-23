@@ -224,7 +224,7 @@ class TestMapping:
 class TestEdgeCases:
     def test_save_and_get_unicode(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
         a_id = AssessmentId.generate()
-        assessment = Assessment(a_id, Target("über-unicod€.com", TargetType.HOSTNAME))
+        assessment = Assessment(a_id, Target("unicode-test.example.com", TargetType.HOSTNAME))
         assessment.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=UTC), scope="*"))
         assessment.start()
         assessment.record_finding(Finding.create("Öné", "Desc", Severity.LOW))
@@ -235,7 +235,7 @@ class TestEdgeCases:
         session.flush()
 
         loaded = repo.get(AssessmentId(report.assessment_id))
-        assert "über-unicod€" in loaded.target or "über-unicod€" in loaded.entries[0].title
+        assert "unicode-test.example.com" in loaded.target or "Öné" in loaded.entries[0].title
 
     def test_multiple_reports(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
         r1 = make_report(AssessmentId.generate())

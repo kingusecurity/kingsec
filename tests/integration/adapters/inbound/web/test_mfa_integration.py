@@ -21,8 +21,10 @@ from fastapi.testclient import TestClient
 from kingsec.application import PasswordHasher, TokenService
 from kingsec.application.ports.outbound.audit_event_repository import AuditEventRepository
 from kingsec.application.ports.outbound.mfa_secret_repository import MfaSecretRepository
+from kingsec.application.ports.outbound.rate_limiter import RateLimiterPort
 from kingsec.application.ports.outbound.recovery_code_repository import RecoveryCodeRepository
 from kingsec.application.ports.outbound.totp_service import TotpServicePort
+from kingsec.application.use_cases.check_rate_limit import CheckRateLimit
 from kingsec.application.use_cases.disable_mfa import DisableMfa
 from kingsec.application.use_cases.enable_mfa import EnableMfa
 from kingsec.application.use_cases.generate_recovery_codes import GenerateRecoveryCodes
@@ -31,6 +33,7 @@ from kingsec.application.use_cases.rotate_recovery_codes import RotateRecoveryCo
 from kingsec.application.use_cases.use_recovery_code import UseRecoveryCode
 from kingsec.application.use_cases.verify_mfa_code import VerifyMfaCode
 from kingsec.domain.mfa import MfaRecoveryCode, MfaSecret, RecoveryCodeStatus
+from kingsec.domain.rate_limit import RateLimitDecision, RateLimitPolicy
 
 from .test_audit_events_integration import StubAuditEventRepository as EventRepo
 from .test_auth_integration import StubHasher, StubTokenService, StubUserRepo
@@ -82,6 +85,15 @@ class StubRecoveryCodeRepo(RecoveryCodeRepository):
 
     def delete_by_user_id(self, user_id: str) -> None:
         self._codes.pop(user_id, None)
+
+
+class StubRateLimiter(RateLimiterPort):
+    def check(self, key: str, policy: RateLimitPolicy) -> RateLimitDecision:
+        return RateLimitDecision(allowed=True, limit=policy.max_requests, remaining=policy.max_requests - 1, reset_seconds=policy.window_seconds)
+    def record(self, key: str, policy: RateLimitPolicy) -> None:
+        pass
+    def reset(self, key: str) -> None:
+        pass
 
 
 def _build_app() -> tuple[FastAPI, StubUserRepo, StubTokenService, StubMfaSecretRepo, StubRecoveryCodeRepo, EventRepo]:
@@ -136,6 +148,8 @@ def _build_app() -> tuple[FastAPI, StubUserRepo, StubTokenService, StubMfaSecret
                 )
             if service_type == RotateRecoveryCodes:
                 return RotateRecoveryCodes(recovery_repo, audit_repo)
+            if service_type == CheckRateLimit:
+                return CheckRateLimit(StubRateLimiter())
             raise ValueError(f"Unknown service: {service_type}")
 
     app.state.kingsec_app = _StubApp()  # type: ignore[attr-defined]
@@ -151,12 +165,19 @@ def _build_app() -> tuple[FastAPI, StubUserRepo, StubTokenService, StubMfaSecret
     return app, user_repo, token_service, mfa_secret_repo, recovery_repo, audit_repo
 
 
-def _register_and_login(client: TestClient, username: str = "testuser", role: str = "ADMIN") -> str:
+def _register_and_login(client: TestClient, username: str = "testuser", role: str = "ADMIN", user_repo=None) -> str:
     resp = client.post(
         "/api/v1/auth/register",
-        json={"username": username, "email": f"{username}@example.com", "password": "Passw0rd!", "role": role},
+        json={"username": username, "email": f"{username}@example.com", "password": "Passw0rd!"},
     )
     assert resp.status_code in (200, 201)
+    # Set the requested role directly in the repo.
+    if user_repo is not None:
+        from kingsec.domain import Role
+        user = user_repo.find_by_username(username)
+        assert user is not None
+        user.change_role(Role[role.upper()])
+        user_repo.save(user)
     login_resp = client.post("/api/v1/auth/login", json={"username": username, "password": "Passw0rd!"})
     assert login_resp.status_code == 200
     return login_resp.json()["access_token"]
@@ -244,12 +265,12 @@ class TestMfaIntegration:
         assert resp.json()["enabled"] is False
 
     def test_disable_admin_removes_other_user_mfa(self) -> None:
-        app, _user_repo, _token_service, _mfa_repo, _, _ = _build_app()
+        app, user_repo, _token_service, _mfa_repo, _, _ = _build_app()
         client = TestClient(app, raise_server_exceptions=False)
 
         # Admin user
-        admin_token = _register_and_login(client, username="admin1", role="ADMIN")
-        target_token = _register_and_login(client, username="target1", role="VIEWER")
+        admin_token = _register_and_login(client, username="admin1", role="ADMIN", user_repo=user_repo)
+        target_token = _register_and_login(client, username="target1", user_repo=user_repo)
         target_id = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {target_token}"}).json()["user_id"]
 
         client.post("/api/v1/mfa/enable", headers={"Authorization": f"Bearer {target_token}"})

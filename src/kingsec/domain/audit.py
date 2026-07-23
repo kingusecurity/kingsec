@@ -40,6 +40,7 @@ class AuditAction(StrEnum):
 
     # User management
     USER_REGISTERED = "user_registered"
+    ROLE_CHANGED = "role_changed"
     PASSWORD_CHANGED = "password_changed"  # nosec B105 — audit event type name, not a credential
 
     # Assessment lifecycle

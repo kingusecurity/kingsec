@@ -1,9 +1,10 @@
 """Parse Nmap XML output into domain ``Finding`` objects.
 
 Pure and side-effect-free: given raw XML text from ``nmap -oX -``, produce
-domain findings. Uses only the standard library (``xml.etree.ElementTree``).
-Malformed or incomplete data is logged and skipped rather than failing the
-whole parse.
+domain findings. Uses ``defusedxml.ElementTree`` at runtime for
+protection against XML attacks (``xml.etree.ElementTree`` is imported only
+under ``TYPE_CHECKING`` for static analysis). Malformed or incomplete data is
+logged and skipped rather than failing the whole parse.
 
 Severity mapping (conservative — Nmap itself doesn't rate vulns):
     Open port (no script)  → INFORMATIONAL

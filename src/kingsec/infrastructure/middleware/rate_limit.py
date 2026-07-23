@@ -27,6 +27,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from kingsec.infrastructure.config.models import RateLimitSettings
+from kingsec.infrastructure.logging import get_logger
 
 
 class _TokenBucket:
@@ -59,12 +60,28 @@ class _TokenBucket:
             return 0.0
         return (1.0 - self.tokens) / self.refill_rate
 
+    @property
+    def is_idle(self) -> bool:
+        """True if the bucket is at full capacity (no recent activity)."""
+        return self.tokens >= self.capacity
+
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Middleware that enforces per-IP rate limits."""
 
     # Paths that use the stricter auth rate limit.
-    _AUTH_PATHS = frozenset({"/api/v1/auth/login", "/api/v1/auth/register"})
+    # MFA verify and recovery are unauthenticated (the caller hasn't completed
+    # auth yet), so they need the same brute-force protection as login.
+    _AUTH_PATHS = frozenset({
+        "/api/v1/auth/login",
+        "/api/v1/auth/register",
+        "/api/v1/mfa/verify",
+        "/api/v1/mfa/recovery",
+    })
+
+    # Evict idle buckets every N dispatches to prevent unbounded memory growth.
+    _EVICTION_INTERVAL = 1000
+    _dispatch_counter: int = 0
 
     def __init__(self, app: Any, settings: RateLimitSettings) -> None:
         super().__init__(app)
@@ -72,6 +89,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._buckets: dict[str, _TokenBucket] = defaultdict(self._make_bucket)
         self._auth_buckets: dict[str, _TokenBucket] = defaultdict(self._make_auth_bucket)
         self._lock = threading.Lock()
+        self._logger = get_logger("kingsec.middleware.rate_limit")
 
     def _make_bucket(self) -> _TokenBucket:
         rate = self._settings.api_requests_per_minute / 60.0
@@ -86,6 +104,22 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             capacity=min(self._settings.burst_size, self._settings.auth_requests_per_minute),
             refill_rate=rate,
         )
+
+    def _evict_idle(self) -> None:
+        """Remove buckets that are at full capacity (no recent activity)."""
+        before = len(self._buckets) + len(self._auth_buckets)
+        self._buckets = defaultdict(
+            self._make_bucket,
+            {k: v for k, v in self._buckets.items() if not v.is_idle},
+        )
+        self._auth_buckets = defaultdict(
+            self._make_auth_bucket,
+            {k: v for k, v in self._auth_buckets.items() if not v.is_idle},
+        )
+        after = len(self._buckets) + len(self._auth_buckets)
+        evicted = before - after
+        if evicted:
+            self._logger.debug("evicted %d idle rate-limit buckets", evicted)
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         if not self._settings.enabled:
@@ -105,6 +139,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             allowed = bucket.consume()
             remaining = max(0, int(bucket.tokens))
             reset_seconds = int(bucket.reset_seconds) + 1
+
+            # Periodic eviction of idle buckets.
+            type(self)._dispatch_counter += 1
+            if self._dispatch_counter >= self._EVICTION_INTERVAL:
+                self._dispatch_counter = 0
+                self._evict_idle()
 
         if not allowed:
             return JSONResponse(

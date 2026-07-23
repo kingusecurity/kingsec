@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
-    libgdk-pixbuf2.0-0 \
+    libgdk-pixbuf-2.0-0 \
     libffi-dev \
     && rm -rf /var/lib/apt/lists/*
 
@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Copy project metadata
-COPY pyproject.toml ./
+COPY pyproject.toml README.md LICENSE ./
 
 # Install runtime dependencies into a temporary directory
 RUN uv pip install --system --target=/build/wheelhouse \
@@ -45,7 +45,7 @@ RUN groupadd -r kingsec && useradd -r -g kingsec -d /home/kingsec -s /sbin/nolog
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
-    libgdk-pixbuf2.0-0 \
+    libgdk-pixbuf-2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the wheel from builder

@@ -163,7 +163,6 @@ class RegisterUserRequest:
     username: str
     email: str
     password: str
-    role: str = "viewer"  # default to least-privileged
 
 
 @dataclass(frozen=True)
@@ -174,6 +173,25 @@ class RegisterUserResponse:
     username: str
     email: str
     role: str
+
+
+@dataclass(frozen=True)
+class AssignRoleRequest:
+    """Request to assign a role to a user (admin-only)."""
+
+    requesting_user_id: str
+    target_user_id: str
+    new_role: str
+
+
+@dataclass(frozen=True)
+class AssignRoleResponse:
+    """Response from successful role assignment."""
+
+    user_id: str
+    username: str
+    email: str
+    new_role: str
 
 
 @dataclass(frozen=True)

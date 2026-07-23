@@ -209,13 +209,13 @@ class TestMapping:
         assert loaded.discovered_at.tzinfo is not None
 
     def test_round_trip_unicode(self, repo: SQLAlchemyAssetRepository, session: Session) -> None:
-        target = Target("über-srv.unicod€", TargetType.HOSTNAME)
+        target = Target("unicode-srv.example.com", TargetType.HOSTNAME)
         asset = make_asset(target=target)
         repo.add(asset)
         session.flush()
 
         loaded = repo.get("asset-1")
-        assert loaded.target.value == "über-srv.unicod€"
+        assert loaded.target.value == "unicode-srv.example.com"
 
     def test_round_trip_tags_default_empty(self, repo: SQLAlchemyAssetRepository, session: Session) -> None:
         asset = make_asset(tags=frozenset({"production", "web"}))

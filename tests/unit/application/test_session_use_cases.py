@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from kingsec.application.ports import TokenClaims, TokenService
 from kingsec.application.ports.outbound.clock_port import ClockPort
 from kingsec.application.ports.outbound.session_repository import SessionRepository
 from kingsec.application.use_cases.create_session import CreateSession
@@ -107,6 +108,25 @@ class FakeSessionRepository(SessionRepository):
                 idle_timeout_seconds=s.idle_timeout_seconds,
             )
 
+    def update_access_jti(self, session_id: str, new_access_jti: str) -> None:
+        s = self.sessions.get(session_id)
+        if s:
+            self.sessions[str(s.id)] = Session(
+                id=s.id,
+                user_id=s.user_id,
+                session_type=s.session_type,
+                jti=new_access_jti,
+                refresh_jti=s.refresh_jti,
+                issued_at=s.issued_at,
+                expires_at=s.expires_at,
+                last_activity=s.last_activity,
+                client_ip=s.client_ip,
+                user_agent=s.user_agent,
+                device_info=s.device_info,
+                status=s.status,
+                idle_timeout_seconds=s.idle_timeout_seconds,
+            )
+
     def delete_expired(self, before: str) -> int:
         count = 0
         to_delete = [k for k, s in self.sessions.items() if s.expires_at < before]
@@ -114,6 +134,29 @@ class FakeSessionRepository(SessionRepository):
             del self.sessions[k]
             count += 1
         return count
+
+
+@dataclass
+class FakeTokenService(TokenService):
+    revoked: set[str] = field(default_factory=set)
+
+    def create_access_token(self, user_id: str, username: str, role: str) -> str:
+        return ""
+
+    def create_refresh_token(self, user_id: str, username: str, role: str) -> str:
+        return ""
+
+    def verify_access_token(self, token: str) -> TokenClaims:
+        raise NotImplementedError
+
+    def verify_refresh_token(self, token: str) -> TokenClaims:
+        raise NotImplementedError
+
+    def revoke_token(self, jti: str) -> None:
+        self.revoked.add(jti)
+
+    def is_revoked(self, jti: str) -> bool:
+        return jti in self.revoked
 
 
 @dataclass
@@ -219,7 +262,8 @@ class TestRefreshSession:
     def test_valid_refresh(self) -> None:
         repo = FakeSessionRepository()
         repo.save(make_session())
-        uc = RefreshSession(repo)
+        tokens = FakeTokenService()
+        uc = RefreshSession(repo, tokens)
         req = RefreshSessionRequest(
             user_id="u1",
             old_refresh_jti="rjti1",
@@ -231,11 +275,15 @@ class TestRefreshSession:
         assert not resp.replay_detected
         updated = repo.find_by_id("s1")
         assert updated.refresh_jti == "rjti_new"
+        assert updated.jti == "jti_new"
+        assert "rjti1" in tokens.revoked
+        assert "jti1" in tokens.revoked
 
     def test_replay_detected(self) -> None:
         repo = FakeSessionRepository()
         repo.save(make_session())
-        uc = RefreshSession(repo)
+        tokens = FakeTokenService()
+        uc = RefreshSession(repo, tokens)
         req1 = RefreshSessionRequest(
             user_id="u1",
             old_refresh_jti="rjti1",
@@ -244,7 +292,10 @@ class TestRefreshSession:
         )
         resp1 = uc.execute(req1)
         assert resp1.valid
+        assert "rjti1" in tokens.revoked
+        assert "jti1" in tokens.revoked
 
+        tokens.revoked.clear()
         req2 = RefreshSessionRequest(
             user_id="u1",
             old_refresh_jti="rjti1",
@@ -255,10 +306,14 @@ class TestRefreshSession:
         assert not resp2.valid
         assert resp2.replay_detected
         assert repo.find_by_id("s1").status == SessionStatus.REVOKED
+        # Replay path revokes the current (post-refresh) JTIs
+        assert "jti_new" in tokens.revoked
+        assert "rjti_new" in tokens.revoked
 
     def test_unknown_refresh_jti(self) -> None:
         repo = FakeSessionRepository()
-        uc = RefreshSession(repo)
+        tokens = FakeTokenService()
+        uc = RefreshSession(repo, tokens)
         req = RefreshSessionRequest(
             user_id="u1",
             old_refresh_jti="nonexistent",
@@ -268,22 +323,28 @@ class TestRefreshSession:
         resp = uc.execute(req)
         assert not resp.valid
         assert not resp.replay_detected
+        assert len(tokens.revoked) == 0
 
 
 class TestRevokeSession:
     def test_revokes_existing(self) -> None:
         repo = FakeSessionRepository()
         repo.save(make_session())
-        uc = RevokeSession(repo)
+        tokens = FakeTokenService()
+        uc = RevokeSession(repo, tokens)
         resp = uc.execute(RevokeSessionRequest(session_id="s1"))
         assert resp.success
         assert repo.find_by_id("s1").status == SessionStatus.REVOKED
+        assert "jti1" in tokens.revoked
+        assert "rjti1" in tokens.revoked
 
     def test_nonexistent_session(self) -> None:
         repo = FakeSessionRepository()
-        uc = RevokeSession(repo)
+        tokens = FakeTokenService()
+        uc = RevokeSession(repo, tokens)
         resp = uc.execute(RevokeSessionRequest(session_id="nonexistent"))
         assert not resp.success
+        assert len(tokens.revoked) == 0
 
 
 class TestRevokeAllSessions:
@@ -291,20 +352,30 @@ class TestRevokeAllSessions:
         repo = FakeSessionRepository()
         for i in range(3):
             repo.save(make_session(sid=f"s{i}", jti=f"jti{i}", refresh_jti=f"rjti{i}"))
-        uc = RevokeAllSessions(repo)
+        tokens = FakeTokenService()
+        uc = RevokeAllSessions(repo, tokens)
         resp = uc.execute(RevokeAllSessionsRequest(user_id="u1"))
         assert resp.revoked_count == 3
         for i in range(3):
             assert repo.find_by_id(f"s{i}").status == SessionStatus.REVOKED
+            assert f"jti{i}" in tokens.revoked
+            assert f"rjti{i}" in tokens.revoked
 
     def test_excludes_current(self) -> None:
         repo = FakeSessionRepository()
         for i in range(3):
             repo.save(make_session(sid=f"s{i}", jti=f"jti{i}", refresh_jti=f"rjti{i}"))
-        uc = RevokeAllSessions(repo)
+        tokens = FakeTokenService()
+        uc = RevokeAllSessions(repo, tokens)
         resp = uc.execute(RevokeAllSessionsRequest(user_id="u1", exclude_session_id="s0"))
         assert resp.revoked_count == 3
         assert repo.find_by_id("s0").status == SessionStatus.ACTIVE
+        assert "jti0" not in tokens.revoked
+        assert "rjti0" not in tokens.revoked
+        assert "jti1" in tokens.revoked
+        assert "rjti1" in tokens.revoked
+        assert "jti2" in tokens.revoked
+        assert "rjti2" in tokens.revoked
 
 
 class TestListUserSessions:
@@ -330,9 +401,16 @@ class TestTerminateOtherSessions:
         repo.save(make_session(sid="s1"))
         repo.save(make_session(sid="s2", jti="jti2", refresh_jti="rjti2"))
         repo.save(make_session(sid="s3", jti="jti3", refresh_jti="rjti3"))
-        uc = TerminateOtherSessions(repo)
+        tokens = FakeTokenService()
+        uc = TerminateOtherSessions(repo, tokens)
         resp = uc.execute(TerminateOtherSessionsRequest(user_id="u1", current_session_id="s1"))
         assert resp.terminated_count == 3
         assert repo.find_by_id("s1").status == SessionStatus.ACTIVE
         assert repo.find_by_id("s2").status == SessionStatus.REVOKED
         assert repo.find_by_id("s3").status == SessionStatus.REVOKED
+        assert "jti1" not in tokens.revoked
+        assert "rjti1" not in tokens.revoked
+        assert "jti2" in tokens.revoked
+        assert "rjti2" in tokens.revoked
+        assert "jti3" in tokens.revoked
+        assert "rjti3" in tokens.revoked

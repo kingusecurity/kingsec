@@ -82,6 +82,9 @@ class StubUserRepository(UserRepository):
     def count(self) -> int:
         return 0
 
+    def count_by_role(self, role: Role) -> int:
+        return 0
+
 
 def _make_user(**kwargs) -> User:
     defaults = dict(

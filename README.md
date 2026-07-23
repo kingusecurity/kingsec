@@ -2,7 +2,7 @@
 
 Local-first, AI-augmented **Attack Surface Management (ASM)** and **Vulnerability Management (VM)** for small and mid-sized businesses.
 
-> **Status:** Release Candidate 1 — a production-grade security assessment platform with persistence, job management, report generation/multi-format export, scanner orchestration, and AI-augmented enrichment. Built on Clean Architecture (Hexagonal).
+> **Status:** v1.0.1 — a production-grade security assessment platform with persistence, job management, report generation/multi-format export, scanner orchestration (Nuclei, Nmap, Nikto, Trivy, OWASP ZAP, Semgrep, Amass, Gobuster, ffuf), and AI-augmented enrichment. Built on Clean Architecture (Hexagonal).
 
 ## Principles baked into the foundation
 - **Local-first & private.** Runs on the user's machine; the web server binds to `127.0.0.1` by default.
@@ -22,6 +22,27 @@ make install
 make check
 ```
 Run `make help` to list all developer tasks.
+
+### First administrator
+The very first user to register is automatically granted the **Administrator** role.
+Every subsequent user receives **Viewer** (least privilege).
+
+```bash
+# Register the first user — this account becomes Administrator:
+curl -X POST http://127.0.0.1:8765/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","email":"admin@example.com","password":"MySecurePass1"}'
+```
+
+### Recovery CLI
+If all administrators are lost, use the bootstrap CLI (requires shell access to the container):
+
+```bash
+kingsec-bootstrap --username admin --password "$(openssl rand -base64 32)" --email admin@example.com
+```
+
+## Frontend
+KingSec ships as a REST API only. Community frontends are listed at [kingusecurity/kingsec-frontends](https://github.com/kingusecurity/kingsec-frontends).
 
 ## Production deployment
 
@@ -54,6 +75,20 @@ docker compose up -d
 # 3. View logs
 docker compose logs -f
 ```
+
+### Scanner prerequisites
+Some scanners require their tools installed on the host or in the container:
+| Scanner | Dependency | Install |
+|---|---|---|
+| Nuclei | `nuclei` binary | `go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest` |
+| Nmap | `nmap` package | `apt install nmap` / `choco install nmap` |
+| Nikto | `nikto` package | `apt install nikto` |
+| Trivy | `trivy` binary | `apt install trivy` / `choco install trivy` |
+| OWASP ZAP | `zap` CLI | Docker: `ghcr.io/zaproxy/zaproxy:stable` |
+| Semgrep | `semgrep` pip package | `pip install semgrep` |
+| Amass | `amass` binary | `go install -v github.com/owasp-amass/amass/v4/...@master` |
+| Gobuster | `gobuster` binary | `go install github.com/OJ/gobuster/v3@latest` |
+| ffuf | `ffuf` binary | `go install github.com/ffuf/ffuf/v2@latest` |
 
 ### Direct installation
 ```bash
@@ -139,4 +174,4 @@ Proprietary. All rights reserved. See [`LICENSE`](LICENSE).
 
 ---
 
-*KingSec v1.0.0 — [GitHub](https://github.com/kingusecurity/kingsec)*
+*KingSec v1.0.1 — [GitHub](https://github.com/kingusecurity/kingsec)*

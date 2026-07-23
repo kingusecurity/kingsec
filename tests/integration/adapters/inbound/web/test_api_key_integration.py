@@ -17,7 +17,10 @@ from kingsec.application import (
 )
 from kingsec.application.auth import AuthorizationService
 from kingsec.application.ports import ApiKeyHasher, ApiKeyRepository, TokenService
+from kingsec.application.ports.outbound.rate_limiter import RateLimiterPort
+from kingsec.application.use_cases.check_rate_limit import CheckRateLimit
 from kingsec.domain.api_key import ApiKey
+from kingsec.domain.rate_limit import RateLimitDecision, RateLimitPolicy
 
 from .test_auth_integration import StubHasher, StubTokenService, StubUserRepo
 
@@ -50,6 +53,15 @@ class StubApiKeyRepository(ApiKeyRepository):
 
     def count_by_user(self, user_id: str) -> int:
         return sum(1 for k in self._keys.values() if k.user_id == user_id)
+
+
+class StubRateLimiter(RateLimiterPort):
+    def check(self, key: str, policy: RateLimitPolicy) -> RateLimitDecision:
+        return RateLimitDecision(allowed=True, limit=policy.max_requests, remaining=policy.max_requests - 1, reset_seconds=policy.window_seconds)
+    def record(self, key: str, policy: RateLimitPolicy) -> None:
+        pass
+    def reset(self, key: str) -> None:
+        pass
 
 
 def _build_app() -> tuple[FastAPI, StubTokenService, StubUserRepo, StubApiKeyRepository, StubApiKeyHasher]:
@@ -94,6 +106,8 @@ def _build_app() -> tuple[FastAPI, StubTokenService, StubUserRepo, StubApiKeyRep
                 return RotateApiKey(key_repo, key_hasher)
             if service_type == ValidateApiKey:
                 return ValidateApiKey(key_repo, key_hasher)
+            if service_type == CheckRateLimit:
+                return CheckRateLimit(StubRateLimiter())
             raise ValueError(f"Unknown service: {service_type}")
 
     app.state.kingsec_app = _StubApp()  # type: ignore[attr-defined]
@@ -120,10 +134,15 @@ class TestApiKeyIntegration:
                 "username": username,
                 "email": f"{username}@example.com",
                 "password": "SecurePass1",
-                "role": "analyst",
             },
         )
         assert register_resp.status_code == 201
+        # Promote to analyst for API key operations
+        from kingsec.domain import Role
+        user = user_repo.find_by_username(username)
+        assert user is not None
+        user.change_role(Role.ANALYST)
+        user_repo.save(user)
 
         login_resp = client.post(
             "/api/v1/auth/login",

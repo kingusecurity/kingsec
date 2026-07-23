@@ -36,8 +36,10 @@ def _sanitise_archive_path(dest: str, entry_path: str) -> str:
     ):
         raise PathTraversalError(f"Archive entry {entry_path!r} contains a Windows drive path")
 
-    # Reject entries that escape the destination directory
-    if not str(entry_resolved).startswith(str(dest_resolved)):
+    # Reject entries that escape the destination directory.
+    # Use is_relative_to (Python 3.9+) which handles prefix collisions correctly
+    # (e.g. /plugins/foobar vs /plugins/foo) — unlike a bare startswith check.
+    if not entry_resolved.is_relative_to(dest_resolved):
         raise PathTraversalError(f"Archive entry {entry_path!r} would escape destination {dest!r}")
 
     return str(entry_resolved)

@@ -17,12 +17,19 @@ services:
     container_name: kingsec
     restart: unless-stopped
     ports:
-      - "8765:8765"
+      # Bind to loopback on the host to avoid exposing the service on all
+      # interfaces.  Inside the container the server binds to 0.0.0.0 (see
+      # KINGSEC_SERVER__HOST) which is safe because Docker containers run
+      # in an isolated network namespace.
+      - "127.0.0.1:8765:8765"
     env_file:
       - .env
     environment:
-      # Override for container: bind to 0.0.0.0 inside the container
+      # Override for container: bind to 0.0.0.0 inside the container.
+      # Docker containers run in a controlled network namespace, making this
+      # a trusted environment for external bind. See ServerSettings guardrail.
       - KINGSEC_SERVER__HOST=0.0.0.0
+      - KINGSEC_SERVER__ALLOW_EXTERNAL_BIND=true
       - KINGSEC_SERVER__PORT=8765
       - KINGSEC_APP__ENVIRONMENT=production
       - KINGSEC_LOGGING__JSON_FORMAT=true

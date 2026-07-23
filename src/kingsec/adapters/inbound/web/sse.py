@@ -46,6 +46,7 @@ from starlette.background import BackgroundTask
 from kingsec.application.events import AssessmentEvent
 from kingsec.application.ports.outbound.event_publisher import EventPublisher
 
+from .auth import CurrentUser, get_current_user
 from .dependencies import get_application
 
 if TYPE_CHECKING:
@@ -126,6 +127,7 @@ async def _sse_generator(
 async def stream_events(
     request: Request,
     assessment_id: str | None = Query(default=None, description="Filter by assessment ID"),
+    _current_user: CurrentUser = Depends(get_current_user),
     event_bus: InMemoryEventBus = Depends(_get_event_publisher),
 ) -> StreamingResponse:
     """Stream assessment lifecycle events via Server-Sent Events.

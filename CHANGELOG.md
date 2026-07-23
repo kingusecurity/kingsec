@@ -3,6 +3,36 @@
 All notable changes to this project are documented here.
 The format follows Keep a Changelog, and the project aims to follow Semantic Versioning.
 
+## [1.0.1] - 2026-07-23
+### Added
+- AssignRole use case with last-admin guard (`PUT /api/v1/users/{user_id}/role`)
+- `kingsec-bootstrap` CLI for first-admin bootstrapping
+- `AuditAction.ROLE_CHANGED` audit event
+- MFA `/verify` and `/recovery` endpoints (unauthenticated)
+- Session refresh endpoint (unauthenticated)
+- Rate limiter periodic idle-eviction to prevent memory growth
+- Format validation on `Target` hostname/IP/URL via `__post_init__`
+- PluginInstaller wiring in composition (data_dir/plugins)
+- OpenAPI allowlist test covering all 16 routers
+- Dockerfile copies `README.md` and `LICENSE` in builder stage
+- Locked requirements.txt with upper bounds on volatile deps
+- `*_out.txt`, `*_err.txt`, `clean-env/` in .gitignore
+
+### Changed
+- Server binds to `127.0.0.1:8765` (removed insecure external bind)
+- Auth error messages no longer leak token role value (structlog debug)
+- `installer.py:40` path traversal guard uses `is_relative_to` instead of `startswith`
+- All diagnostics endpoints gated with admin-only dependencies
+
+### Removed
+- Duplicate `PromoteUser` use case (subsumed by `AssignRole`)
+- 103 empty Alembic migration files (`*__no_changes.py`)
+- Scratch text files (`test_full_out.txt`, `test_queue_out.txt`, `tests_err.txt`, `tests_out.txt`)
+- `clean-env/` development snapshot directory
+
+### Fixed
+- Missing `Role` import in `test_register_user.py` (ruff F821)
+
 ## [1.0.0] - 2026-07-20
 ### Added
 - Module 1: project foundation - repository structure, dependency and tooling

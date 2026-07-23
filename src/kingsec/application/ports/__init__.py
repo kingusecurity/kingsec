@@ -21,6 +21,7 @@ from .outbound.mfa_secret_repository import MfaSecretRepository
 from .outbound.notification_repository import NotificationRepositoryPort
 from .outbound.notification_sender import NotificationSenderPort
 from .outbound.password_hasher import PasswordHasher
+from .outbound.plugin_installer import PluginInstallerPort
 from .outbound.rate_limiter import RateLimiterPort
 from .outbound.recovery_code_repository import RecoveryCodeRepository
 from .outbound.schedule_repository import ScheduleRepositoryPort
@@ -77,6 +78,7 @@ __all__ = [
     "NotificationServicePort",
     "PasswordHasher",
     "PipelineServicePort",
+    "PluginInstallerPort",
     "PluginServicePort",
     "ProductionServicePort",
     "RateLimiterPort",

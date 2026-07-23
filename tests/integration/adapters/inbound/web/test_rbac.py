@@ -12,8 +12,10 @@ from fastapi.testclient import TestClient
 
 from kingsec.application import Login, RefreshToken, RegisterUser
 from kingsec.application.auth import AuthorizationService
-from kingsec.application.ports import TokenClaims, TokenService
+from kingsec.application.ports import RateLimiterPort, TokenClaims, TokenService
+from kingsec.application.use_cases.check_rate_limit import CheckRateLimit
 from kingsec.domain import User
+from kingsec.domain.rate_limit import RateLimitDecision, RateLimitPolicy
 
 # ── Stubs (same pattern as test_auth_integration) ─────────────────────────
 
@@ -117,6 +119,19 @@ class StubHasher:
         return password_hash == f"hashed:{password}"
 
 
+class StubRateLimiter(RateLimiterPort):
+    """Rate limiter that always allows (never rate-limits in tests)."""
+
+    def check(self, key: str, policy: RateLimitPolicy) -> RateLimitDecision:
+        return RateLimitDecision(allowed=True, limit=policy.max_requests, remaining=policy.max_requests - 1, reset_seconds=policy.window_seconds)
+
+    def record(self, key: str, policy: RateLimitPolicy) -> None:
+        pass
+
+    def reset(self, key: str) -> None:
+        pass
+
+
 class StubServiceAPI:
     """Minimal stub for ``ServiceAPI`` that returns sensible defaults."""
 
@@ -207,6 +222,8 @@ def _build_app() -> tuple[FastAPI, StubTokenService, StubUserRepo, StubHasher]:
                 return RefreshToken(user_repo, token_service)
             if service_type == AuthorizationService:
                 return AuthorizationService()
+            if service_type == CheckRateLimit:
+                return CheckRateLimit(StubRateLimiter())
             raise ValueError(f"Unknown service: {service_type}")
 
     app.state.kingsec_app = _StubApp()  # type: ignore[attr-defined]
@@ -217,7 +234,7 @@ def _build_app() -> tuple[FastAPI, StubTokenService, StubUserRepo, StubHasher]:
     register_error_handlers(app)
     app.include_router(router)
 
-    return app, token_service, user_repo, hasher
+    return app, token_service, user_repo, hasher  # 4th element is user_repo for test helpers
 
 
 def _register_user(
@@ -225,7 +242,6 @@ def _register_user(
     username: str = "testuser",
     email: str = "test@example.com",
     password: str = "SecurePass1",
-    role: str = "viewer",
 ) -> None:
     """Helper: register a user and assert success."""
     resp = client.post(
@@ -234,10 +250,35 @@ def _register_user(
             "username": username,
             "email": email,
             "password": password,
-            "role": role,
         },
     )
     assert resp.status_code == 201, f"register failed: {resp.json()}"
+
+
+def _register_viewer(
+    client: TestClient,
+    username: str = "testuser",
+    email: str = "test@example.com",
+    password: str = "SecurePass1",
+) -> None:
+    """Helper: register an admin first, then register the requested user as a Viewer.
+
+    The very first user in a fresh database automatically becomes ADMIN.
+    This helper creates that admin user, then creates the requested user
+    as a VIEWER so callers can test viewer-level permissions.
+    """
+    _register_user(client, username="admin_bootstrap", email="admin@bootstrap.local", password="AdminPass99")
+    _register_user(client, username=username, email=email, password=password)
+
+
+def _promote_user_in_repo(user_repo, username: str, role_str: str) -> None:
+    """Helper: promote a user to the given role directly in the stub repo."""
+    from kingsec.domain import Role
+    user = user_repo.find_by_username(username)
+    assert user is not None, f"user {username} not found"
+    new_role = Role[role_str.upper()]
+    user.change_role(new_role)
+    user_repo.save(user)
 
 
 def _login(
@@ -289,7 +330,7 @@ class TestRBACProtectedEndpoints:
     # ── 403: wrong role for write endpoints ────────────────────────────
 
     def test_viewer_cannot_create_assessment(self) -> None:
-        _register_user(self.client, role="viewer")
+        _register_viewer(self.client)
         token = _login(self.client)
 
         resp = self.client.post(
@@ -305,7 +346,7 @@ class TestRBACProtectedEndpoints:
         assert resp.status_code == 403
 
     def test_viewer_can_list_assessments(self) -> None:
-        _register_user(self.client, role="viewer")
+        _register_viewer(self.client)
         token = _login(self.client)
 
         resp = self.client.get(
@@ -315,7 +356,7 @@ class TestRBACProtectedEndpoints:
         assert resp.status_code == 200
 
     def test_viewer_can_get_assessment(self) -> None:
-        _register_user(self.client, role="viewer")
+        _register_viewer(self.client)
         token = _login(self.client)
 
         resp = self.client.get(
@@ -327,7 +368,7 @@ class TestRBACProtectedEndpoints:
         assert resp.status_code == 404
 
     def test_viewer_cannot_generate_report(self) -> None:
-        _register_user(self.client, role="viewer")
+        _register_viewer(self.client)
         token = _login(self.client)
 
         resp = self.client.post(
@@ -337,7 +378,7 @@ class TestRBACProtectedEndpoints:
         assert resp.status_code == 403
 
     def test_viewer_cannot_cancel_assessment(self) -> None:
-        _register_user(self.client, role="viewer")
+        _register_viewer(self.client)
         token = _login(self.client)
 
         resp = self.client.post(
@@ -347,7 +388,7 @@ class TestRBACProtectedEndpoints:
         assert resp.status_code == 403
 
     def test_viewer_cannot_delete_assessment(self) -> None:
-        _register_user(self.client, role="viewer")
+        _register_viewer(self.client)
         token = _login(self.client)
 
         resp = self.client.delete(
@@ -359,7 +400,8 @@ class TestRBACProtectedEndpoints:
     # ── Analyst can perform analyst-level operations ───────────────────
 
     def test_analyst_can_create_assessment(self) -> None:
-        _register_user(self.client, role="analyst")
+        _register_user(self.client)
+        _promote_user_in_repo(self._ur, "testuser", "analyst")
         token = _login(self.client)
 
         resp = self.client.post(
@@ -376,7 +418,8 @@ class TestRBACProtectedEndpoints:
         assert resp.status_code not in (401, 403)
 
     def test_analyst_can_generate_report(self) -> None:
-        _register_user(self.client, role="analyst")
+        _register_user(self.client)
+        _promote_user_in_repo(self._ur, "testuser", "analyst")
         token = _login(self.client)
 
         resp = self.client.post(
@@ -389,7 +432,8 @@ class TestRBACProtectedEndpoints:
     # ── Admin has full access ──────────────────────────────────────────
 
     def test_admin_can_create_assessment(self) -> None:
-        _register_user(self.client, role="admin")
+        _register_user(self.client)
+        _promote_user_in_repo(self._ur, "testuser", "admin")
         token = _login(self.client)
 
         resp = self.client.post(
@@ -405,7 +449,8 @@ class TestRBACProtectedEndpoints:
         assert resp.status_code not in (401, 403)
 
     def test_admin_can_delete_assessment(self) -> None:
-        _register_user(self.client, role="admin")
+        _register_user(self.client)
+        _promote_user_in_repo(self._ur, "testuser", "admin")
         token = _login(self.client)
 
         resp = self.client.delete(
@@ -433,7 +478,7 @@ class TestRBACProtectedEndpoints:
     # ── Role in token ──────────────────────────────────────────────────
 
     def test_token_with_viewer_role_has_viewer_permissions(self) -> None:
-        _register_user(self.client, role="viewer")
+        _register_viewer(self.client)
         token = _login(self.client)
 
         me_resp = self.client.get(
@@ -444,7 +489,8 @@ class TestRBACProtectedEndpoints:
         assert me_resp.json()["role"] == "Viewer"
 
     def test_token_with_analyst_role_has_analyst_permissions(self) -> None:
-        _register_user(self.client, role="analyst")
+        _register_user(self.client)
+        _promote_user_in_repo(self._ur, "testuser", "analyst")
         token = _login(self.client)
 
         me_resp = self.client.get(

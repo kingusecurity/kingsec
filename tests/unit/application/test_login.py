@@ -89,6 +89,9 @@ class StubUserRepository(UserRepository):
     def count(self) -> int:
         return 1 if self._user else 0
 
+    def count_by_role(self, role: Role) -> int:
+        return 1 if self._user and role == Role.ADMIN else 0
+
 
 def _make_user(**kwargs) -> User:
     defaults = dict(

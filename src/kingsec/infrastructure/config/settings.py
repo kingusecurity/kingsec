@@ -111,10 +111,20 @@ class Settings(BaseSettings):
                 "KINGSEC_JWT__SECRET_KEY is still set to the insecure default. "
                 "Set it to a unique random value in production."
             )
+        if len(jwt_secret.encode()) < 32:
+            raise ValueError(
+                "KINGSEC_JWT__SECRET_KEY is too short (minimum 32 bytes). "
+                "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+            )
         pepper = self.secrets.api_key_pepper.get_secret_value()
         if pepper == _default:
             raise ValueError(
                 "KINGSEC_SECRETS__API_KEY_PEPPER is still set to the insecure default. "
                 "Set it to a unique random value in production."
+            )
+        if len(pepper.encode()) < 32:
+            raise ValueError(
+                "KINGSEC_SECRETS__API_KEY_PEPPER is too short (minimum 32 bytes). "
+                "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
             )
         return self

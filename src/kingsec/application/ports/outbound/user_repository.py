@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+from kingsec.domain import Role
 from kingsec.domain.user import User
 
 
@@ -89,3 +90,14 @@ class UserRepository(ABC):
     @abstractmethod
     def count(self) -> int:
         """Return the total number of users."""
+
+    @abstractmethod
+    def count_by_role(self, role: Role) -> int:
+        """Return the number of users with a given role.
+
+        Args:
+            role: The Role to count.
+
+        Returns:
+            Number of users with that role.
+        """

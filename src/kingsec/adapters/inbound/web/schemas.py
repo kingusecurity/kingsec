@@ -12,7 +12,9 @@ required field is enforced at the Pydantic level before a use case is ever calle
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from kingsec.domain.target import Target, TargetType
 
 # ── Request schemas ──────────────────────────────────────────────────────────
 
@@ -36,6 +38,18 @@ class CreateAssessmentBody(BaseModel):
         description="Target type: ip_address, hostname, url, or network.",
         examples=["ip_address"],
     )
+
+    @model_validator(mode="after")
+    def _validate_target(self) -> CreateAssessmentBody:
+        try:
+            ttype = TargetType(self.target_type)
+        except ValueError as exc:
+            raise ValueError(f"invalid target type: {self.target_type}") from exc
+        try:
+            Target(value=self.target_value, type=ttype)
+        except Exception as exc:
+            raise ValueError(str(exc)) from exc
+        return self
     authorized_by: str = Field(
         ...,
         min_length=1,
@@ -286,10 +300,6 @@ class RegisterUserBody(BaseModel):
         max_length=128,
         description="Password (min 8 chars, mixed case + digit).",
     )
-    role: str = Field(
-        default="viewer",
-        description="User role: viewer, analyst, or admin.",
-    )
 
 
 class RegisterUserResponse(BaseModel):
@@ -301,6 +311,29 @@ class RegisterUserResponse(BaseModel):
     username: str
     email: str
     role: str
+
+
+class AssignRoleBody(BaseModel):
+    """PUT /api/v1/users/{user_id}/role request body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    role: str = Field(
+        ...,
+        min_length=1,
+        description="Target role: viewer, analyst, or admin.",
+    )
+
+
+class AssignRoleResponse(BaseModel):
+    """PUT /api/v1/users/{user_id}/role response body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    user_id: str
+    username: str
+    email: str
+    new_role: str
 
 
 class UserResponse(BaseModel):

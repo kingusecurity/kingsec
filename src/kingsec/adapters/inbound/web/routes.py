@@ -25,7 +25,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from kingsec.application.dto import LoginResponse
 from kingsec.application.ports.inbound.service_api import ServiceAPI
@@ -37,16 +37,19 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("kingsec.adapters.inbound.web.routes")
 from kingsec.application.auth import Permission
+from kingsec.domain import RateLimitGroup
 
 from .auth import (
     CurrentApiKey,
     CurrentUser,
     get_current_api_key,
+    require_admin,
     require_analyst,
     require_permission,
     require_viewer,
 )
 from .dependencies import get_service
+from .rate_limit_deps import require_rate_limit
 
 router = APIRouter(prefix="/api/v1")
 
@@ -105,6 +108,7 @@ async def login(
     body: schemas.LoginBody,
     request: Request,
     login_uc: Any = Depends(_get_login_use_case),
+    _rate_limit: None = Depends(require_rate_limit(RateLimitGroup.LOGIN)),
 ) -> schemas.LoginResponse:
     from kingsec.application.dto import LoginRequest
     from kingsec.application.use_cases.login import AuthenticationError
@@ -202,6 +206,7 @@ def _record_failed_login_audit(request: Request, username: str) -> None:
 async def refresh_token(
     body: schemas.RefreshTokenBody,
     refresh_uc: Any = Depends(_get_refresh_token_use_case),
+    _rate_limit: None = Depends(require_rate_limit(RateLimitGroup.REFRESH_TOKEN)),
 ) -> schemas.RefreshTokenResponse:
     from kingsec.application.dto import RefreshTokenRequest
 
@@ -236,7 +241,6 @@ async def register_user(
         username=body.username,
         email=body.email,
         password=body.password,
-        role=body.role,
     )
     result = register_uc.execute(request)
     return schemas.RegisterUserResponse(
@@ -245,6 +249,13 @@ async def register_user(
         email=result.email,
         role=result.role,
     )
+
+
+def _get_assign_role_use_case(request: Request) -> Any:
+    app: Application = request.app.state.kingsec_app
+    from kingsec.application.use_cases.assign_role import AssignRole
+
+    return app.resolve(AssignRole)
 
 
 @router.get(
@@ -743,4 +754,49 @@ async def rotate_api_key(
         plaintext_key=result.plaintext_key,
         scope=result.scope,
         created_at=result.created_at,
+    )
+
+
+@router.put(
+    "/users/{user_id}/role",
+    response_model=schemas.AssignRoleResponse,
+    status_code=status.HTTP_200_OK,
+    tags=["auth"],
+    summary="Assign role to user",
+    description="Change a user's role. Requires Admin role. Cannot demote the last admin.",
+    responses={
+        200: {"description": "Role assigned"},
+        400: {"description": "Invalid role or cannot demote last admin"},
+        401: {"description": "Missing or invalid token"},
+        403: {"description": "Insufficient permissions"},
+        404: {"description": "User not found"},
+    },
+)
+async def assign_role(
+    user_id: str,
+    body: schemas.AssignRoleBody,
+    current_user: CurrentUser = Depends(require_admin),
+    assign_role_uc: Any = Depends(_get_assign_role_use_case),
+) -> schemas.AssignRoleResponse:
+    from kingsec.application.dto import AssignRoleRequest
+    from kingsec.application.use_cases.assign_role import AssignRoleError
+
+    request = AssignRoleRequest(
+        requesting_user_id=current_user.user_id,
+        target_user_id=user_id,
+        new_role=body.role,
+    )
+    try:
+        result = assign_role_uc.execute(request)
+    except AssignRoleError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return schemas.AssignRoleResponse(
+        user_id=result.user_id,
+        username=result.username,
+        email=result.email,
+        new_role=result.new_role,
     )

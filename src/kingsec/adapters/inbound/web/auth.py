@@ -19,12 +19,15 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Annotated, Any, cast
 
+import structlog
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from kingsec.application.auth import AuthorizationService, Permission
 from kingsec.application.ports import TokenClaims, TokenService
 from kingsec.domain import Role
+
+logger = structlog.get_logger(__name__)
 
 # Security scheme for OpenAPI docs.
 
@@ -74,16 +77,17 @@ async def get_current_user(
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"invalid or expired token: {exc}",
+            detail="invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
 
     try:
         role = Role[claims.role.upper()]
     except KeyError as exc:
+        logger.debug("Invalid role in token", role=claims.role)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"invalid role in token: {claims.role}",
+            detail="invalid token claims",
         ) from exc
 
     return CurrentUser(
@@ -268,7 +272,7 @@ async def get_current_api_key(
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"invalid API key: {exc}",
+            detail="invalid API key",
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
 

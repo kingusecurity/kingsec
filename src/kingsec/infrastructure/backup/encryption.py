@@ -8,9 +8,10 @@ from kingsec.application.ports.outbound import BackupEncryptionPort
 class AESBackupEncryptionService(BackupEncryptionPort):
     def __init__(self, key: bytes | None = None) -> None:
         if key:
-            self._fernet = Fernet(key)
+            self._key = key
         else:
-            self._fernet = Fernet(Fernet.generate_key())
+            self._key = Fernet.generate_key()
+        self._fernet = Fernet(self._key)
 
     def encrypt(self, data: bytes) -> bytes:
         return self._fernet.encrypt(data)
@@ -20,4 +21,4 @@ class AESBackupEncryptionService(BackupEncryptionPort):
 
     @property
     def key(self) -> bytes:
-        return self._fernet._signing_key + self._fernet._encryption_key
+        return self._key

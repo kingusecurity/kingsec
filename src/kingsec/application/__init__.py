@@ -6,6 +6,8 @@ from .dto import (
     ApiKeyView,
     AssessmentSummary,
     AssessmentView,
+    AssignRoleRequest,
+    AssignRoleResponse,
     CancelAssessmentRequest,
     CancelAssessmentResponse,
     ChangePasswordRequest,
@@ -98,6 +100,7 @@ from .ports import (
     LockoutRepository,
     MfaSecretRepository,
     PasswordHasher,
+    PluginInstallerPort,
     ProductionServicePort,
     RateLimiterPort,
     RecoveryCodeRepository,
@@ -131,6 +134,7 @@ from .services.configuration_security_service import ConfigurationSecurityServic
 from .services.persistent_job_service import PersistentJobService
 from .submit_assessment import SubmitAssessment
 from .unit_of_work import UnitOfWorkPort
+from .use_cases.assign_role import AssignRole, AssignRoleError
 from .use_cases.audit_dto import (
     AuditEventView,
     RecordAuditEventRequest,
@@ -325,6 +329,10 @@ __all__ = [
     "AssessmentView",
     "Asset",
     "AssetRepositoryPort",
+    "AssignRole",
+    "AssignRoleError",
+    "AssignRoleRequest",
+    "AssignRoleResponse",
     "AuditEventRepository",
     "AuditEventView",
     "AuditPublisher",
@@ -451,6 +459,7 @@ __all__ = [
     "PipelineDto",
     "PipelineNotFoundError",
     "PipelineStateConflictError",
+    "PluginInstallerPort",
     "ProductionService",
     "ProductionServicePort",
     "RateLimiterPort",

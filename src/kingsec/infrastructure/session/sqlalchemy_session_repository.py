@@ -132,6 +132,13 @@ class SqlAlchemySessionRepository(SessionRepository):
                 orm.refresh_jti = new_refresh_jti
                 db.commit()
 
+    def update_access_jti(self, session_id: str, new_access_jti: str) -> None:
+        with self._session_factory() as db:
+            orm = db.query(SessionORM).filter_by(id=session_id).first()
+            if orm:
+                orm.jti = new_access_jti
+                db.commit()
+
     def delete_expired(self, before: str) -> int:
         with self._session_factory() as db:
             count = db.query(SessionORM).filter(SessionORM.expires_at < before).delete()

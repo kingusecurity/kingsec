@@ -32,6 +32,9 @@ from kingsec.infrastructure.rate_limit.system_clock import SystemClock
 
 
 class FakeTokenService(TokenService):
+    def __init__(self) -> None:
+        self.revoked_tokens: set[str] = set()
+
     def create_access_token(self, user_id: str, username: str, role: str) -> str:
         return f"access_{user_id}"
 
@@ -61,10 +64,10 @@ class FakeTokenService(TokenService):
         )
 
     def revoke_token(self, jti: str) -> None:
-        pass
+        self.revoked_tokens.add(jti)
 
     def is_revoked(self, jti: str) -> bool:
-        return False
+        return jti in self.revoked_tokens
 
 
 class InMemorySessionRepo(SessionRepository):
@@ -143,6 +146,25 @@ class InMemorySessionRepo(SessionRepository):
                 idle_timeout_seconds=s.idle_timeout_seconds,
             )
 
+    def update_access_jti(self, session_id: str, new_access_jti: str) -> None:
+        s = self.sessions.get(session_id)
+        if s:
+            self.sessions[str(s.id)] = Session(
+                id=s.id,
+                user_id=s.user_id,
+                session_type=s.session_type,
+                jti=new_access_jti,
+                refresh_jti=s.refresh_jti,
+                issued_at=s.issued_at,
+                expires_at=s.expires_at,
+                last_activity=s.last_activity,
+                client_ip=s.client_ip,
+                user_agent=s.user_agent,
+                device_info=s.device_info,
+                status=s.status,
+                idle_timeout_seconds=s.idle_timeout_seconds,
+            )
+
     def delete_expired(self, before: str) -> int:
         count = 0
         for k in list(self.sessions.keys()):
@@ -179,6 +201,9 @@ def app() -> FastAPI:
     container.register_instance(SessionRepository, repo)
     container.register_instance(ClockPort, clock)
 
+    tokens = FakeTokenService()
+    container.register_instance(TokenService, tokens)
+
     container.register_factory(
         CreateSession,
         lambda c: CreateSession(c.resolve(SessionRepository), c.resolve(ClockPort)),
@@ -189,15 +214,15 @@ def app() -> FastAPI:
     )
     container.register_factory(
         RefreshSession,
-        lambda c: RefreshSession(c.resolve(SessionRepository)),
+        lambda c: RefreshSession(c.resolve(SessionRepository), c.resolve(TokenService)),
     )
     container.register_factory(
         RevokeSession,
-        lambda c: RevokeSession(c.resolve(SessionRepository)),
+        lambda c: RevokeSession(c.resolve(SessionRepository), c.resolve(TokenService)),
     )
     container.register_factory(
         RevokeAllSessions,
-        lambda c: RevokeAllSessions(c.resolve(SessionRepository)),
+        lambda c: RevokeAllSessions(c.resolve(SessionRepository), c.resolve(TokenService)),
     )
     container.register_factory(
         ListUserSessions,
@@ -205,7 +230,7 @@ def app() -> FastAPI:
     )
     container.register_factory(
         TerminateOtherSessions,
-        lambda c: TerminateOtherSessions(c.resolve(SessionRepository)),
+        lambda c: TerminateOtherSessions(c.resolve(SessionRepository), c.resolve(TokenService)),
     )
 
     settings = Settings()
@@ -224,6 +249,30 @@ def app() -> FastAPI:
     register_error_handlers(fastapi_app)
 
     return fastapi_app
+
+
+def make_session(
+    sid: str = "s1",
+    user_id: str = "u1",
+    jti: str = "jti1",
+    refresh_jti: str = "rjti1",
+    status: SessionStatus = SessionStatus.ACTIVE,
+) -> Session:
+    return Session(
+        id=SessionId(value=sid),
+        user_id=user_id,
+        session_type=SessionType.USER,
+        jti=jti,
+        refresh_jti=refresh_jti,
+        issued_at="2025-01-01T00:00:00+00:00",
+        expires_at="2025-01-08T00:00:00+00:00",
+        last_activity="2025-01-01T00:00:00+00:00",
+        client_ip="1.2.3.4",
+        user_agent="curl",
+        device_info=DeviceInfo(platform="Windows", browser="Chrome"),
+        status=status,
+        idle_timeout_seconds=1800,
+    )
 
 
 class TestSessionAPI:
@@ -299,10 +348,13 @@ class TestSessionAPI:
                 user_agent="curl",
             )
         )
+        tokens: FakeTokenService = app.state.kingsec_app.resolve(TokenService)
         client = TestClient(app)
         resp = client.delete("/api/v1/sessions/current")
         assert resp.status_code == 204
         assert repo.find_by_id("s1").status == SessionStatus.REVOKED
+        assert "test_jti" in tokens.revoked_tokens
+        assert "rjti1" in tokens.revoked_tokens
 
     def test_logout_all(self, app: FastAPI) -> None:
         repo: InMemorySessionRepo = app.state.kingsec_app.resolve(SessionRepository)
@@ -321,8 +373,93 @@ class TestSessionAPI:
                     user_agent="curl",
                 )
             )
+        tokens: FakeTokenService = app.state.kingsec_app.resolve(TokenService)
         client = TestClient(app)
         resp = client.delete("/api/v1/sessions")
         assert resp.status_code == 204
         for i in range(3):
             assert repo.find_by_id(f"s{i}").status == SessionStatus.REVOKED
+            assert f"jti{i}" in tokens.revoked_tokens
+            assert f"rjti{i}" in tokens.revoked_tokens
+
+    def test_refresh_revokes_old_tokens_and_updates_session(self, app: FastAPI) -> None:
+        repo: InMemorySessionRepo = app.state.kingsec_app.resolve(SessionRepository)
+        repo.save(
+            Session(
+                id=SessionId(value="s1"),
+                user_id="u1",
+                session_type=SessionType.USER,
+                jti="test_jti",
+                refresh_jti="rjti_refresh_u1",
+                issued_at="2025-01-01T00:00:00+00:00",
+                expires_at="2025-01-08T00:00:00+00:00",
+                last_activity="2025-01-01T00:00:00+00:00",
+                client_ip="1.2.3.4",
+                user_agent="curl",
+            )
+        )
+        tokens: FakeTokenService = app.state.kingsec_app.resolve(TokenService)
+
+        client = TestClient(app)
+        resp = client.post("/api/v1/sessions/refresh", json={"refresh_token": "refresh_u1"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "access_token" in data
+
+        # Old access and refresh JTIs must be revoked
+        assert "test_jti" in tokens.revoked_tokens
+        assert "rjti_refresh_u1" in tokens.revoked_tokens
+
+        # Session must be updated with the new JTIs
+        updated = repo.find_by_id("s1")
+        assert updated is not None
+        assert updated.jti == "jti_access_u1"
+        assert updated.refresh_jti == "rjti_refresh_u1"
+
+    def test_revoke_all_excluded_tokens_not_revoked(self, app: FastAPI) -> None:
+        repo: InMemorySessionRepo = app.state.kingsec_app.resolve(SessionRepository)
+        for i in range(3):
+            repo.save(
+                Session(
+                    id=SessionId(value=f"s{i}"),
+                    user_id="u1",
+                    session_type=SessionType.USER,
+                    jti=f"jti{i}",
+                    refresh_jti=f"rjti{i}",
+                    issued_at="2025-01-01T00:00:00+00:00",
+                    expires_at="2025-01-08T00:00:00+00:00",
+                    last_activity="2025-01-01T00:00:00+00:00",
+                    client_ip="1.2.3.4",
+                    user_agent="curl",
+                )
+            )
+        tokens: FakeTokenService = app.state.kingsec_app.resolve(TokenService)
+        revoke_all: RevokeAllSessions = app.state.kingsec_app.resolve(RevokeAllSessions)
+        from kingsec.application.use_cases.session_dto import RevokeAllSessionsRequest
+        resp = revoke_all.execute(RevokeAllSessionsRequest(user_id="u1", exclude_session_id="s0"))
+        assert resp.revoked_count == 3
+        assert repo.find_by_id("s0").status == SessionStatus.ACTIVE
+        assert "jti0" not in tokens.revoked_tokens
+        assert "rjti0" not in tokens.revoked_tokens
+        assert "jti1" in tokens.revoked_tokens
+        assert "jti2" in tokens.revoked_tokens
+
+    def test_terminate_other_sessions_revokes_other_tokens(self, app: FastAPI) -> None:
+        repo: InMemorySessionRepo = app.state.kingsec_app.resolve(SessionRepository)
+        repo.save(make_session(sid="s1"))
+        repo.save(make_session(sid="s2", jti="jti2", refresh_jti="rjti2"))
+        repo.save(make_session(sid="s3", jti="jti3", refresh_jti="rjti3"))
+        tokens: FakeTokenService = app.state.kingsec_app.resolve(TokenService)
+        terminate: TerminateOtherSessions = app.state.kingsec_app.resolve(TerminateOtherSessions)
+        from kingsec.application.use_cases.session_dto import TerminateOtherSessionsRequest
+        resp = terminate.execute(TerminateOtherSessionsRequest(user_id="u1", current_session_id="s1"))
+        assert resp.terminated_count == 3
+        assert repo.find_by_id("s1").status == SessionStatus.ACTIVE
+        assert repo.find_by_id("s2").status == SessionStatus.REVOKED
+        assert repo.find_by_id("s3").status == SessionStatus.REVOKED
+        assert "jti1" not in tokens.revoked_tokens
+        assert "rjti1" not in tokens.revoked_tokens
+        assert "jti2" in tokens.revoked_tokens
+        assert "rjti2" in tokens.revoked_tokens
+        assert "jti3" in tokens.revoked_tokens
+        assert "rjti3" in tokens.revoked_tokens

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from fastapi import Depends, Request, Response
 
@@ -18,15 +19,14 @@ if TYPE_CHECKING:
 from .auth import bearer_scheme, get_current_api_key, get_current_user
 from .dependencies import get_application
 
+# Policies that are actually attached to at least one route.
+# Unused policies have been removed — a false claim is worse than no claim.
 DEFAULT_POLICIES: dict[RateLimitGroup, tuple[int, int, RateLimitKeyType]] = {
     RateLimitGroup.LOGIN: (5, 900, RateLimitKeyType.IP_USER),
     RateLimitGroup.API: (1000, 3600, RateLimitKeyType.USER),
-    RateLimitGroup.SCAN: (20, 3600, RateLimitKeyType.USER),
-    RateLimitGroup.REPORT: (200, 3600, RateLimitKeyType.USER),
     RateLimitGroup.REFRESH_TOKEN: (30, 3600, RateLimitKeyType.USER),
     RateLimitGroup.PASSWORD_CHANGE: (10, 3600, RateLimitKeyType.IP_USER),
     RateLimitGroup.MFA_VERIFY: (10, 600, RateLimitKeyType.IP_USER),
-    RateLimitGroup.API_KEY: (1000, 3600, RateLimitKeyType.API_KEY),
 }
 
 
@@ -64,8 +64,10 @@ async def _resolve_identifier(
         except Exception:
             return f"ip:{client_ip}"
 
+    raise ValueError(f"unhandled rate-limit key type: {policy.key_type}")
 
-def require_rate_limit(group: RateLimitGroup) -> object:
+
+def require_rate_limit(group: RateLimitGroup) -> Callable[..., Any]:
     max_reqs, window_secs, key_type = DEFAULT_POLICIES[group]
 
     async def dependency(
