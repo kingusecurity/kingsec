@@ -70,15 +70,15 @@ export function AuditTable({
   return (
     <div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm" role="table">
+        <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left">
-              <th className="pb-3 text-xs font-medium text-text-muted uppercase tracking-wider px-2">User</th>
-              <th className="pb-3 text-xs font-medium text-text-muted uppercase tracking-wider px-2">Action</th>
-              <th className="pb-3 text-xs font-medium text-text-muted uppercase tracking-wider px-2">Resource</th>
-              <th className="pb-3 text-xs font-medium text-text-muted uppercase tracking-wider px-2">Severity</th>
-              <th className="pb-3 text-xs font-medium text-text-muted uppercase tracking-wider px-2">Status</th>
-              <th className="pb-3 text-xs font-medium text-text-muted uppercase tracking-wider px-2">Timestamp</th>
+              <th scope="col" className="pb-3 text-xs font-medium text-text-muted uppercase tracking-wider px-2">User</th>
+              <th scope="col" className="pb-3 text-xs font-medium text-text-muted uppercase tracking-wider px-2">Action</th>
+              <th scope="col" className="pb-3 text-xs font-medium text-text-muted uppercase tracking-wider px-2">Resource</th>
+              <th scope="col" className="pb-3 text-xs font-medium text-text-muted uppercase tracking-wider px-2">Severity</th>
+              <th scope="col" className="pb-3 text-xs font-medium text-text-muted uppercase tracking-wider px-2">Status</th>
+              <th scope="col" className="pb-3 text-xs font-medium text-text-muted uppercase tracking-wider px-2">Timestamp</th>
             </tr>
           </thead>
           <tbody>

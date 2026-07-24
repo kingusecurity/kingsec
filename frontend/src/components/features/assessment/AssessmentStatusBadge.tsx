@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Badge } from '@/components/ui/Badge'
 
 const statusVariantMap: Record<string, 'success' | 'warning' | 'neutral' | 'critical' | 'info'> = {
@@ -13,7 +14,7 @@ interface AssessmentStatusBadgeProps {
   status: string
 }
 
-export function AssessmentStatusBadge({ status }: AssessmentStatusBadgeProps) {
+export const AssessmentStatusBadge = memo(function AssessmentStatusBadge({ status }: AssessmentStatusBadgeProps) {
   const variant = statusVariantMap[status.toLowerCase()] ?? 'neutral'
   return <Badge variant={variant}>{status}</Badge>
-}
+})

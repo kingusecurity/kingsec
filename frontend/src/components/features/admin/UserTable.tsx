@@ -77,6 +77,7 @@ export function UserTable({
               {sortableColumns.map((col) => (
                 <th
                   key={col.field}
+                  scope="col"
                   className="px-5 py-3 text-left font-medium text-text-secondary cursor-pointer select-none hover:text-text-primary"
                   onClick={() => onSortChange(col.field)}
                   aria-label={`Sort by ${col.label}`}
@@ -89,8 +90,8 @@ export function UserTable({
                   </div>
                 </th>
               ))}
-              <th className="px-5 py-3 text-left font-medium text-text-secondary">Status</th>
-              <th className="px-5 py-3 w-10" />
+              <th scope="col" className="px-5 py-3 text-left font-medium text-text-secondary">Status</th>
+              <th scope="col" className="px-5 py-3 w-10" />
             </tr>
           </thead>
           <tbody>

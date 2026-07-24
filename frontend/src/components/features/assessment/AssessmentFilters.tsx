@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Search, X } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -16,7 +17,7 @@ interface AssessmentFiltersProps {
   hasFilters: boolean
 }
 
-export function AssessmentFilters({
+export const AssessmentFilters = memo(function AssessmentFilters({
   search,
   onSearchChange,
   statusFilter,
@@ -36,6 +37,7 @@ export function AssessmentFilters({
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           prefix={<Search className="h-4 w-4 text-text-muted" />}
+          aria-label="Search assessments"
         />
       </div>
       <Select
@@ -51,6 +53,7 @@ export function AssessmentFilters({
           { value: 'cancelled', label: 'Cancelled' },
         ]}
         className="w-36"
+        aria-label="Filter by status"
       />
       <Select
         value={sortBy}
@@ -62,6 +65,7 @@ export function AssessmentFilters({
           { value: 'findings_count', label: 'Findings' },
         ]}
         className="w-36"
+        aria-label="Sort by"
       />
       <Select
         value={sortOrder}
@@ -71,6 +75,7 @@ export function AssessmentFilters({
           { value: 'asc', label: 'Oldest' },
         ]}
         className="w-28"
+        aria-label="Sort order"
       />
       {hasFilters && (
         <Button variant="ghost" size="sm" onClick={onClear} iconLeft={<X className="h-4 w-4" />}>

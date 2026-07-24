@@ -15,11 +15,11 @@ export function FindingsSummaryTable({ findings }: FindingsSummaryTableProps) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border bg-surface-tertiary">
-            <th className="px-4 py-3 text-left font-medium text-text-secondary">Title</th>
-            <th className="px-4 py-3 text-left font-medium text-text-secondary">Severity</th>
-            <th className="px-4 py-3 text-left font-medium text-text-secondary">Status</th>
-            <th className="px-4 py-3 text-right font-medium text-text-secondary">Evidence</th>
-            <th className="px-4 py-3 text-right font-medium text-text-secondary">Recommendations</th>
+            <th scope="col" className="px-4 py-3 text-left font-medium text-text-secondary">Title</th>
+            <th scope="col" className="px-4 py-3 text-left font-medium text-text-secondary">Severity</th>
+            <th scope="col" className="px-4 py-3 text-left font-medium text-text-secondary">Status</th>
+            <th scope="col" className="px-4 py-3 text-right font-medium text-text-secondary">Evidence</th>
+            <th scope="col" className="px-4 py-3 text-right font-medium text-text-secondary">Recommendations</th>
           </tr>
         </thead>
         <tbody>

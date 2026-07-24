@@ -121,11 +121,11 @@ export function AssessmentsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-surface-tertiary">
-                  <th className="px-5 py-3 text-left font-medium text-text-secondary">Target</th>
-                  <th className="px-5 py-3 text-left font-medium text-text-secondary">Status</th>
-                  <th className="px-5 py-3 text-left font-medium text-text-secondary">Findings</th>
-                  <th className="px-5 py-3 text-left font-medium text-text-secondary">Created</th>
-                  <th className="px-5 py-3 w-10" />
+                  <th scope="col" className="px-5 py-3 text-left font-medium text-text-secondary">Target</th>
+                  <th scope="col" className="px-5 py-3 text-left font-medium text-text-secondary">Status</th>
+                  <th scope="col" className="px-5 py-3 text-left font-medium text-text-secondary">Findings</th>
+                  <th scope="col" className="px-5 py-3 text-left font-medium text-text-secondary">Created</th>
+                  <th scope="col" className="px-5 py-3 w-10" />
                 </tr>
               </thead>
               <tbody>

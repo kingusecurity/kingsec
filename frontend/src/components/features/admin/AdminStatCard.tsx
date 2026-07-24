@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Card } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
 
@@ -8,11 +9,11 @@ interface AdminStatCardProps {
   loading?: boolean
 }
 
-export function AdminStatCard({ label, value, icon: Icon, loading }: AdminStatCardProps) {
+export const AdminStatCard = memo(function AdminStatCard({ label, value, icon: Icon, loading }: AdminStatCardProps) {
   return (
     <Card>
       <div className="flex items-center gap-4 p-5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10" aria-hidden="true">
           <Icon className="h-5 w-5 text-accent" />
         </div>
         <div className="min-w-0">
@@ -26,4 +27,4 @@ export function AdminStatCard({ label, value, icon: Icon, loading }: AdminStatCa
       </div>
     </Card>
   )
-}
+})

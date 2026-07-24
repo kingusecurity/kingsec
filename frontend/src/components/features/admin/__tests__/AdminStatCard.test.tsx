@@ -1,26 +1,21 @@
 import { render, screen } from '@testing-library/react'
-import { Users } from 'lucide-react'
+import { Shield } from 'lucide-react'
 import { AdminStatCard } from '../AdminStatCard'
 
 describe('AdminStatCard', () => {
   it('renders label and value', () => {
-    render(<AdminStatCard label="Total Users" value={42} icon={Users} />)
-    expect(screen.getByText('Total Users')).toBeInTheDocument()
+    render(<AdminStatCard label="Users" value={42} icon={Shield} />)
+    expect(screen.getByText('Users')).toBeInTheDocument()
     expect(screen.getByText('42')).toBeInTheDocument()
   })
 
-  it('renders 0 when value is undefined', () => {
-    render(<AdminStatCard label="Total Users" value={undefined} icon={Users} />)
-    expect(screen.getByText('0')).toBeInTheDocument()
-  })
-
-  it('shows loading state', () => {
-    const { container } = render(<AdminStatCard label="Total Users" value={undefined} icon={Users} loading={true} />)
+  it('renders skeleton when loading', () => {
+    const { container } = render(<AdminStatCard label="Users" value={42} icon={Shield} loading />)
     expect(container.querySelector('.animate-pulse')).toBeInTheDocument()
   })
 
-  it('renders icon', () => {
-    render(<AdminStatCard label="Total Users" value={10} icon={Users} />)
-    expect(screen.getByText('Total Users')).toBeInTheDocument()
+  it('shows 0 when value is undefined', () => {
+    render(<AdminStatCard label="Users" icon={Shield} />)
+    expect(screen.getByText('0')).toBeInTheDocument()
   })
 })

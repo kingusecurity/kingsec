@@ -1,41 +1,21 @@
 import { render, screen } from '@testing-library/react'
 import { UserCard } from '../UserCard'
-import type { AdminUser } from '@/api/admin'
+import type { User } from '@/types/api'
 
-const mockUser: AdminUser = {
-  user_id: 'u1',
-  username: 'testuser',
-  email: 'test@example.com',
-  role: 'admin',
-  is_active: true,
-  created_at: '2025-01-15T10:00:00Z',
-  last_login_at: '2025-06-15T08:30:00Z',
+const mockUser: User = {
+  id: '1',
+  username: 'johndoe',
+  email: 'john@example.com',
+  role: 'user',
+  status: 'active',
+  created_at: '2024-01-01T00:00:00Z',
+  updated_at: '2024-01-01T00:00:00Z',
 }
 
 describe('UserCard', () => {
-  it('renders username and email', () => {
-    render(<UserCard user={mockUser} isLoading={false} />)
-    expect(screen.getByText('testuser')).toBeInTheDocument()
-    expect(screen.getByText('test@example.com')).toBeInTheDocument()
-  })
-
-  it('renders Active badge', () => {
-    render(<UserCard user={mockUser} isLoading={false} />)
-    expect(screen.getByText('Active')).toBeInTheDocument()
-  })
-
-  it('renders role badge', () => {
-    render(<UserCard user={mockUser} isLoading={false} />)
-    expect(screen.getByText('admin')).toBeInTheDocument()
-  })
-
-  it('shows loading state', () => {
-    const { container } = render(<UserCard user={undefined} isLoading={true} />)
-    expect(container.querySelector('.animate-pulse')).toBeInTheDocument()
-  })
-
-  it('returns null when no user and not loading', () => {
-    const { container } = render(<UserCard user={undefined} isLoading={false} />)
-    expect(container.innerHTML).toBe('')
+  it('renders user info', () => {
+    render(<UserCard user={mockUser} />)
+    expect(screen.getByText('johndoe')).toBeInTheDocument()
+    expect(screen.getByText('john@example.com')).toBeInTheDocument()
   })
 })

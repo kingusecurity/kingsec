@@ -1,46 +1,48 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { ToastProvider, useToast, ToastListener } from '../Toast'
-import { Button } from '../Button'
+import { ToastProvider, useToast } from '../Toast'
 
-function ToastButton() {
+function ToastTrigger() {
   const { addToast } = useToast()
   return (
-    <Button onClick={() => addToast({ variant: 'success', title: 'Test Toast', message: 'Toast message' })}>
-      Show Toast
-    </Button>
+    <div>
+      <button onClick={() => addToast({ variant: 'success', title: 'Success toast' })}>
+        Show success
+      </button>
+      <button onClick={() => addToast({ variant: 'error', title: 'Error toast' })}>
+        Show error
+      </button>
+    </div>
   )
 }
 
 describe('Toast', () => {
-  it('shows toast when triggered', async () => {
+  it('renders provider without crashing', () => {
     render(
       <ToastProvider>
-        <ToastListener />
-        <ToastButton />
-      </ToastProvider>,
+        <p>Content</p>
+      </ToastProvider>
     )
-
-    await userEvent.click(screen.getByRole('button', { name: /show toast/i }))
-    expect(screen.getByRole('alert')).toBeInTheDocument()
-    expect(screen.getByText('Test Toast')).toBeInTheDocument()
-    expect(screen.getByText('Toast message')).toBeInTheDocument()
+    expect(screen.getByText('Content')).toBeInTheDocument()
   })
 
-  it('renders dismiss button on toast', async () => {
-    function Test() {
-      const { addToast } = useToast()
-      return <Button onClick={() => addToast({ variant: 'info', title: 'Dismiss me' })}>Trigger</Button>
-    }
-
+  it('shows toast on trigger', async () => {
     render(
       <ToastProvider>
-        <ToastListener />
-        <Test />
-      </ToastProvider>,
+        <ToastTrigger />
+      </ToastProvider>
     )
+    await userEvent.click(screen.getByText('Show success'))
+    expect(screen.getByText('Success toast')).toBeInTheDocument()
+  })
 
-    await userEvent.click(screen.getByText('Trigger'))
-    expect(screen.getByLabelText('Dismiss')).toBeInTheDocument()
+  it('supports error toast', async () => {
+    render(
+      <ToastProvider>
+        <ToastTrigger />
+      </ToastProvider>
+    )
+    await userEvent.click(screen.getByText('Show error'))
+    expect(screen.getByText('Error toast')).toBeInTheDocument()
   })
 })

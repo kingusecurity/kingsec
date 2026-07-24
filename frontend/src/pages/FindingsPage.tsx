@@ -103,12 +103,12 @@ export function FindingsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-surface-tertiary">
-                  <th className="px-5 py-3 text-left font-medium text-text-secondary">Title</th>
-                  <th className="px-5 py-3 text-left font-medium text-text-secondary">Severity</th>
-                  <th className="px-5 py-3 text-left font-medium text-text-secondary">Status</th>
-                  <th className="px-5 py-3 text-left font-medium text-text-secondary">Asset</th>
-                  <th className="px-5 py-3 text-left font-medium text-text-secondary">Assessment</th>
-                  <th className="px-5 py-3 w-10" />
+                  <th scope="col" className="px-5 py-3 text-left font-medium text-text-secondary">Title</th>
+                  <th scope="col" className="px-5 py-3 text-left font-medium text-text-secondary">Severity</th>
+                  <th scope="col" className="px-5 py-3 text-left font-medium text-text-secondary">Status</th>
+                  <th scope="col" className="px-5 py-3 text-left font-medium text-text-secondary">Asset</th>
+                  <th scope="col" className="px-5 py-3 text-left font-medium text-text-secondary">Assessment</th>
+                  <th scope="col" className="px-5 py-3 w-10" />
                 </tr>
               </thead>
               <tbody>
