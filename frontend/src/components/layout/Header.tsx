@@ -31,7 +31,7 @@ export function Header() {
         <Menu className="h-5 w-5" />
       </button>
 
-      <nav aria-label="Breadcrumb" className="hidden min-w-0 sm:block">
+      <div className="hidden min-w-0 sm:block">
         <Breadcrumb>
           {breadcrumbs.map((item, index) => (
             <span key={item.href} className="inline-flex items-center gap-1.5">
@@ -45,7 +45,7 @@ export function Header() {
             </span>
           ))}
         </Breadcrumb>
-      </nav>
+      </div>
 
       <div className="flex-1" />
 
