@@ -90,6 +90,10 @@ export const router = createBrowserRouter([
         element: <Suspense fallback={<PageLoader />}><FindingsPage /></Suspense>,
       },
       {
+        path: 'findings/:findingId',
+        element: <Suspense fallback={<PageLoader />}><FindingDetailPage /></Suspense>,
+      },
+      {
         path: 'reports',
         element: <Suspense fallback={<PageLoader />}><ReportsPage /></Suspense>,
       },

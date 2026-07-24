@@ -1,15 +1,16 @@
 import { useCallback } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { ArrowRight } from 'lucide-react'
 import { PageContainer, PageHeader } from '@/components/layout/PageContainer'
 import { Pagination } from '@/components/ui/Pagination'
 import { TableSkeleton } from '@/components/ui/Skeleton'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { AssessmentSeverityBadge } from '@/components/features/assessment/AssessmentSeverityBadge'
 import { AssessmentStatusBadge } from '@/components/features/assessment/AssessmentStatusBadge'
 import { FindingFilters } from '@/components/features/findings/FindingFilters'
 import { useFindingsList } from '@/hooks/use-findings'
-import { formatRelativeTime } from '@/lib/utils'
-import type { AssessmentListParams } from '@/types/api'
+import type { FindingsListParams } from '@/types/api'
 
 const PAGE_SIZE = 20
 
@@ -19,15 +20,21 @@ export function FindingsPage() {
   const search = searchParams.get('search') ?? ''
   const severityFilter = searchParams.get('severity') ?? ''
   const statusFilter = searchParams.get('status') ?? ''
+  const assessmentFilter = searchParams.get('assessment_id') ?? ''
+  const sortBy = searchParams.get('sort_by') ?? 'severity'
+  const sortOrder = searchParams.get('sort_order') ?? 'desc'
   const page = parseInt(searchParams.get('page') ?? '1', 10)
   const offset = (page - 1) * PAGE_SIZE
 
-  const params: AssessmentListParams = {
+  const params: FindingsListParams = {
     limit: PAGE_SIZE,
     offset,
     search: search || undefined,
-    sort_by: 'created_at',
-    sort_order: 'desc',
+    severity: severityFilter || undefined,
+    status: statusFilter || undefined,
+    assessment_id: assessmentFilter || undefined,
+    sort_by: sortBy,
+    sort_order: sortOrder as FindingsListParams['sort_order'],
   }
 
   const { data, isLoading, error, refetch } = useFindingsList(params)
@@ -59,7 +66,7 @@ export function FindingsPage() {
     setSearchParams(new URLSearchParams())
   }, [setSearchParams])
 
-  const hasFilters = !!(search || severityFilter || statusFilter)
+  const hasFilters = !!(search || severityFilter || statusFilter || assessmentFilter || sortBy !== 'severity')
   const totalPages = data ? Math.ceil(data.total / data.limit) : 0
 
   if (error) {
@@ -96,23 +103,56 @@ export function FindingsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-surface-tertiary">
-                  <th className="px-5 py-3 text-left font-medium text-text-secondary">Target</th>
+                  <th className="px-5 py-3 text-left font-medium text-text-secondary">Title</th>
+                  <th className="px-5 py-3 text-left font-medium text-text-secondary">Severity</th>
                   <th className="px-5 py-3 text-left font-medium text-text-secondary">Status</th>
-                  <th className="px-5 py-3 text-right font-medium text-text-secondary">Findings</th>
-                  <th className="px-5 py-3 text-left font-medium text-text-secondary">Created</th>
+                  <th className="px-5 py-3 text-left font-medium text-text-secondary">Asset</th>
+                  <th className="px-5 py-3 text-left font-medium text-text-secondary">Assessment</th>
+                  <th className="px-5 py-3 w-10" />
                 </tr>
               </thead>
               <tbody>
-                {data.items.map((item) => (
-                  <tr key={item.assessment_id} className="border-b border-border transition-colors hover:bg-surface-tertiary/50">
-                    <td className="px-5 py-3 font-medium text-text-primary">{item.target}</td>
-                    <td className="px-5 py-3">
-                      <AssessmentStatusBadge status={item.status} />
-                    </td>
-                    <td className="px-5 py-3 text-right text-text-secondary">{item.findings_count}</td>
-                    <td className="px-5 py-3 text-text-secondary whitespace-nowrap">{formatRelativeTime(item.created_at)}</td>
-                  </tr>
-                ))}
+                {data.items.map((item) => {
+                  const detailPath = item.assessment_id
+                    ? `/assessments/${item.assessment_id}/findings/${item.finding_id}`
+                    : `/findings/${item.finding_id}`
+                  return (
+                    <tr key={item.finding_id} className="border-b border-border transition-colors hover:bg-surface-tertiary/50">
+                      <td className="px-5 py-3">
+                        <Link to={detailPath} className="font-medium text-text-primary hover:text-accent transition-colors">
+                          {item.title}
+                        </Link>
+                      </td>
+                      <td className="px-5 py-3">
+                        <AssessmentSeverityBadge severity={item.severity} />
+                      </td>
+                      <td className="px-5 py-3">
+                        <AssessmentStatusBadge status={item.status} />
+                      </td>
+                      <td className="px-5 py-3 text-text-secondary">
+                        {item.asset ?? '—'}
+                      </td>
+                      <td className="px-5 py-3">
+                        {item.assessment_id ? (
+                          <Link to={`/assessments/${item.assessment_id}`} className="text-accent hover:text-emerald-400 text-xs">
+                            {item.target ?? item.assessment_id.slice(0, 8)}
+                          </Link>
+                        ) : (
+                          <span className="text-text-muted">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3">
+                        <Link
+                          to={detailPath}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-tertiary"
+                          aria-label={`View finding: ${item.title}`}
+                        >
+                          <ArrowRight className="h-4 w-4" />
+                        </Link>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

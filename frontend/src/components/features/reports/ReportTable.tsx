@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ArrowRight, Download } from 'lucide-react'
+import { ArrowRight, Download, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { AssessmentStatusBadge } from '@/components/features/assessment/AssessmentStatusBadge'
 import { formatDate } from '@/lib/utils'
@@ -9,9 +9,11 @@ import type { AssessmentSummary } from '@/types/api'
 interface ReportTableProps {
   reports?: AssessmentSummary[]
   loading?: boolean
+  onDownload?: (assessmentId: string) => void
+  onDelete?: (assessmentId: string) => void
 }
 
-export function ReportTable({ reports, loading }: ReportTableProps) {
+export function ReportTable({ reports, loading, onDownload, onDelete }: ReportTableProps) {
   if (loading) {
     return (
       <div className="space-y-3 p-4">
@@ -53,14 +55,25 @@ export function ReportTable({ reports, loading }: ReportTableProps) {
               <td className="px-5 py-3 text-text-secondary whitespace-nowrap">{formatDate(r.created_at)}</td>
               <td className="px-5 py-3">
                 <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => window.open(assessmentsApi.getReportDownloadUrl(r.assessment_id, `report-${r.assessment_id}.pdf`), '_blank')}
-                    aria-label={`Download report for ${r.target}`}
-                  >
-                    <Download className="h-4 w-4" />
-                  </Button>
+                  {onDownload ? (
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => onDownload(r.assessment_id)}
+                      aria-label={`Download report for ${r.target}`}
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => window.open(assessmentsApi.getReportDownloadUrl(r.assessment_id, `report-${r.assessment_id}.pdf`), '_blank')}
+                      aria-label={`Download report for ${r.target}`}
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  )}
                   <Link
                     to={`/reports/${r.assessment_id}`}
                     className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-tertiary"
@@ -68,6 +81,17 @@ export function ReportTable({ reports, loading }: ReportTableProps) {
                   >
                     <ArrowRight className="h-4 w-4" />
                   </Link>
+                  {onDelete && (
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => onDelete(r.assessment_id)}
+                      aria-label={`Delete report for ${r.target}`}
+                      className="text-text-muted hover:text-red-400"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </td>
             </tr>

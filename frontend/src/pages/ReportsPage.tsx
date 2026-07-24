@@ -1,32 +1,38 @@
-import { useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { PageContainer, PageHeader } from '@/components/layout/PageContainer'
 import { Pagination } from '@/components/ui/Pagination'
 import { TableSkeleton } from '@/components/ui/Skeleton'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ReportTable } from '@/components/features/reports/ReportTable'
 import { ReportFilters } from '@/components/features/reports/ReportFilters'
-import { useReports } from '@/hooks/use-reports'
-import type { AssessmentListParams } from '@/types/api'
+import { useReports, useDeleteReport, useDownloadReport } from '@/hooks/use-reports'
+import type { ReportListParams } from '@/types/api'
 
 const PAGE_SIZE = 20
 
 export function ReportsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const deleteReport = useDeleteReport()
+  const downloadReport = useDownloadReport()
 
   const search = searchParams.get('search') ?? ''
+  const severityFilter = searchParams.get('severity') ?? ''
   const sortBy = searchParams.get('sort_by') ?? 'created_at'
   const sortOrder = searchParams.get('sort_order') ?? 'desc'
   const page = parseInt(searchParams.get('page') ?? '1', 10)
   const offset = (page - 1) * PAGE_SIZE
 
-  const params: AssessmentListParams = {
+  const params: ReportListParams = {
     limit: PAGE_SIZE,
     offset,
     search: search || undefined,
-    sort_by: sortBy as AssessmentListParams['sort_by'],
-    sort_order: sortOrder as AssessmentListParams['sort_order'],
+    severity: severityFilter || undefined,
+    sort_by: sortBy,
+    sort_order: sortOrder as ReportListParams['sort_order'],
   }
 
   const { data, isLoading, error, refetch } = useReports(params)
@@ -58,7 +64,23 @@ export function ReportsPage() {
     setSearchParams(new URLSearchParams())
   }, [setSearchParams])
 
-  const hasFilters = !!search
+  const handleDelete = useCallback((id: string) => {
+    setDeleteTarget(id)
+  }, [])
+
+  const handleConfirmDelete = useCallback(() => {
+    if (deleteTarget) {
+      deleteReport.mutate(deleteTarget)
+      setDeleteTarget(null)
+    }
+  }, [deleteTarget, deleteReport])
+
+  const handleDownload = useCallback((id: string) => {
+    const url = downloadReport.getDownloadUrl(id)
+    window.open(url, '_blank')
+  }, [downloadReport])
+
+  const hasFilters = !!(search || severityFilter)
   const totalPages = data ? Math.ceil(data.total / data.limit) : 0
 
   if (error) {
@@ -91,7 +113,18 @@ export function ReportsPage() {
         </div>
       ) : data && data.items.length > 0 ? (
         <div className="rounded-xl border border-border bg-surface-secondary overflow-hidden">
-          <ReportTable reports={data.items} />
+          <ReportTable
+            reports={data.items.map((r) => ({
+              assessment_id: r.assessment_id,
+              target: r.target,
+              status: r.status,
+              findings_count: r.total_findings,
+              is_authorized: true,
+              created_at: r.created_at,
+            }))}
+            onDownload={(id) => handleDownload(id)}
+            onDelete={(id) => handleDelete(id)}
+          />
           {totalPages > 1 && (
             <div className="flex justify-center border-t border-border px-5 py-4">
               <Pagination
@@ -110,6 +143,17 @@ export function ReportsPage() {
           />
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Report"
+        message="Are you sure you want to delete this report? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        loading={deleteReport.isPending}
+      />
     </PageContainer>
   )
 }
