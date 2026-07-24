@@ -12,6 +12,11 @@ const DashboardPage = lazy(() => import('@/pages/DashboardPage').then(m => ({ de
 const AssessmentsPage = lazy(() => import('@/pages/AssessmentsPage').then(m => ({ default: m.AssessmentsPage })))
 const AssessmentDetailPage = lazy(() => import('@/pages/AssessmentDetailPage').then(m => ({ default: m.AssessmentDetailPage })))
 const CreateAssessmentPage = lazy(() => import('@/pages/CreateAssessmentPage').then(m => ({ default: m.CreateAssessmentPage })))
+const FindingsPage = lazy(() => import('@/pages/FindingsPage').then(m => ({ default: m.FindingsPage })))
+const FindingDetailPage = lazy(() => import('@/pages/FindingDetailPage').then(m => ({ default: m.FindingDetailPage })))
+const ReportsPage = lazy(() => import('@/pages/ReportsPage').then(m => ({ default: m.ReportsPage })))
+const ReportDetailPage = lazy(() => import('@/pages/ReportDetailPage').then(m => ({ default: m.ReportDetailPage })))
+const SchedulesPage = lazy(() => import('@/pages/SchedulesPage').then(m => ({ default: m.SchedulesPage })))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage').then(m => ({ default: m.SettingsPage })))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })))
 const UnauthorizedPage = lazy(() => import('@/pages/UnauthorizedPage').then(m => ({ default: m.UnauthorizedPage })))
@@ -75,6 +80,26 @@ export const router = createBrowserRouter([
       {
         path: 'assessments/:id',
         element: <Suspense fallback={<PageLoader />}><AssessmentDetailPage /></Suspense>,
+      },
+      {
+        path: 'assessments/:assessmentId/findings/:findingId',
+        element: <Suspense fallback={<PageLoader />}><FindingDetailPage /></Suspense>,
+      },
+      {
+        path: 'findings',
+        element: <Suspense fallback={<PageLoader />}><FindingsPage /></Suspense>,
+      },
+      {
+        path: 'reports',
+        element: <Suspense fallback={<PageLoader />}><ReportsPage /></Suspense>,
+      },
+      {
+        path: 'reports/:id',
+        element: <Suspense fallback={<PageLoader />}><ReportDetailPage /></Suspense>,
+      },
+      {
+        path: 'schedules',
+        element: <Suspense fallback={<PageLoader />}><SchedulesPage /></Suspense>,
       },
       {
         path: 'settings',

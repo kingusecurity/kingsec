@@ -197,3 +197,55 @@ export interface SystemStatus {
   workers: { total: number; active: number; idle: number }
   last_updated: string
 }
+
+export interface ReportSummary {
+  assessment_id: string
+  target: string
+  status: string
+  verdict?: string
+  highest_severity?: string | null
+  total_findings: number
+  severity_counts: SeverityCount[]
+  created_at: string
+  generated_at?: string
+  artifact_filename?: string
+  artifact_bytes?: number
+}
+
+export interface ReportListParams {
+  limit?: number
+  offset?: number
+  search?: string
+  severity?: string
+  verdict?: string
+  sort_by?: string
+  sort_order?: SortOrder
+}
+
+export interface FindingDetail extends FindingResponse {
+  assessment_id?: string
+  target?: string
+  cve?: string[]
+  cwe?: string[]
+  cvss_score?: number
+  cvss_vector?: string
+  description?: string
+  remediation?: string
+  evidence?: { label: string; content: string }[]
+  references?: { title: string; url: string }[]
+  scanner?: string
+  asset?: string
+  port?: number
+  protocol?: string
+}
+
+export interface FindingsListParams {
+  limit?: number
+  offset?: number
+  search?: string
+  severity?: string
+  status?: string
+  assessment_id?: string
+  sort_by?: string
+  sort_order?: SortOrder
+}
