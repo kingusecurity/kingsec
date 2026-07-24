@@ -15,6 +15,7 @@ import {
   Radio,
   Bell,
   ScrollText,
+  Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -37,6 +38,7 @@ const navItems: NavItem[] = [
   { to: '/monitor', label: 'Monitor', icon: Radio, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/notifications', label: 'Notifications', icon: Bell, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/audit', label: 'Audit Log', icon: ScrollText, roles: ['admin'] },
+  { to: '/admin', label: 'Administration', icon: Users, roles: ['admin'] },
   { to: '/settings', label: 'Settings', icon: Settings, roles: ['viewer', 'analyst', 'admin'] },
 ]
 

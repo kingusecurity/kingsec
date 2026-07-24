@@ -12,6 +12,9 @@ const labelMap: Record<string, string> = {
   monitor: 'Monitor',
   notifications: 'Notifications',
   audit: 'Audit Log',
+  admin: 'Administration',
+  users: 'Users',
+  roles: 'Roles & Permissions',
 }
 
 export interface BreadcrumbItem {
