@@ -4,9 +4,13 @@
     "target": "es2023",
     "lib": ["ES2023", "DOM"],
     "module": "esnext",
-    "types": ["vite/client"],
+    "types": ["vite/client", "vitest/globals"],
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "ignoreDeprecations": "6.0",
 
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
@@ -15,16 +19,15 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
-    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true,
-    "forceConsistentCasingInFileNames": true,
-
-    "paths": {
-      "@/*": ["./src/*"]
-    }
+    "noFallthroughCasesInSwitch": true
   },
   "include": ["src"]
 }

@@ -1,24 +1,13 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#1a2332" />
-    <meta name="description" content="KingSec - Attack Surface Management & Vulnerability Management Platform" />
-    <meta name="color-scheme" content="dark light" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="manifest" href="/manifest.json" />
+    <meta name="color-scheme" content="dark" />
     <title>KingSec</title>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => {});
-        });
-      }
-    </script>
   </head>
-  <body>
+  <body class="bg-gray-950 text-gray-100 antialiased">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
