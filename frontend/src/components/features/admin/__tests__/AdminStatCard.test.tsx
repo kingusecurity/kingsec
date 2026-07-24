@@ -15,7 +15,7 @@ describe('AdminStatCard', () => {
   })
 
   it('shows 0 when value is undefined', () => {
-    render(<AdminStatCard label="Users" icon={Shield} />)
+    render(<AdminStatCard label="Users" value={undefined} icon={Shield} />)
     expect(screen.getByText('0')).toBeInTheDocument()
   })
 })

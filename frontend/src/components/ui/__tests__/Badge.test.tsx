@@ -8,7 +8,7 @@ describe('Badge', () => {
   })
 
   it('renders with different variants', () => {
-    const { container, rerender } = render(<Badge variant="critical">Critical</Badge>)
+    const { rerender } = render(<Badge variant="critical">Critical</Badge>)
     expect(screen.getByText('Critical')).toBeInTheDocument()
     rerender(<Badge variant="success">Success</Badge>)
     expect(screen.getByText('Success')).toBeInTheDocument()
@@ -17,7 +17,7 @@ describe('Badge', () => {
   })
 
   it('renders with different sizes', () => {
-    const { container, rerender } = render(<Badge size="sm">Small</Badge>)
+    const { rerender } = render(<Badge size="sm">Small</Badge>)
     expect(screen.getByText('Small')).toBeInTheDocument()
     rerender(<Badge size="lg">Large</Badge>)
     expect(screen.getByText('Large')).toBeInTheDocument()

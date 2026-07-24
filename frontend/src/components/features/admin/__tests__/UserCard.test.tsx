@@ -1,20 +1,20 @@
 import { render, screen } from '@testing-library/react'
 import { UserCard } from '../UserCard'
-import type { User } from '@/types/api'
+import type { AdminUser } from '@/api/admin'
 
-const mockUser: User = {
-  id: '1',
+const mockUser: AdminUser = {
+  user_id: '1',
   username: 'johndoe',
   email: 'john@example.com',
-  role: 'user',
-  status: 'active',
+  role: 'viewer',
+  is_active: true,
   created_at: '2024-01-01T00:00:00Z',
-  updated_at: '2024-01-01T00:00:00Z',
+  last_login_at: null,
 }
 
 describe('UserCard', () => {
   it('renders user info', () => {
-    render(<UserCard user={mockUser} />)
+    render(<UserCard user={mockUser} isLoading={false} />)
     expect(screen.getByText('johndoe')).toBeInTheDocument()
     expect(screen.getByText('john@example.com')).toBeInTheDocument()
   })

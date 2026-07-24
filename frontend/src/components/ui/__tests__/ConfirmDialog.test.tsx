@@ -14,18 +14,18 @@ describe('ConfirmDialog', () => {
   it('calls onConfirm when confirm button clicked', async () => {
     const onConfirm = vi.fn()
     render(
-      <ConfirmDialog open onConfirm={onConfirm} onClose={vi.fn()} message="Sure?" />
+      <ConfirmDialog open onConfirm={onConfirm} onClose={vi.fn()} title="Sure?" message="Sure?" />
     )
-    await userEvent.click(screen.getByText('Confirm'))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
     expect(onConfirm).toHaveBeenCalled()
   })
 
   it('calls onClose when cancel button clicked', async () => {
     const onClose = vi.fn()
     render(
-      <ConfirmDialog open onConfirm={vi.fn()} onClose={onClose} message="Sure?" />
+      <ConfirmDialog open onConfirm={vi.fn()} onClose={onClose} title="Sure?" message="Sure?" />
     )
-    await userEvent.click(screen.getByText('Cancel'))
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onClose).toHaveBeenCalled()
   })
 })

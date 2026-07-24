@@ -84,4 +84,4 @@ export const AssessmentFilters = memo(function AssessmentFilters({
       )}
     </div>
   )
-}
+})
