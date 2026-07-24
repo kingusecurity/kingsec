@@ -1,21 +1,30 @@
+import { lazy, Suspense } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { AuthLayout } from '@/components/layout/AuthLayout'
-import { AuthGuard } from '@/components/shared/RouteGuards'
-import { RoleGuard } from '@/components/shared/RouteGuards'
-import { GuestGuard } from '@/components/shared/RouteGuards'
+import { AuthGuard, RoleGuard, GuestGuard } from '@/components/shared/RouteGuards'
 import { PageErrorBoundary } from '@/components/shared/ErrorBoundary'
-import { LoginPage } from '@/pages/LoginPage'
-import { RegisterPage } from '@/pages/RegisterPage'
-import { DashboardPage } from '@/pages/DashboardPage'
-import { AssessmentsPage } from '@/pages/AssessmentsPage'
-import { AssessmentDetailPage } from '@/pages/AssessmentDetailPage'
-import { CreateAssessmentPage } from '@/pages/CreateAssessmentPage'
-import { SettingsPage } from '@/pages/SettingsPage'
-import { NotFoundPage } from '@/pages/NotFoundPage'
-import { UnauthorizedPage } from '@/pages/UnauthorizedPage'
-import { SessionExpiredPage } from '@/pages/SessionExpiredPage'
-import { UIShowcasePage } from '@/pages/UIShowcasePage'
+import { Spinner } from '@/components/ui/Spinner'
+
+const LoginPage = lazy(() => import('@/pages/LoginPage').then(m => ({ default: m.LoginPage })))
+const RegisterPage = lazy(() => import('@/pages/RegisterPage').then(m => ({ default: m.RegisterPage })))
+const DashboardPage = lazy(() => import('@/pages/DashboardPage').then(m => ({ default: m.DashboardPage })))
+const AssessmentsPage = lazy(() => import('@/pages/AssessmentsPage').then(m => ({ default: m.AssessmentsPage })))
+const AssessmentDetailPage = lazy(() => import('@/pages/AssessmentDetailPage').then(m => ({ default: m.AssessmentDetailPage })))
+const CreateAssessmentPage = lazy(() => import('@/pages/CreateAssessmentPage').then(m => ({ default: m.CreateAssessmentPage })))
+const SettingsPage = lazy(() => import('@/pages/SettingsPage').then(m => ({ default: m.SettingsPage })))
+const NotFoundPage = lazy(() => import('@/pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })))
+const UnauthorizedPage = lazy(() => import('@/pages/UnauthorizedPage').then(m => ({ default: m.UnauthorizedPage })))
+const SessionExpiredPage = lazy(() => import('@/pages/SessionExpiredPage').then(m => ({ default: m.SessionExpiredPage })))
+const UIShowcasePage = lazy(() => import('@/pages/UIShowcasePage').then(m => ({ default: m.UIShowcasePage })))
+
+function PageLoader() {
+  return (
+    <div className="flex h-[50vh] items-center justify-center">
+      <Spinner size="lg" />
+    </div>
+  )
+}
 
 const isDev = import.meta.env.DEV
 
@@ -23,20 +32,20 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     element: <GuestGuard><AuthLayout /></GuestGuard>,
-    children: [{ index: true, element: <LoginPage /> }],
+    children: [{ index: true, element: <Suspense fallback={<PageLoader />}><LoginPage /></Suspense> }],
   },
   {
     path: '/register',
     element: <GuestGuard><AuthLayout /></GuestGuard>,
-    children: [{ index: true, element: <RegisterPage /> }],
+    children: [{ index: true, element: <Suspense fallback={<PageLoader />}><RegisterPage /></Suspense> }],
   },
   {
     path: '/session-expired',
-    element: <SessionExpiredPage />,
+    element: <Suspense fallback={<PageLoader />}><SessionExpiredPage /></Suspense>,
   },
   {
     path: '/unauthorized',
-    element: <UnauthorizedPage />,
+    element: <Suspense fallback={<PageLoader />}><UnauthorizedPage /></Suspense>,
   },
   {
     path: '/',
@@ -51,16 +60,31 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
-      { path: 'dashboard', element: <DashboardPage /> },
-      { path: 'assessments', element: <AssessmentsPage /> },
-      { path: 'assessments/new', element: <CreateAssessmentPage /> },
-      { path: 'assessments/:id', element: <AssessmentDetailPage /> },
-      { path: 'settings', element: <SettingsPage /> },
-      ...(isDev ? [{ path: 'ui', element: <UIShowcasePage /> }] : []),
+      {
+        path: 'dashboard',
+        element: <Suspense fallback={<PageLoader />}><DashboardPage /></Suspense>,
+      },
+      {
+        path: 'assessments',
+        element: <Suspense fallback={<PageLoader />}><AssessmentsPage /></Suspense>,
+      },
+      {
+        path: 'assessments/new',
+        element: <Suspense fallback={<PageLoader />}><CreateAssessmentPage /></Suspense>,
+      },
+      {
+        path: 'assessments/:id',
+        element: <Suspense fallback={<PageLoader />}><AssessmentDetailPage /></Suspense>,
+      },
+      {
+        path: 'settings',
+        element: <Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>,
+      },
+      ...(isDev ? [{ path: 'ui', element: <Suspense fallback={<PageLoader />}><UIShowcasePage /></Suspense> }] : []),
     ],
   },
   {
     path: '*',
-    element: <NotFoundPage />,
+    element: <Suspense fallback={<PageLoader />}><NotFoundPage /></Suspense>,
   },
 ])

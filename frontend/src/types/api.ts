@@ -130,3 +130,70 @@ export interface PaginatedParams {
   limit?: number
   offset?: number
 }
+
+export type AssessmentSortField = 'created_at' | 'status' | 'target' | 'findings_count'
+export type SortOrder = 'asc' | 'desc'
+
+export interface AssessmentListParams {
+  limit?: number
+  offset?: number
+  search?: string
+  status?: string
+  severity?: string
+  sort_by?: AssessmentSortField
+  sort_order?: SortOrder
+}
+
+export interface StartAssessmentResponse {
+  assessment_id: string
+  status: string
+  started_at: string
+}
+
+export interface CancelAssessmentResponse {
+  assessment_id: string
+  status: string
+  cancelled_at: string
+}
+
+export interface DeleteAssessmentResponse {
+  assessment_id: string
+  deleted: boolean
+}
+
+export interface DashboardSummaryResponse {
+  total_scans: number
+  critical: number
+  high: number
+  medium: number
+  low: number
+  info: number
+}
+
+export interface RecentAssessmentItem {
+  assessment_id: string
+  target: string
+  status: string
+  findings_count: number
+  created_at: string
+}
+
+export interface RecentReportItem {
+  assessment_id: string
+  target: string
+  verdict: string
+  generated_at: string
+}
+
+export interface QuickAction {
+  label: string
+  description: string
+  href: string
+  icon: string
+}
+
+export interface SystemStatus {
+  scanners: { total: number; active: number; healthy: number; degraded: number; down: number }
+  workers: { total: number; active: number; idle: number }
+  last_updated: string
+}

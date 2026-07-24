@@ -22,6 +22,20 @@ export function useDashboardTrends(params?: { period?: string; limit?: number })
   })
 }
 
+export function useDashboardScanners() {
+  return useQuery({
+    queryKey: ['dashboard', 'scanners'],
+    queryFn: () => dashboardApi.scanners(),
+  })
+}
+
+export function useDashboardWorkers() {
+  return useQuery({
+    queryKey: ['dashboard', 'workers'],
+    queryFn: () => dashboardApi.workers(),
+  })
+}
+
 export function useDashboardJobs() {
   return useQuery({
     queryKey: ['dashboard', 'jobs'],
@@ -33,5 +47,19 @@ export function useDashboardActivity(params?: { limit?: number }) {
   return useQuery({
     queryKey: ['dashboard', 'activity', params],
     queryFn: () => dashboardApi.activity(params),
+  })
+}
+
+export function useDashboardSchedules() {
+  return useQuery({
+    queryKey: ['dashboard', 'schedules'],
+    queryFn: () => dashboardApi.schedules(),
+  })
+}
+
+export function useDashboardNotifications() {
+  return useQuery({
+    queryKey: ['dashboard', 'notifications'],
+    queryFn: () => dashboardApi.notifications(),
   })
 }
