@@ -21,6 +21,8 @@ const SettingsPage = lazy(() => import('@/pages/SettingsPage').then(m => ({ defa
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })))
 const UnauthorizedPage = lazy(() => import('@/pages/UnauthorizedPage').then(m => ({ default: m.UnauthorizedPage })))
 const SessionExpiredPage = lazy(() => import('@/pages/SessionExpiredPage').then(m => ({ default: m.SessionExpiredPage })))
+const LiveActivityPage = lazy(() => import('@/pages/LiveActivityPage').then(m => ({ default: m.LiveActivityPage })))
+const NotificationsPage = lazy(() => import('@/pages/NotificationsPage').then(m => ({ default: m.NotificationsPage })))
 const UIShowcasePage = lazy(() => import('@/pages/UIShowcasePage').then(m => ({ default: m.UIShowcasePage })))
 
 function PageLoader() {
@@ -100,6 +102,14 @@ export const router = createBrowserRouter([
       {
         path: 'reports/:id',
         element: <Suspense fallback={<PageLoader />}><ReportDetailPage /></Suspense>,
+      },
+      {
+        path: 'monitor',
+        element: <Suspense fallback={<PageLoader />}><LiveActivityPage /></Suspense>,
+      },
+      {
+        path: 'notifications',
+        element: <Suspense fallback={<PageLoader />}><NotificationsPage /></Suspense>,
       },
       {
         path: 'schedules',

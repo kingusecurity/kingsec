@@ -12,6 +12,8 @@ import {
   X,
   Search,
   CalendarCheck,
+  Radio,
+  Bell,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -31,6 +33,8 @@ const navItems: NavItem[] = [
   { to: '/findings', label: 'Findings', icon: Search, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/reports', label: 'Reports', icon: FileText, roles: ['analyst', 'admin'] },
   { to: '/schedules', label: 'Schedules', icon: CalendarCheck, roles: ['viewer', 'analyst', 'admin'] },
+  { to: '/monitor', label: 'Monitor', icon: Radio, roles: ['viewer', 'analyst', 'admin'] },
+  { to: '/notifications', label: 'Notifications', icon: Bell, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/settings', label: 'Settings', icon: Settings, roles: ['viewer', 'analyst', 'admin'] },
 ]
 
