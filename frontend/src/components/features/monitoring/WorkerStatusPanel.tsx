@@ -10,10 +10,10 @@ import { Button } from '@/components/ui/Button'
 import { useWorkerStatus } from '@/hooks/use-activity'
 import type { WorkerInfo } from '@/api/activity'
 
-const statusVariant: Record<string, 'success' | 'warning' | 'danger' | 'neutral'> = {
+const statusVariant: Record<string, 'success' | 'warning' | 'critical' | 'neutral'> = {
   healthy: 'success',
   degraded: 'warning',
-  down: 'danger',
+  down: 'critical',
   offline: 'neutral',
 }
 

@@ -8,7 +8,7 @@ import { QueueStatusPanel } from '@/components/features/monitoring/QueueStatusPa
 import { useLiveActivity, useWorkerStatus, useQueueStatus, useScannerStatus } from '@/hooks/use-activity'
 
 export function LiveActivityPage() {
-  const { isLoading: activityLoading } = useLiveActivity()
+  const { isLoading: _activityLoading } = useLiveActivity()
   const { data: workers, isLoading: workersLoading } = useWorkerStatus()
   const { data: queue, isLoading: queueLoading } = useQueueStatus()
   const { data: scanners, isLoading: scannersLoading } = useScannerStatus()

@@ -9,6 +9,9 @@ const labelMap: Record<string, string> = {
   reports: 'Reports',
   findings: 'Findings',
   schedules: 'Schedules',
+  monitor: 'Monitor',
+  notifications: 'Notifications',
+  audit: 'Audit Log',
 }
 
 export interface BreadcrumbItem {

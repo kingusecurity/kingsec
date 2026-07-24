@@ -14,6 +14,7 @@ import {
   CalendarCheck,
   Radio,
   Bell,
+  ScrollText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -35,6 +36,7 @@ const navItems: NavItem[] = [
   { to: '/schedules', label: 'Schedules', icon: CalendarCheck, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/monitor', label: 'Monitor', icon: Radio, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/notifications', label: 'Notifications', icon: Bell, roles: ['viewer', 'analyst', 'admin'] },
+  { to: '/audit', label: 'Audit Log', icon: ScrollText, roles: ['admin'] },
   { to: '/settings', label: 'Settings', icon: Settings, roles: ['viewer', 'analyst', 'admin'] },
 ]
 

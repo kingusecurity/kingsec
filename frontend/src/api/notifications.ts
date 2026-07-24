@@ -17,7 +17,7 @@ export interface NotificationListResponse {
 }
 
 export const notificationsApi = {
-  list: (params?: { limit?: number; offset?: number; read?: boolean }) =>
+  list: (params?: { limit?: number; offset?: number; read?: string }) =>
     apiRequest<NotificationListResponse>('/notifications', { params }),
 
   get: (id: string) =>

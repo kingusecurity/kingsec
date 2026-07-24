@@ -4,7 +4,7 @@ import { notificationsApi } from '@/api/notifications'
 export function useNotifications(params?: { limit?: number; offset?: number; read?: boolean }) {
   return useQuery({
     queryKey: ['notifications', params],
-    queryFn: () => notificationsApi.list(params),
+    queryFn: () => notificationsApi.list(params ? { ...params, read: params.read !== undefined ? String(params.read) : undefined } : undefined),
   })
 }
 
