@@ -10,28 +10,43 @@ vi.mock('@/hooks/use-notifications', () => ({
 import { useNotifications, useMarkNotificationRead, useDeleteNotification } from '@/hooks/use-notifications'
 
 const mockNotifications = {
-  items: [
+  notifications: [
     {
       id: 'n1',
+      user_id: 'u1',
       title: 'Critical vulnerability found',
       message: 'SQL injection detected',
-      type: 'finding',
-      severity: 'critical',
-      read: false,
+      channel: 'in_app',
+      status: 'pending',
+      priority: 'critical',
+      event_type: 'finding',
+      retry_count: 0,
+      max_retries: 3,
       created_at: '2025-06-15T10:30:00Z',
-      assessment_id: 'a1',
+      updated_at: '2025-06-15T10:30:00Z',
+      read_at: null,
+      error_message: null,
     },
     {
       id: 'n2',
+      user_id: 'u1',
       title: 'Scan completed',
       message: 'Assessment web-server-01 completed',
-      type: 'scan',
-      severity: 'info',
-      read: true,
+      channel: 'in_app',
+      status: 'sent',
+      priority: 'info',
+      event_type: 'scan',
+      retry_count: 0,
+      max_retries: 3,
       created_at: '2025-06-15T09:00:00Z',
+      updated_at: '2025-06-15T09:00:00Z',
+      read_at: '2025-06-15T10:00:00Z',
+      error_message: null,
     },
   ],
   total: 2,
+  limit: 20,
+  offset: 0,
 }
 
 describe('NotificationList', () => {
@@ -55,7 +70,7 @@ describe('NotificationList', () => {
 
   it('shows empty state when no notifications', () => {
     vi.mocked(useNotifications).mockReturnValue({
-      data: { items: [], total: 0 },
+      data: { notifications: [], total: 0, limit: 20, offset: 0 },
       isLoading: false,
       error: null,
       refetch: vi.fn(),

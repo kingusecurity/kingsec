@@ -1,12 +1,9 @@
-import { useNavigate } from 'react-router-dom'
 import { Bell } from 'lucide-react'
 import { PageContainer, PageHeader } from '@/components/layout/PageContainer'
 import { NotificationList } from '@/components/features/monitoring/NotificationList'
 import { Card } from '@/components/ui/Card'
 
 export function NotificationsPage() {
-  const navigate = useNavigate()
-
   return (
     <PageContainer>
       <PageHeader
@@ -21,9 +18,7 @@ export function NotificationsPage() {
       />
       <Card>
         <div className="p-6">
-          <NotificationList
-            onNavigate={(assessmentId) => navigate('/assessments/' + assessmentId)}
-          />
+          <NotificationList />
         </div>
       </Card>
     </PageContainer>

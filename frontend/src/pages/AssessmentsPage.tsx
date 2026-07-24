@@ -32,10 +32,6 @@ export function AssessmentsPage() {
   const params: AssessmentListParams = {
     limit: PAGE_SIZE,
     offset,
-    search: search || undefined,
-    status: statusFilter || undefined,
-    sort_by: sortBy as AssessmentListParams['sort_by'],
-    sort_order: sortOrder as AssessmentListParams['sort_order'],
   }
 
   const { data, isLoading, error, refetch } = useAssessments(params)

@@ -4,7 +4,6 @@ import { AuditLogPage } from '../AuditLogPage'
 
 vi.mock('@/hooks/use-audit', () => ({
   useAuditLog: vi.fn(),
-  useAuditEntry: vi.fn(() => ({ data: undefined, isLoading: false, error: null })),
 }))
 
 import { useAuditLog } from '@/hooks/use-audit'
@@ -34,11 +33,6 @@ describe('AuditLogPage', () => {
     expect(screen.getByText('Audit Log')).toBeInTheDocument()
   })
 
-  it('renders search input', () => {
-    renderPage()
-    expect(screen.getByLabelText('Search audit log')).toBeInTheDocument()
-  })
-
   it('shows empty state when no entries', () => {
     renderPage()
     expect(screen.getByText('No audit entries')).toBeInTheDocument()
@@ -48,7 +42,6 @@ describe('AuditLogPage', () => {
     renderPage()
     expect(screen.getByLabelText('Filter by action')).toBeInTheDocument()
     expect(screen.getByLabelText('Filter by resource type')).toBeInTheDocument()
-    expect(screen.getByLabelText('Filter by severity')).toBeInTheDocument()
     expect(screen.getByLabelText('Filter by result')).toBeInTheDocument()
   })
 })

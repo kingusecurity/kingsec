@@ -6,15 +6,6 @@ import { Pagination } from '@/components/ui/Pagination'
 import { formatDate } from '@/lib/utils'
 import type { AuditEntry } from '@/api/audit'
 
-const severityVariant: Record<string, 'critical' | 'high' | 'medium' | 'low' | 'info' | 'success' | 'warning'> = {
-  critical: 'critical',
-  high: 'high',
-  medium: 'medium',
-  low: 'low',
-  info: 'info',
-  success: 'success',
-}
-
 interface AuditTableProps {
   entries: AuditEntry[] | undefined
   isLoading: boolean
@@ -76,15 +67,14 @@ export function AuditTable({
               <th scope="col" className="pb-3 text-xs font-medium text-text-muted uppercase tracking-wider px-2">User</th>
               <th scope="col" className="pb-3 text-xs font-medium text-text-muted uppercase tracking-wider px-2">Action</th>
               <th scope="col" className="pb-3 text-xs font-medium text-text-muted uppercase tracking-wider px-2">Resource</th>
-              <th scope="col" className="pb-3 text-xs font-medium text-text-muted uppercase tracking-wider px-2">Severity</th>
               <th scope="col" className="pb-3 text-xs font-medium text-text-muted uppercase tracking-wider px-2">Status</th>
               <th scope="col" className="pb-3 text-xs font-medium text-text-muted uppercase tracking-wider px-2">Timestamp</th>
             </tr>
           </thead>
           <tbody>
-            {entries.map((entry) => (
+            {entries.map((entry, idx) => (
               <tr
-                key={entry.id}
+                key={entry.timestamp + entry.action + idx}
                 className="border-b border-border/50 hover:bg-surface-tertiary/50 cursor-pointer transition-colors"
                 onClick={() => onSelect(entry)}
                 tabIndex={0}
@@ -107,17 +97,12 @@ export function AuditTable({
                   )}
                 </td>
                 <td className="py-3 px-2">
-                  <Badge variant={severityVariant[entry.severity] ?? 'neutral'} size="sm">
-                    {entry.severity}
-                  </Badge>
-                </td>
-                <td className="py-3 px-2">
                   <Badge variant={entry.success ? 'success' : 'critical'} size="sm">
                     {entry.success ? 'Success' : 'Failed'}
                   </Badge>
                 </td>
                 <td className="py-3 px-2 text-text-secondary text-xs whitespace-nowrap">
-                  {formatDate(entry.created_at)}
+                  {formatDate(entry.timestamp)}
                 </td>
               </tr>
             ))}

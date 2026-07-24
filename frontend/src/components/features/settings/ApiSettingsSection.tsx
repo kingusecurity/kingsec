@@ -29,14 +29,6 @@ export function ApiSettingsSection() {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <p className="text-xs text-text-muted">Backend Version</p>
-                <p className="text-sm font-medium text-text-primary">{health?.version ?? healthz?.version ?? '-'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-text-muted">API Version</p>
-                <p className="text-sm font-medium text-text-primary">v1</p>
-              </div>
-              <div>
                 <p className="text-xs text-text-muted">Connection Status</p>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   {health ? (
@@ -50,9 +42,13 @@ export function ApiSettingsSection() {
                 </div>
               </div>
               <div>
+                <p className="text-xs text-text-muted">API Version</p>
+                <p className="text-sm font-medium text-text-primary">v1</p>
+              </div>
+              <div>
                 <p className="text-xs text-text-muted">Health Status</p>
-                <Badge variant={healthz?.status === 'healthy' ? 'success' : healthz?.status === 'degraded' ? 'warning' : 'critical'} size="sm">
-                  {healthz?.status ?? 'unknown'}
+                <Badge variant={typeof healthz === 'object' && healthz !== null && 'status' in healthz ? 'success' : 'neutral'} size="sm">
+                  {health?.status ?? 'unknown'}
                 </Badge>
               </div>
             </div>
@@ -75,10 +71,10 @@ export function ApiSettingsSection() {
           ) : (
             <div className="space-y-3">
               {apiKeys.map((key: ApiKeyInfo) => (
-                <div key={key.id} className="flex items-center justify-between rounded-lg bg-surface-tertiary/50 p-3">
+                <div key={key.api_key_id} className="flex items-center justify-between rounded-lg bg-surface-tertiary/50 p-3">
                   <div>
                     <p className="text-sm font-medium text-text-primary">{key.name}</p>
-                    <p className="text-xs text-text-muted font-mono">{key.key_prefix}...</p>
+                    <p className="text-xs text-text-muted font-mono">{key.scope}</p>
                   </div>
                   <p className="text-xs text-text-muted">
                     {key.last_used_at ? 'Last used ' + key.last_used_at : 'Never used'}

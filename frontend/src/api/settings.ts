@@ -1,45 +1,41 @@
 import { apiRequest } from './client'
 
-export interface HealthResponse {
-  status: string
-  version: string
-}
-
 export interface SessionInfo {
   id: string
   user_id: string
-  ip_address: string
+  session_type: string
+  jti: string
+  issued_at: string
+  expires_at: string
+  last_activity: string
+  client_ip: string
   user_agent: string
-  created_at: string
-  last_active_at: string
-  is_current: boolean
+  device_name: string
+  platform: string
+  browser: string
+  status: string
 }
 
 export interface ApiKeyInfo {
-  id: string
+  api_key_id: string
+  user_id: string
   name: string
-  key_prefix: string
-  created_at: string
+  scope: string
+  status: string
   last_used_at: string | null
+  created_at: string
 }
 
 export interface MfaStatus {
   enabled: boolean
-  method: string | null
-}
-
-export interface HealthzResponse {
-  status: string
-  uptime: number
-  version: string
 }
 
 export const settingsApi = {
   health: () =>
-    apiRequest<HealthResponse>('/health'),
+    apiRequest<{ status: string }>('/health'),
 
   healthz: () =>
-    apiRequest<HealthzResponse>('/healthz/health'),
+    apiRequest<Record<string, unknown>>('/healthz/health'),
 
   sessions: () =>
     apiRequest<SessionInfo[]>('/sessions'),

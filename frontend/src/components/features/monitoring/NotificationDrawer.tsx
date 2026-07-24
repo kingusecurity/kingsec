@@ -7,10 +7,9 @@ import { NotificationList } from './NotificationList'
 interface NotificationDrawerProps {
   open: boolean
   onClose: () => void
-  onNavigate?: (assessmentId: string) => void
 }
 
-export function NotificationDrawer({ open, onClose, onNavigate }: NotificationDrawerProps) {
+export function NotificationDrawer({ open, onClose }: NotificationDrawerProps) {
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -69,7 +68,7 @@ export function NotificationDrawer({ open, onClose, onNavigate }: NotificationDr
               </button>
             </div>
             <div className="overflow-y-auto p-5" style={{ height: 'calc(100% - 3.5rem)' }}>
-              <NotificationList onNavigate={onNavigate} />
+              <NotificationList />
             </div>
           </motion.div>
         </div>

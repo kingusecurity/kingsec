@@ -2,11 +2,18 @@ import { apiRequest } from './client'
 
 export interface DashboardSummary {
   total_scans: number
-  critical: number
-  high: number
-  medium: number
-  low: number
-  info: number
+  successful_scans: number
+  failed_scans: number
+  average_duration_seconds: number
+  total_findings: number
+  critical_findings: number
+  high_findings: number
+  medium_findings: number
+  low_findings: number
+  active_scanners: number
+  active_schedules: number
+  pending_notifications: number
+  failed_notifications: number
 }
 
 export interface TrendPoint {
@@ -19,38 +26,13 @@ export interface DashboardTrends {
   points: TrendPoint[]
 }
 
-export interface ScannerStats {
-  scanners: unknown[]
-}
-
-export interface WorkerStats {
-  workers: unknown[]
-}
-
 export interface JobStats {
   pending: number
   running: number
   completed: number
   failed: number
-}
-
-export interface ScheduleStats {
-  total: number
-  active: number
-  paused: number
-  disabled: number
-}
-
-export interface NotificationStats {
-  total: number
-  sent: number
-  failed: number
-  pending: number
-  read: number
-}
-
-export interface RecentActivity {
-  activity: unknown[]
+  cancelled: number
+  average_duration_seconds: number
 }
 
 export const dashboardApi = {
@@ -69,20 +51,20 @@ export const dashboardApi = {
     apiRequest<DashboardTrends>('/dashboard/trends', { params }),
 
   scanners: () =>
-    apiRequest<ScannerStats>('/dashboard/scanners'),
+    apiRequest<{ scanners: unknown[] }>('/dashboard/scanners'),
 
   workers: () =>
-    apiRequest<WorkerStats>('/dashboard/workers'),
+    apiRequest<{ workers: unknown[] }>('/dashboard/workers'),
 
   jobs: () =>
     apiRequest<JobStats>('/dashboard/jobs'),
 
   schedules: () =>
-    apiRequest<ScheduleStats>('/dashboard/schedules'),
+    apiRequest<{ total: number; active: number; paused: number; disabled: number }>('/dashboard/schedules'),
 
   notifications: () =>
-    apiRequest<NotificationStats>('/dashboard/notifications'),
+    apiRequest<{ total: number; sent: number; failed: number; pending: number; read: number }>('/dashboard/notifications'),
 
   activity: (params?: { limit?: number }) =>
-    apiRequest<RecentActivity>('/dashboard/activity', { params }),
+    apiRequest<{ activity: unknown[] }>('/dashboard/activity', { params }),
 }

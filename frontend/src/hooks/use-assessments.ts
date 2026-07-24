@@ -27,14 +27,6 @@ export function useAssessment(id: string) {
   })
 }
 
-export function useFindings(assessmentId: string) {
-  return useQuery({
-    queryKey: ['assessments', assessmentId, 'findings'],
-    queryFn: () => assessmentsApi.findings(assessmentId),
-    enabled: !!assessmentId,
-  })
-}
-
 export function useCreateAssessment() {
   const queryClient = useQueryClient()
 

@@ -5,30 +5,30 @@ import type { AuditEntry } from '@/api/audit'
 
 const mockEntries: AuditEntry[] = [
   {
-    id: 'e1',
-    user_id: 'u1',
-    username: 'admin',
     action: 'login',
     resource_type: 'session',
-    resource_id: null,
-    details: null,
-    severity: 'info',
-    ip_address: '192.168.1.1',
+    resource_id: '',
     success: true,
-    created_at: '2025-06-15T10:30:00Z',
+    reason: '',
+    timestamp: '2025-06-15T10:30:00Z',
+    user_id: 'u1',
+    username: 'admin',
+    role: 'admin',
+    ip_address: '192.168.1.1',
+    correlation_id: '',
   },
   {
-    id: 'e2',
-    user_id: 'u2',
-    username: 'analyst1',
     action: 'create',
     resource_type: 'assessment',
     resource_id: 'a1',
-    details: 'Created assessment for web-server-01',
-    severity: 'low',
-    ip_address: '10.0.0.1',
     success: true,
-    created_at: '2025-06-15T09:00:00Z',
+    reason: 'Created assessment for web-server-01',
+    timestamp: '2025-06-15T09:00:00Z',
+    user_id: 'u2',
+    username: 'analyst1',
+    role: 'analyst',
+    ip_address: '10.0.0.1',
+    correlation_id: '',
   },
 ]
 
@@ -96,7 +96,6 @@ describe('AuditTable', () => {
     expect(screen.getByText('User')).toBeInTheDocument()
     expect(screen.getByText('Action')).toBeInTheDocument()
     expect(screen.getByText('Resource')).toBeInTheDocument()
-    expect(screen.getByText('Severity')).toBeInTheDocument()
     expect(screen.getByText('Status')).toBeInTheDocument()
     expect(screen.getByText('Timestamp')).toBeInTheDocument()
   })

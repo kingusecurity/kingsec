@@ -8,10 +8,9 @@ import { NotificationItem } from './NotificationItem'
 
 interface NotificationListProps {
   limit?: number
-  onNavigate?: (assessmentId: string) => void
 }
 
-export function NotificationList({ limit = 20, onNavigate }: NotificationListProps) {
+export function NotificationList({ limit = 20 }: NotificationListProps) {
   const { data, isLoading, error, refetch } = useNotifications({ limit })
   const markRead = useMarkNotificationRead()
   const deleteNotification = useDeleteNotification()
@@ -34,7 +33,7 @@ export function NotificationList({ limit = 20, onNavigate }: NotificationListPro
     )
   }
 
-  const notifications = data?.items ?? []
+  const notifications = data?.notifications ?? []
 
   if (notifications.length === 0) {
     return (
@@ -61,7 +60,6 @@ export function NotificationList({ limit = 20, onNavigate }: NotificationListPro
             notification={n}
             onMarkRead={markRead.mutate}
             onDelete={deleteNotification.mutate}
-            onNavigate={onNavigate}
           />
         ))}
       </div>

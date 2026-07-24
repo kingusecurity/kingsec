@@ -26,18 +26,19 @@ interface NotificationItemProps {
   notification: Notification
   onMarkRead?: (id: string) => void
   onDelete?: (id: string) => void
-  onNavigate?: (id: string) => void
 }
 
-export function NotificationItem({ notification, onMarkRead, onDelete, onNavigate }: NotificationItemProps) {
-  const Icon = iconMap[notification.severity] ?? Info
-  const badgeVariant = badgeVariantMap[notification.severity] ?? 'info'
+export function NotificationItem({ notification, onMarkRead, onDelete }: NotificationItemProps) {
+  const severity = notification.priority
+  const Icon = iconMap[severity] ?? Info
+  const badgeVariant = badgeVariantMap[severity] ?? 'info'
+  const isRead = notification.read_at !== null
 
   return (
     <div
       className={cn(
         'group flex items-start gap-3 rounded-lg border p-4 transition-colors',
-        notification.read
+        isRead
           ? 'border-border bg-surface-secondary'
           : 'border-accent/20 bg-accent/[0.03]',
       )}
@@ -51,7 +52,7 @@ export function NotificationItem({ notification, onMarkRead, onDelete, onNavigat
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className={cn('text-sm', notification.read ? 'text-text-primary' : 'font-medium text-text-primary')}>
+            <p className={cn('text-sm', isRead ? 'text-text-primary' : 'font-medium text-text-primary')}>
               {notification.title}
             </p>
             {notification.message && (
@@ -59,25 +60,18 @@ export function NotificationItem({ notification, onMarkRead, onDelete, onNavigat
             )}
           </div>
           <Badge variant={badgeVariant} size="sm">
-            {notification.severity}
+            {severity}
           </Badge>
         </div>
 
         <div className="mt-2 flex items-center gap-3 text-xs text-text-muted">
           <span>{formatRelativeTime(notification.created_at)}</span>
-          {notification.assessment_id && (
-            <button
-              onClick={() => onNavigate?.(notification.assessment_id!)}
-              className="hover:text-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
-            >
-              View assessment
-            </button>
-          )}
+          <span className="capitalize">[{notification.channel}]</span>
         </div>
       </div>
 
       <div className="flex shrink-0 items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        {!notification.read && onMarkRead && (
+        {!isRead && onMarkRead && (
           <button
             onClick={() => onMarkRead(notification.id)}
             className="rounded p-1.5 text-text-muted hover:text-accent hover:bg-surface-tertiary transition-colors"

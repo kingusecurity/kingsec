@@ -137,37 +137,6 @@ export type SortOrder = 'asc' | 'desc'
 export interface AssessmentListParams {
   limit?: number
   offset?: number
-  search?: string
-  status?: string
-  severity?: string
-  sort_by?: AssessmentSortField
-  sort_order?: SortOrder
-}
-
-export interface StartAssessmentResponse {
-  assessment_id: string
-  status: string
-  started_at: string
-}
-
-export interface CancelAssessmentResponse {
-  assessment_id: string
-  status: string
-  cancelled_at: string
-}
-
-export interface DeleteAssessmentResponse {
-  assessment_id: string
-  deleted: boolean
-}
-
-export interface DashboardSummaryResponse {
-  total_scans: number
-  critical: number
-  high: number
-  medium: number
-  low: number
-  info: number
 }
 
 export interface RecentAssessmentItem {
@@ -176,50 +145,6 @@ export interface RecentAssessmentItem {
   status: string
   findings_count: number
   created_at: string
-}
-
-export interface RecentReportItem {
-  assessment_id: string
-  target: string
-  verdict: string
-  generated_at: string
-}
-
-export interface QuickAction {
-  label: string
-  description: string
-  href: string
-  icon: string
-}
-
-export interface SystemStatus {
-  scanners: { total: number; active: number; healthy: number; degraded: number; down: number }
-  workers: { total: number; active: number; idle: number }
-  last_updated: string
-}
-
-export interface ReportSummary {
-  assessment_id: string
-  target: string
-  status: string
-  verdict?: string
-  highest_severity?: string | null
-  total_findings: number
-  severity_counts: SeverityCount[]
-  created_at: string
-  generated_at?: string
-  artifact_filename?: string
-  artifact_bytes?: number
-}
-
-export interface ReportListParams {
-  limit?: number
-  offset?: number
-  search?: string
-  severity?: string
-  verdict?: string
-  sort_by?: string
-  sort_order?: SortOrder
 }
 
 export interface FindingDetail extends FindingResponse {
@@ -239,13 +164,9 @@ export interface FindingDetail extends FindingResponse {
   protocol?: string
 }
 
-export interface FindingsListParams {
-  limit?: number
-  offset?: number
-  search?: string
-  severity?: string
-  status?: string
-  assessment_id?: string
-  sort_by?: string
-  sort_order?: SortOrder
+export interface QuickAction {
+  label: string
+  description: string
+  href: string
+  icon: string
 }

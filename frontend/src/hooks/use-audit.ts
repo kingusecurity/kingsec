@@ -8,11 +8,3 @@ export function useAuditLog(params?: AuditListParams) {
     queryFn: () => auditApi.list(params),
   })
 }
-
-export function useAuditEntry(id: string) {
-  return useQuery({
-    queryKey: ['audit', id],
-    queryFn: () => auditApi.get(id),
-    enabled: !!id,
-  })
-}

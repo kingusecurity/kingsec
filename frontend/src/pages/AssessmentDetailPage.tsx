@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, FileText, Download } from 'lucide-react'
+import { ArrowLeft, FileText } from 'lucide-react'
 import { PageContainer } from '@/components/layout/PageContainer'
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -9,14 +9,12 @@ import { AssessmentStatusBadge } from '@/components/features/assessment/Assessme
 import { AssessmentActions } from '@/components/features/assessment/AssessmentActions'
 import { AssessmentTimeline } from '@/components/features/assessment/AssessmentTimeline'
 import { FindingsSummaryTable } from '@/components/features/assessment/FindingsSummaryTable'
-import { useAssessment, useStartAssessment, useCancelAssessment, useDeleteAssessment, useGenerateReport, useFindings } from '@/hooks/use-assessments'
-import { assessmentsApi } from '@/api/assessments'
+import { useAssessment, useStartAssessment, useCancelAssessment, useDeleteAssessment, useGenerateReport } from '@/hooks/use-assessments'
 import { formatDate } from '@/lib/utils'
 
 export function AssessmentDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { data: assessment, isLoading, error, refetch } = useAssessment(id ?? '')
-  const { data: findingsData, isLoading: findingsLoading } = useFindings(id ?? '')
   const startMutation = useStartAssessment()
   const cancelMutation = useCancelAssessment()
   const deleteMutation = useDeleteAssessment()
@@ -39,12 +37,6 @@ export function AssessmentDetailPage() {
     { label: 'Running', status: stepStatus(isRunning, isCompleted) },
     { label: 'Completed', status: stepStatus(false, isCompleted) },
   ]
-
-  const handleDownloadReport = () => {
-    if (!assessment) return
-    const url = assessmentsApi.getReportDownloadUrl(assessment.assessment_id, `report-${assessment.assessment_id}.pdf`)
-    window.open(url, '_blank')
-  }
 
   if (error) {
     return (
@@ -117,15 +109,6 @@ export function AssessmentDetailPage() {
                 {isCompleted ? (
                   <>
                     <Button
-                      variant="primary"
-                      size="sm"
-                      className="w-full"
-                      onClick={handleDownloadReport}
-                      iconLeft={<Download className="h-4 w-4" />}
-                    >
-                      Download Report
-                    </Button>
-                    <Button
                       variant="outline"
                       size="sm"
                       className="w-full"
@@ -133,7 +116,7 @@ export function AssessmentDetailPage() {
                       loading={reportMutation.isPending}
                       iconLeft={<FileText className="h-4 w-4" />}
                     >
-                      Regenerate Report
+                      Generate Report
                     </Button>
                   </>
                 ) : isRunning || isPending ? (
@@ -147,19 +130,11 @@ export function AssessmentDetailPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Findings ({findingsData?.findings?.length ?? assessment.findings.length})</CardTitle>
+              <CardTitle>Findings ({assessment.findings.length})</CardTitle>
               <CardDescription>Security issues discovered during assessment</CardDescription>
             </CardHeader>
             <div className="px-5 pb-5">
-              {findingsLoading ? (
-                <div className="space-y-3">
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-8 w-full" />
-                </div>
-              ) : (
-                <FindingsSummaryTable findings={findingsData?.findings ?? assessment.findings} />
-              )}
+              <FindingsSummaryTable findings={assessment.findings} />
             </div>
           </Card>
         </>

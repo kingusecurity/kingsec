@@ -11,6 +11,7 @@ import { formatRelativeTime } from '@/lib/utils'
 import type { SessionInfo } from '@/api/settings'
 
 function SessionRow({ session, onDelete }: { session: SessionInfo; onDelete: (id: string) => void }) {
+  const isCurrent = session.status === 'active'
   return (
     <div className="flex items-center justify-between rounded-lg bg-surface-tertiary/50 p-3">
       <div className="min-w-0 flex-1">
@@ -18,13 +19,13 @@ function SessionRow({ session, onDelete }: { session: SessionInfo; onDelete: (id
           <p className="text-sm font-medium text-text-primary truncate">
             {session.user_agent || 'Unknown'}
           </p>
-          {session.is_current && <Badge variant="success" size="sm">Current</Badge>}
+          {isCurrent && <Badge variant="success" size="sm">Current</Badge>}
         </div>
         <p className="text-xs text-text-muted mt-0.5">
-          IP: {session.ip_address || 'Unknown'} &middot; Last active: {formatRelativeTime(session.last_active_at)}
+          IP: {session.client_ip || 'Unknown'} &middot; Last active: {formatRelativeTime(session.last_activity)}
         </p>
       </div>
-      {!session.is_current && (
+      {!isCurrent && (
         <Button
           variant="ghost"
           size="xs"

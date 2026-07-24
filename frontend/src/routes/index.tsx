@@ -12,10 +12,7 @@ const DashboardPage = lazy(() => import('@/pages/DashboardPage').then(m => ({ de
 const AssessmentsPage = lazy(() => import('@/pages/AssessmentsPage').then(m => ({ default: m.AssessmentsPage })))
 const AssessmentDetailPage = lazy(() => import('@/pages/AssessmentDetailPage').then(m => ({ default: m.AssessmentDetailPage })))
 const CreateAssessmentPage = lazy(() => import('@/pages/CreateAssessmentPage').then(m => ({ default: m.CreateAssessmentPage })))
-const FindingsPage = lazy(() => import('@/pages/FindingsPage').then(m => ({ default: m.FindingsPage })))
 const FindingDetailPage = lazy(() => import('@/pages/FindingDetailPage').then(m => ({ default: m.FindingDetailPage })))
-const ReportsPage = lazy(() => import('@/pages/ReportsPage').then(m => ({ default: m.ReportsPage })))
-const ReportDetailPage = lazy(() => import('@/pages/ReportDetailPage').then(m => ({ default: m.ReportDetailPage })))
 const SchedulesPage = lazy(() => import('@/pages/SchedulesPage').then(m => ({ default: m.SchedulesPage })))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage').then(m => ({ default: m.SettingsPage })))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })))
@@ -24,10 +21,6 @@ const SessionExpiredPage = lazy(() => import('@/pages/SessionExpiredPage').then(
 const LiveActivityPage = lazy(() => import('@/pages/LiveActivityPage').then(m => ({ default: m.LiveActivityPage })))
 const NotificationsPage = lazy(() => import('@/pages/NotificationsPage').then(m => ({ default: m.NotificationsPage })))
 const AuditLogPage = lazy(() => import('@/pages/AuditLogPage').then(m => ({ default: m.AuditLogPage })))
-const AdminDashboardPage = lazy(() => import('@/pages/AdminDashboardPage').then(m => ({ default: m.AdminDashboardPage })))
-const UsersPage = lazy(() => import('@/pages/UsersPage').then(m => ({ default: m.UsersPage })))
-const UserDetailPage = lazy(() => import('@/pages/UserDetailPage').then(m => ({ default: m.UserDetailPage })))
-const RolesPage = lazy(() => import('@/pages/RolesPage').then(m => ({ default: m.RolesPage })))
 const UIShowcasePage = lazy(() => import('@/pages/UIShowcasePage').then(m => ({ default: m.UIShowcasePage })))
 
 function PageLoader() {
@@ -93,22 +86,6 @@ export const router = createBrowserRouter([
         element: <Suspense fallback={<PageLoader />}><FindingDetailPage /></Suspense>,
       },
       {
-        path: 'findings',
-        element: <Suspense fallback={<PageLoader />}><FindingsPage /></Suspense>,
-      },
-      {
-        path: 'findings/:findingId',
-        element: <Suspense fallback={<PageLoader />}><FindingDetailPage /></Suspense>,
-      },
-      {
-        path: 'reports',
-        element: <Suspense fallback={<PageLoader />}><ReportsPage /></Suspense>,
-      },
-      {
-        path: 'reports/:id',
-        element: <Suspense fallback={<PageLoader />}><ReportDetailPage /></Suspense>,
-      },
-      {
         path: 'monitor',
         element: <Suspense fallback={<PageLoader />}><LiveActivityPage /></Suspense>,
       },
@@ -127,38 +104,6 @@ export const router = createBrowserRouter([
       {
         path: 'settings',
         element: <Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>,
-      },
-      {
-        path: 'admin',
-        element: (
-          <RoleGuard roles={['admin']}>
-            <Suspense fallback={<PageLoader />}><AdminDashboardPage /></Suspense>
-          </RoleGuard>
-        ),
-      },
-      {
-        path: 'admin/users',
-        element: (
-          <RoleGuard roles={['admin']}>
-            <Suspense fallback={<PageLoader />}><UsersPage /></Suspense>
-          </RoleGuard>
-        ),
-      },
-      {
-        path: 'admin/users/:id',
-        element: (
-          <RoleGuard roles={['admin']}>
-            <Suspense fallback={<PageLoader />}><UserDetailPage /></Suspense>
-          </RoleGuard>
-        ),
-      },
-      {
-        path: 'admin/roles',
-        element: (
-          <RoleGuard roles={['admin']}>
-            <Suspense fallback={<PageLoader />}><RolesPage /></Suspense>
-          </RoleGuard>
-        ),
       },
       ...(isDev ? [{ path: 'ui', element: <Suspense fallback={<PageLoader />}><UIShowcasePage /></Suspense> }] : []),
     ],

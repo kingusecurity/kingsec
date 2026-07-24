@@ -9,25 +9,38 @@ vi.mock('@/hooks/use-settings', () => ({
 }))
 
 import { useSessions, useMfaStatus } from '@/hooks/use-settings'
+import type { SessionInfo } from '@/api/settings'
 
-const mockSessions = [
+const mockSessions: SessionInfo[] = [
   {
     id: 's1',
     user_id: 'u1',
-    ip_address: '192.168.1.1',
+    session_type: 'web',
+    jti: 'jti1',
+    issued_at: '2025-06-15T10:00:00Z',
+    expires_at: '2025-06-16T10:00:00Z',
+    last_activity: '2025-06-15T10:30:00Z',
+    client_ip: '192.168.1.1',
     user_agent: 'Chrome 120',
-    created_at: '2025-06-15T10:00:00Z',
-    last_active_at: '2025-06-15T10:30:00Z',
-    is_current: true,
+    device_name: 'Desktop',
+    platform: 'Windows',
+    browser: 'Chrome 120',
+    status: 'active',
   },
   {
     id: 's2',
     user_id: 'u1',
-    ip_address: '10.0.0.1',
+    session_type: 'web',
+    jti: 'jti2',
+    issued_at: '2025-06-14T08:00:00Z',
+    expires_at: '2025-06-15T08:00:00Z',
+    last_activity: '2025-06-14T12:00:00Z',
+    client_ip: '10.0.0.1',
     user_agent: 'Firefox 110',
-    created_at: '2025-06-14T08:00:00Z',
-    last_active_at: '2025-06-14T12:00:00Z',
-    is_current: false,
+    device_name: 'Desktop',
+    platform: 'Windows',
+    browser: 'Firefox 110',
+    status: 'inactive',
   },
 ]
 

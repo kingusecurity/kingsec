@@ -35,15 +35,7 @@ export function FindingDetailPage() {
           <ArrowLeft className="h-4 w-4" />
           Back to assessment
         </Link>
-      ) : (
-        <Link
-          to="/findings"
-          className="inline-flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to findings
-        </Link>
-      )}
+      ) : null}
 
       {isLoading ? (
         <div className="space-y-6">
@@ -70,7 +62,7 @@ export function FindingDetailPage() {
                   className="inline-flex items-center gap-2 text-sm text-accent hover:text-emerald-400 transition-colors"
                 >
                   <ExternalLink className="h-4 w-4" />
-                  View {findingDetail.target ?? findingDetail.assessment_id}
+                  View {String(findingDetail.target ?? findingDetail.assessment_id)}
                 </Link>
               </div>
             </Card>
@@ -105,9 +97,11 @@ export function FindingDetailPage() {
         <div className="flex flex-col items-center gap-4 py-16 text-center">
           <h2 className="text-lg font-semibold text-text-primary">Finding not found</h2>
           <p className="text-sm text-text-secondary">The requested finding could not be found.</p>
-          <Link to={assessmentId ? `/assessments/${assessmentId}` : '/findings'} className="text-sm text-accent hover:text-emerald-400">
-            Back to {assessmentId ? 'assessment' : 'findings'}
-          </Link>
+          {assessmentId && (
+            <Link to={`/assessments/${assessmentId}`} className="text-sm text-accent hover:text-emerald-400">
+              Back to assessment
+            </Link>
+          )}
         </div>
       )}
     </PageContainer>

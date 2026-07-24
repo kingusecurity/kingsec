@@ -1,5 +1,4 @@
-import { Search, X } from 'lucide-react'
-import { Input } from '@/components/ui/Input'
+import { X } from 'lucide-react'
 import { Select } from '@/components/ui/Select'
 import { Button } from '@/components/ui/Button'
 
@@ -27,15 +26,6 @@ const resourceOptions = [
   { value: 'session', label: 'Session' },
 ]
 
-const severityOptions = [
-  { value: '', label: 'All Severities' },
-  { value: 'info', label: 'Info' },
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' },
-  { value: 'critical', label: 'Critical' },
-]
-
 const successOptions = [
   { value: '', label: 'All Results' },
   { value: 'true', label: 'Success' },
@@ -43,45 +33,28 @@ const successOptions = [
 ]
 
 interface AuditFiltersProps {
-  search: string
   action: string
   resourceType: string
-  severity: string
   success: string
-  onSearchChange: (v: string) => void
   onActionChange: (v: string) => void
   onResourceTypeChange: (v: string) => void
-  onSeverityChange: (v: string) => void
   onSuccessChange: (v: string) => void
   onClear: () => void
   hasFilters: boolean
 }
 
 export function AuditFilters({
-  search,
   action,
   resourceType,
-  severity,
   success,
-  onSearchChange,
   onActionChange,
   onResourceTypeChange,
-  onSeverityChange,
   onSuccessChange,
   onClear,
   hasFilters,
 }: AuditFiltersProps) {
   return (
     <div className="flex flex-wrap gap-3">
-      <div className="min-w-[200px] flex-1">
-        <Input
-          placeholder="Search audit log..."
-          value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-          prefix={<Search className="h-4 w-4" />}
-          aria-label="Search audit log"
-        />
-      </div>
       <Select
         value={action}
         onChange={(e) => onActionChange(e.target.value)}
@@ -93,12 +66,6 @@ export function AuditFilters({
         onChange={(e) => onResourceTypeChange(e.target.value)}
         options={resourceOptions}
         aria-label="Filter by resource type"
-      />
-      <Select
-        value={severity}
-        onChange={(e) => onSeverityChange(e.target.value)}
-        options={severityOptions}
-        aria-label="Filter by severity"
       />
       <Select
         value={success}

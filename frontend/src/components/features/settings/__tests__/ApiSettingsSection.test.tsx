@@ -12,18 +12,18 @@ import { useHealth, useHealthz, useApiKeys } from '@/hooks/use-settings'
 describe('ApiSettingsSection', () => {
   beforeEach(() => {
     vi.mocked(useHealth).mockReturnValue({
-      data: { status: 'ok', version: '1.0.0' },
+      data: { status: 'ok' },
       isLoading: false,
       error: null,
       refetch: vi.fn(),
     } as any)
     vi.mocked(useHealthz).mockReturnValue({
-      data: { status: 'healthy', uptime: 3600, version: '1.0.0' },
+      data: { status: 'ok', uptime: 3600 },
       isLoading: false,
       error: null,
     } as any)
     vi.mocked(useApiKeys).mockReturnValue({
-      data: [{ id: 'k1', name: 'My Key', key_prefix: 'ks_abc', created_at: '', last_used_at: null }],
+      data: [{ api_key_id: 'k1', user_id: 'u1', name: 'My Key', scope: 'read', status: 'active', created_at: '', last_used_at: null }],
       isLoading: false,
       error: null,
     } as any)
@@ -32,12 +32,6 @@ describe('ApiSettingsSection', () => {
   it('renders API status section', () => {
     render(<ApiSettingsSection />)
     expect(screen.getByText('API Status')).toBeInTheDocument()
-  })
-
-  it('shows backend version', () => {
-    render(<ApiSettingsSection />)
-    const versions = screen.getAllByText('1.0.0')
-    expect(versions.length).toBeGreaterThanOrEqual(1)
   })
 
   it('shows API version', () => {
@@ -52,7 +46,7 @@ describe('ApiSettingsSection', () => {
 
   it('shows health status', () => {
     render(<ApiSettingsSection />)
-    expect(screen.getByText('healthy')).toBeInTheDocument()
+    expect(screen.getByText('ok')).toBeInTheDocument()
   })
 
   it('shows API keys', () => {

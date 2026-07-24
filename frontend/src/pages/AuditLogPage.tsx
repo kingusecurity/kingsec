@@ -9,10 +9,8 @@ import type { AuditEntry } from '@/api/audit'
 const PAGE_SIZE = 20
 
 export function AuditLogPage() {
-  const [search, setSearch] = useState('')
   const [action, setAction] = useState('')
   const [resourceType, setResourceType] = useState('')
-  const [severity, setSeverity] = useState('')
   const [success, setSuccess] = useState('')
   const [page, setPage] = useState(0)
   const [selectedEntry, setSelectedEntry] = useState<AuditEntry | null>(null)
@@ -21,10 +19,8 @@ export function AuditLogPage() {
   const params = {
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
-    search: search || undefined,
     action: action || undefined,
     resource_type: resourceType || undefined,
-    severity: severity || undefined,
     success: success ? success === 'true' : undefined,
   }
 
@@ -32,13 +28,11 @@ export function AuditLogPage() {
 
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 0
 
-  const hasFilters = !!(search || action || resourceType || severity || success)
+  const hasFilters = !!(action || resourceType || success)
 
   const handleClear = useCallback(() => {
-    setSearch('')
     setAction('')
     setResourceType('')
-    setSeverity('')
     setSuccess('')
     setPage(0)
   }, [])
@@ -57,15 +51,11 @@ export function AuditLogPage() {
       <Panel title="Audit Events">
         <div className="p-5 space-y-4">
           <AuditFilters
-            search={search}
             action={action}
             resourceType={resourceType}
-            severity={severity}
             success={success}
-            onSearchChange={(v) => { setSearch(v); setPage(0) }}
             onActionChange={(v) => { setAction(v); setPage(0) }}
             onResourceTypeChange={(v) => { setResourceType(v); setPage(0) }}
-            onSeverityChange={(v) => { setSeverity(v); setPage(0) }}
             onSuccessChange={(v) => { setSuccess(v); setPage(0) }}
             onClear={handleClear}
             hasFilters={hasFilters}
