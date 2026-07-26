@@ -757,6 +757,48 @@ async def rotate_api_key(
     )
 
 
+@router.get(
+    "/users",
+    response_model=schemas.ListUsersResponse,
+    tags=["auth"],
+    dependencies=[Depends(require_admin)],
+    summary="List users",
+    description="Returns a paginated list of users. Requires Admin role.",
+    responses={
+        200: {"description": "List of users"},
+        401: {"description": "Missing or invalid token"},
+        403: {"description": "Insufficient permissions"},
+    },
+)
+async def list_users(
+    limit: int = 50,
+    offset: int = 0,
+    request: Request = None,  # type: ignore[assignment]
+) -> schemas.ListUsersResponse:
+    app: Application = request.app.state.kingsec_app
+    from kingsec.application import UserRepository
+    user_repo = app.resolve(UserRepository)
+    users = user_repo.list_all(limit=limit, offset=offset)
+    total = user_repo.count()
+    return schemas.ListUsersResponse(
+        items=[
+            schemas.UserListEntryResponse(
+                user_id=u.id,
+                username=u.username,
+                email=u.email,
+                role=u.role.name,
+                is_active=u.is_active,
+                created_at=u.created_at.isoformat(),
+                last_login_at=u.last_login_at.isoformat() if u.last_login_at else None,
+            )
+            for u in users
+        ],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
 @router.put(
     "/users/{user_id}/role",
     response_model=schemas.AssignRoleResponse,
@@ -800,3 +842,359 @@ async def assign_role(
         email=result.email,
         new_role=result.new_role,
     )
+
+
+# ── Findings ──────────────────────────────────────────────────────────────────
+
+
+def _get_list_findings_uc(request: Request) -> Any:
+    app: Application = request.app.state.kingsec_app
+    from kingsec.application.use_cases.list_findings import ListFindings
+    return app.resolve(ListFindings)
+
+
+@router.get(
+    "/findings",
+    response_model=schemas.ListFindingsResponse,
+    tags=["findings"],
+    dependencies=[Depends(require_viewer)],
+    summary="List findings",
+    description="Returns paginated findings with optional filters.",
+)
+async def list_findings(
+    limit: int = 50,
+    offset: int = 0,
+    severity: str | None = None,
+    status: str | None = None,
+    assessment_id: str | None = None,
+    search: str | None = None,
+    order_by: str = "discovered_at",
+    order_dir: str = "desc",
+    list_uc: Any = Depends(_get_list_findings_uc),
+) -> schemas.ListFindingsResponse:
+    from kingsec.application.use_cases.list_findings import ListFindingsRequest
+
+    request = ListFindingsRequest(
+        limit=limit,
+        offset=offset,
+        severity=severity,
+        status=status,
+        assessment_id=assessment_id,
+        search=search,
+        order_by=order_by,
+        order_dir=order_dir,
+    )
+    result = list_uc.execute(request)
+    return schemas.ListFindingsResponse(
+        items=[
+            schemas.FindingListEntryResponse(
+                finding_id=item.finding_id,
+                assessment_id=item.assessment_id,
+                target=item.target,
+                title=item.title,
+                description=item.description,
+                severity=item.severity,
+                status=item.status,
+                discovered_at=item.discovered_at,
+                evidence_count=item.evidence_count,
+                recommendation_count=item.recommendation_count,
+            )
+            for item in result.items
+        ],
+        total=result.total,
+        limit=result.limit,
+        offset=result.offset,
+    )
+
+
+# ── Reports ───────────────────────────────────────────────────────────────────
+
+
+def _get_list_reports_uc(request: Request) -> Any:
+    app: Application = request.app.state.kingsec_app
+    from kingsec.application.use_cases.list_reports import ListReports
+    return app.resolve(ListReports)
+
+
+@router.get(
+    "/reports",
+    response_model=schemas.ListReportsResponse,
+    tags=["reports"],
+    dependencies=[Depends(require_viewer)],
+    summary="List reports",
+    description="Returns paginated list of generated reports.",
+)
+async def list_reports(
+    limit: int = 50,
+    offset: int = 0,
+    list_uc: Any = Depends(_get_list_reports_uc),
+) -> schemas.ListReportsResponse:
+    from kingsec.application.use_cases.list_reports import ListReportsRequest
+
+    request = ListReportsRequest(limit=limit, offset=offset)
+    result = list_uc.execute(request)
+    return schemas.ListReportsResponse(
+        items=[
+            schemas.ReportListEntryResponse(
+                assessment_id=item.assessment_id,
+                target=item.target,
+                generated_at=item.generated_at,
+                verdict_headline=item.verdict_headline,
+                verdict_highest_severity=item.verdict_highest_severity,
+                verdict_action_required=item.verdict_action_required,
+                total_findings=item.total_findings,
+                format=item.format,
+                file_size=item.file_size,
+            )
+            for item in result.items
+        ],
+        total=result.total,
+        limit=result.limit,
+        offset=result.offset,
+    )
+
+
+@router.get(
+    "/reports/{assessment_id}",
+    tags=["reports"],
+    dependencies=[Depends(require_viewer)],
+    summary="Get report metadata",
+    description="Returns metadata for a specific report.",
+)
+async def get_report(
+    assessment_id: str,
+    request: Request = None,  # type: ignore[assignment]
+) -> schemas.ReportListEntryResponse:
+    app: Application = request.app.state.kingsec_app
+    from kingsec.application.ports import ReportRepository
+    from kingsec.domain import AssessmentId
+
+    repo: ReportRepository = app.resolve(ReportRepository)
+    report = repo.get(AssessmentId(assessment_id))
+    return schemas.ReportListEntryResponse(
+        assessment_id=report.assessment_id,
+        target=report.target,
+        generated_at=report.generated_at.isoformat(),
+        verdict_headline=report.verdict.headline,
+        verdict_highest_severity=report.verdict.highest_severity.name if report.verdict.highest_severity else None,
+        verdict_action_required=report.verdict.action_required,
+        total_findings=len(report.entries),
+        format="pdf",
+        file_size=0,
+    )
+
+
+@router.get(
+    "/reports/{assessment_id}/download",
+    tags=["reports"],
+    dependencies=[Depends(require_viewer)],
+    summary="Download report",
+    description="Download a generated report as PDF.",
+)
+async def download_report(
+    assessment_id: str,
+    request: Request = None,  # type: ignore[assignment]
+):
+    app: Application = request.app.state.kingsec_app
+    from kingsec.application.ports import ReportRepository, ReportGeneratorPort
+    from kingsec.domain import AssessmentId
+
+    repo: ReportRepository = app.resolve(ReportRepository)
+    generator: ReportGeneratorPort = app.resolve(ReportGeneratorPort)
+    report = repo.get(AssessmentId(assessment_id))
+    rendered = generator.render(report)
+    from fastapi.responses import Response
+    return Response(
+        content=rendered.content,
+        media_type=rendered.media_type,
+        headers={"Content-Disposition": f'attachment; filename="{rendered.filename}"'},
+    )
+
+
+# ── User Administration ───────────────────────────────────────────────────────
+
+
+def _get_deactivate_user_uc(request: Request) -> Any:
+    app: Application = request.app.state.kingsec_app
+    from kingsec.application.use_cases.admin_users import DeactivateUser
+    return app.resolve(DeactivateUser)
+
+
+def _get_activate_user_uc(request: Request) -> Any:
+    app: Application = request.app.state.kingsec_app
+    from kingsec.application.use_cases.admin_users import ActivateUser
+    return app.resolve(ActivateUser)
+
+
+def _get_reset_password_uc(request: Request) -> Any:
+    app: Application = request.app.state.kingsec_app
+    from kingsec.application.use_cases.admin_users import AdminResetPassword
+    return app.resolve(AdminResetPassword)
+
+
+@router.patch(
+    "/users/{user_id}/deactivate",
+    response_model=schemas.AdminUserActionResponse,
+    tags=["auth"],
+    dependencies=[Depends(require_admin)],
+    summary="Deactivate user",
+    description="Deactivate a user account. Requires Admin role.",
+)
+async def deactivate_user(
+    user_id: str,
+    current_user: CurrentUser = Depends(require_admin),
+    deactivate_uc: Any = Depends(_get_deactivate_user_uc),
+) -> schemas.AdminUserActionResponse:
+    from kingsec.application.use_cases.admin_users import DeactivateUserRequest
+
+    request = DeactivateUserRequest(user_id=user_id, admin_user_id=current_user.user_id)
+    result = deactivate_uc.execute(request)
+    return schemas.AdminUserActionResponse(
+        user_id=result.user_id,
+        username=result.username,
+        email=result.email,
+        role=result.role,
+        is_active=result.is_active,
+    )
+
+
+@router.patch(
+    "/users/{user_id}/activate",
+    response_model=schemas.AdminUserActionResponse,
+    tags=["auth"],
+    dependencies=[Depends(require_admin)],
+    summary="Activate user",
+    description="Activate a deactivated user account. Requires Admin role.",
+)
+async def activate_user(
+    user_id: str,
+    current_user: CurrentUser = Depends(require_admin),
+    activate_uc: Any = Depends(_get_activate_user_uc),
+) -> schemas.AdminUserActionResponse:
+    from kingsec.application.use_cases.admin_users import ActivateUserRequest
+
+    request = ActivateUserRequest(user_id=user_id, admin_user_id=current_user.user_id)
+    result = activate_uc.execute(request)
+    return schemas.AdminUserActionResponse(
+        user_id=result.user_id,
+        username=result.username,
+        email=result.email,
+        role=result.role,
+        is_active=result.is_active,
+    )
+
+
+@router.post(
+    "/users/{user_id}/reset-password",
+    response_model=schemas.AdminUserActionResponse,
+    tags=["auth"],
+    dependencies=[Depends(require_admin)],
+    summary="Reset user password",
+    description="Reset another user's password. Requires Admin role.",
+)
+async def reset_password(
+    user_id: str,
+    body: schemas.AdminResetPasswordBody,
+    current_user: CurrentUser = Depends(require_admin),
+    reset_uc: Any = Depends(_get_reset_password_uc),
+) -> schemas.AdminUserActionResponse:
+    from kingsec.application.use_cases.admin_users import ResetPasswordRequest
+
+    request = ResetPasswordRequest(
+        user_id=user_id,
+        new_password=body.new_password,
+        admin_user_id=current_user.user_id,
+    )
+    result = reset_uc.execute(request)
+    return schemas.AdminUserActionResponse(
+        user_id=result.user_id,
+        username=result.username,
+        email=result.email,
+        role=result.role,
+        is_active=result.is_active,
+    )
+
+
+@router.get(
+    "/users/search",
+    response_model=schemas.ListUsersResponse,
+    tags=["auth"],
+    dependencies=[Depends(require_admin)],
+    summary="Search users",
+    description="Search users with filters. Requires Admin role.",
+)
+async def search_users(
+    query: str | None = None,
+    role: str | None = None,
+    is_active: bool | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    order_by: str = "username",
+    order_dir: str = "asc",
+    request: Request = None,  # type: ignore[assignment]
+) -> schemas.ListUsersResponse:
+    from kingsec.application.use_cases.admin_users import SearchUsers, SearchUsersRequest
+
+    app: Application = request.app.state.kingsec_app
+    search_uc: SearchUsers = app.resolve(SearchUsers)
+    req = SearchUsersRequest(
+        query=query,
+        role=role,
+        is_active=is_active,
+        limit=limit,
+        offset=offset,
+        order_by=order_by,
+        order_dir=order_dir,
+    )
+    result = search_uc.execute(req)
+    return schemas.ListUsersResponse(
+        items=[
+            schemas.UserListEntryResponse(
+                user_id=item.user_id,
+                username=item.username,
+                email=item.email,
+                role=item.role,
+                is_active=item.is_active,
+                created_at=item.created_at,
+                last_login_at=item.last_login_at,
+            )
+            for item in result.items
+        ],
+        total=result.total,
+        limit=result.limit,
+        offset=result.offset,
+    )
+
+
+# ── Roles & Permissions ────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/roles",
+    response_model=schemas.ListRolesResponse,
+    tags=["auth"],
+    dependencies=[Depends(require_admin)],
+    summary="List roles",
+    description="Return all roles with their descriptions and permissions.",
+)
+async def list_roles(
+    request: Request = None,  # type: ignore[assignment]
+) -> schemas.ListRolesResponse:
+    from kingsec.application.auth.authorization_service import AuthorizationService
+    from kingsec.application.auth.permissions import Permission
+    from kingsec.domain import Role
+
+    app: Application = request.app.state.kingsec_app
+    authz: AuthorizationService = app.resolve(AuthorizationService)
+
+    roles = []
+    for role in Role:
+        permissions = authz.get_permissions(role)
+        roles.append(
+            schemas.RolePermissionResponse(
+                role=role.name,
+                description=role.label,
+                permissions=[p.value for p in permissions],
+            )
+        )
+    return schemas.ListRolesResponse(roles=roles)

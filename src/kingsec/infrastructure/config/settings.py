@@ -114,7 +114,7 @@ class Settings(BaseSettings):
         if len(jwt_secret.encode()) < 32:
             raise ValueError(
                 "KINGSEC_JWT__SECRET_KEY is too short (minimum 32 bytes). "
-                "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+                'Generate one with: python -c "import secrets; print(secrets.token_hex(32))"'
             )
         pepper = self.secrets.api_key_pepper.get_secret_value()
         if pepper == _default:
@@ -125,6 +125,6 @@ class Settings(BaseSettings):
         if len(pepper.encode()) < 32:
             raise ValueError(
                 "KINGSEC_SECRETS__API_KEY_PEPPER is too short (minimum 32 bytes). "
-                "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+                'Generate one with: python -c "import secrets; print(secrets.token_urlsafe(32))"'
             )
         return self

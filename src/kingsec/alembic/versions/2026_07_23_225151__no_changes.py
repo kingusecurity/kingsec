@@ -9,17 +9,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from alembic import op
-import sqlalchemy as sa
-
-
 if TYPE_CHECKING:
-    from alembic.runtime.revision import MigratorCollection
+    pass
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'fa44a8933db0'
-down_revision: str | None = 'c5982f21123b'
+revision: str = "fa44a8933db0"
+down_revision: str | None = "c5982f21123b"
 branch_labels: str | None = None
 depends_on: str | None = None
 

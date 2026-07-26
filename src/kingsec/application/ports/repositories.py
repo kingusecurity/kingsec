@@ -36,6 +36,22 @@ class Asset:
 # ---------------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class FindingProjection:
+    """A read-only projection of a finding with its assessment context."""
+
+    finding_id: str
+    assessment_id: str
+    target: str
+    title: str
+    description: str
+    severity: str
+    status: str
+    discovered_at: str
+    evidence_count: int
+    recommendation_count: int
+
+
 class AssessmentRepository(ABC):
     """Persists and retrieves :class:`Assessment` aggregates."""
 
@@ -64,10 +80,43 @@ class AssessmentRepository(ABC):
             AssessmentNotFoundError: If no assessment has that id.
         """
 
+    @abstractmethod
+    def search_findings(
+        self,
+        *,
+        severity: str | None = None,
+        status: str | None = None,
+        assessment_id: str | None = None,
+        search: str | None = None,
+        order_by: str = "discovered_at",
+        order_dir: str = "desc",
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[FindingProjection], int]:
+        """Search findings across assessments with filters and pagination.
+
+        Returns a tuple of (projections, total_count).
+        """
+
 
 # ---------------------------------------------------------------------------
 # ReportRepository  (exists — kept for completeness)
 # ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ReportProjection:
+    """A read-only projection of a report for list views."""
+
+    assessment_id: str
+    target: str
+    generated_at: str
+    verdict_headline: str
+    verdict_highest_severity: str | None
+    verdict_action_required: bool
+    total_findings: int
+    format: str
+    file_size: int
 
 
 class ReportRepository(ABC):
@@ -80,6 +129,21 @@ class ReportRepository(ABC):
     @abstractmethod
     def get(self, assessment_id: AssessmentId) -> Report:
         """Return the report for the assessment, or raise ReportNotFoundError."""
+
+    @abstractmethod
+    def list(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        order_by: str = "generated_at",
+        order_dir: str = "desc",
+    ) -> tuple[list[ReportProjection], int]:
+        """Return paginated report projections with total count."""
+
+    @abstractmethod
+    def count(self) -> int:
+        """Return total number of reports."""
 
 
 # ---------------------------------------------------------------------------

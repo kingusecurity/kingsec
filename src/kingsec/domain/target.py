@@ -73,9 +73,7 @@ class Target:
         elif tp == TargetType.URL:
             parsed = urllib.parse.urlparse(self.value)
             if parsed.scheme not in ("http", "https"):
-                raise InvariantViolation(
-                    f"URL scheme must be http or https, got {parsed.scheme!r}"
-                )
+                raise InvariantViolation(f"URL scheme must be http or https, got {parsed.scheme!r}")
             if not parsed.netloc:
                 raise InvariantViolation("URL must have a network location")
 

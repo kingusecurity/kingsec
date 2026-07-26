@@ -56,7 +56,7 @@ async function refreshAccessToken(): Promise<string | null> {
 
 interface RequestOptions extends Omit<RequestInit, 'body'> {
   body?: unknown
-  params?: Record<string, string | number | undefined>
+  params?: Record<string, string | number | boolean | undefined | null>
 }
 
 export async function apiRequest<T>(

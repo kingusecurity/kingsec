@@ -2,7 +2,7 @@
 
 Local-first, AI-augmented **Attack Surface Management (ASM)** and **Vulnerability Management (VM)** for small and mid-sized businesses.
 
-> **Status:** v1.0.1 — a production-grade security assessment platform with persistence, job management, report generation/multi-format export, scanner orchestration (Nuclei, Nmap, Nikto, Trivy, OWASP ZAP, Semgrep, Amass, Gobuster, ffuf), and AI-augmented enrichment. Built on Clean Architecture (Hexagonal).
+> **Status:** v1.0.0 — a production-grade security assessment platform with persistence, job management, report generation/multi-format export, scanner orchestration (Nuclei, Nmap, Nikto, Trivy, OWASP ZAP, Semgrep, Amass, Gobuster, ffuf), and AI-augmented enrichment. Built on Clean Architecture (Hexagonal).
 
 ## Principles baked into the foundation
 - **Local-first & private.** Runs on the user's machine; the web server binds to `127.0.0.1` by default.
@@ -174,4 +174,4 @@ Proprietary. All rights reserved. See [`LICENSE`](LICENSE).
 
 ---
 
-*KingSec v1.0.1 — [GitHub](https://github.com/kingusecurity/kingsec)*
+*KingSec v1.0.0 — [GitHub](https://github.com/kingusecurity/kingsec)*

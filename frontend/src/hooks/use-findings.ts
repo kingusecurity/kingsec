@@ -1,5 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
+import { dashboardApi } from '@/api/dashboard'
 import { assessmentsApi } from '@/api/assessments'
+import { adminApi } from '@/api/admin'
+import type { FindingsParams } from '@/api/admin'
 
 export function useFinding(assessmentId: string, findingId: string) {
   return useQuery({
@@ -11,5 +14,33 @@ export function useFinding(assessmentId: string, findingId: string) {
       return { ...finding, assessment_id: assessmentId, target: assessment.target }
     },
     enabled: !!assessmentId && !!findingId,
+  })
+}
+
+export function useFindingsSummary() {
+  return useQuery({
+    queryKey: ['findings', 'summary'],
+    queryFn: () => dashboardApi.summary(),
+  })
+}
+
+export function useFindingsSeverity() {
+  return useQuery({
+    queryKey: ['findings', 'severity'],
+    queryFn: () => dashboardApi.severity(),
+  })
+}
+
+export function useFindingsTrends(params?: { period?: string; limit?: number }) {
+  return useQuery({
+    queryKey: ['findings', 'trends', params],
+    queryFn: () => dashboardApi.trends(params),
+  })
+}
+
+export function useFindings(params?: FindingsParams) {
+  return useQuery({
+    queryKey: ['findings', 'list', params],
+    queryFn: () => adminApi.findings(params),
   })
 }

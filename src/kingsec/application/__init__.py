@@ -153,6 +153,19 @@ from .use_cases.backup import (
     ValidateBackup,
     VerifyRestore,
 )
+from .use_cases.admin_users import (
+    ActivateUser,
+    ActivateUserRequest,
+    AdminResetPassword,
+    AdminUserResponse,
+    DeactivateUser,
+    DeactivateUserRequest,
+    ResetPasswordRequest,
+    SearchUsers,
+    SearchUsersRequest,
+    SearchUsersResponse,
+    UserListItem,
+)
 from .use_cases.calculate_next_run import CalculateNextRun
 from .use_cases.cancel_assessment import CancelAssessment
 from .use_cases.change_password import ChangePassword, PasswordChangeError
@@ -179,6 +192,8 @@ from .use_cases.get_mfa_status import GetMfaStatus
 from .use_cases.get_schedule import GetSchedule
 from .use_cases.list_api_keys import ListApiKeys
 from .use_cases.list_assessments import ListAssessments
+from .use_cases.list_findings import ListFindings, ListFindingsRequest, ListFindingsResponse, FindingListItem
+from .use_cases.list_reports import ListReports, ListReportsRequest, ListReportsResponse, ReportListItem
 from .use_cases.list_schedules import ListSchedules
 from .use_cases.list_secrets import ListSecrets
 from .use_cases.list_user_sessions import ListUserSessions
@@ -313,7 +328,11 @@ __all__ = [
     "EVENT_ASSESSMENT_RUNNING",
     "EVENT_REPORT_READY",
     "AIPort",
+    "ActivateUser",
+    "ActivateUserRequest",
     "AdminChangePasswordRequest",
+    "AdminResetPassword",
+    "AdminUserResponse",
     "AdvancePipeline",
     "ApiKeyError",
     "ApiKeyHasher",
@@ -373,6 +392,8 @@ __all__ = [
     "DecryptSecret",
     "DecryptSecretRequest",
     "DecryptSecretResponse",
+    "DeactivateUser",
+    "DeactivateUserRequest",
     "DeleteAssessment",
     "DeleteAssessmentRequest",
     "DeleteAssessmentResponse",
@@ -403,6 +424,7 @@ __all__ = [
     "FindDueSchedules",
     "FindingEnricher",
     "FindingNormalizer",
+    "FindingListItem",
     "FindingView",
     "GenerateRecoveryCodes",
     "GenerateRecoveryCodesRequest",
@@ -432,6 +454,9 @@ __all__ = [
     "ListAssessmentsRequest",
     "ListAssessmentsResponse",
     "ListBackups",
+    "ListFindings",
+    "ListFindingsRequest",
+    "ListFindingsResponse",
     "ListPipelines",
     "ListSchedules",
     "ListSchedulesRequest",
@@ -440,6 +465,9 @@ __all__ = [
     "ListSecretsRequest",
     "ListSecretsResponse",
     "ListUserSessions",
+    "ListReports",
+    "ListReportsRequest",
+    "ListReportsResponse",
     "ListUserSessionsRequest",
     "ListUserSessionsResponse",
     "LockoutRepository",
@@ -486,12 +514,14 @@ __all__ = [
     "RenderedReport",
     "ReportGenerationResult",
     "ReportGeneratorPort",
+    "ReportListItem",
     "ReportNotFoundError",
     "ReportRepository",
     "ReportServicePort",
     "ResetFailedAttempts",
     "ResetFailedAttemptsRequest",
     "ResetFailedAttemptsResponse",
+    "ResetPasswordRequest",
     "RestoreBackup",
     "RestoreNotFoundError",
     "RestoreSnapshot",
@@ -542,6 +572,9 @@ __all__ = [
     "SearchAuditEvents",
     "SearchAuditEventsRequest",
     "SearchAuditEventsResponse",
+    "SearchUsers",
+    "SearchUsersRequest",
+    "SearchUsersResponse",
     "SecretProviderPort",
     "ServiceAPI",
     "SessionRepository",
@@ -580,6 +613,7 @@ __all__ = [
     "UseRecoveryCode",
     "UseRecoveryCodeRequest",
     "UseRecoveryCodeResponse",
+    "UserListItem",
     "UserRepository",
     "UserView",
     "ValidateApiKey",

@@ -10,16 +10,17 @@ to the existing ``mappers`` module.
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from kingsec.application import AssessmentNotFoundError, AssessmentRepository
+from kingsec.application.ports.repositories import FindingProjection
 from kingsec.domain import Assessment, AssessmentId
 from kingsec.infrastructure.persistence.mappers import (
     assessment_to_domain,
     assessment_to_orm,
 )
-from kingsec.infrastructure.persistence.models import AssessmentORM
+from kingsec.infrastructure.persistence.models import AssessmentORM, FindingORM
 
 
 class SQLAlchemyAssessmentRepository(AssessmentRepository):
@@ -53,6 +54,65 @@ class SQLAlchemyAssessmentRepository(AssessmentRepository):
         stmt = select(AssessmentORM).order_by(AssessmentORM.created_at.desc()).offset(offset).limit(limit)
         orms = self._session.execute(stmt).scalars().all()
         return [assessment_to_domain(o) for o in orms]
+
+    def search_findings(
+        self,
+        *,
+        severity: str | None = None,
+        status: str | None = None,
+        assessment_id: str | None = None,
+        search: str | None = None,
+        order_by: str = "discovered_at",
+        order_dir: str = "desc",
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[FindingProjection], int]:
+        base = select(FindingORM, AssessmentORM.target).join(
+            AssessmentORM, FindingORM.assessment_id == AssessmentORM.id
+        )
+        count_base = select(func.count()).select_from(FindingORM).join(
+            AssessmentORM, FindingORM.assessment_id == AssessmentORM.id
+        )
+        filters = []
+        if severity:
+            filters.append(FindingORM.severity == severity.upper())
+        if status:
+            filters.append(FindingORM.status == status)
+        if assessment_id:
+            filters.append(FindingORM.assessment_id == assessment_id)
+        if search:
+            like = f"%{search}%"
+            filters.append(
+                or_(FindingORM.title.ilike(like), FindingORM.description.ilike(like))
+            )
+        if filters:
+            base = base.where(*filters)
+            count_base = count_base.where(*filters)
+
+        order_col = getattr(FindingORM, order_by, FindingORM.discovered_at)
+        order_fn = order_col.desc if order_dir == "desc" else order_col.asc
+        base = base.order_by(order_fn()).offset(offset).limit(limit)
+
+        rows = self._session.execute(base).all()
+        total = self._session.execute(count_base).scalar() or 0
+
+        projections = []
+        for orm, target in rows:
+            projections.append(
+                FindingProjection(
+                    finding_id=orm.id,
+                    assessment_id=orm.assessment_id,
+                    target=target,
+                    title=orm.title,
+                    description=orm.description,
+                    severity=orm.severity,
+                    status=orm.status,
+                    discovered_at=orm.discovered_at,
+                    evidence_count=len(orm.evidence) if orm.evidence else 0,
+                    recommendation_count=len(orm.recommendations) if orm.recommendations else 0,
+                )
+            )
+        return projections, total
 
     def delete(self, assessment_id: AssessmentId) -> None:
         orm = self._session.get(AssessmentORM, assessment_id.value)

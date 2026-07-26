@@ -23,7 +23,9 @@ from kingsec.infrastructure.persistence.user_repository import SqlAlchemyUserRep
 from .jwt_service import JWTTokenService
 
 
-def register_auth(container: ContainerProtocol, settings: Settings, session_factory: Callable[..., Any] | None = None) -> None:
+def register_auth(
+    container: ContainerProtocol, settings: Settings, session_factory: Callable[..., Any] | None = None
+) -> None:
     """Register authentication adapters on the container.
 
     Args:

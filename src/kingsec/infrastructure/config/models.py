@@ -462,6 +462,7 @@ class SecurityHeadersSettings(BaseModel):
     x_frame_options: str = "DENY"
     referrer_policy: str = "strict-origin-when-cross-origin"
     content_security_policy: str = "default-src 'none'"
+    hsts_max_age: int = 0
     # Disable server header leakage.
     remove_server_header: bool = True
     remove_x_powered_by: bool = True

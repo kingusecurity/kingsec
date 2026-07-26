@@ -20,7 +20,9 @@ from pathlib import Path
 from typing import Any
 
 from kingsec.application import (
+    ActivateUser,
     AIPort,
+    AdminResetPassword,
     ApiKeyHasher,
     ApiKeyRepository,
     AssessmentRepository,
@@ -38,6 +40,7 @@ from kingsec.application import (
     CreateAssessment,
     CreateSchedule,
     CreateSession,
+    DeactivateUser,
     DecryptSecret,
     DeleteAssessment,
     DeleteSchedule,
@@ -59,6 +62,8 @@ from kingsec.application import (
     JobServicePort,
     ListApiKeys,
     ListAssessments,
+    ListFindings,
+    ListReports,
     ListSchedules,
     ListSecrets,
     ListUserSessions,
@@ -91,6 +96,7 @@ from kingsec.application import (
     ScheduleRepositoryPort,
     SchedulerServicePort,
     SearchAuditEvents,
+    SearchUsers,
     SecretProviderPort,
     ServiceAPI,
     SessionRepository,
@@ -244,6 +250,64 @@ def _register_adapters(
         return PluginInstaller(base_dir=str(settings.storage.data_dir / "plugins"))
 
     container.register_factory(PluginInstallerPort, _make_installer)
+
+    # Dashboard repository + analytics service.
+    from kingsec.application.analytics_service import AnalyticsService
+    from kingsec.application.ports import AnalyticsServicePort, DashboardRepositoryPort
+    from kingsec.infrastructure.dashboard.sqlalchemy_repository import SQLAlchemyDashboardRepository
+
+    def _make_dashboard_repo(_c: Any) -> DashboardRepositoryPort:
+        return SQLAlchemyDashboardRepository(session_factory())
+
+    container.register_factory(DashboardRepositoryPort, _make_dashboard_repo)
+
+    def _make_analytics_service(c: Any) -> AnalyticsServicePort:
+        repo = c.resolve(DashboardRepositoryPort)
+        return AnalyticsService(repo)
+
+    container.register_factory(AnalyticsServicePort, _make_analytics_service)
+
+    # Notification service: repository, sender, templates, and service port.
+    from kingsec.application.notification_service import NotificationService
+    from kingsec.application.ports import (
+        NotificationRepositoryPort,
+        NotificationSenderPort,
+        NotificationServicePort,
+        TemplateRendererPort,
+    )
+    from kingsec.infrastructure.notifications.repository import SQLAlchemyNotificationRepository
+    from kingsec.infrastructure.notifications.senders import InAppSender
+    from kingsec.infrastructure.notifications.templates import JinjaTemplateRenderer
+
+    def _make_notification_repo(_c: Any) -> NotificationRepositoryPort:
+        return SQLAlchemyNotificationRepository(session_factory())
+
+    container.register_factory(NotificationRepositoryPort, _make_notification_repo)
+
+    def _make_notification_sender(_c: Any) -> NotificationSenderPort:
+        return InAppSender()
+
+    container.register_factory(NotificationSenderPort, _make_notification_sender)
+
+    def _make_template_renderer(_c: Any) -> TemplateRendererPort:
+        return JinjaTemplateRenderer()
+
+    container.register_factory(TemplateRendererPort, _make_template_renderer)
+
+    def _make_notification_service(c: Any) -> NotificationServicePort:
+        return NotificationService(
+            repo=c.resolve(NotificationRepositoryPort),
+            sender=c.resolve(NotificationSenderPort),
+            templates=c.resolve(TemplateRendererPort),
+            audit=c.resolve(AuditPublisher),
+        )
+
+    container.register_factory(NotificationServicePort, _make_notification_service)
+
+    # Authorization service: stateless permission checker.
+    from kingsec.application.auth.authorization_service import AuthorizationService
+
+    container.register_instance(AuthorizationService, AuthorizationService())
 
 
 def _register_job_service(container: Container, session_factory: Any) -> None:
@@ -676,4 +740,44 @@ def _register_use_cases(container: Container) -> None:
     container.register_factory(
         CalculateNextRun,
         lambda c: CalculateNextRun(c.resolve(SchedulerServicePort)),
+    )
+
+    # Findings use cases.
+    container.register_factory(
+        ListFindings,
+        lambda c: ListFindings(c.resolve(AssessmentRepository)),
+    )
+
+    # Reports use cases.
+    container.register_factory(
+        ListReports,
+        lambda c: ListReports(c.resolve(ReportRepository)),
+    )
+
+    # Admin user use cases.
+    container.register_factory(
+        DeactivateUser,
+        lambda c: DeactivateUser(
+            c.resolve(UserRepository),
+            c.resolve(AuditPublisher),
+        ),
+    )
+    container.register_factory(
+        ActivateUser,
+        lambda c: ActivateUser(
+            c.resolve(UserRepository),
+            c.resolve(AuditPublisher),
+        ),
+    )
+    container.register_factory(
+        AdminResetPassword,
+        lambda c: AdminResetPassword(
+            c.resolve(UserRepository),
+            c.resolve(PasswordHasher),
+            c.resolve(AuditPublisher),
+        ),
+    )
+    container.register_factory(
+        SearchUsers,
+        lambda c: SearchUsers(c.resolve(UserRepository)),
     )

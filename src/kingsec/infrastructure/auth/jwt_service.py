@@ -104,9 +104,7 @@ class JWTTokenService(TokenService):
 
         now = datetime.now(UTC).isoformat()
         with self._session_factory() as session:
-            result = session.execute(
-                delete(RevokedTokenORM).where(RevokedTokenORM.expires_at < now)
-            )
+            result = session.execute(delete(RevokedTokenORM).where(RevokedTokenORM.expires_at < now))
             session.commit()
             return int(result.rowcount) if result.rowcount is not None else 0
 

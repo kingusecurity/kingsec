@@ -38,6 +38,7 @@ from kingsec.domain.errors import (
     InvariantViolation,
 )
 from kingsec.domain.rate_limit import RateLimitExceeded
+from kingsec.domain.user import PasswordValidationError
 from kingsec.shared.errors import ErrorCode, KingSecError
 
 
@@ -107,6 +108,10 @@ async def handle_rate_limit_exceeded(_request: Request, exc: RateLimitExceeded) 
     )
 
 
+async def handle_password_validation_error(_request: Request, exc: PasswordValidationError) -> JSONResponse:
+    return _error_response(400, ErrorCode.VALIDATION, str(exc))
+
+
 async def handle_domain_error(_request: Request, exc: DomainError) -> JSONResponse:
     return _error_response(
         409,
@@ -172,6 +177,7 @@ def register_error_handlers(app: object) -> None:
     # Domain errors.
     app.exception_handler(IllegalStateTransition)(handle_illegal_state_transition)
     app.exception_handler(InvariantViolation)(handle_invariant_violation)
+    app.exception_handler(PasswordValidationError)(handle_password_validation_error)
     app.exception_handler(DomainError)(handle_domain_error)
 
     # Shared error kernel.

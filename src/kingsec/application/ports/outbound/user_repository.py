@@ -88,6 +88,20 @@ class UserRepository(ABC):
         """
 
     @abstractmethod
+    def search(
+        self,
+        *,
+        query: str | None = None,
+        role: str | None = None,
+        is_active: bool | None = None,
+        limit: int = 50,
+        offset: int = 0,
+        order_by: str = "username",
+        order_dir: str = "asc",
+    ) -> tuple[list[User], int]:
+        """Search users with filters, pagination, and sorting."""
+
+    @abstractmethod
     def count(self) -> int:
         """Return the total number of users."""
 

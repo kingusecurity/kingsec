@@ -168,13 +168,14 @@ class RestoreBackup:
                 data = self._compression.decompress(data)
             expected = backup.checksum
             if expected:
-                hashlib.sha256(
-                    self._encryption.encrypt(data)
-                    if backup.encrypted
-                    else self._compression.compress(data)
-                    if backup.compressed
-                    else data
-                ).hexdigest()
+                re_encoded = data
+                if backup.compressed:
+                    re_encoded = self._compression.compress(re_encoded)
+                if backup.encrypted:
+                    re_encoded = self._encryption.encrypt(re_encoded)
+                actual = hashlib.sha256(re_encoded).hexdigest()
+                if actual != expected:
+                    raise ValueError("Backup checksum mismatch")
             now = datetime.now(UTC).isoformat()
             completed_op = RestoreOperation(
                 restore_id=rid,

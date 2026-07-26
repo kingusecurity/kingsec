@@ -170,3 +170,116 @@ export interface QuickAction {
   href: string
   icon: string
 }
+
+export interface UserListEntry {
+  user_id: string
+  username: string
+  email: string
+  role: string
+  is_active: boolean
+  created_at: string
+  last_login_at: string | null
+}
+
+export interface ListUsersResponse {
+  items: UserListEntry[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface Agent {
+  id: string
+  name: string
+  status: string
+  last_heartbeat: string | null
+}
+
+export interface BackupEntry {
+  id: string
+  type: string
+  status: string
+  created_at: string
+  size_bytes: number
+}
+
+export interface PluginEntry {
+  id: string
+  name: string
+  version: string
+  enabled: boolean
+  status: string
+}
+
+export interface HealthStatus {
+  status: string
+  uptime: string
+  version: string
+}
+
+export interface SystemMetrics {
+  cpu_usage: number
+  memory_usage: number
+  disk_usage: number
+}
+
+export interface FindingListEntry {
+  finding_id: string
+  assessment_id: string
+  target: string
+  title: string
+  description: string
+  severity: string
+  status: string
+  discovered_at: string
+  evidence_count: number
+  recommendation_count: number
+}
+
+export interface ListFindingsResponse {
+  items: FindingListEntry[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface ReportListEntry {
+  assessment_id: string
+  target: string
+  generated_at: string
+  verdict_headline: string
+  verdict_highest_severity: string | null
+  verdict_action_required: boolean
+  total_findings: number
+  format: string
+  file_size: number
+}
+
+export interface ListReportsResponse {
+  items: ReportListEntry[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface RolePermissionEntry {
+  role: string
+  description: string
+  permissions: string[]
+}
+
+export interface ListRolesResponse {
+  roles: RolePermissionEntry[]
+}
+
+export interface AdminUserActionEntry {
+  user_id: string
+  username: string
+  email: string
+  role: string
+  is_active: boolean
+}
+
+export interface AdminResetPasswordBody {
+  new_password: string
+}

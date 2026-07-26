@@ -72,12 +72,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     # Paths that use the stricter auth rate limit.
     # MFA verify and recovery are unauthenticated (the caller hasn't completed
     # auth yet), so they need the same brute-force protection as login.
-    _AUTH_PATHS = frozenset({
-        "/api/v1/auth/login",
-        "/api/v1/auth/register",
-        "/api/v1/mfa/verify",
-        "/api/v1/mfa/recovery",
-    })
+    _AUTH_PATHS = frozenset(
+        {
+            "/api/v1/auth/login",
+            "/api/v1/auth/register",
+            "/api/v1/mfa/verify",
+            "/api/v1/mfa/recovery",
+        }
+    )
 
     # Evict idle buckets every N dispatches to prevent unbounded memory growth.
     _EVICTION_INTERVAL = 1000

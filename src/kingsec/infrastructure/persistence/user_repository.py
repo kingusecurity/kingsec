@@ -11,7 +11,7 @@ from collections.abc import Callable
 from datetime import UTC
 from typing import Any
 
-from sqlalchemy import exists, func, select
+from sqlalchemy import exists, func, or_, select
 
 from kingsec.application.ports import UserRepository
 from kingsec.domain import Role, User
@@ -73,6 +73,40 @@ class SqlAlchemyUserRepository(UserRepository):
             )
             return [_to_domain(o) for o in orms]
 
+    def search(
+        self,
+        *,
+        query: str | None = None,
+        role: str | None = None,
+        is_active: bool | None = None,
+        limit: int = 50,
+        offset: int = 0,
+        order_by: str = "username",
+        order_dir: str = "asc",
+    ) -> tuple[list[User], int]:
+        with self._session_factory() as session:
+            stmt = select(UserORM)
+            count_stmt = select(func.count()).select_from(UserORM)
+            filters = []
+            if query:
+                like = f"%{query}%"
+                filters.append(
+                    or_(UserORM.username.ilike(like), UserORM.email.ilike(like))
+                )
+            if role:
+                filters.append(UserORM.role == role.upper())
+            if is_active is not None:
+                filters.append(UserORM.is_active == is_active)
+            if filters:
+                stmt = stmt.where(*filters)
+                count_stmt = count_stmt.where(*filters)
+            order_col = getattr(UserORM, order_by, UserORM.username)
+            order_fn = order_col.desc if order_dir == "desc" else order_col.asc
+            stmt = stmt.order_by(order_fn()).offset(offset).limit(limit)
+            orms = session.execute(stmt).scalars().all()
+            total = session.execute(count_stmt).scalar() or 0
+            return [_to_domain(o) for o in orms], total
+
     def count(self) -> int:
         with self._session_factory() as session:
             count = session.execute(select(func.count()).select_from(UserORM)).scalar()
@@ -80,9 +114,7 @@ class SqlAlchemyUserRepository(UserRepository):
 
     def count_by_role(self, role: Role) -> int:
         with self._session_factory() as session:
-            count = session.execute(
-                select(func.count()).select_from(UserORM).where(UserORM.role == role.name)
-            ).scalar()
+            count = session.execute(select(func.count()).select_from(UserORM).where(UserORM.role == role.name)).scalar()
             return count if count else 0
 
 

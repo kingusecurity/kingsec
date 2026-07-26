@@ -52,6 +52,7 @@ async def list_backups(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
+    _require_admin(user)
     service = _get_service(request)
     backups = service.list_backups()
     return {"backups": [_backup_to_dict(b) for b in backups], "total": len(backups)}
@@ -84,6 +85,7 @@ async def get_backup(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
+    _require_admin(user)
     service = _get_service(request)
     backups = service.list_backups()
     for b in backups:

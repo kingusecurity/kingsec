@@ -9,7 +9,7 @@ import ast
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(r"D:\New_folder\kingsec\src\kingsec")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent / "src" / "kingsec"
 
 DOMAIN_DIR = PROJECT_ROOT / "domain"
 APPLICATION_DIR = PROJECT_ROOT / "application"

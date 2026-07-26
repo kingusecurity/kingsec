@@ -25,6 +25,8 @@ def register_middleware(app: FastAPI, settings: Settings) -> None:
     Middleware is executed in reverse registration order, so the last
     middleware added is the outermost (executes first).
     """
+    from kingsec.infrastructure.config.enums import Environment
+    from kingsec.infrastructure.config.models import SecurityHeadersSettings
     from kingsec.infrastructure.middleware import (
         AuditContextMiddleware,
         CorrelationIDMiddleware,
@@ -46,8 +48,14 @@ def register_middleware(app: FastAPI, settings: Settings) -> None:
     # Audit context (must run AFTER CorrelationID so request_id is available).
     app.add_middleware(AuditContextMiddleware)
 
-    # Security headers.
-    app.add_middleware(SecurityHeadersMiddleware, settings=settings.security_headers)
+    # Security headers — enable HSTS in production.
+    security_headers = settings.security_headers
+    if settings.app.environment == Environment.PRODUCTION:
+        security_headers = SecurityHeadersSettings(
+            **security_headers.model_dump(),
+            hsts_max_age=31536000,
+        )
+    app.add_middleware(SecurityHeadersMiddleware, settings=security_headers)
 
     # CORS.
     if settings.cors.allow_origins:

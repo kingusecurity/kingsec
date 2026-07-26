@@ -3,19 +3,19 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
   ShieldCheck,
-  FileText,
   Settings,
   LogOut,
   Shield,
   ChevronLeft,
   ChevronRight,
   X,
-  Search,
   CalendarCheck,
   Radio,
   Bell,
   ScrollText,
-  Users,
+  Search,
+  FileText,
+  UserCog,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -32,13 +32,13 @@ interface NavItem {
 const navItems: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/assessments', label: 'Assessments', icon: ShieldCheck, roles: ['viewer', 'analyst', 'admin'] },
-  { to: '/findings', label: 'Findings', icon: Search, roles: ['viewer', 'analyst', 'admin'] },
-  { to: '/reports', label: 'Reports', icon: FileText, roles: ['analyst', 'admin'] },
   { to: '/schedules', label: 'Schedules', icon: CalendarCheck, roles: ['viewer', 'analyst', 'admin'] },
+  { to: '/findings', label: 'Findings', icon: Search, roles: ['viewer', 'analyst', 'admin'] },
+  { to: '/reports', label: 'Reports', icon: FileText, roles: ['viewer', 'analyst', 'admin'] },
+  { to: '/administration', label: 'Administration', icon: UserCog, roles: ['admin'] },
   { to: '/monitor', label: 'Monitor', icon: Radio, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/notifications', label: 'Notifications', icon: Bell, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/audit', label: 'Audit Log', icon: ScrollText, roles: ['admin'] },
-  { to: '/admin', label: 'Administration', icon: Users, roles: ['admin'] },
   { to: '/settings', label: 'Settings', icon: Settings, roles: ['viewer', 'analyst', 'admin'] },
 ]
 

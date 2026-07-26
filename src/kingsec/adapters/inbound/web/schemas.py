@@ -50,6 +50,7 @@ class CreateAssessmentBody(BaseModel):
         except Exception as exc:
             raise ValueError(str(exc)) from exc
         return self
+
     authorized_by: str = Field(
         ...,
         min_length=1,
@@ -348,6 +349,124 @@ class UserResponse(BaseModel):
     is_active: bool
     created_at: str
     last_login_at: str | None = None
+
+
+class UserListEntryResponse(BaseModel):
+    """Single user entry in a user list response."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    user_id: str
+    username: str
+    email: str
+    role: str
+    is_active: bool
+    created_at: str
+    last_login_at: str | None = None
+
+
+class ListUsersResponse(BaseModel):
+    """GET /api/v1/users response body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[UserListEntryResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class FindingListEntryResponse(BaseModel):
+    """Single finding entry in findings list."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    finding_id: str
+    assessment_id: str
+    target: str
+    title: str
+    description: str
+    severity: str
+    status: str
+    discovered_at: str
+    evidence_count: int
+    recommendation_count: int
+
+
+class ListFindingsResponse(BaseModel):
+    """GET /api/v1/findings response body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[FindingListEntryResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class ReportListEntryResponse(BaseModel):
+    """Single report entry in reports list."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    assessment_id: str
+    target: str
+    generated_at: str
+    verdict_headline: str
+    verdict_highest_severity: str | None = None
+    verdict_action_required: bool
+    total_findings: int
+    format: str
+    file_size: int
+
+
+class ListReportsResponse(BaseModel):
+    """GET /api/v1/reports response body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[ReportListEntryResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class AdminUserActionResponse(BaseModel):
+    """Response from user deactivation/activation/reset."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    user_id: str
+    username: str
+    email: str
+    role: str
+    is_active: bool
+
+
+class AdminResetPasswordBody(BaseModel):
+    """POST /api/v1/users/{id}/reset-password request body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    new_password: str
+
+
+class RolePermissionResponse(BaseModel):
+    """A single role with its permissions."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    role: str
+    description: str
+    permissions: list[str]
+
+
+class ListRolesResponse(BaseModel):
+    """GET /api/v1/roles response body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    roles: list[RolePermissionResponse]
 
 
 # ── Audit schemas ────────────────────────────────────────────────────────────

@@ -54,12 +54,16 @@ def startup(request: Request) -> list[StartupCheck]:
     return _get_service(request).validate_startup()
 
 
-@router.get("/healthz/configuration", response_model=list[StartupCheck], dependencies=[Depends(require_role(Role.ADMIN))])
+@router.get(
+    "/healthz/configuration", response_model=list[StartupCheck], dependencies=[Depends(require_role(Role.ADMIN))]
+)
 def configuration(request: Request) -> list[StartupCheck]:
     return _get_service(request).validate_configuration()
 
 
-@router.get("/healthz/dependencies", response_model=list[DependencyHealth], dependencies=[Depends(require_role(Role.ADMIN))])
+@router.get(
+    "/healthz/dependencies", response_model=list[DependencyHealth], dependencies=[Depends(require_role(Role.ADMIN))]
+)
 def dependencies(request: Request) -> list[DependencyHealth]:
     return _get_service(request).list_dependencies()
 

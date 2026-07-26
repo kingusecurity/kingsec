@@ -24,6 +24,8 @@ from starlette.responses import Response
 
 from kingsec.infrastructure.config.models import SecurityHeadersSettings
 
+_LOCALHOSTS = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
+
 # CSP for API documentation routes (/docs, /redoc).
 # Relaxed just enough for Swagger UI and ReDoc to load from CDN.
 # Replace this constant with a self-hosted CSP when swagger-ui-dist is
@@ -67,6 +69,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             response.headers["Content-Security-Policy"] = DOCS_CSP
         else:
             response.headers["Content-Security-Policy"] = self._settings.content_security_policy
+
+        if self._settings.hsts_max_age > 0:
+            host = request.url.hostname or ""
+            is_localhost_http = host in _LOCALHOSTS and request.url.scheme == "http"
+            if not is_localhost_http:
+                response.headers["Strict-Transport-Security"] = (
+                    f"max-age={self._settings.hsts_max_age}; includeSubDomains"
+                )
 
         if self._settings.remove_server_header:
             for key in ("server", "Server"):

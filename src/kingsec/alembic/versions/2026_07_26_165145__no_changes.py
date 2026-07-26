@@ -1,21 +1,25 @@
 """no changes
 
-Revision ID: 4818ada83956
-Revises: d4cbf257fd21
-Create Date: 2026-07-23 22:44:46.937687
+Revision ID: 71b1a06f3882
+Revises: 70568c2c2e43
+Create Date: 2026-07-26 16:51:45.696510
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from alembic import op
+import sqlalchemy as sa
+
+
 if TYPE_CHECKING:
-    pass
+    from alembic.runtime.revision import MigratorCollection
 
 
 # revision identifiers, used by Alembic.
-revision: str = "4818ada83956"
-down_revision: str | None = "d4cbf257fd21"
+revision: str = '71b1a06f3882'
+down_revision: str | None = '70568c2c2e43'
 branch_labels: str | None = None
 depends_on: str | None = None
 
