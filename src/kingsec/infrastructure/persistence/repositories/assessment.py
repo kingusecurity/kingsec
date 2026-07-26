@@ -10,6 +10,8 @@ to the existing ``mappers`` module.
 
 from __future__ import annotations
 
+from typing import List
+
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
@@ -50,7 +52,7 @@ class SQLAlchemyAssessmentRepository(AssessmentRepository):
         *,
         limit: int = 50,
         offset: int = 0,
-    ) -> list[Assessment]:
+    ) -> List[Assessment]:
         stmt = select(AssessmentORM).order_by(AssessmentORM.created_at.desc()).offset(offset).limit(limit)
         orms = self._session.execute(stmt).scalars().all()
         return [assessment_to_domain(o) for o in orms]
@@ -66,12 +68,14 @@ class SQLAlchemyAssessmentRepository(AssessmentRepository):
         order_dir: str = "desc",
         limit: int = 50,
         offset: int = 0,
-    ) -> tuple[list[FindingProjection], int]:
-        base = select(FindingORM, AssessmentORM.target).join(
+    ) -> tuple[List[FindingProjection], int]:
+        base = select(FindingORM, AssessmentORM.target_value).join(
             AssessmentORM, FindingORM.assessment_id == AssessmentORM.id
         )
-        count_base = select(func.count()).select_from(FindingORM).join(
-            AssessmentORM, FindingORM.assessment_id == AssessmentORM.id
+        count_base = (
+            select(func.count())
+            .select_from(FindingORM)
+            .join(AssessmentORM, FindingORM.assessment_id == AssessmentORM.id)
         )
         filters = []
         if severity:
@@ -82,9 +86,7 @@ class SQLAlchemyAssessmentRepository(AssessmentRepository):
             filters.append(FindingORM.assessment_id == assessment_id)
         if search:
             like = f"%{search}%"
-            filters.append(
-                or_(FindingORM.title.ilike(like), FindingORM.description.ilike(like))
-            )
+            filters.append(or_(FindingORM.title.ilike(like), FindingORM.description.ilike(like)))
         if filters:
             base = base.where(*filters)
             count_base = count_base.where(*filters)

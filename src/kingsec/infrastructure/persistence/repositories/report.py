@@ -6,6 +6,8 @@ This repository never commits, rolls back, or closes the session.
 
 from __future__ import annotations
 
+from typing import List
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -38,15 +40,10 @@ class SQLAlchemyReportRepository(ReportRepository):
         offset: int = 0,
         order_by: str = "generated_at",
         order_dir: str = "desc",
-    ) -> tuple[list[ReportProjection], int]:
+    ) -> tuple[List[ReportProjection], int]:
         order_col = getattr(ReportORM, order_by, ReportORM.generated_at)
         order_fn = order_col.desc if order_dir == "desc" else order_col.asc
-        stmt = (
-            select(ReportORM)
-            .order_by(order_fn())
-            .offset(offset)
-            .limit(limit)
-        )
+        stmt = select(ReportORM).order_by(order_fn()).offset(offset).limit(limit)
         orms = self._session.execute(stmt).scalars().all()
         total = self._session.execute(select(func.count()).select_from(ReportORM)).scalar() or 0
         projections = []

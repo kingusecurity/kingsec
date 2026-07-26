@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 from kingsec.domain import Assessment, AssessmentId, Report, ScannerResult, Target
 
@@ -92,7 +92,7 @@ class AssessmentRepository(ABC):
         order_dir: str = "desc",
         limit: int = 50,
         offset: int = 0,
-    ) -> tuple[list[FindingProjection], int]:
+    ) -> tuple[List[FindingProjection], int]:
         """Search findings across assessments with filters and pagination.
 
         Returns a tuple of (projections, total_count).

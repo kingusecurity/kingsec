@@ -14,6 +14,8 @@ per-call transaction boundary and debug logging around those primitives.
 
 from __future__ import annotations
 
+from typing import List
+
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -21,6 +23,7 @@ from kingsec.application import (
     AssessmentRepository,
     ReportRepository,
 )
+from kingsec.application.ports.repositories import FindingProjection, ReportProjection
 from kingsec.domain import Assessment, AssessmentId, Report
 from kingsec.infrastructure.logging import get_logger
 
@@ -81,7 +84,7 @@ class SqlAlchemyAssessmentRepository(AssessmentRepository):
         *,
         limit: int = 50,
         offset: int = 0,
-    ) -> list[Assessment]:
+    ) -> List[Assessment]:
         """Return assessments ordered by created_at DESC with pagination.
 
         Args:
@@ -114,6 +117,32 @@ class SqlAlchemyAssessmentRepository(AssessmentRepository):
             _logger.debug("assessment deleted", assessment_id=assessment_id.value)
         except SQLAlchemyError as exc:
             ops.raise_persistence_error("failed to delete assessment", exc, assessment_id.value)
+
+    def search_findings(
+        self,
+        *,
+        severity: str | None = None,
+        status: str | None = None,
+        assessment_id: str | None = None,
+        search: str | None = None,
+        order_by: str = "discovered_at",
+        order_dir: str = "desc",
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[List[FindingProjection], int]:
+        with self._session_factory() as session:
+            from kingsec.infrastructure.persistence.repositories.assessment import SQLAlchemyAssessmentRepository
+
+            return SQLAlchemyAssessmentRepository(session).search_findings(
+                severity=severity,
+                status=status,
+                assessment_id=assessment_id,
+                search=search,
+                order_by=order_by,
+                order_dir=order_dir,
+                limit=limit,
+                offset=offset,
+            )
 
 
 class SqlAlchemyReportRepository(ReportRepository):
@@ -161,3 +190,27 @@ class SqlAlchemyReportRepository(ReportRepository):
                 return ops.load_report(session, assessment_id)
         except SQLAlchemyError as exc:
             ops.raise_persistence_error("failed to load report", exc, assessment_id.value)
+
+    def list(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        order_by: str = "generated_at",
+        order_dir: str = "desc",
+    ) -> tuple[List[ReportProjection], int]:
+        with self._session_factory() as session:
+            from kingsec.infrastructure.persistence.repositories.report import SQLAlchemyReportRepository
+
+            return SQLAlchemyReportRepository(session).list(
+                limit=limit,
+                offset=offset,
+                order_by=order_by,
+                order_dir=order_dir,
+            )
+
+    def count(self) -> int:
+        with self._session_factory() as session:
+            from kingsec.infrastructure.persistence.repositories.report import SQLAlchemyReportRepository
+
+            return SQLAlchemyReportRepository(session).count()

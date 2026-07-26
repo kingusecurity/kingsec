@@ -73,6 +73,7 @@ class DeactivateUser:
         user = self._users.find_by_id(request.user_id)
         if user is None:
             from kingsec.domain.user import UserNotFoundError
+
             raise UserNotFoundError(request.user_id)
         user.disable()
         self._users.save(user)
@@ -102,6 +103,7 @@ class ActivateUser:
         user = self._users.find_by_id(request.user_id)
         if user is None:
             from kingsec.domain.user import UserNotFoundError
+
             raise UserNotFoundError(request.user_id)
         user.enable()
         self._users.save(user)
@@ -132,6 +134,7 @@ class AdminResetPassword:
         user = self._users.find_by_id(request.user_id)
         if user is None:
             from kingsec.domain.user import UserNotFoundError
+
             raise UserNotFoundError(request.user_id)
         user.password_hash = self._hasher.hash(request.new_password)
         self._users.save(user)

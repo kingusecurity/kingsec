@@ -44,6 +44,19 @@ class StubUserRepository(UserRepository):
     def count_by_role(self, role: Role) -> int:
         return sum(1 for u in self._users.values() if u.role == role)
 
+    def search(
+        self,
+        *,
+        query: str | None = None,
+        role: str | None = None,
+        is_active: bool | None = None,
+        limit: int = 50,
+        offset: int = 0,
+        order_by: str = "username",
+        order_dir: str = "asc",
+    ) -> tuple[list[User], int]:
+        return ([], 0)
+
 
 class StubAuditPublisher(AuditPublisher):
     def __init__(self) -> None:

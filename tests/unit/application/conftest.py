@@ -25,6 +25,7 @@ from kingsec.application.ports import (
     ReportRepository,
     ScannerPort,
 )
+from kingsec.application.ports.repositories import FindingProjection, ReportProjection
 from kingsec.domain import (
     Assessment,
     AssessmentId,
@@ -65,6 +66,20 @@ class InMemoryAssessmentRepository(AssessmentRepository):
             raise AssessmentNotFoundError(assessment_id.value)
         del self._store[assessment_id.value]
 
+    def search_findings(
+        self,
+        *,
+        severity: str | None = None,
+        status: str | None = None,
+        assessment_id: str | None = None,
+        search: str | None = None,
+        order_by: str = "discovered_at",
+        order_dir: str = "desc",
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[FindingProjection], int]:
+        return [], 0
+
 
 class InMemoryReportRepository(ReportRepository):
     def __init__(self) -> None:
@@ -78,6 +93,19 @@ class InMemoryReportRepository(ReportRepository):
             return self._store[assessment_id.value]
         except KeyError:
             raise ReportNotFoundError(assessment_id.value) from None
+
+    def list(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        order_by: str = "generated_at",
+        order_dir: str = "desc",
+    ) -> tuple[list[ReportProjection], int]:
+        return [], 0
+
+    def count(self) -> int:
+        return 0
 
 
 # --- fake services -----------------------------------------------------------

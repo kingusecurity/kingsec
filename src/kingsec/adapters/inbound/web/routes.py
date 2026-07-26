@@ -777,6 +777,7 @@ async def list_users(
 ) -> schemas.ListUsersResponse:
     app: Application = request.app.state.kingsec_app
     from kingsec.application import UserRepository
+
     user_repo = app.resolve(UserRepository)
     users = user_repo.list_all(limit=limit, offset=offset)
     total = user_repo.count()
@@ -850,6 +851,7 @@ async def assign_role(
 def _get_list_findings_uc(request: Request) -> Any:
     app: Application = request.app.state.kingsec_app
     from kingsec.application.use_cases.list_findings import ListFindings
+
     return app.resolve(ListFindings)
 
 
@@ -913,6 +915,7 @@ async def list_findings(
 def _get_list_reports_uc(request: Request) -> Any:
     app: Application = request.app.state.kingsec_app
     from kingsec.application.use_cases.list_reports import ListReports
+
     return app.resolve(ListReports)
 
 
@@ -994,7 +997,7 @@ async def get_report(
 async def download_report(
     assessment_id: str,
     request: Request = None,  # type: ignore[assignment]
-):
+) -> Any:
     app: Application = request.app.state.kingsec_app
     from kingsec.application.ports import ReportRepository, ReportGeneratorPort
     from kingsec.domain import AssessmentId
@@ -1004,6 +1007,7 @@ async def download_report(
     report = repo.get(AssessmentId(assessment_id))
     rendered = generator.render(report)
     from fastapi.responses import Response
+
     return Response(
         content=rendered.content,
         media_type=rendered.media_type,
@@ -1017,18 +1021,21 @@ async def download_report(
 def _get_deactivate_user_uc(request: Request) -> Any:
     app: Application = request.app.state.kingsec_app
     from kingsec.application.use_cases.admin_users import DeactivateUser
+
     return app.resolve(DeactivateUser)
 
 
 def _get_activate_user_uc(request: Request) -> Any:
     app: Application = request.app.state.kingsec_app
     from kingsec.application.use_cases.admin_users import ActivateUser
+
     return app.resolve(ActivateUser)
 
 
 def _get_reset_password_uc(request: Request) -> Any:
     app: Application = request.app.state.kingsec_app
     from kingsec.application.use_cases.admin_users import AdminResetPassword
+
     return app.resolve(AdminResetPassword)
 
 
@@ -1181,7 +1188,6 @@ async def list_roles(
     request: Request = None,  # type: ignore[assignment]
 ) -> schemas.ListRolesResponse:
     from kingsec.application.auth.authorization_service import AuthorizationService
-    from kingsec.application.auth.permissions import Permission
     from kingsec.domain import Role
 
     app: Application = request.app.state.kingsec_app

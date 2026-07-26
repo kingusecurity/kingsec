@@ -90,9 +90,7 @@ class SqlAlchemyUserRepository(UserRepository):
             filters = []
             if query:
                 like = f"%{query}%"
-                filters.append(
-                    or_(UserORM.username.ilike(like), UserORM.email.ilike(like))
-                )
+                filters.append(or_(UserORM.username.ilike(like), UserORM.email.ilike(like)))
             if role:
                 filters.append(UserORM.role == role.upper())
             if is_active is not None:

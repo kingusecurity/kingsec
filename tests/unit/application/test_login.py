@@ -92,6 +92,19 @@ class StubUserRepository(UserRepository):
     def count_by_role(self, role: Role) -> int:
         return 1 if self._user and role == Role.ADMIN else 0
 
+    def search(
+        self,
+        *,
+        query: str | None = None,
+        role: str | None = None,
+        is_active: bool | None = None,
+        limit: int = 50,
+        offset: int = 0,
+        order_by: str = "username",
+        order_dir: str = "asc",
+    ) -> tuple[list[User], int]:
+        return ([], 0)
+
 
 def _make_user(**kwargs) -> User:
     defaults = dict(
