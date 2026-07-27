@@ -169,6 +169,7 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
         """
         self._session_factory = session_factory
         self._session: Session | None = None
+        self._committed: bool = False
 
     def __enter__(self) -> SqlAlchemyUnitOfWork:
         self._session = self._session_factory()
@@ -185,7 +186,8 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
         if self._session is None:
             raise RuntimeError("unit of work was not entered — no session to exit")
         try:
-            self._session.rollback()
+            if not self._committed:
+                self._session.rollback()
         finally:
             self._session.close()
             self._session = None
@@ -200,6 +202,7 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
             raise RuntimeError("unit of work was not entered — cannot commit")
         try:
             self._session.commit()
+            self._committed = True
         except SQLAlchemyError as exc:
             ops.raise_persistence_error("failed to commit transaction", exc, "-")
 

@@ -19,21 +19,21 @@ export function useFinding(assessmentId: string, findingId: string) {
 
 export function useFindingsSummary() {
   return useQuery({
-    queryKey: ['findings', 'summary'],
+    queryKey: ['dashboard', 'summary'],
     queryFn: () => dashboardApi.summary(),
   })
 }
 
 export function useFindingsSeverity() {
   return useQuery({
-    queryKey: ['findings', 'severity'],
+    queryKey: ['dashboard', 'severity'],
     queryFn: () => dashboardApi.severity(),
   })
 }
 
 export function useFindingsTrends(params?: { period?: string; limit?: number }) {
   return useQuery({
-    queryKey: ['findings', 'trends', params],
+    queryKey: ['dashboard', 'trends', params],
     queryFn: () => dashboardApi.trends(params),
   })
 }
@@ -42,5 +42,6 @@ export function useFindings(params?: FindingsParams) {
   return useQuery({
     queryKey: ['findings', 'list', params],
     queryFn: () => adminApi.findings(params),
+    placeholderData: (prev) => prev,
   })
 }

@@ -76,7 +76,7 @@ const scoreColors: Record<string, string> = {
 }
 
 function RecentReportsSection() {
-  const { data, isLoading } = useReports({ limit: 5, order_by: 'generated_at', order_dir: 'desc' })
+  const { data, isLoading, isError } = useReports({ limit: 5, order_by: 'generated_at', order_dir: 'desc' })
 
   return (
     <div className="rounded-xl border border-border bg-surface-secondary">
@@ -95,6 +95,8 @@ function RecentReportsSection() {
           <Skeleton className="h-4 w-1/2" />
           <Skeleton className="h-4 w-2/3" />
         </div>
+      ) : isError ? (
+        <p className="text-sm text-red-400 py-4 text-center">Failed to load reports.</p>
       ) : !data?.items.length ? (
         <p className="text-sm text-text-muted py-4 text-center">No reports generated yet.</p>
       ) : (

@@ -318,6 +318,7 @@ async def list_assessments(
 ) -> schemas.ListAssessmentsResponse:
     from kingsec.application.dto import ListAssessmentsRequest
 
+    limit = max(1, min(limit, 200))
     request = ListAssessmentsRequest(limit=limit, offset=offset)
     result = service.list_assessments(request)
     return schemas.ListAssessmentsResponse(
@@ -641,12 +642,14 @@ async def list_api_keys(
 ) -> schemas.ApiKeyListResponse:
     from kingsec.application.dto import ListApiKeysRequest
 
+    limit = max(1, min(limit, 200))
     request = ListApiKeysRequest(
         user_id=current_user.user_id,
         limit=limit,
         offset=offset,
     )
     items = list_uc.execute(request)
+    total = list_uc.count(request)
     return schemas.ApiKeyListResponse(
         items=[
             schemas.ApiKeyResponse(
@@ -660,7 +663,9 @@ async def list_api_keys(
             )
             for item in items
         ],
-        total=len(items),
+        total=total,
+        limit=request.limit,
+        offset=request.offset,
     )
 
 
@@ -778,6 +783,7 @@ async def list_users(
     app: Application = request.app.state.kingsec_app
     from kingsec.application import UserRepository
 
+    limit = max(1, min(limit, 200))
     user_repo = app.resolve(UserRepository)
     users = user_repo.list_all(limit=limit, offset=offset)
     total = user_repo.count()
@@ -876,6 +882,7 @@ async def list_findings(
 ) -> schemas.ListFindingsResponse:
     from kingsec.application.use_cases.list_findings import ListFindingsRequest
 
+    limit = max(1, min(limit, 200))
     request = ListFindingsRequest(
         limit=limit,
         offset=offset,
@@ -939,6 +946,7 @@ async def list_reports(
 ) -> schemas.ListReportsResponse:
     from kingsec.application.use_cases.list_reports import ListReportsRequest
 
+    limit = max(1, min(limit, 200))
     request = ListReportsRequest(
         limit=limit,
         offset=offset,
@@ -1170,6 +1178,7 @@ async def search_users(
 ) -> schemas.ListUsersResponse:
     from kingsec.application.use_cases.admin_users import SearchUsers, SearchUsersRequest
 
+    limit = max(1, min(limit, 200))
     app: Application = request.app.state.kingsec_app
     search_uc: SearchUsers = app.resolve(SearchUsers)
     req = SearchUsersRequest(

@@ -131,9 +131,9 @@ interface ExecutionProgressPanelProps {
 
 export function ExecutionProgressPanel({ assessmentId, className }: ExecutionProgressPanelProps) {
   const { data: status, isLoading, error, refetch } = useExecutionStatus(assessmentId)
-  const { data: eventsData } = useExecutionEvents(assessmentId)
-  const cancelMutation = useCancelExecution()
   const [showEvents, setShowEvents] = useState(false)
+  const { data: eventsData } = useExecutionEvents(assessmentId, showEvents)
+  const cancelMutation = useCancelExecution()
   const [confirmCancel, setConfirmCancel] = useState(false)
 
   if (error) {

@@ -18,11 +18,11 @@ export function useExecutionStatus(assessmentId: string | undefined) {
   })
 }
 
-export function useExecutionEvents(assessmentId: string | undefined) {
+export function useExecutionEvents(assessmentId: string | undefined, enabled: boolean = true) {
   return useQuery({
     queryKey: ['execution', 'events', assessmentId],
     queryFn: () => executionApi.events(assessmentId!),
-    enabled: !!assessmentId,
+    enabled: !!assessmentId && enabled,
     refetchInterval: (query) => {
       const data = query.state.data as { events: unknown[] } | undefined
       if (data && data.events.length > 0) {

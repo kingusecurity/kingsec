@@ -3,6 +3,33 @@
 All notable changes to this project are documented here.
 The format follows Keep a Changelog, and the project aims to follow Semantic Versioning.
 
+## [1.1.0] - 2026-07-27
+### Added
+- Report Center: professional-grade frontend for report management, preview, download, and regeneration
+- Report search with debounced text, severity filter, and sort by date/score/target
+- Report preview drawer with executive score ring, risk summary bars, finding distribution, and metadata
+- Lazy-loading event log in ExecutionProgressPanel (only fetches when expanded)
+
+### Fixed
+- Missing auth token in useRegenerateReport causing 401 on regeneration (`frontend/src/hooks/use-reports.ts`)
+- Unbounded `limit` parameter on 6 list endpoints — clamped to 1–200 (`routes.py`)
+- `list_api_keys` returning `total=len(items)` instead of true database count (`list_api_keys.py`)
+- Missing `limit`/`offset` fields in `ApiKeyListResponse` schema (`schemas.py`)
+- SqlAlchemyUnitOfWork always rolling back on exit even after commit (`unit_of_work.py`)
+- FindingsPage spinner flash on filter change — added `placeholderData` (`use-findings.ts`)
+- Dashboard RecentReportsSection showing "No reports" on API error (`DashboardPage.tsx`)
+- Duplicate query keys between findings and dashboard hooks causing cache fragmentation (`use-findings.ts`)
+- Silent error swallowing in ReportsPage download/regenerate — added toast notifications (`ReportsPage.tsx`)
+- Unstable useCallback dependency in ReportsPage (`ReportsPage.tsx`)
+
+### Security
+- Auth token injection in report regeneration API calls
+- Input bounds enforcement on all paginated list endpoints
+
+### Performance
+- ExecutionProgressPanel event log only fetches when expanded, saving API calls
+- Shared query keys for findings/dashboard endpoints eliminates duplicate cache entries
+
 ## [1.0.1] - 2026-07-23
 ### Added
 - AssignRole use case with last-admin guard (`PUT /api/v1/users/{user_id}/role`)

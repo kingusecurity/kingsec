@@ -1,86 +1,49 @@
-# KingSec v1.0.0 — Production Release
+# KingSec v1.1.0 — Professional Report Center & Production Hardening
 
-**Version:** 1.0.0  
-**Release Date:** 2026-07-20  
+**Version:** 1.1.0  
+**Release Date:** 2026-07-27  
 **Status:** Production Ready
 
 ## Overview
 
-KingSec is a local-first, AI-augmented Attack Surface Management (ASM) and Vulnerability Management (VM) platform designed for small and mid-sized businesses. It runs on the user's machine, supports Bring-Your-Own-Key AI enrichment, and provides comprehensive security assessment capabilities through an extensible scanner orchestration framework.
+KingSec is a local-first, AI-augmented Attack Surface Management (ASM) and Vulnerability Management (VM) platform designed for small and mid-sized businesses. v1.1.0 adds a professional Report Center frontend and hardens the production deployment with 11 security, correctness, and performance fixes.
 
-## What's Included
+## What's New in v1.1.0
 
-### Core Platform
-- **Authentication & Authorization**: JWT-based auth with access/refresh tokens, Argon2 password hashing, RBAC (ADMIN, ANALYST, VIEWER), session management, and MFA/TOTP support
-- **Job System**: Persistent background job management with lifecycle tracking, retry support, and status reporting
-- **Event System**: In-memory event bus for decoupled domain events
-- **Report Generation**: Multi-format export (JSON, HTML, PDF, CSV, Markdown)
+### Report Center (Frontend)
+- **Professional report management** with card grid layout, executive score rings, severity badges, and action indicators
+- **Search & filter** — debounced text search, severity pill filters, multi-axis sort (newest, oldest, highest/lowest risk, A–Z)
+- **Report preview drawer** — executive summary, risk severity bars, metadata panel (format, size, generated date, assessment ID)
+- **Download & regenerate** with toast error feedback and loading states
+- **Pagination** with page controls and result counters
 
-### Scanner Framework (10 pluggable scanners)
-| Scanner | Focus | Module |
-|---|---|---|
-| Nuclei | Vulnerability scanning | 5.1 |
-| Nmap | Network discovery & service detection | 5.3 |
-| Nikto | Web server scanning | 5.4 |
-| Trivy | Filesystem/container vulnerability scanning | 5.5 |
-| OWASP ZAP | Web application security testing | 5.6 |
-| Semgrep | Static code analysis | 5.7 |
-| Amass | Subdomain enumeration | 5.8 |
-| Gobuster | Directory enumeration | 5.9 |
-| ffuf | Web fuzzing | 5.10 |
+### Production Hardening (10 fixes)
+| Area | Fixes |
+|---|---|
+| **Auth** | Missing Bearer token in report regeneration API call |
+| **Input validation** | Bounds clamping on all 6 paginated list endpoints (1–200) |
+| **Data integrity** | SqlAlchemyUnitOfWork no longer rolls back after commit |
+| **API correctness** | list_api_keys returns true total count + limit/offset fields |
+| **UX** | FindingsPage no longer flashes spinner on filter change; Dashboard shows error state instead of "No reports" on failure; ExecutionProgressPanel only fetches events when expanded |
+| **Cache** | Eliminated duplicate query keys between findings and dashboard hooks |
+| **Error handling** | Silent catch blocks in ReportsPage now surface toast notifications |
 
-### AI Enrichment (BYO-Key)
-- Automated finding enrichment via configurable AI providers
-- Low-temperature deterministic analysis for security guidance
-- Configurable retry and timeout settings
+## Upgrading from v1.0.x
 
-### API & Deployment
-- FastAPI-based REST API with auto-generated OpenAPI documentation
-- Docker multi-stage build for production deployment
-- Docker Compose for orchestrated setups
-- Alembic-based database migration management
-- Structured logging (structlog) with JSON output support
-- Comprehensive security headers and CORS configuration
-- Rate limiting (per-IP token bucket)
-- Health endpoint (unauthenticated)
-
-## Installation
-
-### Docker (recommended)
-
-```bash
-docker pull kingsec:1.0.0
-docker run -d --name kingsec -p 8765:8765 -v kingsec-data:/home/kingsec/.kingsec kingsec:1.0.0
-```
-
-### Docker Compose
-
-```bash
-cp .env.example .env
-docker compose up -d
-```
-
-### From source
-
-```bash
-pip install kingsec
-kingsec-migrate
-python -m kingsec
-```
-
-## Upgrading from RC1
-
-Run database migrations before starting the new version:
+Run database migrations:
 
 ```bash
 alembic upgrade head
 ```
 
+No breaking API changes. The Report Center is accessible at `/reports`.
+
 ## Known Issues
 
-- Missing FK constraints on `JobRun` and `Artifact` models (planned for v1.1)
+- Missing FK constraints on `JobRun` and `Artifact` models (planned for v1.2)
 - No distributed job queue (single-node only; planned for v1.2)
-- No built-in secrets rotation (manual key rotation in v1.1)
+- Scanner integration tests may timeout on slow CI runners
+- `python -m kingsec` requires `alembic upgrade head` before first run
 
 ## Documentation
 

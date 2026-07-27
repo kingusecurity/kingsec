@@ -26,3 +26,6 @@ class ListApiKeys:
             )
             for k in keys
         )
+
+    def count(self, request: ListApiKeysRequest) -> int:
+        return self._repo.count_by_user(request.user_id)

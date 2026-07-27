@@ -12,6 +12,7 @@ import { ErrorState } from '@/components/ui/ErrorState'
 import { Drawer } from '@/components/ui/Drawer'
 import { useReports, useRegenerateReport } from '@/hooks/use-reports'
 import { adminApi } from '@/api/admin'
+import { toast } from '@/components/ui/Toast'
 import { formatDate, cn } from '@/lib/utils'
 import type { ReportListEntry } from '@/types/api'
 
@@ -376,7 +377,7 @@ export function ReportsPage() {
     order_dir: sort.orderDir,
   })
 
-  const regenerateMutation = useRegenerateReport()
+  const { mutateAsync: regenerateReport } = useRegenerateReport()
 
   useEffect(() => { setOffset(0) }, [debouncedSearch, severityFilter, sortKey])
 
@@ -389,22 +390,22 @@ export function ReportsPage() {
   const handleDownload = useCallback(async (r: ReportListEntry) => {
     try {
       await adminApi.downloadReport(r.assessment_id)
-    } catch {
-      // silent failure — toast could be added
+    } catch (err) {
+      toast.error('Download failed', (err as Error).message)
     }
   }, [])
 
   const handleRegenerate = useCallback(async (r: ReportListEntry) => {
     setRegeneratingId(r.assessment_id)
     try {
-      await regenerateMutation.mutateAsync(r.assessment_id)
-    } catch {
-      // silent failure
+      await regenerateReport(r.assessment_id)
+    } catch (err) {
+      toast.error('Regeneration failed', (err as Error).message)
     } finally {
       setRegeneratingId(null)
       setPreviewReport(null)
     }
-  }, [regenerateMutation])
+  }, [regenerateReport])
 
   const clearAllFilters = () => {
     setSearch('')

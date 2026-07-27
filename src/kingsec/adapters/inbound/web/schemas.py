@@ -566,6 +566,8 @@ class ApiKeyListResponse(BaseModel):
 
     items: list[ApiKeyResponse]
     total: int
+    limit: int
+    offset: int
 
 
 class RotateApiKeyResponse(BaseModel):
