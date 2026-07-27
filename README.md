@@ -14,14 +14,26 @@ Local-first, AI-augmented **Attack Surface Management (ASM)** and **Vulnerabilit
 Hexagonal (ports & adapters). The pure core (`domain`, `application`) is delivery-agnostic; everything external plugs in through ports. See [`docs/FOUNDATION.md`](docs/FOUNDATION.md) for the full blueprint and [`docs/adr/`](docs/adr/) for recorded decisions.
 
 ## Quick start (development)
+
+### Linux / macOS
 ```bash
-# 1. Install uv (https://docs.astral.sh/uv/) - the recommended environment manager
-# 2. Create the environment and install runtime + dev dependencies, install hooks
+# 1. Install uv (https://docs.astral.sh/uv/) — the recommended environment manager
+# 2. Create the environment and install runtime + dev dependencies
 make install
 # 3. Run every quality gate (lint, types, architecture, security, tests)
 make check
 ```
-Run `make help` to list all developer tasks.
+
+### Windows
+```batch
+# 1. Ensure Python 3.11+ is installed
+# 2. Install dependencies
+make.bat install
+# 3. Run quality gates
+make.bat check
+```
+
+Run `make help` (Linux/macOS) or `make.bat help` (Windows) to list all developer tasks.
 
 ### First administrator
 The very first user to register is automatically granted the **Administrator** role.
@@ -39,6 +51,11 @@ If all administrators are lost, use the bootstrap CLI (requires shell access to 
 
 ```bash
 kingsec-bootstrap --username admin --password "$(openssl rand -base64 32)" --email admin@example.com
+```
+
+On Windows:
+```batch
+kingsec-bootstrap --username admin --password "YourGeneratedPassword" --email admin@example.com
 ```
 
 ## Frontend
@@ -97,12 +114,23 @@ pip install kingsec
 
 # 2. Set required environment variables
 export KINGSEC_JWT__SECRET_KEY="your-production-secret"
+export KINGSEC_SECRETS__ENCRYPTION_KEY="your-base64-32byte-key"
 
 # 3. Run database migrations
 kingsec-migrate
 
 # 4. Start the server
-python -m kingsec
+kingsec
+
+# The API is now available at http://127.0.0.1:8765
+```
+
+On Windows:
+```batch
+pip install kingsec
+set KINGSEC_JWT__SECRET_KEY=your-production-secret
+kingsec-migrate
+kingsec
 ```
 
 ## Database Migrations (Alembic)

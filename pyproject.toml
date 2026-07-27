@@ -67,6 +67,7 @@ dev = [
 ]
 
 [project.scripts]
+kingsec = "kingsec.__main__:main"
 kingsec-migrate = "kingsec._migrate:run_migrations"
 kingsec-bootstrap = "kingsec._bootstrap:main"
 
