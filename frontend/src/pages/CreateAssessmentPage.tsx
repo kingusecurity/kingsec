@@ -10,7 +10,13 @@ export function CreateAssessmentPage() {
   const createAssessment = useCreateAssessment()
 
   const handleSubmit = (data: CreateAssessmentFormData) => {
-    createAssessment.mutate(data, {
+    createAssessment.mutate({
+      target_value: data.target_value,
+      target_type: data.target_type,
+      authorized_by: data.authorized_by,
+      scope: data.scope,
+      profile_id: data.profile_id,
+    }, {
       onSuccess: (result) => {
         navigate(`/assessments/${result.assessment_id}`, { replace: true })
       },

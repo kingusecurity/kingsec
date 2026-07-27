@@ -93,6 +93,68 @@ docker compose up -d
 docker compose logs -f
 ```
 
+## Assessment Profiles
+
+KingSec provides reusable **assessment profiles** that automatically select
+the right scanners and configuration based on your goal. The operator chooses
+a profile — KingSec handles the rest.
+
+### Available profiles
+
+| Profile | Scanners | Target Types | Duration | Best for |
+|---|---|---|---|---|
+| **Quick Host Scan** | Nmap | IP, Hostname | ~5 min | Fast port check on a single host |
+| **Network Assessment** | Nmap, Nuclei | Network, IP, Hostname | ~30 min | Network range vulnerability sweep |
+| **Web Application Scan** | Nmap, Gobuster, FFUF, Nuclei, ZAP | URL | ~60 min | Comprehensive web app assessment |
+| **API Assessment** | FFUF, Nuclei, ZAP | URL | ~45 min | REST/HTTP API security testing |
+| **Source Code Review** | Semgrep | Hostname, IP | ~15 min | Static analysis for security anti-patterns |
+| **Container Assessment** | Trivy | Hostname, IP | ~10 min | Container image CVE scanning |
+| **External Footprint** | Amass, Nmap | Hostname, IP | ~20 min | Attack surface discovery |
+| **Full Assessment** | All 9 scanners | IP, Hostname, URL | ~90 min | Maximum coverage |
+
+### How profiles work
+
+1. **Choose a profile** based on the type of assessment you need.
+2. KingSec checks which scanners are installed and usable (via Scanner Discovery).
+3. An **execution plan** is generated showing:
+   - Which scanners will run
+   - Which scanners are skipped (optional, not installed)
+   - Which scanners are blocking (required, not installed)
+   - Estimated duration
+   - Any warnings
+4. If a required scanner is missing, the assessment cannot start — a clear
+   error explains what needs to be installed.
+5. Optional scanners that are unavailable are simply skipped with a warning.
+
+### API endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/v1/profiles` | List all assessment profiles |
+| `GET` | `/api/v1/profiles/{profile_id}` | Single profile details |
+| `POST` | `/api/v1/profiles/{profile_id}/plan` | Generate an execution plan |
+
+The plan endpoint accepts:
+
+```json
+{
+  "target": "10.0.0.5",
+  "target_type": "ip_address"
+}
+```
+
+And returns the full execution plan with scanner selections, warnings,
+and a `can_proceed` flag.
+
+### Profile compatibility by target type
+
+| Target Type | Compatible Profiles |
+|---|---|
+| `ip_address` | Quick Scan, Network Scan, Code Review, Container, Footprint, Full |
+| `hostname` | Quick Scan, Network Scan, Code Review, Container, Footprint, Full |
+| `url` | Web Scan, API Scan, Full |
+| `network` | Network Scan |
+
 ## Scanner Environment
 
 KingSec supports 9 scanning engines. The **Scanner Discovery** system
