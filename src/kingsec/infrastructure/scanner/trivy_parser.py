@@ -23,7 +23,7 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-from kingsec.domain import Evidence, Finding, Severity
+from kingsec.domain import Evidence, Finding, Recommendation, Severity
 from kingsec.infrastructure.logging import get_logger
 
 _logger = get_logger("kingsec.infrastructure.scanner")
@@ -120,6 +120,14 @@ def _parse_misconfigs(misconfigs: list[dict[str, Any]], target: str) -> list[Fin
                 collected_at=datetime.now(UTC),
             )
         )
+        if resolution:
+            finding.add_recommendation(
+                Recommendation(
+                    title="Remediation",
+                    description=str(resolution),
+                    priority=severity,
+                )
+            )
         findings.append(finding)
 
     return findings

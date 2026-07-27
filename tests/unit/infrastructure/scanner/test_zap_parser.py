@@ -208,3 +208,27 @@ class TestEvidence:
         output = json.dumps({"site": [_make_site(alerts=[_ALERT_LOW])]})
         findings = parse_zap_json(output)
         assert "param:" not in findings[0].description
+
+
+class TestRecommendations:
+    """Solution → Recommendation mapping for ZAP alerts."""
+
+    def test_solution_becomes_recommendation(self) -> None:
+        findings = parse_zap_json(_SINGLE_ALERT_OUTPUT)
+        assert len(findings[0].recommendations) == 1
+        assert findings[0].recommendations[0].description == "Use parameterized queries"
+
+    def test_solution_missing_no_recommendation(self) -> None:
+        alert = _make_alert(solution="", reference="", riskcode="0")
+        output = json.dumps({"site": [_make_site(alerts=[alert])]})
+        findings = parse_zap_json(output)
+        assert len(findings[0].recommendations) == 0
+
+    def test_reference_in_evidence(self) -> None:
+        findings = parse_zap_json(_SINGLE_ALERT_OUTPUT)
+        assert "https://owasp.org/sql-injection" in findings[0].evidence[0].detail
+
+    def test_reference_empty_not_in_evidence(self) -> None:
+        output = json.dumps({"site": [_make_site(alerts=[_ALERT_LOW])]})
+        findings = parse_zap_json(output)
+        assert "reference:" not in findings[0].evidence[0].detail

@@ -37,6 +37,7 @@ class FfufScannerAdapter(ScannerPort):
 
     def scan(self, target: Target) -> Sequence[Finding]:
         """Scan ``target`` with ffuf and return the findings discovered."""
+        self._validate_config()
         args = self._build_args(target)
 
         _logger.info(
@@ -46,7 +47,9 @@ class FfufScannerAdapter(ScannerPort):
         )
         result = self._runner.run(args, timeout=self._settings.timeout_seconds)
 
-        if result.returncode != 0:
+        findings = parse_ffuf_json(result.stdout)
+
+        if result.returncode != 0 and not findings:
             raise ScannerExecutionError(
                 f"ffuf exited with code {result.returncode}",
                 context={
@@ -55,8 +58,6 @@ class FfufScannerAdapter(ScannerPort):
                     "target": target.value,
                 },
             )
-
-        findings = parse_ffuf_json(result.stdout)
         _logger.info(
             "ffuf scan completed",
             target=target.value,
@@ -64,6 +65,14 @@ class FfufScannerAdapter(ScannerPort):
             duration_seconds=round(result.duration_seconds, 3),
         )
         return findings
+
+    def _validate_config(self) -> None:
+        """Fail fast if required configuration is missing."""
+        if not self._settings.wordlist.strip():
+            raise ScannerExecutionError(
+                "ffuf wordlist is not configured",
+                context={"binary": self._settings.binary_path},
+            )
 
     def _build_args(self, target: Target) -> list[str]:
         """Assemble the ffuf argument vector.

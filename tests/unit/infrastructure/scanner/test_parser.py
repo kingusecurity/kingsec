@@ -50,6 +50,81 @@ class TestFieldExtraction:
         assert findings[0].title == "CVE-2021-9"
 
 
+class TestCveCweReferences:
+    """CVE, CWE, and references extraction from Nuclei classification."""
+
+    def test_cve_in_description(self) -> None:
+        import json
+
+        record = {
+            "template-id": "cve-test",
+            "matched-at": "http://10.0.0.5/test",
+            "info": {
+                "name": "Test CVE",
+                "severity": "high",
+                "classification": {"cve-id": ["CVE-2021-12345", "CVE-2021-67890"]},
+            },
+        }
+        findings = parse_nuclei_jsonl(json.dumps(record))
+        assert "CVE-2021-12345" in findings[0].description
+        assert "CVE-2021-67890" in findings[0].description
+        assert "cve: CVE-2021-12345, CVE-2021-67890" in findings[0].evidence[0].detail
+
+    def test_cwe_in_description(self) -> None:
+        import json
+
+        record = {
+            "template-id": "cwe-test",
+            "matched-at": "http://10.0.0.5/test",
+            "info": {
+                "name": "Test CWE",
+                "severity": "medium",
+                "classification": {"cwe-id": ["CWE-79", "CWE-89"]},
+            },
+        }
+        findings = parse_nuclei_jsonl(json.dumps(record))
+        assert "CWE-79" in findings[0].description
+        assert "CWE-89" in findings[0].description
+        assert "cwe: CWE-79, CWE-89" in findings[0].evidence[0].detail
+
+    def test_references_in_evidence(self) -> None:
+        import json
+
+        record = {
+            "template-id": "ref-test",
+            "matched-at": "http://10.0.0.5/test",
+            "info": {
+                "name": "Test Refs",
+                "severity": "low",
+                "references": ["https://example.com/1", "https://example.com/2"],
+            },
+        }
+        findings = parse_nuclei_jsonl(json.dumps(record))
+        assert "https://example.com/1" in findings[0].evidence[0].detail
+        assert "https://example.com/2" in findings[0].evidence[0].detail
+
+    def test_cve_as_string_not_list(self) -> None:
+        import json
+
+        record = {
+            "template-id": "cve-str",
+            "matched-at": "http://10.0.0.5/test",
+            "info": {
+                "name": "CVE String",
+                "severity": "critical",
+                "classification": {"cve-id": "CVE-2021-1"},
+            },
+        }
+        findings = parse_nuclei_jsonl(json.dumps(record))
+        assert "CVE-2021-1" in findings[0].description
+
+    def test_no_classification_no_error(self) -> None:
+        findings = parse_nuclei_jsonl(_line(name="No Class", severity="info"))
+        assert findings[0].title == "No Class"
+        assert "CVE:" not in findings[0].description
+        assert "CWE:" not in findings[0].description
+
+
 class TestResilience:
     def test_empty_output_is_no_findings(self) -> None:
         assert parse_nuclei_jsonl("") == []

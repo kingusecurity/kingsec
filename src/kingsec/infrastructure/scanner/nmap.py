@@ -46,7 +46,9 @@ class NmapScannerAdapter(ScannerPort):
         )
         result = self._runner.run(args, timeout=self._settings.timeout_seconds)
 
-        if result.returncode != 0:
+        findings = parse_nmap_xml(result.stdout)
+
+        if result.returncode != 0 and not findings:
             raise ScannerExecutionError(
                 f"nmap exited with code {result.returncode}",
                 context={
@@ -55,8 +57,6 @@ class NmapScannerAdapter(ScannerPort):
                     "target": target.value,
                 },
             )
-
-        findings = parse_nmap_xml(result.stdout)
         _logger.info(
             "nmap scan completed",
             target=target.value,

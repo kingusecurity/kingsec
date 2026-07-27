@@ -191,6 +191,36 @@ class TestSeverityClassification:
         findings = parse_ffuf_json(line)
         assert findings[0].severity is Severity.HIGH
 
+    def test_git_subpath_is_high(self) -> None:
+        line = (
+            '{"input":{"FUZZ":"HEAD"},"status":200,"length":50,"words":5,'
+            '"lines":2,"content-type":"text/plain","redirectlocation":"",'
+            '"url":"http://example.com/.git/HEAD","duration":1000,'
+            '"resultfile":"","host":"example.com"}'
+        )
+        findings = parse_ffuf_json(line)
+        assert findings[0].severity is Severity.HIGH
+
+    def test_gitignore_is_not_high(self) -> None:
+        line = (
+            '{"input":{"FUZZ":".gitignore"},"status":200,"length":100,"words":10,'
+            '"lines":5,"content-type":"text/plain","redirectlocation":"",'
+            '"url":"http://example.com/.gitignore","duration":1000,'
+            '"resultfile":"","host":"example.com"}'
+        )
+        findings = parse_ffuf_json(line)
+        assert findings[0].severity is Severity.LOW  # .gitignore is not .git
+
+    def test_env_local_is_not_high(self) -> None:
+        line = (
+            '{"input":{"FUZZ":".env.local"},"status":200,"length":200,"words":15,'
+            '"lines":5,"content-type":"text/plain","redirectlocation":"",'
+            '"url":"http://example.com/.env.local","duration":1000,'
+            '"resultfile":"","host":"example.com"}'
+        )
+        findings = parse_ffuf_json(line)
+        assert findings[0].severity is Severity.LOW
+
     def test_admin_path_is_medium(self) -> None:
         line = (
             '{"input":{"FUZZ":"admin"},"status":200,"length":1234,"words":56,'

@@ -241,3 +241,19 @@ class TestEvidence:
         output = json.dumps({"Results": [_make_vuln_result("/app", [_VULN_RECORD_LOW])]})
         findings = parse_trivy_json(output)
         assert "none" in findings[0].description
+
+
+class TestRecommendations:
+    """Resolution → Recommendation mapping for misconfigurations."""
+
+    def test_misconfig_resolution_becomes_recommendation(self) -> None:
+        output = json.dumps({"Results": [_make_misconfig_result("/app", [_MISCONFIG_RECORD])]})
+        findings = parse_trivy_json(output)
+        assert len(findings[0].recommendations) == 1
+        assert findings[0].recommendations[0].description == "Disable SSH protocol 1"
+
+    def test_misconfig_without_resolution_has_no_recommendation(self) -> None:
+        record = {k: v for k, v in _MISCONFIG_RECORD.items() if k != "Resolution"}
+        output = json.dumps({"Results": [_make_misconfig_result("/app", [record])]})
+        findings = parse_trivy_json(output)
+        assert len(findings[0].recommendations) == 0

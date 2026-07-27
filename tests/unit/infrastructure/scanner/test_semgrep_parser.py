@@ -27,21 +27,35 @@ def _make_result(
     severity: str = "ERROR",
     category: str = "security",
     confidence: str = "HIGH",
+    cve: str | list[str] | None = None,
+    cwe: str | list[str] | None = None,
+    references: list[str] | None = None,
+    fix: str | None = None,
 ) -> dict:
     """Build a single Semgrep result dict."""
+    metadata: dict[str, object] = {
+        "category": category,
+        "confidence": confidence,
+    }
+    if cve is not None:
+        metadata["cve"] = cve
+    if cwe is not None:
+        metadata["cwe"] = cwe
+    if references is not None:
+        metadata["references"] = references
+    extra: dict[str, object] = {
+        "message": message,
+        "severity": severity,
+        "metadata": metadata,
+    }
+    if fix is not None:
+        extra["fix"] = fix
     return {
         "check_id": check_id,
         "path": path,
         "start": {"line": start_line, "col": 1},
         "end": {"line": end_line, "col": 50},
-        "extra": {
-            "message": message,
-            "severity": severity,
-            "metadata": {
-                "category": category,
-                "confidence": confidence,
-            },
-        },
+        "extra": extra,
     }
 
 
@@ -185,3 +199,40 @@ class TestEvidence:
     def test_description_contains_message(self) -> None:
         findings = parse_semgrep_json(_SINGLE_RESULT_OUTPUT)
         assert "Hardcoded password found" in findings[0].description
+
+
+class TestCveCweReferences:
+    """CVE, CWE, references, and fix extraction from metadata."""
+
+    def test_cve_in_description(self) -> None:
+        result = _make_result(cve="CVE-2021-12345")
+        findings = parse_semgrep_json(json.dumps({"results": [result]}))
+        assert "CVE-2021-12345" in findings[0].description
+        assert "cve: CVE-2021-12345" in findings[0].evidence[0].detail
+
+    def test_cve_list_in_description(self) -> None:
+        result = _make_result(cve=["CVE-2021-1", "CVE-2021-2"])
+        findings = parse_semgrep_json(json.dumps({"results": [result]}))
+        assert "CVE-2021-1" in findings[0].description
+        assert "CVE-2021-2" in findings[0].description
+
+    def test_cwe_in_evidence(self) -> None:
+        result = _make_result(cwe="CWE-79")
+        findings = parse_semgrep_json(json.dumps({"results": [result]}))
+        assert "CWE-79" in findings[0].description
+        assert "cwe: CWE-79" in findings[0].evidence[0].detail
+
+    def test_references_in_evidence(self) -> None:
+        result = _make_result(references=["https://example.com/1"])
+        findings = parse_semgrep_json(json.dumps({"results": [result]}))
+        assert "https://example.com/1" in findings[0].evidence[0].detail
+
+    def test_fix_becomes_recommendation(self) -> None:
+        result = _make_result(fix="use `secrets` module instead")
+        findings = parse_semgrep_json(json.dumps({"results": [result]}))
+        assert len(findings[0].recommendations) == 1
+        assert findings[0].recommendations[0].description == "use `secrets` module instead"
+
+    def test_no_fix_no_recommendation(self) -> None:
+        findings = parse_semgrep_json(_SINGLE_RESULT_OUTPUT)
+        assert len(findings[0].recommendations) == 0

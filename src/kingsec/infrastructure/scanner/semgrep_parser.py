@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
-from kingsec.domain import Evidence, Finding, Severity
+from kingsec.domain import Evidence, Finding, Recommendation, Severity
 from kingsec.infrastructure.logging import get_logger
 
 _logger = get_logger("kingsec.infrastructure.scanner")
@@ -35,6 +35,15 @@ _SEVERITY_MAP = {
 def _map_severity(semgrep_severity: str) -> Severity:
     """Map Semgrep severity string to domain Severity."""
     return _SEVERITY_MAP.get(semgrep_severity.upper(), Severity.LOW)
+
+
+def _extract_str_list(value: object) -> list[str]:
+    """Normalise a field that may be a single string, a list of strings, or empty."""
+    if isinstance(value, list):
+        return [str(v) for v in value]
+    if isinstance(value, str) and value:
+        return [value]
+    return []
 
 
 def parse_semgrep_json(output: str) -> list[Finding]:
@@ -95,22 +104,56 @@ def parse_semgrep_json(output: str) -> list[Finding]:
         category = metadata.get("category", "") if isinstance(metadata, dict) else ""
         confidence = metadata.get("confidence", "") if isinstance(metadata, dict) else ""
 
+        # Extract CVE / CWE / references from metadata
+        cve_ids = _extract_str_list(metadata.get("cve", "")) if isinstance(metadata, dict) else []
+        cwe_ids = _extract_str_list(metadata.get("cwe", "")) if isinstance(metadata, dict) else []
+        refs = _extract_str_list(metadata.get("references", "")) if isinstance(metadata, dict) else []
+
+        # Append CVE/CWE to description
+        extra_desc = []
+        if cve_ids:
+            extra_desc.append(f"CVE: {', '.join(cve_ids)}")
+        if cwe_ids:
+            extra_desc.append(f"CWE: {', '.join(cwe_ids)}")
+        if extra_desc:
+            description += f" ({'; '.join(extra_desc)})"
+
         finding = Finding.create(
             title=title,
             description=description,
             severity=severity,
         )
+
+        detail = (
+            f"rule: {check_id} | file: {path} | lines: {start_line}-{end_line} | "
+            f"severity: {severity_str} | message: {message[:200]} | "
+            f"category: {category} | confidence: {confidence}"
+        )
+        if cve_ids:
+            detail += f" | cve: {', '.join(cve_ids)}"
+        if cwe_ids:
+            detail += f" | cwe: {', '.join(cwe_ids)}"
+        if refs:
+            detail += f" | references: {' '.join(refs)}"
+
         finding.add_evidence(
             Evidence(
                 summary=f"Semgrep: {check_id}",
-                detail=(
-                    f"rule: {check_id} | file: {path} | lines: {start_line}-{end_line} | "
-                    f"severity: {severity_str} | message: {message[:200]} | "
-                    f"category: {category} | confidence: {confidence}"
-                ),
+                detail=detail,
                 collected_at=datetime.now(UTC),
             )
         )
+
+        # Optional fix → Recommendation
+        fix = extra.get("fix", "") if isinstance(extra, dict) else ""
+        if fix:
+            finding.add_recommendation(
+                Recommendation(
+                    title="Remediation",
+                    description=str(fix),
+                    priority=severity,
+                )
+            )
         findings.append(finding)
 
     return findings

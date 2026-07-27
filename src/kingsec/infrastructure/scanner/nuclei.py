@@ -68,9 +68,9 @@ class NucleiScannerAdapter(ScannerPort):
         )
         result = self._runner.run(args, timeout=self._settings.timeout_seconds)
 
-        if result.returncode != 0:
-            # stderr is operator detail for the log; the user-facing message from
-            # ScannerError stays generic.
+        findings = parse_nuclei_jsonl(result.stdout)
+
+        if result.returncode != 0 and not findings:
             raise ScannerExecutionError(
                 f"nuclei exited with code {result.returncode}",
                 context={
@@ -79,8 +79,6 @@ class NucleiScannerAdapter(ScannerPort):
                     "target": target.value,
                 },
             )
-
-        findings = parse_nuclei_jsonl(result.stdout)
         _logger.info(
             "scan completed",
             target=target.value,

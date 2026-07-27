@@ -22,7 +22,7 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-from kingsec.domain import Evidence, Finding, Severity
+from kingsec.domain import Evidence, Finding, Recommendation, Severity
 from kingsec.infrastructure.logging import get_logger
 
 _logger = get_logger("kingsec.infrastructure.scanner")
@@ -74,17 +74,32 @@ def _parse_alerts(alerts: list[dict[str, Any]], site_url: str) -> list[Finding]:
             description=description_text,
             severity=severity,
         )
+
+        evidence_detail = (
+            f"alert: {alert_name} | risk: {risk} | confidence: {confidence} | "
+            f"url: {url} | param: {param} | description: {description[:200]} | "
+            f"solution: {solution[:200]}"
+        )
+        if reference:
+            evidence_detail += f" | reference: {reference[:500]}"
+
         finding.add_evidence(
             Evidence(
                 summary=f"ZAP: {alert_name}",
-                detail=(
-                    f"alert: {alert_name} | risk: {risk} | confidence: {confidence} | "
-                    f"url: {url} | param: {param} | description: {description[:200]} | "
-                    f"solution: {solution[:200]} | reference: {reference[:200]}"
-                ),
+                detail=evidence_detail,
                 collected_at=datetime.now(UTC),
             )
         )
+
+        # Solution → Recommendation
+        if solution:
+            finding.add_recommendation(
+                Recommendation(
+                    title="Remediation",
+                    description=str(solution),
+                    priority=severity,
+                )
+            )
         findings.append(finding)
 
     return findings

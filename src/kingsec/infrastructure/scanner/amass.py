@@ -46,7 +46,9 @@ class AmassScannerAdapter(ScannerPort):
         )
         result = self._runner.run(args, timeout=self._settings.timeout_seconds)
 
-        if result.returncode != 0:
+        findings = parse_amass_json(result.stdout)
+
+        if result.returncode != 0 and not findings:
             raise ScannerExecutionError(
                 f"amass exited with code {result.returncode}",
                 context={
@@ -55,8 +57,6 @@ class AmassScannerAdapter(ScannerPort):
                     "target": target.value,
                 },
             )
-
-        findings = parse_amass_json(result.stdout)
         _logger.info(
             "amass scan completed",
             target=target.value,

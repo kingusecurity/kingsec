@@ -14,6 +14,7 @@ Severity mapping (conservative — Nmap itself doesn't rate vulns):
 
 from __future__ import annotations
 
+import fnmatch
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -47,11 +48,11 @@ _MEDIUM_RISK_SCRIPTS = frozenset(
 
 
 def _classify_script_severity(script_id: str) -> Severity:
-    """Heuristic severity for Nmap script output."""
+    """Heuristic severity for Nmap script output using glob-style matching."""
     lower = script_id.lower()
-    if any(lower.startswith(p.replace("*", "")) for p in _HIGH_RISK_SCRIPTS):
+    if any(fnmatch.fnmatch(lower, p.lower()) for p in _HIGH_RISK_SCRIPTS):
         return Severity.HIGH
-    if any(lower.startswith(p.replace("*", "")) for p in _MEDIUM_RISK_SCRIPTS):
+    if any(fnmatch.fnmatch(lower, p.lower()) for p in _MEDIUM_RISK_SCRIPTS):
         return Severity.MEDIUM
     # Default: scripts that ran successfully but aren't known-vuln → LOW
     return Severity.LOW

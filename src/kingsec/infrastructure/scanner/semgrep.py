@@ -46,7 +46,9 @@ class SemgrepScannerAdapter(ScannerPort):
         )
         result = self._runner.run(args, timeout=self._settings.timeout_seconds)
 
-        if result.returncode != 0:
+        findings = parse_semgrep_json(result.stdout)
+
+        if result.returncode != 0 and not findings:
             raise ScannerExecutionError(
                 f"semgrep exited with code {result.returncode}",
                 context={
@@ -55,8 +57,6 @@ class SemgrepScannerAdapter(ScannerPort):
                     "target": target.value,
                 },
             )
-
-        findings = parse_semgrep_json(result.stdout)
         _logger.info(
             "semgrep scan completed",
             target=target.value,

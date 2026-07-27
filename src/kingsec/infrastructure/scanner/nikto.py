@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 from kingsec.application import ScannerPort
 from kingsec.domain import Finding, Target
@@ -46,7 +47,9 @@ class NiktoScannerAdapter(ScannerPort):
         )
         result = self._runner.run(args, timeout=self._settings.timeout_seconds)
 
-        if result.returncode != 0:
+        findings = parse_nikto_output(result.stdout)
+
+        if result.returncode != 0 and not findings:
             raise ScannerExecutionError(
                 f"nikto exited with code {result.returncode}",
                 context={
@@ -55,8 +58,6 @@ class NiktoScannerAdapter(ScannerPort):
                     "target": target.value,
                 },
             )
-
-        findings = parse_nikto_output(result.stdout)
         _logger.info(
             "nikto scan completed",
             target=target.value,
@@ -65,16 +66,45 @@ class NiktoScannerAdapter(ScannerPort):
         )
         return findings
 
+    @staticmethod
+    def _parse_target(target: Target) -> tuple[str, int | None, bool]:
+        """Extract (hostname, port, use_ssl) from a target value.
+
+        Handles URLs (``https://host:443/path``) and bare host:port strings.
+        """
+        raw = target.value.strip()
+        host: str = raw
+        port: int | None = None
+        use_ssl: bool = False
+
+        if "://" in raw:
+            parsed = urlparse(raw)
+            host = parsed.hostname or raw
+            port = parsed.port
+            use_ssl = parsed.scheme == "https"
+        elif ":" in raw:
+            parts = raw.rsplit(":", 1)
+            if parts[1].isdigit():
+                host = parts[0]
+                port = int(parts[1])
+
+        return host, port, use_ssl
+
     def _build_args(self, target: Target) -> list[str]:
         """Assemble the Nikto argument vector.
 
-        Nikto targets are specified with ``-h host``.
+        Extracts hostname, optional port, and SSL flag from the target.
         """
         settings = self._settings
+        host, port, use_ssl = self._parse_target(target)
         args: list[str] = [
             settings.binary_path,
             *settings.scan_args,
             "-h",
-            target.value,
+            host,
         ]
+        if use_ssl and "-ssl" not in args:
+            args.append("-ssl")
+        if port is not None:
+            args.extend(["-p", str(port)])
         return args

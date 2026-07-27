@@ -36,6 +36,15 @@ def _map_severity(raw: str | None) -> Severity:
     return _SEVERITY_MAP.get((raw or "").strip().lower(), Severity.INFORMATIONAL)
 
 
+def _extract_str_list(value: object) -> list[str]:
+    """Normalise a field that may be a single string, a list of strings, or None."""
+    if isinstance(value, list):
+        return [str(v) for v in value]
+    if isinstance(value, str):
+        return [value]
+    return []
+
+
 def _finding_from_record(record: dict[str, Any]) -> Finding | None:
     """Build a single Finding from one parsed Nuclei JSON record, or None.
 
@@ -52,6 +61,18 @@ def _finding_from_record(record: dict[str, Any]) -> Finding | None:
     severity = _map_severity(info.get("severity"))
     description = info.get("description") or f"Matched by template '{template_id}'."
 
+    # Extract CVE / CWE identifiers from classification.
+    classification = info.get("classification") or {}
+    cve_ids = _extract_str_list(classification.get("cve-id"))
+    cwe_ids = _extract_str_list(classification.get("cwe-id"))
+    extra = []
+    if cve_ids:
+        extra.append(f"CVE: {', '.join(cve_ids)}")
+    if cwe_ids:
+        extra.append(f"CWE: {', '.join(cwe_ids)}")
+    if extra:
+        description = f"{description} ({'; '.join(extra)})"
+
     finding = Finding.create(title=str(name), description=str(description), severity=severity)
 
     # Evidence: where and how it matched. matched-at is the concrete locator.
@@ -61,6 +82,16 @@ def _finding_from_record(record: dict[str, Any]) -> Finding | None:
         detail_parts.append(f"type: {record['type']}")
     if template_id:
         detail_parts.append(f"template-id: {template_id}")
+    if cve_ids:
+        detail_parts.append(f"cve: {', '.join(cve_ids)}")
+    if cwe_ids:
+        detail_parts.append(f"cwe: {', '.join(cwe_ids)}")
+
+    # References (list of URLs).
+    references = _extract_str_list(info.get("references"))
+    if references:
+        detail_parts.append(f"references: {' '.join(references)}")
+
     finding.add_evidence(
         Evidence(
             summary=f"Matched by Nuclei template '{template_id or name}'",

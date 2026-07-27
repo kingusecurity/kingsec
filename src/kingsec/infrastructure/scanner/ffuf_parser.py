@@ -53,8 +53,12 @@ def _classify_severity(status: int, url: str) -> Severity:
     lower_url = url.lower()
     if any(lower_url.endswith(ext) for ext in _SENSITIVE_EXTENSIONS):
         return Severity.HIGH
-    if any(f"/{ext}" in lower_url or f"/{ext}?" in lower_url for ext in _SENSITIVE_EXTENSIONS):
-        return Severity.HIGH
+    # Also match extensions in sub-paths (e.g., /backup/.git/config)
+    # Use regex boundary check to avoid false positives like .gitignore matching .git
+    for ext in _SENSITIVE_EXTENSIONS:
+        ext_pattern = re.escape(ext) + r"(?:$|[/?#])"
+        if re.search(ext_pattern, lower_url):
+            return Severity.HIGH
 
     # Admin/login paths → MEDIUM
     if _ADMIN_PATH_RE.search(url):
