@@ -4,7 +4,6 @@ import {
   CheckCircle2,
   XCircle,
   SkipForward,
-  AlertTriangle,
   Clock,
   ChevronDown,
   ChevronRight,

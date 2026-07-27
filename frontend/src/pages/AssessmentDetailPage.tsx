@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, FileText } from 'lucide-react'
+import { ArrowLeft, FileText, Download, RotateCw } from 'lucide-react'
 import { PageContainer } from '@/components/layout/PageContainer'
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -11,7 +11,10 @@ import { AssessmentTimeline } from '@/components/features/assessment/AssessmentT
 import { FindingsSummaryTable } from '@/components/features/assessment/FindingsSummaryTable'
 import { ExecutionProgressPanel } from '@/components/features/execution/ExecutionProgressPanel'
 import { useAssessment, useStartAssessment, useCancelAssessment, useDeleteAssessment, useGenerateReport } from '@/hooks/use-assessments'
-import { formatDate } from '@/lib/utils'
+import { useReportDetail } from '@/hooks/use-reports'
+import { adminApi } from '@/api/admin'
+import { ApiError } from '@/api/client'
+import { formatDate, cn } from '@/lib/utils'
 
 export function AssessmentDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -108,18 +111,10 @@ export function AssessmentDetailPage() {
               </CardHeader>
               <div className="px-5 pb-5 space-y-3">
                 {isCompleted ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => reportMutation.mutate(assessment.assessment_id)}
-                      loading={reportMutation.isPending}
-                      iconLeft={<FileText className="h-4 w-4" />}
-                    >
-                      Generate Report
-                    </Button>
-                  </>
+                  <AssessmentReportSection
+                    assessmentId={assessment.assessment_id}
+                    reportMutation={reportMutation}
+                  />
                 ) : isRunning || isPending ? (
                   <p className="text-sm text-text-muted">Report will be available after completion.</p>
                 ) : (
@@ -165,6 +160,127 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
     <div className="flex justify-between items-center">
       <span className="text-sm text-text-secondary">{label}</span>
       <span className="text-sm text-text-primary font-medium">{value}</span>
+    </div>
+  )
+}
+
+const SEVERITY_BADGES: Record<string, string> = {
+  CRITICAL: 'text-red-400 bg-red-500/10',
+  HIGH: 'text-orange-400 bg-orange-500/10',
+  MEDIUM: 'text-yellow-400 bg-yellow-500/10',
+  LOW: 'text-blue-400 bg-blue-500/10',
+  INFORMATIONAL: 'text-gray-400 bg-gray-500/10',
+}
+
+function scoreColor(score: number): string {
+  if (score >= 80) return 'text-emerald-400'
+  if (score >= 60) return 'text-yellow-400'
+  if (score >= 40) return 'text-orange-400'
+  return 'text-red-400'
+}
+
+function scoreBgColor(score: number): string {
+  if (score >= 80) return 'bg-emerald-900/20 border-emerald-800/40'
+  if (score >= 60) return 'bg-yellow-900/20 border-yellow-800/40'
+  if (score >= 40) return 'bg-orange-900/20 border-orange-800/40'
+  return 'bg-red-900/20 border-red-800/40'
+}
+
+function AssessmentReportSection({
+  assessmentId,
+  reportMutation,
+}: {
+  assessmentId: string
+  reportMutation: { mutate: (id: string) => void; isPending: boolean }
+}) {
+  const { data: report, isLoading, error } = useReportDetail(assessmentId)
+  const reportNotFound = error && (error as ApiError).status === 404
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        <Skeleton className="h-16 w-full rounded-lg" />
+        <Skeleton className="h-9 w-full rounded-lg" />
+      </div>
+    )
+  }
+
+  if (reportNotFound || !report) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full"
+        onClick={() => reportMutation.mutate(assessmentId)}
+        loading={reportMutation.isPending}
+        iconLeft={<FileText className="h-4 w-4" />}
+      >
+        Generate Report
+      </Button>
+    )
+  }
+
+  const score = report.executive_score ?? 0
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3 rounded-lg border border-border bg-surface-tertiary/50 p-3">
+        <div className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border-2', scoreBgColor(score))}>
+          <span className={cn('text-sm font-bold', scoreColor(score))}>
+            {Math.round(score)}
+          </span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-text-muted">Executive Score</p>
+          <p className="text-sm font-medium text-text-primary truncate">{report.target}</p>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {report.critical_count > 0 && (
+          <span className={cn('inline-block rounded px-1.5 py-0.5 text-[10px] font-medium', SEVERITY_BADGES.CRITICAL)}>
+            {report.critical_count} Critical
+          </span>
+        )}
+        {report.high_count > 0 && (
+          <span className={cn('inline-block rounded px-1.5 py-0.5 text-[10px] font-medium', SEVERITY_BADGES.HIGH)}>
+            {report.high_count} High
+          </span>
+        )}
+        {report.medium_count > 0 && (
+          <span className={cn('inline-block rounded px-1.5 py-0.5 text-[10px] font-medium', SEVERITY_BADGES.MEDIUM)}>
+            {report.medium_count} Medium
+          </span>
+        )}
+        {report.low_count > 0 && (
+          <span className={cn('inline-block rounded px-1.5 py-0.5 text-[10px] font-medium', SEVERITY_BADGES.LOW)}>
+            {report.low_count} Low
+          </span>
+        )}
+      </div>
+      <p className="text-xs text-text-secondary truncate" title={report.verdict_headline}>
+        {report.verdict_headline}
+      </p>
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="xs"
+          className="flex-1"
+          onClick={() => adminApi.downloadReport(assessmentId)}
+          iconLeft={<Download className="h-3.5 w-3.5" />}
+        >
+          Download
+        </Button>
+        <Button
+          variant="outline"
+          size="xs"
+          className="flex-1"
+          onClick={() => reportMutation.mutate(assessmentId)}
+          loading={reportMutation.isPending}
+          iconLeft={<RotateCw className="h-3.5 w-3.5" />}
+        >
+          Regenerate
+        </Button>
+      </div>
     </div>
   )
 }

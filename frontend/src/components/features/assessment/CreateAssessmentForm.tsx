@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
   ArrowLeft, ArrowRight, Check, AlertTriangle, Clock,
-  Shield, ShieldOff, Cpu, Info,
+  ShieldOff, Cpu, Info,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -287,7 +287,7 @@ export function CreateAssessmentForm({ onSubmit, isPending }: CreateAssessmentFo
                 </div>
               ) : compatibleProfiles.length === 0 ? (
                 <p className="text-sm text-text-muted py-4 text-center">
-                  No profiles available for target type "{targetTypeLabels[values.target_type]}"
+                  No profiles available for target type "{targetTypeLabels[values.target_type ?? ''] ?? values.target_type}"
                 </p>
               ) : (
                 <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
@@ -340,7 +340,7 @@ export function CreateAssessmentForm({ onSubmit, isPending }: CreateAssessmentFo
             <div className="space-y-4">
               <div className="space-y-3 rounded-lg bg-surface-tertiary/50 p-4">
                 <Row label="Target" value={values.target_value} />
-                <Row label="Type" value={targetTypeLabels[values.target_type]} />
+                <Row label="Type" value={targetTypeLabels[values.target_type ?? ''] ?? values.target_type} />
                 {currentPlan && (
                   <Row
                     label="Profile"

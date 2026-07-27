@@ -1,4 +1,4 @@
-import { apiRequest } from './client'
+import { apiRequest, getAccessToken } from './client'
 import type { DashboardSummary } from './dashboard'
 import type {
   ListUsersResponse,
@@ -9,6 +9,7 @@ import type {
   SystemMetrics,
   ListFindingsResponse,
   ListReportsResponse,
+  ReportListEntry,
   AdminUserActionEntry,
   AdminResetPasswordBody,
   ListRolesResponse,
@@ -44,9 +45,14 @@ export type FindingsParams = Record<string, string | number | boolean | undefine
   order_dir?: string
 }
 
-export type ReportsParams = Record<string, string | number | undefined | null> & {
+export type ReportsParams = Record<string, string | number | boolean | undefined | null> & {
   limit?: number
   offset?: number
+  search?: string
+  severity?: string
+  target?: string
+  order_by?: string
+  order_dir?: string
 }
 
 export const adminApi = {
@@ -66,6 +72,24 @@ export const adminApi = {
     apiRequest<ListFindingsResponse>('/findings', { params }),
   reports: (params?: ReportsParams) =>
     apiRequest<ListReportsResponse>('/reports', { params }),
+  reportDetail: (assessmentId: string) =>
+    apiRequest<ReportListEntry>(`/reports/${assessmentId}`),
+  downloadReport: async (assessmentId: string) => {
+    const token = getAccessToken()
+    const res = await fetch(`/api/v1/reports/${assessmentId}/download`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!res.ok) throw new Error('Download failed')
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `report-${assessmentId}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  },
   agents: () =>
     apiRequest<{ agents: Agent[] }>('/agents'),
   backups: () =>

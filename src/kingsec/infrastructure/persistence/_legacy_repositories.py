@@ -198,6 +198,9 @@ class SqlAlchemyReportRepository(ReportRepository):
         offset: int = 0,
         order_by: str = "generated_at",
         order_dir: str = "desc",
+        search: str | None = None,
+        severity: str | None = None,
+        target: str | None = None,
     ) -> tuple[List[ReportProjection], int]:
         with self._session_factory() as session:
             from kingsec.infrastructure.persistence.repositories.report import SQLAlchemyReportRepository
@@ -207,6 +210,9 @@ class SqlAlchemyReportRepository(ReportRepository):
                 offset=offset,
                 order_by=order_by,
                 order_dir=order_dir,
+                search=search,
+                severity=severity,
+                target=target,
             )
 
     def count(self) -> int:

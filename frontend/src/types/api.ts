@@ -252,6 +252,12 @@ export interface ReportListEntry {
   verdict_highest_severity: string | null
   verdict_action_required: boolean
   total_findings: number
+  critical_count: number
+  high_count: number
+  medium_count: number
+  low_count: number
+  info_count: number
+  executive_score: number
   format: string
   file_size: number
 }
