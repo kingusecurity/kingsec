@@ -2,7 +2,7 @@
 
 Local-first, AI-augmented **Attack Surface Management (ASM)** and **Vulnerability Management (VM)** for small and mid-sized businesses.
 
-> **Status:** v1.0.0 — a production-grade security assessment platform with persistence, job management, report generation/multi-format export, scanner orchestration (Nuclei, Nmap, Nikto, Trivy, OWASP ZAP, Semgrep, Amass, Gobuster, ffuf), and AI-augmented enrichment. Built on Clean Architecture (Hexagonal).
+> **Status:** v1.0.0 — a production-grade security assessment platform with persistence, job management, report generation/multi-format export, scanner orchestration (9 scanners), scanner discovery/health reporting, assessment profiles and execution planning, live execution progress monitoring with per-scanner tracking, and AI-augmented enrichment. Built on Clean Architecture (Hexagonal).
 
 ## Principles baked into the foundation
 - **Local-first & private.** Runs on the user's machine; the web server binds to `127.0.0.1` by default.
@@ -154,6 +154,33 @@ and a `can_proceed` flag.
 | `hostname` | Quick Scan, Network Scan, Code Review, Container, Footprint, Full |
 | `url` | Web Scan, API Scan, Full |
 | `network` | Network Scan |
+
+## Execution Progress Monitoring
+
+When an assessment runs, KingSec tracks its lifecycle with granular **execution
+phases** and **per-scanner progress**:
+
+| Phase | Description | Progress |
+|---|---|---|
+| `pending` | Waiting to start | 0% |
+| `preparing` | Setting up scan environment | 5% |
+| `running_scanners` | Executing scanners (each tracked individually) | 5–85% |
+| `correlating` | Combining and correlating findings | 85% |
+| `reporting` | Generating report | 95% |
+| `completed` / `failed` / `cancelled` | Terminal states | 100% |
+
+### API endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/v1/assessments/{id}/execution/status` | Phase + per-scanner progress |
+| `GET` | `/api/v1/assessments/{id}/execution/events` | Ordered lifecycle event log |
+| `GET` | `/api/v1/assessments/{id}/execution/progress` | Overall progress percentage |
+| `POST` | `/api/v1/assessments/{id}/execution/cancel` | Cancel a running execution |
+
+The frontend **Assessment Detail** page shows a live progress panel when an
+assessment is running, with a progress bar, per-scanner status cards, and a
+collapsible event log. Running assessments auto-refresh every 3 seconds.
 
 ## Scanner Environment
 

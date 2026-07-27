@@ -1,0 +1,180 @@
+"""FastAPI routes for assessment execution progress monitoring.
+
+Provides live per-scanner progress, execution phase tracking, and
+cancellation for running assessments.  The ``AssessmentExecutionEngine``
+is resolved from the DI container at request time.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+
+from .auth import require_analyst, require_viewer
+
+if TYPE_CHECKING:
+    from kingsec.application.assessment_execution import AssessmentExecutionEngine
+    from kingsec.bootstrap.application import Application
+
+router = APIRouter(prefix="/api/v1/assessments", tags=["execution"])
+
+
+def _get_engine(request: Request) -> Any:
+    app: Application = request.app.state.kingsec_app
+    from kingsec.application.assessment_execution import AssessmentExecutionEngine
+
+    return app.resolve(AssessmentExecutionEngine)
+
+
+def _scanner_progress_to_dict(sp: Any) -> dict[str, Any]:
+    return {
+        "scanner_id": sp.scanner_id,
+        "name": sp.name,
+        "status": sp.status,
+        "start_time": sp.start_time,
+        "end_time": sp.end_time,
+        "duration_seconds": sp.duration_seconds,
+        "findings_count": sp.findings_count,
+        "warnings": list(sp.warnings),
+        "error": sp.error,
+        "skipped_reason": sp.skipped_reason,
+    }
+
+
+def _event_to_dict(ev: Any) -> dict[str, Any]:
+    return {
+        "event_type": ev.event_type,
+        "scanner_id": ev.scanner_id,
+        "timestamp": ev.timestamp,
+        "message": ev.message,
+        "progress_percent": ev.progress_percent,
+    }
+
+
+# ── GET /assessments/{id}/execution/status ───────────────────────────────
+
+
+@router.get(
+    "/{assessment_id}/execution/status",
+    dependencies=[Depends(require_viewer)],
+    summary="Get execution status",
+    description="Returns current execution phase and per-scanner progress.",
+    responses={
+        200: {"description": "Execution status"},
+        404: {"description": "Assessment not found or not being executed"},
+    },
+)
+async def get_execution_status(
+    assessment_id: str,
+    request: Request,
+) -> dict[str, Any]:
+    engine: AssessmentExecutionEngine = _get_engine(request)
+    state = engine.get_state(assessment_id)
+    if state is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Execution not found for this assessment",
+        )
+    return {
+        "assessment_id": state.assessment_id,
+        "phase": state.phase.value,
+        "progress_percent": state.progress_percent,
+        "scanner_progress": [_scanner_progress_to_dict(sp) for sp in state.scanner_progress],
+        "started_at": state.started_at,
+        "completed_at": state.completed_at,
+        "error_message": state.error_message,
+    }
+
+
+# ── GET /assessments/{id}/execution/events ────────────────────────────────
+
+
+@router.get(
+    "/{assessment_id}/execution/events",
+    dependencies=[Depends(require_viewer)],
+    summary="Get execution events",
+    description="Returns ordered lifecycle events for a running or completed execution.",
+    responses={
+        200: {"description": "Ordered list of events"},
+        404: {"description": "Assessment not found"},
+    },
+)
+async def get_execution_events(
+    assessment_id: str,
+    request: Request,
+) -> dict[str, Any]:
+    engine: AssessmentExecutionEngine = _get_engine(request)
+    events = engine.get_events(assessment_id)
+    return {
+        "assessment_id": assessment_id,
+        "events": [_event_to_dict(ev) for ev in events],
+    }
+
+
+# ── GET /assessments/{id}/execution/progress ──────────────────────────────
+
+
+@router.get(
+    "/{assessment_id}/execution/progress",
+    dependencies=[Depends(require_viewer)],
+    summary="Get execution progress",
+    description="Returns the overall progress percentage for a running execution.",
+    responses={
+        200: {"description": "Progress percentage"},
+        404: {"description": "Assessment not found"},
+    },
+)
+async def get_execution_progress(
+    assessment_id: str,
+    request: Request,
+) -> dict[str, Any]:
+    engine: AssessmentExecutionEngine = _get_engine(request)
+    progress = engine.get_progress(assessment_id)
+    if progress is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Execution not found for this assessment",
+        )
+    return {
+        "assessment_id": assessment_id,
+        "progress_percent": progress,
+    }
+
+
+# ── POST /assessments/{id}/execution/cancel ───────────────────────────────
+
+
+@router.post(
+    "/{assessment_id}/execution/cancel",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_analyst)],
+    summary="Cancel execution",
+    description="Cancel a running assessment execution.",
+    responses={
+        200: {"description": "Execution cancelled"},
+        409: {"description": "Execution is already in a terminal state"},
+        404: {"description": "Assessment not found"},
+    },
+)
+async def cancel_execution(
+    assessment_id: str,
+    request: Request,
+) -> dict[str, Any]:
+    engine: AssessmentExecutionEngine = _get_engine(request)
+    cancelled = engine.cancel_execution(assessment_id)
+    if not cancelled:
+        state = engine.get_state(assessment_id)
+        if state is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Execution not found for this assessment",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot cancel execution in phase {state.phase.value}",
+        )
+    return {
+        "assessment_id": assessment_id,
+        "status": "cancelled",
+    }

@@ -1,5 +1,12 @@
 """Application layer: use cases plus the port contracts the core owns."""
 
+from .assessment_execution import (
+    AssessmentExecutionEngine,
+    AssessmentExecutionState,
+    ExecutionEvent,
+    ExecutionPhase,
+    ScannerProgress,
+)
 from .correlation import CorrelatedFinding, CorrelationEngine
 from .dto import (
     AdminChangePasswordRequest,
@@ -320,6 +327,11 @@ from .use_cases.validate_session import ValidateSession
 from .use_cases.verify_mfa_code import VerifyMfaCode
 
 __all__ = [
+    "AssessmentExecutionEngine",
+    "AssessmentExecutionState",
+    "ExecutionEvent",
+    "ExecutionPhase",
+    "ScannerProgress",
     "EVENT_ASSESSMENT_CANCELLED",
     "EVENT_ASSESSMENT_COMPLETED",
     "EVENT_ASSESSMENT_CREATED",

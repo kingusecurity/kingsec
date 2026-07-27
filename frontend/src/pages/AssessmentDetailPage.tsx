@@ -9,6 +9,7 @@ import { AssessmentStatusBadge } from '@/components/features/assessment/Assessme
 import { AssessmentActions } from '@/components/features/assessment/AssessmentActions'
 import { AssessmentTimeline } from '@/components/features/assessment/AssessmentTimeline'
 import { FindingsSummaryTable } from '@/components/features/assessment/FindingsSummaryTable'
+import { ExecutionProgressPanel } from '@/components/features/execution/ExecutionProgressPanel'
 import { useAssessment, useStartAssessment, useCancelAssessment, useDeleteAssessment, useGenerateReport } from '@/hooks/use-assessments'
 import { formatDate } from '@/lib/utils'
 
@@ -127,6 +128,10 @@ export function AssessmentDetailPage() {
               </div>
             </Card>
           </div>
+
+          {(isRunning || isPending) && (
+            <ExecutionProgressPanel assessmentId={assessment.assessment_id} />
+          )}
 
           <Card>
             <CardHeader>

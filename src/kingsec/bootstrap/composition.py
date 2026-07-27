@@ -309,6 +309,11 @@ def _register_adapters(
 
     container.register_instance(AuthorizationService, AuthorizationService())
 
+    # Assessment Execution Engine: in-memory lifecycle tracker (Phase 8).
+    from kingsec.application.assessment_execution import AssessmentExecutionEngine
+
+    container.register_instance(AssessmentExecutionEngine, AssessmentExecutionEngine())
+
 
 def _register_job_service(container: Container, session_factory: Any) -> None:
     """Register ``JobServicePort`` backed by a fresh Unit of Work per resolution.
