@@ -93,19 +93,74 @@ docker compose up -d
 docker compose logs -f
 ```
 
-### Scanner prerequisites
-Some scanners require their tools installed on the host or in the container:
-| Scanner | Dependency | Install |
+## Scanner Environment
+
+KingSec supports 9 scanning engines. The **Scanner Discovery** system
+automatically detects which are installed, validates their executables and
+required assets, and reports readiness through the API and UI.
+
+### Quick check
+
+```bash
+# Via the API (authenticated)
+curl -H "Authorization: Bearer <token>" http://127.0.0.1:8765/api/v1/scanners/health
+```
+
+Or open the **Live Monitoring** page in the frontend UI to see the Scanner
+Health panel — install status, version, warnings, and health score at a glance.
+
+### Prerequisites
+
+| Scanner | Binary | Windows | Linux | Required Assets |
+|---|---|---|---|---|
+| Nmap | `nmap` | `choco install nmap` | `apt install nmap` | — |
+| Nuclei | `nuclei` | [GitHub Releases](https://github.com/projectdiscovery/nuclei/releases) | `go install ...` | Nuclei templates (`nuclei -update-templates`) |
+| Nikto | `nikto` | [GitHub Releases](https://github.com/sullo/nikto/releases) | `apt install nikto` | — |
+| FFUF | `ffuf` | [GitHub Releases](https://github.com/ffuf/ffuf/releases) | `go install ...` | — |
+| Gobuster | `gobuster` | [GitHub Releases](https://github.com/OJ/gobuster/releases) | `go install ...` | — |
+| Trivy | `trivy` | `choco install trivy` | `apt install trivy` | Vulnerability DB (`trivy image --download-db-only`) |
+| Semgrep | `semgrep` | `pip install semgrep` | `pip install semgrep` | — |
+| Amass | `amass` | [GitHub Releases](https://github.com/owasp-amass/amass/releases) | `go install ...` | — |
+| OWASP ZAP | `zap` | [Download](https://www.zaproxy.org/download/) | `docker run ...` | — |
+
+> **Note:** Scanners not installed are simply skipped during scans. KingSec
+> remains fully operational with whatever subset is available.
+
+### Auto-discovery
+
+On startup and periodically, KingSec checks:
+
+1. **Executable** — looked up via `PATH`, Chocolatey (`C:\ProgramData\chocolatey\bin`),
+   Scoop (`~/scoop/apps`), WinGet (`~/AppData/Local/Microsoft/WinGet/Links`),
+   `/snap/bin`, `/usr/local/bin`, and standard install locations.
+2. **Version** — extracted from `--version` / `-version` output.
+3. **Required assets** — template directories, vulnerability databases, wordlists
+   are checked for existence.
+4. **Usability** — a scanner is flagged *usable* only when its binary and all
+   non-optional assets are present.
+
+### API endpoints
+
+| Method | Path | Description |
 |---|---|---|
-| Nuclei | `nuclei` binary | `go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest` |
-| Nmap | `nmap` package | `apt install nmap` / `choco install nmap` |
-| Nikto | `nikto` package | `apt install nikto` |
-| Trivy | `trivy` binary | `apt install trivy` / `choco install trivy` |
-| OWASP ZAP | `zap` CLI | Docker: `ghcr.io/zaproxy/zaproxy:stable` |
-| Semgrep | `semgrep` pip package | `pip install semgrep` |
-| Amass | `amass` binary | `go install -v github.com/owasp-amass/amass/v4/...@master` |
-| Gobuster | `gobuster` binary | `go install github.com/OJ/gobuster/v3@latest` |
-| ffuf | `ffuf` binary | `go install github.com/ffuf/ffuf/v2@latest` |
+| `GET` | `/api/v1/scanners` | List all scanners with status |
+| `GET` | `/api/v1/scanners/health` | Aggregate health score + per-scanner status |
+| `GET` | `/api/v1/scanners/{scanner_id}` | Detailed status for one scanner |
+
+All endpoints require authentication. No installation or modification is
+performed — they are read-only diagnostics.
+
+### Health score
+
+The health score is computed as:
+
+    health_score = (usable_scanners / total_scanners) × 100
+
+| Score | Interpretation |
+|---|---|
+| 80–100% | All critical scanners operational |
+| 50–79% | Some scanners need attention |
+| < 50% | Most scanners not ready |
 
 ### Direct installation
 ```bash

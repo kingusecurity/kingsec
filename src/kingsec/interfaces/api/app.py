@@ -74,8 +74,14 @@ def create_app(
 
     if registry is not None and scanner is not None:
         from kingsec.interfaces.api.routes.scan import create_scan_router
+        from kingsec.interfaces.api.routes.scanner_discovery import (
+            create_scanner_discovery_router,
+        )
 
         app.include_router(create_scan_router(registry, scanner, get_current_user=get_current_user))
+        app.include_router(
+            create_scanner_discovery_router(get_current_user=get_current_user)
+        )
 
     if report_service is not None:
         from kingsec.interfaces.api.routes.download import create_download_router
