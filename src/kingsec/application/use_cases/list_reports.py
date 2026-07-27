@@ -11,6 +11,9 @@ class ListReportsRequest:
     offset: int = 0
     order_by: str = "generated_at"
     order_dir: str = "desc"
+    search: str | None = None
+    severity: str | None = None
+    target: str | None = None
 
 
 @dataclass(frozen=True)
@@ -22,8 +25,14 @@ class ReportListItem:
     verdict_highest_severity: str | None
     verdict_action_required: bool
     total_findings: int
-    format: str
-    file_size: int
+    critical_count: int = 0
+    high_count: int = 0
+    medium_count: int = 0
+    low_count: int = 0
+    info_count: int = 0
+    executive_score: float = 0.0
+    format: str = "pdf"
+    file_size: int = 0
 
 
 @dataclass(frozen=True)
@@ -44,6 +53,9 @@ class ListReports:
             offset=request.offset,
             order_by=request.order_by,
             order_dir=request.order_dir,
+            search=request.search,
+            severity=request.severity,
+            target=request.target,
         )
         items = tuple(
             ReportListItem(
@@ -54,6 +66,12 @@ class ListReports:
                 verdict_highest_severity=p.verdict_highest_severity,
                 verdict_action_required=p.verdict_action_required,
                 total_findings=p.total_findings,
+                critical_count=p.critical_count,
+                high_count=p.high_count,
+                medium_count=p.medium_count,
+                low_count=p.low_count,
+                info_count=p.info_count,
+                executive_score=p.executive_score,
                 format=p.format,
                 file_size=p.file_size,
             )

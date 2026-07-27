@@ -416,8 +416,18 @@ class ReportListEntryResponse(BaseModel):
     verdict_highest_severity: str | None = None
     verdict_action_required: bool
     total_findings: int
-    format: str
-    file_size: int
+    critical_count: int = 0
+    high_count: int = 0
+    medium_count: int = 0
+    low_count: int = 0
+    info_count: int = 0
+    executive_score: float = 0.0
+    format: str = "pdf"
+    file_size: int = 0
+
+
+class ReportDetailResponse(ReportListEntryResponse):
+    """Extended report metadata for detail view."""
 
 
 class ListReportsResponse(BaseModel):

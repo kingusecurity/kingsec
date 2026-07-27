@@ -925,16 +925,29 @@ def _get_list_reports_uc(request: Request) -> Any:
     tags=["reports"],
     dependencies=[Depends(require_viewer)],
     summary="List reports",
-    description="Returns paginated list of generated reports.",
+    description="Returns paginated list of generated reports with search, filter, and sort.",
 )
 async def list_reports(
     limit: int = 50,
     offset: int = 0,
+    order_by: str = "generated_at",
+    order_dir: str = "desc",
+    search: str | None = None,
+    severity: str | None = None,
+    target: str | None = None,
     list_uc: Any = Depends(_get_list_reports_uc),
 ) -> schemas.ListReportsResponse:
     from kingsec.application.use_cases.list_reports import ListReportsRequest
 
-    request = ListReportsRequest(limit=limit, offset=offset)
+    request = ListReportsRequest(
+        limit=limit,
+        offset=offset,
+        order_by=order_by,
+        order_dir=order_dir,
+        search=search,
+        severity=severity,
+        target=target,
+    )
     result = list_uc.execute(request)
     return schemas.ListReportsResponse(
         items=[
@@ -946,6 +959,12 @@ async def list_reports(
                 verdict_highest_severity=item.verdict_highest_severity,
                 verdict_action_required=item.verdict_action_required,
                 total_findings=item.total_findings,
+                critical_count=item.critical_count,
+                high_count=item.high_count,
+                medium_count=item.medium_count,
+                low_count=item.low_count,
+                info_count=item.info_count,
+                executive_score=item.executive_score,
                 format=item.format,
                 file_size=item.file_size,
             )
@@ -962,26 +981,35 @@ async def list_reports(
     tags=["reports"],
     dependencies=[Depends(require_viewer)],
     summary="Get report metadata",
-    description="Returns metadata for a specific report.",
+    description="Returns enriched metadata for a specific report.",
 )
 async def get_report(
     assessment_id: str,
     request: Request = None,  # type: ignore[assignment]
-) -> schemas.ReportListEntryResponse:
+) -> schemas.ReportDetailResponse:
     app: Application = request.app.state.kingsec_app
     from kingsec.application.ports import ReportRepository
-    from kingsec.domain import AssessmentId
+    from kingsec.domain import AssessmentId, Severity
 
     repo: ReportRepository = app.resolve(ReportRepository)
     report = repo.get(AssessmentId(assessment_id))
-    return schemas.ReportListEntryResponse(
+    sc = {s.name: report.count_for(s) for s in Severity}
+    penalty = sc.get("CRITICAL", 0) * 25 + sc.get("HIGH", 0) * 10 + sc.get("MEDIUM", 0) * 5 + sc.get("LOW", 0) * 2
+    score = round(max(0.0, min(100.0, 100.0 - penalty)), 1)
+    return schemas.ReportDetailResponse(
         assessment_id=report.assessment_id,
         target=report.target,
         generated_at=report.generated_at.isoformat(),
         verdict_headline=report.verdict.headline,
         verdict_highest_severity=report.verdict.highest_severity.name if report.verdict.highest_severity else None,
         verdict_action_required=report.verdict.action_required,
-        total_findings=len(report.entries),
+        total_findings=report.total_findings,
+        critical_count=sc.get("CRITICAL", 0),
+        high_count=sc.get("HIGH", 0),
+        medium_count=sc.get("MEDIUM", 0),
+        low_count=sc.get("LOW", 0),
+        info_count=sc.get("INFORMATIONAL", 0),
+        executive_score=score,
         format="pdf",
         file_size=0,
     )

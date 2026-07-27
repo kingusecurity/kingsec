@@ -115,8 +115,14 @@ class ReportProjection:
     verdict_highest_severity: str | None
     verdict_action_required: bool
     total_findings: int
-    format: str
-    file_size: int
+    critical_count: int = 0
+    high_count: int = 0
+    medium_count: int = 0
+    low_count: int = 0
+    info_count: int = 0
+    executive_score: float = 0.0
+    format: str = "pdf"
+    file_size: int = 0
 
 
 class ReportRepository(ABC):
@@ -138,8 +144,21 @@ class ReportRepository(ABC):
         offset: int = 0,
         order_by: str = "generated_at",
         order_dir: str = "desc",
+        search: str | None = None,
+        severity: str | None = None,
+        target: str | None = None,
     ) -> tuple[list[ReportProjection], int]:
-        """Return paginated report projections with total count."""
+        """Return paginated report projections with total count.
+
+        Args:
+            limit: Maximum number of results.
+            offset: Number of results to skip.
+            order_by: Sort column (generated_at, target, verdict_highest_severity, total_findings).
+            order_dir: Sort direction (asc, desc).
+            search: Free-text search on target.
+            severity: Filter by verdict_highest_severity.
+            target: Filter by exact target match.
+        """
 
     @abstractmethod
     def count(self) -> int:
