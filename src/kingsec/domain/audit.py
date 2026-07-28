@@ -115,6 +115,16 @@ class AuditAction(StrEnum):
     SNAPSHOT_RESTORED = "snapshot_restored"
 
     # Production / Health
+    # Integration lifecycle
+    INTEGRATION_CONNECTED = "integration_connected"
+    INTEGRATION_DISCONNECTED = "integration_disconnected"
+    INTEGRATION_TEST_FAILED = "integration_test_failed"
+    WEBHOOK_SENT = "webhook_sent"
+    EMAIL_SENT = "email_sent"
+    TICKET_CREATED = "ticket_created"
+    EXPORT_COMPLETED = "export_completed"
+    CONNECTION_FAILED = "connection_failed"
+
     HEALTH_CHECK = "health_check"
     LIVENESS_CHECK = "liveness_check"
     READINESS_CHECK = "readiness_check"

@@ -21,8 +21,8 @@ from typing import Any
 
 from kingsec.application import (
     ActivateUser,
-    AIPort,
     AdminResetPassword,
+    AIPort,
     ApiKeyHasher,
     ApiKeyRepository,
     AssessmentRepository,
@@ -313,6 +313,34 @@ def _register_adapters(
     from kingsec.application.assessment_execution import AssessmentExecutionEngine
 
     container.register_instance(AssessmentExecutionEngine, AssessmentExecutionEngine())
+
+    # Enterprise integration services (Phase 13).
+    _register_integration_services(container, settings)
+
+
+def _register_integration_services(container: Container, settings: Any) -> None:
+    from kingsec.application.ports.outbound import AuditPublisher
+    from kingsec.infrastructure.integrations.email_service import EmailNotificationService
+    from kingsec.infrastructure.integrations.siem_service import SIEMExportService
+    from kingsec.infrastructure.integrations.ticketing_service import TicketingService
+    from kingsec.infrastructure.integrations.webhook_service import WebhookDeliveryService
+
+    def _make_webhook(c: Any) -> WebhookDeliveryService:
+        return WebhookDeliveryService(settings.integrations, c.resolve(AuditPublisher))
+
+    def _make_email(c: Any) -> EmailNotificationService:
+        return EmailNotificationService(settings.integrations, c.resolve(AuditPublisher))
+
+    def _make_ticketing(c: Any) -> TicketingService:
+        return TicketingService(settings.integrations, c.resolve(AuditPublisher))
+
+    def _make_siem(c: Any) -> SIEMExportService:
+        return SIEMExportService(settings.integrations, c.resolve(AuditPublisher))
+
+    container.register_factory(WebhookDeliveryService, _make_webhook)
+    container.register_factory(EmailNotificationService, _make_email)
+    container.register_factory(TicketingService, _make_ticketing)
+    container.register_factory(SIEMExportService, _make_siem)
 
 
 def _register_job_service(container: Container, session_factory: Any) -> None:

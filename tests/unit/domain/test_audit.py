@@ -77,6 +77,14 @@ class TestAuditAction:
             "system_restarted",
             "metrics_collected",
             "startup_validated",
+            "integration_connected",
+            "integration_disconnected",
+            "integration_test_failed",
+            "webhook_sent",
+            "email_sent",
+            "ticket_created",
+            "export_completed",
+            "connection_failed",
         }
         actual = {a.value for a in AuditAction}
         assert actual == expected

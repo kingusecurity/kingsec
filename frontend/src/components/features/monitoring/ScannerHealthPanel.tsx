@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { Shield, ShieldOff, AlertTriangle, CheckCircle, RefreshCw, Package, Wifi, WifiOff, Search, Filter, Copy, Terminal, ExternalLink, FileText } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { toast } from '@/components/ui/Toast'
 import { cn } from '@/lib/utils'
 import { useScannerHealth, useScannerDetail, useScannerInstallInfo } from '@/hooks/use-scanner-health'
-import type { ScannerStatus, InstallCommand } from '@/api/scanner-health'
+import type { ScannerStatus } from '@/api/scanner-health'
 
 type FilterMode = 'all' | 'installed' | 'missing' | 'warning'
 

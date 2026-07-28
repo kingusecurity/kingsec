@@ -34,6 +34,7 @@ from .models import (
     CORSSettings,
     FfufSettings,
     GobusterSettings,
+    IntegrationSettings,
     JWTSettings,
     LoggingSettings,
     MiddlewareSettings,
@@ -99,6 +100,7 @@ class Settings(BaseSettings):
     rate_limit: RateLimitSettings = Field(default_factory=RateLimitSettings)
     secrets: SecretsSettings = Field(default_factory=SecretsSettings)
     middleware: MiddlewareSettings = Field(default_factory=MiddlewareSettings)
+    integrations: IntegrationSettings = Field(default_factory=IntegrationSettings)
 
     @model_validator(mode="after")
     def _guard_default_secrets_in_production(self) -> Settings:

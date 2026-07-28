@@ -46,6 +46,16 @@ from .errors import DomainError, IllegalStateTransition, InvariantViolation
 from .evidence import Evidence, Recommendation
 from .finding import Finding
 from .identifiers import AssessmentId, FindingId
+from .integration import (
+    DeliveryRecord,
+    DeliveryStatus,
+    IntegrationConfig,
+    IntegrationStatus,
+    IntegrationType,
+    SIEMBatchResult,
+    TicketReference,
+    WebhookEventType,
+)
 from .mfa import MfaRecoveryCode, MfaSecret, MfaStatus, RecoveryCodeStatus
 from .pipeline import (
     PIPELINE_ORDER,
@@ -134,6 +144,8 @@ __all__ = [
     "BackupSnapshot",
     "BackupStatus",
     "BackupType",
+    "DeliveryRecord",
+    "DeliveryStatus",
     "DependencyHealth",
     "DeviceInfo",
     "DomainError",
@@ -145,6 +157,9 @@ __all__ = [
     "HealthCheck",
     "HealthStatus",
     "IllegalStateTransition",
+    "IntegrationConfig",
+    "IntegrationStatus",
+    "IntegrationType",
     "InvalidCredentialsError",
     "InvariantViolation",
     "LivenessReport",
@@ -177,6 +192,7 @@ __all__ = [
     "RetryPolicy",
     "RetryStrategy",
     "Role",
+    "SIEMBatchResult",
     "ScanCategory",
     "ScanSchedule",
     "ScannerCapability",
@@ -199,9 +215,11 @@ __all__ = [
     "SystemMetrics",
     "Target",
     "TargetType",
+    "TicketReference",
     "User",
     "UserDisabledError",
     "UserError",
     "UserNotFoundError",
     "Verdict",
+    "WebhookEventType",
 ]

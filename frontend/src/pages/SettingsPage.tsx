@@ -8,12 +8,14 @@ import { NotificationPreferencesSection } from '@/components/features/settings/N
 import { SecuritySection } from '@/components/features/settings/SecuritySection'
 import { ApiSettingsSection } from '@/components/features/settings/ApiSettingsSection'
 import { AboutSection } from '@/components/features/settings/AboutSection'
+import { IntegrationsSection } from '@/components/features/settings/IntegrationsSection'
 
 const tabs = [
   { value: 'general', label: 'General' },
   { value: 'appearance', label: 'Appearance' },
   { value: 'dashboard', label: 'Dashboard' },
   { value: 'notifications', label: 'Notifications' },
+  { value: 'integrations', label: 'Integrations' },
   { value: 'security', label: 'Security' },
   { value: 'api', label: 'API' },
   { value: 'about', label: 'About' },
@@ -35,6 +37,7 @@ export function SettingsPage() {
         <TabsContent value="appearance"><AppearanceSection /></TabsContent>
         <TabsContent value="dashboard"><DashboardPreferencesSection /></TabsContent>
         <TabsContent value="notifications"><NotificationPreferencesSection /></TabsContent>
+        <TabsContent value="integrations"><IntegrationsSection /></TabsContent>
         <TabsContent value="security"><SecuritySection /></TabsContent>
         <TabsContent value="api"><ApiSettingsSection /></TabsContent>
         <TabsContent value="about"><AboutSection /></TabsContent>

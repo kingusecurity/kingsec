@@ -66,6 +66,16 @@ class AuditAction(StrEnum):
     AGENT_JOB_COMPLETED = "agent_job_completed"
     AGENT_JOB_FAILED = "agent_job_failed"
 
+    # Integration lifecycle
+    INTEGRATION_CONNECTED = "integration_connected"
+    INTEGRATION_DISCONNECTED = "integration_disconnected"
+    INTEGRATION_TEST_FAILED = "integration_test_failed"
+    WEBHOOK_SENT = "webhook_sent"
+    EMAIL_SENT = "email_sent"
+    TICKET_CREATED = "ticket_created"
+    EXPORT_COMPLETED = "export_completed"
+    CONNECTION_FAILED = "connection_failed"
+
 
 class AuditSeverity(StrEnum):
     """Severity level of an audit event."""

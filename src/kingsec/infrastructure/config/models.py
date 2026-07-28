@@ -534,3 +534,59 @@ class MiddlewareSettings(BaseModel):
     trusted_hosts: list[str] = Field(default_factory=list)
     # Enable structured request logging.
     request_logging: bool = True
+
+
+class IntegrationSettings(BaseModel):
+    """Enterprise integration configuration.
+
+    Each integration group stores its connection details as a single JSON string
+    per endpoint. Environment variable examples::
+
+        KINGSEC_INTEGRATIONS__SLACK_WEBHOOK_URL=https://hooks.slack.com/...
+        KINGSEC_INTEGRATIONS__SMTP_HOST=smtp.example.com
+        KINGSEC_INTEGRATIONS__SMTP_PORT=587
+        KINGSEC_INTEGRATIONS__JIRA_URL=https://jira.example.com
+        KINGSEC_INTEGRATIONS__JIRA_EMAIL=bot@example.com
+    """
+
+    model_config = _FROZEN
+
+    # --- Webhook / Chat ---
+    slack_webhook_url: str = ""
+    teams_webhook_url: str = ""
+    discord_webhook_url: str = ""
+    generic_webhook_url: str = ""
+    webhook_secret: str = ""
+
+    # --- SMTP ---
+    smtp_host: str = ""
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_address: str = ""
+    smtp_use_tls: bool = True
+
+    # --- Jira ---
+    jira_url: str = ""
+    jira_email: str = ""
+    jira_api_token: str = ""
+    jira_project_key: str = ""
+
+    # --- GitHub Issues ---
+    github_token: str = ""
+    github_repo: str = ""
+
+    # --- GitLab Issues ---
+    gitlab_url: str = ""
+    gitlab_token: str = ""
+    gitlab_project_id: str = ""
+
+    # --- SIEM ---
+    splunk_hec_url: str = ""
+    splunk_hec_token: str = ""
+    sentinel_workspace_id: str = ""
+    sentinel_shared_key: str = ""
+    sentinel_dce_url: str = ""
+    elastic_cloud_id: str = ""
+    elastic_api_key: str = ""
+    elastic_url: str = ""
