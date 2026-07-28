@@ -244,6 +244,7 @@ def _register_adapters(
     # Capability adapters. AI adds its own http-client.close shutdown hook.
     register_scanner(container, settings)
     register_ai(container, settings)
+    _register_ai_services(container)
     register_reporting(container, output_format=report_format, brand_name=brand_name)
     register_jobs(container)
     register_events(container)
@@ -379,6 +380,48 @@ def _register_license_infrastructure(container: Container, session_factory: Any)
             c.resolve(LicenseGate),
             c.resolve(AuditPublisher),
         ),
+    )
+
+
+def _register_ai_services(container: Container) -> None:
+    from kingsec.application.ai import (
+        AIChatService,
+        ExecutiveSummaryService,
+        ExplainFindingService,
+        RemediationAssistantService,
+        ReportEnhancementService,
+    )
+    from kingsec.application.ai.ports import AIQueryPort
+    from kingsec.application.ai.cache import PromptCache
+    from kingsec.application.ai.redactor import Redactor
+    from kingsec.infrastructure.ai.extended_adapter import ExtendedAIAdapter
+    from kingsec.infrastructure.ai.adapter import AIProviderAdapter
+
+    container.register_factory(Redactor, lambda c: Redactor())
+    container.register_factory(PromptCache, lambda c: PromptCache())
+    container.register_factory(
+        AIQueryPort,
+        lambda c: ExtendedAIAdapter(c.resolve(AIProviderAdapter), c.resolve(AuditPublisher)),
+    )
+    container.register_factory(
+        ExplainFindingService,
+        lambda c: ExplainFindingService(c.resolve(AIQueryPort), c.resolve(Redactor)),
+    )
+    container.register_factory(
+        ExecutiveSummaryService,
+        lambda c: ExecutiveSummaryService(c.resolve(AIQueryPort), c.resolve(Redactor)),
+    )
+    container.register_factory(
+        RemediationAssistantService,
+        lambda c: RemediationAssistantService(c.resolve(AIQueryPort), c.resolve(Redactor)),
+    )
+    container.register_factory(
+        AIChatService,
+        lambda c: AIChatService(c.resolve(AIQueryPort), c.resolve(Redactor)),
+    )
+    container.register_factory(
+        ReportEnhancementService,
+        lambda c: ReportEnhancementService(c.resolve(AIQueryPort), c.resolve(Redactor)),
     )
 
 

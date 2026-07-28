@@ -159,6 +159,9 @@ _PROVIDER_FACTORIES: dict[str, type[ProviderConfig] | Callable[[], ProviderConfi
     "anthropic": AnthropicProvider,
     "claude": AnthropicProvider,
     "gemini": GeminiProvider,
+    "ollama": lambda: OpenAICompatibleProvider("ollama", "http://localhost:11434/v1"),
+    "lm_studio": lambda: OpenAICompatibleProvider("lm_studio", "http://localhost:1234/v1"),
+    "lmstudio": lambda: OpenAICompatibleProvider("lm_studio", "http://localhost:1234/v1"),
 }
 
 
