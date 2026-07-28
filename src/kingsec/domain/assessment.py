@@ -22,6 +22,9 @@ from .finding import Finding
 from .identifiers import AssessmentId, FindingId
 from .target import Target
 
+# Default sentinel for optional org/team/owner fields.
+_UNSET = object()
+
 # Legal state transitions. An empty set marks a terminal state.
 _ALLOWED_ASSESSMENT_TRANSITIONS: dict[AssessmentStatus, set[AssessmentStatus]] = {
     AssessmentStatus.DRAFT: {AssessmentStatus.AUTHORIZED, AssessmentStatus.CANCELLED},
@@ -60,6 +63,9 @@ class Assessment:
         self._status = AssessmentStatus.DRAFT
         self._authorization: Authorization | None = None
         self._failure_reason: str | None = None
+        self._organization_id: str | None = None
+        self._team_id: str | None = None
+        self._owner_id: str | None = None
         # Keyed by FindingId to make duplicate detection O(1) and cheap.
         self._findings: dict[FindingId, Finding] = {}
 
@@ -94,15 +100,35 @@ class Assessment:
         a._status = status
         a._authorization = authorization
         a._failure_reason = failure_reason
+        a._organization_id = None
+        a._team_id = None
+        a._owner_id = None
         a._findings = {f.id: f for f in (findings or [])}
         if len(a._findings) != len(findings or []):
             raise InvariantViolation("duplicate finding id in reconstitution")
         return a
 
+    def set_ownership(self, owner_id: str, organization_id: str | None = None, team_id: str | None = None) -> None:
+        self._owner_id = owner_id
+        self._organization_id = organization_id
+        self._team_id = team_id
+
     # --- read-only accessors -------------------------------------------------
     @property
     def id(self) -> AssessmentId:
         return self._id
+
+    @property
+    def organization_id(self) -> str | None:
+        return self._organization_id
+
+    @property
+    def team_id(self) -> str | None:
+        return self._team_id
+
+    @property
+    def owner_id(self) -> str | None:
+        return self._owner_id
 
     @property
     def target(self) -> Target:

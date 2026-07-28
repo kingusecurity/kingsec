@@ -92,6 +92,9 @@ def assessment_to_orm(assessment: Assessment) -> AssessmentORM:
         authorized_at=authorization.authorized_at.isoformat() if authorization else None,
         authorization_scope=authorization.scope if authorization else None,
         failure_reason=assessment.failure_reason,
+        organization_id=assessment.organization_id,
+        team_id=assessment.team_id,
+        owner_id=assessment.owner_id,
         findings=[finding_to_orm(finding) for finding in assessment.findings],
     )
 
@@ -169,7 +172,7 @@ def assessment_to_domain(orm: AssessmentORM) -> Assessment:
     ordered = sorted(orm.findings, key=lambda f: (f.discovered_at, f.id))
     findings = [finding_to_domain(f) for f in ordered]
 
-    return Assessment.reconstitute(
+    a = Assessment.reconstitute(
         assessment_id=AssessmentId(orm.id),
         target=Target(orm.target_value, TargetType[orm.target_type]),
         status=AssessmentStatus[orm.status],
@@ -178,6 +181,13 @@ def assessment_to_domain(orm: AssessmentORM) -> Assessment:
         failure_reason=orm.failure_reason,
         findings=findings,
     )
+    if orm.organization_id or orm.team_id or orm.owner_id:
+        a.set_ownership(
+            owner_id=orm.owner_id or "",
+            organization_id=orm.organization_id,
+            team_id=orm.team_id,
+        )
+    return a
 
 
 def report_to_domain(orm: ReportORM) -> Report:

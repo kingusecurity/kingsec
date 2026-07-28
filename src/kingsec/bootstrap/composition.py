@@ -217,6 +217,9 @@ def _register_adapters(
     register_audit(container, session_factory)
     register_enterprise_audit(container, session_factory)
 
+    # Organization & team persistence (Phase 14).
+    _register_organization_repository(container, session_factory)
+
     # MFA (TOTP) infrastructure.
     register_mfa(container, session_factory)
 
@@ -341,6 +344,16 @@ def _register_integration_services(container: Container, settings: Any) -> None:
     container.register_factory(EmailNotificationService, _make_email)
     container.register_factory(TicketingService, _make_ticketing)
     container.register_factory(SIEMExportService, _make_siem)
+
+
+def _register_organization_repository(container: Container, session_factory: Any) -> None:
+    from kingsec.application.ports.outbound.organization_repository import OrganizationRepository
+    from kingsec.infrastructure.persistence.repositories.organization import SQLAlchemyOrganizationRepository
+
+    def _factory(_c: Any) -> OrganizationRepository:
+        return SQLAlchemyOrganizationRepository(session_factory())
+
+    container.register_factory(OrganizationRepository, _factory)
 
 
 def _register_job_service(container: Container, session_factory: Any) -> None:

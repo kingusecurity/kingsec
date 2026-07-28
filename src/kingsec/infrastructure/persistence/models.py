@@ -46,6 +46,10 @@ class AssessmentORM(Base):
 
     failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    organization_id: Mapped[str | None] = mapped_column(String, ForeignKey("organizations.id"), nullable=True)
+    team_id: Mapped[str | None] = mapped_column(String, ForeignKey("teams.id"), nullable=True)
+    owner_id: Mapped[str | None] = mapped_column(String, nullable=True)
+
     findings: Mapped[list["FindingORM"]] = relationship(
         back_populates="assessment",
         cascade="all, delete-orphan",
@@ -445,3 +449,55 @@ class ScheduleORM(Base):
     retry_delay_seconds: Mapped[int] = mapped_column(Integer, default=0)
     current_retry_count: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String, default="active")
+
+
+class OrganizationORM(Base):
+    __tablename__ = "organizations"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    slug: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class TeamORM(Base):
+    __tablename__ = "teams"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    organization_id: Mapped[str] = mapped_column(String, ForeignKey("organizations.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(String, default="")
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class OrganizationMembershipORM(Base):
+    __tablename__ = "organization_memberships"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=False)
+    organization_id: Mapped[str] = mapped_column(String, ForeignKey("organizations.id"), nullable=False)
+    role: Mapped[str] = mapped_column(String, nullable=False, default="viewer")
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class TeamMembershipORM(Base):
+    __tablename__ = "team_memberships"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=False)
+    team_id: Mapped[str] = mapped_column(String, ForeignKey("teams.id"), nullable=False)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class OrgActivityEventORM(Base):
+    __tablename__ = "org_activity_events"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    organization_id: Mapped[str] = mapped_column(String, ForeignKey("organizations.id"), nullable=False)
+    event_type: Mapped[str] = mapped_column(String, nullable=False)
+    actor_id: Mapped[str] = mapped_column(String, nullable=False)
+    message: Mapped[str] = mapped_column(String, nullable=False)
+    metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    timestamp: Mapped[str] = mapped_column(String, nullable=False)

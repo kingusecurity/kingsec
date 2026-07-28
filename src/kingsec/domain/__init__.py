@@ -46,6 +46,17 @@ from .errors import DomainError, IllegalStateTransition, InvariantViolation
 from .evidence import Evidence, Recommendation
 from .finding import Finding
 from .identifiers import AssessmentId, FindingId
+from .organization import (
+    OrgActivityEvent,
+    OrgEventType,
+    OrgRole,
+    Organization,
+    OrganizationId,
+    OrganizationMembership,
+    Team,
+    TeamId,
+    TeamMembership,
+)
 from .integration import (
     DeliveryRecord,
     DeliveryStatus,

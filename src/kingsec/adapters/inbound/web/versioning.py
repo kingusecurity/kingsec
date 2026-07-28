@@ -25,6 +25,7 @@ from .execution_routes import router as v1_execution_router
 from .health_routes import router as v1_health_router
 from .integration_routes import router as v1_integration_router
 from .mfa_routes import router as v1_mfa_router
+from .organization_routes import router as v1_organization_router
 from .notification_routes import router as v1_notification_router
 from .pipeline_routes import router as v1_pipeline_router
 from .plugin_routes import router as v1_plugin_router
@@ -60,6 +61,7 @@ def register_versioned_routes(app: FastAPI) -> None:
     app.include_router(v1_backup_router)
     app.include_router(v1_health_router)
     app.include_router(v1_integration_router)
+    app.include_router(v1_organization_router)
 
     # Future example:
     # from .routes_v2 import router as v2_router
