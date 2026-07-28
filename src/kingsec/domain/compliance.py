@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 
-from .errors import InvariantViolation
+from kingsec.domain.errors import InvariantViolation
 
 
 class ComplianceFramework(StrEnum):

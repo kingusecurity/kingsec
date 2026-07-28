@@ -226,6 +226,9 @@ def _register_adapters(
     # Compliance framework mapping (Phase 17).
     _register_compliance_services(container)
 
+    # Asset inventory (Phase 18).
+    _register_asset_inventory_services(container, session_factory)
+
     # MFA (TOTP) infrastructure.
     register_mfa(container, session_factory)
 
@@ -918,5 +921,24 @@ def _register_compliance_services(container: Container) -> None:
             c.resolve(ComplianceMapper),
             c.resolve(ComplianceCoverageCalculator),
             c.resolve(ComplianceGapAnalyzer),
+        ),
+    )
+
+
+def _register_asset_inventory_services(container: Container, session_factory: Any) -> None:
+    from kingsec.application.ports.asset_inventory import AssetInventoryRepositoryPort
+    from kingsec.application.services.asset_inventory import AssetInventoryService
+    from kingsec.infrastructure.persistence.repositories.asset_inventory import (
+        SQLAlchemyAssetInventoryRepository,
+    )
+
+    def _make_repo(_c: Any) -> AssetInventoryRepositoryPort:
+        return SQLAlchemyAssetInventoryRepository(session_factory())
+
+    container.register_factory(AssetInventoryRepositoryPort, _make_repo)
+    container.register_factory(
+        AssetInventoryService,
+        lambda c: AssetInventoryService(
+            repo=c.resolve(AssetInventoryRepositoryPort),
         ),
     )

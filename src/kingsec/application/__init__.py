@@ -53,6 +53,7 @@ from .dto import (
 from .enrichment import EnrichedFinding, FindingEnricher
 from .errors import (
     ApplicationError,
+    AssetNotFoundError,
     AssessmentNotFoundError,
     BackupNotFoundError,
     IllegalJobTransitionError,
@@ -353,6 +354,7 @@ __all__ = [
     "ApiKeyUnauthorizedError",
     "ApiKeyView",
     "ApplicationError",
+    "AssetNotFoundError",
     "AssessmentEvent",
     "AssessmentNotFoundError",
     "AssessmentRepository",

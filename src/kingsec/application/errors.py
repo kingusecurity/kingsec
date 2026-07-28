@@ -114,3 +114,7 @@ class SnapshotNotFoundError(ApplicationError):
 
 class RestoreNotFoundError(ApplicationError):
     """No restore operation exists for the requested identifier."""
+
+
+class AssetNotFoundError(ApplicationError):
+    """No asset exists for the requested identifier."""

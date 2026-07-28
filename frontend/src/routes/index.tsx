@@ -27,6 +27,8 @@ const AuditLogPage = lazy(() => import('@/pages/AuditLogPage').then(m => ({ defa
 const UIShowcasePage = lazy(() => import('@/pages/UIShowcasePage').then(m => ({ default: m.UIShowcasePage })))
 const AIAssistantPage = lazy(() => import('@/pages/AIAssistantPage').then(m => ({ default: m.AIAssistantPage })))
 const ComplianceDashboardPage = lazy(() => import('@/pages/ComplianceDashboardPage').then(m => ({ default: m.ComplianceDashboardPage })))
+const AssetInventoryPage = lazy(() => import('@/pages/AssetInventoryPage').then(m => ({ default: m.AssetInventoryPage })))
+const AssetDetailPage = lazy(() => import('@/pages/AssetDetailPage').then(m => ({ default: m.AssetDetailPage })))
 
 function PageLoader() {
   return (
@@ -125,6 +127,14 @@ export const router = createBrowserRouter([
       {
         path: 'compliance',
         element: <Suspense fallback={<PageLoader />}><ComplianceDashboardPage /></Suspense>,
+      },
+      {
+        path: 'assets',
+        element: <Suspense fallback={<PageLoader />}><AssetInventoryPage /></Suspense>,
+      },
+      {
+        path: 'assets/:id',
+        element: <Suspense fallback={<PageLoader />}><AssetDetailPage /></Suspense>,
       },
       {
         path: 'settings',

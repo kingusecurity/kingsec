@@ -353,3 +353,130 @@ def asset_to_domain(orm: AssetModel) -> Asset:
         discovered_at=datetime.fromisoformat(orm.created_at),
         tags=frozenset(),
     )
+
+
+# ===========================================================================
+#  Extended Asset Inventory mappers  (Phase 18)
+# ===========================================================================
+
+from kingsec.domain.asset import Asset as DomainAsset
+from kingsec.domain.identifiers import AssetId
+
+
+def inventory_asset_to_orm(asset: DomainAsset) -> AssetModel:
+    """Map a domain ``Asset`` entity to an ``AssetModel`` ORM row."""
+    import json
+
+    return AssetModel(
+        id=str(asset.id),
+        asset_type=asset.asset_type.value,
+        hostname=asset.hostname,
+        ip_address=asset.ip_address,
+        domain=asset.domain,
+        fqdn=asset.fqdn,
+        mac_address=asset.mac_address,
+        operating_system=asset.operating_system,
+        os_version=asset.os_version,
+        owner=asset.owner,
+        criticality=asset.criticality.value,
+        location=asset.location,
+        description=asset.description,
+        open_ports=json.dumps(asset.open_ports) if asset.open_ports else None,
+        certificate_issuer=asset.certificate_issuer,
+        certificate_expiry=asset.certificate_expiry,
+        tls_version=asset.tls_version,
+        cloud_provider=asset.cloud_provider,
+        cloud_region=asset.cloud_region,
+        container_runtime=asset.container_runtime,
+        container_image=asset.container_image,
+        database_type=asset.database_type,
+        database_version=asset.database_version,
+        web_server=asset.web_server,
+        programming_language=asset.programming_language,
+        framework=asset.framework,
+        cms=asset.cms,
+        first_seen=asset.first_seen,
+        last_seen=asset.last_seen,
+        risk_score=asset.risk_score,
+        metadata_json=json.dumps(asset.metadata) if asset.metadata else None,
+        created_at=asset.created_at,
+        updated_at=asset.updated_at,
+    )
+
+
+def inventory_asset_to_domain(orm: AssetModel) -> DomainAsset:
+    """Rebuild a domain ``Asset`` entity from an ``AssetModel`` row."""
+    import json
+
+    from kingsec.domain.asset import (
+        AssetCriticality,
+        AssetService,
+        AssetTag,
+        AssetType,
+        TechnologyFingerprint,
+    )
+
+    tags = [AssetTag(key=t.key, value=t.value) for t in (orm.tags or [])]
+    technologies = [
+        TechnologyFingerprint(
+            technology_type=t.technology_type,
+            name=t.name,
+            version=t.version,
+            vendor=t.vendor,
+            confidence=t.confidence,
+        )
+        for t in (orm.technologies or [])
+    ]
+    services: list[AssetService] = []
+    open_ports: list[int] = []
+    if orm.open_ports:
+        try:
+            open_ports = json.loads(orm.open_ports)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    metadata: dict[str, object] = {}
+    if orm.metadata_json:
+        try:
+            metadata = json.loads(orm.metadata_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    return DomainAsset(
+        AssetId(orm.id),
+        AssetType(orm.asset_type),
+        hostname=orm.hostname,
+        ip_address=orm.ip_address,
+        domain=orm.domain,
+        fqdn=orm.fqdn,
+        mac_address=orm.mac_address,
+        operating_system=orm.operating_system,
+        os_version=orm.os_version,
+        criticality=AssetCriticality(orm.criticality) if orm.criticality else AssetCriticality.MEDIUM,
+        owner=orm.owner,
+        location=orm.location,
+        description=orm.description,
+        tags=tags,
+        services=services,
+        technologies=technologies,
+        open_ports=open_ports,
+        certificate_issuer=orm.certificate_issuer,
+        certificate_expiry=orm.certificate_expiry,
+        tls_version=orm.tls_version,
+        cloud_provider=orm.cloud_provider,
+        cloud_region=orm.cloud_region,
+        container_runtime=orm.container_runtime,
+        container_image=orm.container_image,
+        database_type=orm.database_type,
+        database_version=orm.database_version,
+        web_server=orm.web_server,
+        programming_language=orm.programming_language,
+        framework=orm.framework,
+        cms=orm.cms,
+        first_seen=orm.first_seen,
+        last_seen=orm.last_seen,
+        risk_score=orm.risk_score,
+        metadata=metadata,
+        created_at=orm.created_at,
+        updated_at=orm.updated_at,
+    )
+

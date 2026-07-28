@@ -19,7 +19,7 @@ Storage decisions worth noting:
 
 from typing import Any
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
 
@@ -405,22 +405,107 @@ class JobModel(Base):
 
 
 class AssetModel(Base):
-    """A discovered network asset."""
+    """A discovered network or cloud asset."""
 
     __tablename__ = "assets"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
+    asset_type: Mapped[str] = mapped_column(String, nullable=False, default="host")
     hostname: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     ip_address: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    domain: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    fqdn: Mapped[str | None] = mapped_column(String, nullable=True)
+    mac_address: Mapped[str | None] = mapped_column(String, nullable=True)
     operating_system: Mapped[str | None] = mapped_column(String, nullable=True)
+    os_version: Mapped[str | None] = mapped_column(String, nullable=True)
     owner: Mapped[str | None] = mapped_column(String, nullable=True)
     criticality: Mapped[str | None] = mapped_column(String, nullable=True)
-    created_at: Mapped[str] = mapped_column(String, nullable=False)  # ISO-8601
+    location: Mapped[str | None] = mapped_column(String, nullable=True)
+    description: Mapped[str | None] = mapped_column(String, nullable=True)
+    open_ports: Mapped[str | None] = mapped_column(String, nullable=True)
+    certificate_issuer: Mapped[str | None] = mapped_column(String, nullable=True)
+    certificate_expiry: Mapped[str | None] = mapped_column(String, nullable=True)
+    tls_version: Mapped[str | None] = mapped_column(String, nullable=True)
+    cloud_provider: Mapped[str | None] = mapped_column(String, nullable=True)
+    cloud_region: Mapped[str | None] = mapped_column(String, nullable=True)
+    container_runtime: Mapped[str | None] = mapped_column(String, nullable=True)
+    container_image: Mapped[str | None] = mapped_column(String, nullable=True)
+    database_type: Mapped[str | None] = mapped_column(String, nullable=True)
+    database_version: Mapped[str | None] = mapped_column(String, nullable=True)
+    web_server: Mapped[str | None] = mapped_column(String, nullable=True)
+    programming_language: Mapped[str | None] = mapped_column(String, nullable=True)
+    framework: Mapped[str | None] = mapped_column(String, nullable=True)
+    cms: Mapped[str | None] = mapped_column(String, nullable=True)
+    first_seen: Mapped[str | None] = mapped_column(String, nullable=True)
+    last_seen: Mapped[str | None] = mapped_column(String, nullable=True)
+    risk_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    metadata_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
 
     findings: Mapped[list[FindingModel]] = relationship(
         foreign_keys=[FindingModel.asset_id],
         lazy="selectin",
     )
+    tags: Mapped[list["AssetTagModel"]] = relationship(
+        back_populates="asset",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    technologies: Mapped[list["AssetTechnologyModel"]] = relationship(
+        back_populates="asset",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
+
+class AssetTagModel(Base):
+    __tablename__ = "asset_tags"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"), nullable=False, index=True)
+    key: Mapped[str] = mapped_column(String, nullable=False)
+    value: Mapped[str] = mapped_column(String, nullable=False)
+
+    asset: Mapped[AssetModel] = relationship(back_populates="tags")
+
+
+class AssetTechnologyModel(Base):
+    __tablename__ = "asset_technologies"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"), nullable=False, index=True)
+    technology_type: Mapped[str] = mapped_column(String, nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    version: Mapped[str | None] = mapped_column(String, nullable=True)
+    vendor: Mapped[str | None] = mapped_column(String, nullable=True)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+
+    asset: Mapped[AssetModel] = relationship(back_populates="technologies")
+
+
+class AssetRelationshipModel(Base):
+    __tablename__ = "asset_relationships"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source_asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"), nullable=False, index=True)
+    target_asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"), nullable=False, index=True)
+    relationship_type: Mapped[str] = mapped_column(String, nullable=False)
+    metadata_json: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class AssetHistoryModel(Base):
+    __tablename__ = "asset_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"), nullable=False, index=True)
+    event_type: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(String, nullable=False)
+    timestamp: Mapped[str] = mapped_column(String, nullable=False)
+    previous_value: Mapped[str | None] = mapped_column(String, nullable=True)
+    new_value: Mapped[str | None] = mapped_column(String, nullable=True)
+    actor: Mapped[str] = mapped_column(String, nullable=False, default="system")
+    metadata_json: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class ScheduleORM(Base):

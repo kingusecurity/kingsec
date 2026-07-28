@@ -52,3 +52,93 @@ class FindingId:
 
     def __str__(self) -> str:
         return self.value
+
+
+@dataclass(frozen=True, slots=True)
+class ScanId:
+    value: str
+
+    def __post_init__(self) -> None:
+        ensure_non_empty(self.value, "ScanId")
+
+    @classmethod
+    def generate(cls) -> ScanId:
+        return cls(f"scan-{uuid.uuid4().hex}")
+
+    def __str__(self) -> str:
+        return self.value
+
+
+@dataclass(frozen=True, slots=True)
+class AssetId:
+    value: str
+
+    def __post_init__(self) -> None:
+        ensure_non_empty(self.value, "AssetId")
+
+    @classmethod
+    def generate(cls) -> AssetId:
+        return cls(f"ast-{uuid.uuid4().hex}")
+
+    def __str__(self) -> str:
+        return self.value
+
+
+@dataclass(frozen=True, slots=True)
+class ComplianceFrameworkId:
+    value: str
+
+    def __post_init__(self) -> None:
+        ensure_non_empty(self.value, "ComplianceFrameworkId")
+
+    @classmethod
+    def generate(cls) -> ComplianceFrameworkId:
+        return cls(f"cfw-{uuid.uuid4().hex}")
+
+    def __str__(self) -> str:
+        return self.value
+
+
+@dataclass(frozen=True, slots=True)
+class MappingId:
+    value: str
+
+    def __post_init__(self) -> None:
+        ensure_non_empty(self.value, "MappingId")
+
+    @classmethod
+    def generate(cls) -> MappingId:
+        return cls(f"map-{uuid.uuid4().hex}")
+
+    def __str__(self) -> str:
+        return self.value
+
+
+@dataclass(frozen=True, slots=True)
+class ReportId:
+    value: str
+
+    def __post_init__(self) -> None:
+        ensure_non_empty(self.value, "ReportId")
+
+    @classmethod
+    def generate(cls) -> ReportId:
+        return cls(f"rpt-{uuid.uuid4().hex}")
+
+    def __str__(self) -> str:
+        return self.value
+
+
+@dataclass(frozen=True, slots=True)
+class ScheduleId:
+    value: str
+
+    def __post_init__(self) -> None:
+        ensure_non_empty(self.value, "ScheduleId")
+
+    @classmethod
+    def generate(cls) -> ScheduleId:
+        return cls(f"sch-{uuid.uuid4().hex}")
+
+    def __str__(self) -> str:
+        return self.value

@@ -1,34 +1,15 @@
-"""KingSec domain layer — pure business model, standard-library only.
+"""KingSec domain layer -- pure business model, standard-library only.
 
 This package has NO outward dependencies: no infrastructure, no application, no
 shared kernel, no third-party libraries. Everything below is expressed in plain
 Python so the core business rules can be understood and tested in isolation.
-
-Public API
-    Entities / aggregate
-        Assessment, Finding, User, AuditEvent
-    Value objects
-        AssessmentId, FindingId, AuditEventId, Target, TargetType,
-        Authorization, Evidence, Recommendation, Report, Verdict,
-        FindingSummary, AuditEntry, ScannerId, ScannerPluginMetadata,
-        ScannerCapability, PluginConfig, PluginAvailability, ScannerResult
-    Enums
-        ApiKeyStatus, ApiKeyScope, Severity, AssessmentStatus,
-        FindingStatus, Role, AuditAction, AuditOutcome, AuditSeverity,
-        ScanCategory, OutputFormat
-    Enums
-        ApiKeyStatus, ApiKeyScope, Severity, AssessmentStatus,
-        FindingStatus, Role, AuditAction, ScanCategory, OutputFormat
-    Errors
-        DomainError, InvariantViolation, IllegalStateTransition,
-        UserError, UserNotFoundError, InvalidCredentialsError,
-        UserDisabledError, PasswordValidationError
 """
 
 from __future__ import annotations
 
 from .api_key import ApiKey, ApiKeyScope, ApiKeyStatus
 from .assessment import Assessment
+from .asset import Asset, AssetCriticality, AssetHistoryEntry, AssetRelationship, AssetService, AssetTag, AssetType, TechnologyFingerprint
 from .audit import AuditAction, AuditEntry
 from .audit_event import AuditEvent, AuditEventId, AuditOutcome, AuditSeverity
 from .authorization import Authorization
@@ -45,7 +26,7 @@ from .enums import AssessmentStatus, FindingStatus, Role, Severity
 from .errors import DomainError, IllegalStateTransition, InvariantViolation
 from .evidence import Evidence, Recommendation
 from .finding import Finding
-from .identifiers import AssessmentId, FindingId
+from .identifiers import AssessmentId, AssetId, ComplianceFrameworkId, FindingId, MappingId, ReportId, ScanId, ScheduleId
 from .organization import (
     OrgActivityEvent,
     OrgEventType,
@@ -143,6 +124,14 @@ __all__ = [
     "Assessment",
     "AssessmentId",
     "AssessmentStatus",
+    "Asset",
+    "AssetCriticality",
+    "AssetHistoryEntry",
+    "AssetRelationship",
+    "AssetService",
+    "AssetTag",
+    "AssetType",
+    "AssetId",
     "AuditAction",
     "AuditEntry",
     "AuditEvent",
@@ -155,6 +144,7 @@ __all__ = [
     "BackupSnapshot",
     "BackupStatus",
     "BackupType",
+    "ComplianceFrameworkId",
     "DeliveryRecord",
     "DeliveryStatus",
     "DependencyHealth",
@@ -175,6 +165,7 @@ __all__ = [
     "InvariantViolation",
     "LivenessReport",
     "LockoutPolicy",
+    "MappingId",
     "MfaRecoveryCode",
     "MfaSecret",
     "MfaStatus",
@@ -197,6 +188,7 @@ __all__ = [
     "Recommendation",
     "RecoveryCodeStatus",
     "Report",
+    "ReportId",
     "ResourceUsage",
     "RestoreOperation",
     "RetentionPolicy",
@@ -205,6 +197,7 @@ __all__ = [
     "Role",
     "SIEMBatchResult",
     "ScanCategory",
+    "ScanId",
     "ScanSchedule",
     "ScannerCapability",
     "ScannerId",
@@ -226,6 +219,7 @@ __all__ = [
     "SystemMetrics",
     "Target",
     "TargetType",
+    "TechnologyFingerprint",
     "TicketReference",
     "User",
     "UserDisabledError",
