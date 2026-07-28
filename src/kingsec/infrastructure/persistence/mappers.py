@@ -40,6 +40,7 @@ from .models import (
     AssessmentORM,
     AssetModel,
     EvidenceORM,
+    ExposureModel,
     FindingModel,
     FindingORM,
     JobModel,
@@ -401,6 +402,104 @@ def inventory_asset_to_orm(asset: DomainAsset) -> AssetModel:
         metadata_json=json.dumps(asset.metadata) if asset.metadata else None,
         created_at=asset.created_at,
         updated_at=asset.updated_at,
+    )
+
+
+# ===========================================================================
+#  Attack Surface mappers  (Phase 19)
+# ===========================================================================
+
+from kingsec.domain.attack_surface import Exposure as DomainExposure
+from kingsec.domain.attack_surface import ExposureDetail, ExposureSeverity, ExposureStatus, ExposureType
+from kingsec.domain.identifiers import AttackSurfaceId
+
+
+def exposure_to_orm(exposure: DomainExposure) -> ExposureModel:
+    import json
+    return ExposureModel(
+        id=str(exposure.id),
+        asset_id=exposure.asset_id,
+        exposure_type=exposure.exposure_type.value,
+        severity=exposure.severity.value,
+        title=exposure.title,
+        description=exposure.description,
+        detail_json=json.dumps([{"key": d.key, "value": d.value, "metadata": d.metadata} for d in exposure.detail]) if exposure.detail else None,
+        status=exposure.status.value,
+        source=exposure.source,
+        port=exposure.port,
+        protocol=exposure.protocol,
+        hostname=exposure.hostname,
+        ip_address=exposure.ip_address,
+        domain=exposure.domain,
+        url=exposure.url,
+        tls_version=exposure.tls_version,
+        certificate_issuer=exposure.certificate_issuer,
+        certificate_expiry=exposure.certificate_expiry,
+        header_name=exposure.header_name,
+        header_value=exposure.header_value,
+        technology_name=exposure.technology_name,
+        technology_version=exposure.technology_version,
+        cloud_provider=exposure.cloud_provider,
+        cloud_bucket=exposure.cloud_bucket,
+        evidence=exposure.evidence,
+        remediation=exposure.remediation,
+        risk_score=exposure.risk_score,
+        metadata_json=json.dumps(exposure.metadata) if exposure.metadata else None,
+        first_seen=exposure.first_seen,
+        last_seen=exposure.last_seen,
+        created_at=exposure.created_at,
+        updated_at=exposure.updated_at,
+    )
+
+
+def exposure_to_domain(orm: ExposureModel) -> DomainExposure:
+    import json
+    detail: list[ExposureDetail] = []
+    if orm.detail_json:
+        try:
+            raw = json.loads(orm.detail_json)
+            detail = [ExposureDetail(key=d["key"], value=d["value"], metadata=d.get("metadata", {})) for d in raw]
+        except (json.JSONDecodeError, TypeError):
+            pass
+    metadata: dict[str, object] = {}
+    if orm.metadata_json:
+        try:
+            metadata = json.loads(orm.metadata_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return DomainExposure(
+        AttackSurfaceId(orm.id),
+        orm.asset_id,
+        ExposureType(orm.exposure_type),
+        severity=ExposureSeverity(orm.severity),
+        title=orm.title,
+        description=orm.description,
+        detail=detail,
+        status=ExposureStatus(orm.status),
+        source=orm.source,
+        port=orm.port,
+        protocol=orm.protocol,
+        hostname=orm.hostname,
+        ip_address=orm.ip_address,
+        domain=orm.domain,
+        url=orm.url,
+        tls_version=orm.tls_version,
+        certificate_issuer=orm.certificate_issuer,
+        certificate_expiry=orm.certificate_expiry,
+        header_name=orm.header_name,
+        header_value=orm.header_value,
+        technology_name=orm.technology_name,
+        technology_version=orm.technology_version,
+        cloud_provider=orm.cloud_provider,
+        cloud_bucket=orm.cloud_bucket,
+        evidence=orm.evidence,
+        remediation=orm.remediation,
+        risk_score=orm.risk_score,
+        metadata=metadata,
+        first_seen=orm.first_seen,
+        last_seen=orm.last_seen,
+        created_at=orm.created_at,
+        updated_at=orm.updated_at,
     )
 
 

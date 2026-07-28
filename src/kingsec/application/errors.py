@@ -118,3 +118,7 @@ class RestoreNotFoundError(ApplicationError):
 
 class AssetNotFoundError(ApplicationError):
     """No asset exists for the requested identifier."""
+
+
+class ExposureNotFoundError(ApplicationError):
+    """No exposure exists for the requested identifier."""

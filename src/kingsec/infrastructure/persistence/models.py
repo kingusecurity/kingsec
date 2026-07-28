@@ -605,3 +605,58 @@ class OrgActivityEventORM(Base):
     message: Mapped[str] = mapped_column(String, nullable=False)
     metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     timestamp: Mapped[str] = mapped_column(String, nullable=False)
+
+
+# ===========================================================================
+#  Attack Surface Management models  (Phase 19)
+# ===========================================================================
+
+
+class ExposureModel(Base):
+    __tablename__ = "exposures"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    asset_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    exposure_type: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    severity: Mapped[str] = mapped_column(String, nullable=False, default="medium")
+    title: Mapped[str] = mapped_column(String, nullable=False, default="")
+    description: Mapped[str] = mapped_column(String, nullable=False, default="")
+    detail_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="active", index=True)
+    source: Mapped[str] = mapped_column(String, nullable=False, default="scanner")
+    port: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    protocol: Mapped[str | None] = mapped_column(String, nullable=True)
+    hostname: Mapped[str | None] = mapped_column(String, nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String, nullable=True)
+    domain: Mapped[str | None] = mapped_column(String, nullable=True)
+    url: Mapped[str | None] = mapped_column(String, nullable=True)
+    tls_version: Mapped[str | None] = mapped_column(String, nullable=True)
+    certificate_issuer: Mapped[str | None] = mapped_column(String, nullable=True)
+    certificate_expiry: Mapped[str | None] = mapped_column(String, nullable=True)
+    header_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    header_value: Mapped[str | None] = mapped_column(String, nullable=True)
+    technology_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    technology_version: Mapped[str | None] = mapped_column(String, nullable=True)
+    cloud_provider: Mapped[str | None] = mapped_column(String, nullable=True)
+    cloud_bucket: Mapped[str | None] = mapped_column(String, nullable=True)
+    evidence: Mapped[str | None] = mapped_column(Text, nullable=True)
+    remediation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    risk_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    metadata_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    first_seen: Mapped[str] = mapped_column(String, nullable=False)
+    last_seen: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class ExposureHistoryModel(Base):
+    __tablename__ = "exposure_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    exposure_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    event_type: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(String, nullable=False)
+    timestamp: Mapped[str] = mapped_column(String, nullable=False)
+    previous_value: Mapped[str | None] = mapped_column(String, nullable=True)
+    new_value: Mapped[str | None] = mapped_column(String, nullable=True)
+    actor: Mapped[str] = mapped_column(String, nullable=False, default="system")

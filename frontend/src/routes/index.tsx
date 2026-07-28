@@ -29,6 +29,8 @@ const AIAssistantPage = lazy(() => import('@/pages/AIAssistantPage').then(m => (
 const ComplianceDashboardPage = lazy(() => import('@/pages/ComplianceDashboardPage').then(m => ({ default: m.ComplianceDashboardPage })))
 const AssetInventoryPage = lazy(() => import('@/pages/AssetInventoryPage').then(m => ({ default: m.AssetInventoryPage })))
 const AssetDetailPage = lazy(() => import('@/pages/AssetDetailPage').then(m => ({ default: m.AssetDetailPage })))
+const AttackSurfacePage = lazy(() => import('@/pages/AttackSurfacePage').then(m => ({ default: m.AttackSurfacePage })))
+const AttackSurfaceDetailPage = lazy(() => import('@/pages/AttackSurfaceDetailPage').then(m => ({ default: m.AttackSurfaceDetailPage })))
 
 function PageLoader() {
   return (
@@ -135,6 +137,14 @@ export const router = createBrowserRouter([
       {
         path: 'assets/:id',
         element: <Suspense fallback={<PageLoader />}><AssetDetailPage /></Suspense>,
+      },
+      {
+        path: 'attack-surface',
+        element: <Suspense fallback={<PageLoader />}><AttackSurfacePage /></Suspense>,
+      },
+      {
+        path: 'attack-surface/:id',
+        element: <Suspense fallback={<PageLoader />}><AttackSurfaceDetailPage /></Suspense>,
       },
       {
         path: 'settings',

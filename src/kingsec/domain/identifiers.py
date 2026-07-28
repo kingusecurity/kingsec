@@ -142,3 +142,18 @@ class ScheduleId:
 
     def __str__(self) -> str:
         return self.value
+
+
+@dataclass(frozen=True, slots=True)
+class AttackSurfaceId:
+    value: str
+
+    def __post_init__(self) -> None:
+        ensure_non_empty(self.value, "AttackSurfaceId")
+
+    @classmethod
+    def generate(cls) -> AttackSurfaceId:
+        return cls(f"asmt-{uuid.uuid4().hex}")
+
+    def __str__(self) -> str:
+        return self.value

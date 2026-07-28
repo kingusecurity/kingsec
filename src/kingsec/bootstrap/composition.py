@@ -229,6 +229,9 @@ def _register_adapters(
     # Asset inventory (Phase 18).
     _register_asset_inventory_services(container, session_factory)
 
+    # Attack surface management (Phase 19).
+    _register_attack_surface_services(container, session_factory)
+
     # MFA (TOTP) infrastructure.
     register_mfa(container, session_factory)
 
@@ -921,6 +924,25 @@ def _register_compliance_services(container: Container) -> None:
             c.resolve(ComplianceMapper),
             c.resolve(ComplianceCoverageCalculator),
             c.resolve(ComplianceGapAnalyzer),
+        ),
+    )
+
+
+def _register_attack_surface_services(container: Container, session_factory: Any) -> None:
+    from kingsec.application.ports.attack_surface import AttackSurfaceRepositoryPort
+    from kingsec.application.services.attack_surface import AttackSurfaceService
+    from kingsec.infrastructure.persistence.repositories.attack_surface import (
+        SQLAlchemyAttackSurfaceRepository,
+    )
+
+    def _make_repo(_c: Any) -> AttackSurfaceRepositoryPort:
+        return SQLAlchemyAttackSurfaceRepository(session_factory())
+
+    container.register_factory(AttackSurfaceRepositoryPort, _make_repo)
+    container.register_factory(
+        AttackSurfaceService,
+        lambda c: AttackSurfaceService(
+            repo=c.resolve(AttackSurfaceRepositoryPort),
         ),
     )
 

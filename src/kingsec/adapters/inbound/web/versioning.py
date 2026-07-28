@@ -25,6 +25,7 @@ from .dashboard_routes import router as v1_dashboard_router
 from .execution_routes import router as v1_execution_router
 from .ai_routes import router as v1_ai_router
 from .asset_routes import router as v1_asset_router
+from .attack_surface_routes import router as v1_attack_surface_router
 from .health_routes import router as v1_health_router
 from .license_routes import router as v1_license_router
 from .integration_routes import router as v1_integration_router
@@ -65,6 +66,7 @@ def register_versioned_routes(app: FastAPI) -> None:
     app.include_router(v1_backup_router)
     app.include_router(v1_ai_router)
     app.include_router(v1_asset_router)
+    app.include_router(v1_attack_surface_router)
     app.include_router(v1_health_router)
     app.include_router(v1_compliance_router)
     app.include_router(v1_integration_router)
