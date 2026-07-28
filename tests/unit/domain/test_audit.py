@@ -91,6 +91,8 @@ class TestAuditAction:
             "license_validation_failed",
             "license_deactivated",
             "edition_changed",
+            "compliance_report_generated",
+            "compliance_exported",
         }
         actual = {a.value for a in AuditAction}
         assert actual == expected

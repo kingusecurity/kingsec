@@ -20,6 +20,7 @@ from .agent_routes import router as v1_agent_router
 from .audit import router as v1_audit_router
 from .audit_events import router as v1_audit_events_router
 from .backup_routes import router as v1_backup_router
+from .compliance_routes import router as v1_compliance_router
 from .dashboard_routes import router as v1_dashboard_router
 from .execution_routes import router as v1_execution_router
 from .ai_routes import router as v1_ai_router
@@ -63,6 +64,7 @@ def register_versioned_routes(app: FastAPI) -> None:
     app.include_router(v1_backup_router)
     app.include_router(v1_ai_router)
     app.include_router(v1_health_router)
+    app.include_router(v1_compliance_router)
     app.include_router(v1_integration_router)
     app.include_router(v1_organization_router)
     app.include_router(v1_license_router)

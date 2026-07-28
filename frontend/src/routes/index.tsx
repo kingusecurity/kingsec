@@ -26,6 +26,7 @@ const NotificationsPage = lazy(() => import('@/pages/NotificationsPage').then(m 
 const AuditLogPage = lazy(() => import('@/pages/AuditLogPage').then(m => ({ default: m.AuditLogPage })))
 const UIShowcasePage = lazy(() => import('@/pages/UIShowcasePage').then(m => ({ default: m.UIShowcasePage })))
 const AIAssistantPage = lazy(() => import('@/pages/AIAssistantPage').then(m => ({ default: m.AIAssistantPage })))
+const ComplianceDashboardPage = lazy(() => import('@/pages/ComplianceDashboardPage').then(m => ({ default: m.ComplianceDashboardPage })))
 
 function PageLoader() {
   return (
@@ -120,6 +121,10 @@ export const router = createBrowserRouter([
       {
         path: 'ai',
         element: <Suspense fallback={<PageLoader />}><AIAssistantPage /></Suspense>,
+      },
+      {
+        path: 'compliance',
+        element: <Suspense fallback={<PageLoader />}><ComplianceDashboardPage /></Suspense>,
       },
       {
         path: 'settings',

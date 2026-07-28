@@ -16,6 +16,7 @@ import {
   Search,
   FileText,
   UserCog,
+  ClipboardCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -35,6 +36,7 @@ const navItems: NavItem[] = [
   { to: '/schedules', label: 'Schedules', icon: CalendarCheck, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/findings', label: 'Findings', icon: Search, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/reports', label: 'Reports', icon: FileText, roles: ['viewer', 'analyst', 'admin'] },
+  { to: '/compliance', label: 'Compliance', icon: ClipboardCheck, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/administration', label: 'Administration', icon: UserCog, roles: ['admin'] },
   { to: '/monitor', label: 'Monitor', icon: Radio, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/notifications', label: 'Notifications', icon: Bell, roles: ['viewer', 'analyst', 'admin'] },

@@ -133,6 +133,10 @@ class AuditAction(StrEnum):
     LICENSE_DEACTIVATED = "license_deactivated"
     EDITION_CHANGED = "edition_changed"
 
+    # Compliance
+    COMPLIANCE_REPORT_GENERATED = "compliance_report_generated"
+    COMPLIANCE_EXPORTED = "compliance_exported"
+
     HEALTH_CHECK = "health_check"
     LIVENESS_CHECK = "liveness_check"
     READINESS_CHECK = "readiness_check"

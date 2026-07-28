@@ -223,6 +223,9 @@ def _register_adapters(
     # License & licensing infrastructure (Phase 15).
     _register_license_infrastructure(container, session_factory)
 
+    # Compliance framework mapping (Phase 17).
+    _register_compliance_services(container)
+
     # MFA (TOTP) infrastructure.
     register_mfa(container, session_factory)
 
@@ -895,4 +898,25 @@ def _register_use_cases(container: Container) -> None:
     container.register_factory(
         SearchUsers,
         lambda c: SearchUsers(c.resolve(UserRepository)),
+    )
+
+
+def _register_compliance_services(container: Container) -> None:
+    from kingsec.application.compliance import (
+        ComplianceCoverageCalculator,
+        ComplianceGapAnalyzer,
+        ComplianceMapper,
+        ComplianceReportGenerator,
+    )
+
+    container.register_instance(ComplianceMapper, ComplianceMapper())
+    container.register_instance(ComplianceCoverageCalculator, ComplianceCoverageCalculator())
+    container.register_instance(ComplianceGapAnalyzer, ComplianceGapAnalyzer())
+    container.register_factory(
+        ComplianceReportGenerator,
+        lambda c: ComplianceReportGenerator(
+            c.resolve(ComplianceMapper),
+            c.resolve(ComplianceCoverageCalculator),
+            c.resolve(ComplianceGapAnalyzer),
+        ),
     )
