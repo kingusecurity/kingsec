@@ -85,6 +85,12 @@ class TestAuditAction:
             "ticket_created",
             "export_completed",
             "connection_failed",
+            "license_activated",
+            "license_expired",
+            "license_renewed",
+            "license_validation_failed",
+            "license_deactivated",
+            "edition_changed",
         }
         actual = {a.value for a in AuditAction}
         assert actual == expected

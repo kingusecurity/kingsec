@@ -79,9 +79,13 @@ EXPECTED_TABLES = frozenset(
         "audit_events",
         "evidence",
         "findings",
+        "licenses",
         "mfa_recovery_codes",
         "mfa_secrets",
         "notifications",
+        "org_activity_events",
+        "organization_memberships",
+        "organizations",
         "recommendations",
         "reports",
         "revoked_tokens",
@@ -91,6 +95,8 @@ EXPECTED_TABLES = frozenset(
         "scan_results",
         "schedules",
         "sessions",
+        "team_memberships",
+        "teams",
         "users",
     }
 )

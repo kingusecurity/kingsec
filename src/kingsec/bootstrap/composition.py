@@ -220,6 +220,9 @@ def _register_adapters(
     # Organization & team persistence (Phase 14).
     _register_organization_repository(container, session_factory)
 
+    # License & licensing infrastructure (Phase 15).
+    _register_license_infrastructure(container, session_factory)
+
     # MFA (TOTP) infrastructure.
     register_mfa(container, session_factory)
 
@@ -354,6 +357,29 @@ def _register_organization_repository(container: Container, session_factory: Any
         return SQLAlchemyOrganizationRepository(session_factory())
 
     container.register_factory(OrganizationRepository, _factory)
+
+
+def _register_license_infrastructure(container: Container, session_factory: Any) -> None:
+    from kingsec.application.ports.outbound.license_repository import LicenseRepository
+    from kingsec.application.ports.outbound.license_validator import LicenseValidator
+    from kingsec.application.services.licensing import LicenseActivationService, LicenseGate, LicenseValidatorImpl
+    from kingsec.infrastructure.persistence.repositories.license import SQLAlchemyLicenseRepository
+
+    def _repo_factory(_c: Any) -> LicenseRepository:
+        return SQLAlchemyLicenseRepository(session_factory())
+
+    container.register_factory(LicenseRepository, _repo_factory)
+    container.register_factory(LicenseValidator, lambda c: LicenseValidatorImpl(c.resolve(LicenseRepository)))
+    container.register_factory(LicenseGate, lambda c: LicenseGate(c.resolve(LicenseRepository), c.resolve(LicenseValidator)))
+    container.register_factory(
+        LicenseActivationService,
+        lambda c: LicenseActivationService(
+            c.resolve(LicenseRepository),
+            c.resolve(LicenseValidator),
+            c.resolve(LicenseGate),
+            c.resolve(AuditPublisher),
+        ),
+    )
 
 
 def _register_job_service(container: Container, session_factory: Any) -> None:

@@ -1,8 +1,8 @@
 """no changes
 
-Revision ID: 5eed36f545eb
-Revises: 6cc86a4122d1
-Create Date: 2026-07-27 18:31:43.220344
+Revision ID: dc8702cefe14
+Revises: a803fc293d3a
+Create Date: 2026-07-28 16:52:50.497899
 """
 
 from __future__ import annotations
@@ -18,8 +18,8 @@ if TYPE_CHECKING:
 
 
 # revision identifiers, used by Alembic.
-revision: str = '5eed36f545eb'
-down_revision: str | None = '6cc86a4122d1'
+revision: str = 'dc8702cefe14'
+down_revision: str | None = 'a803fc293d3a'
 branch_labels: str | None = None
 depends_on: str | None = None
 

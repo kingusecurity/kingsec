@@ -491,6 +491,25 @@ class TeamMembershipORM(Base):
     created_at: Mapped[str] = mapped_column(String, nullable=False)
 
 
+class LicenseORM(Base):
+    __tablename__ = "licenses"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    edition: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    license_key: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
+    issued_to: Mapped[str] = mapped_column(String, nullable=False, default="")
+    company: Mapped[str] = mapped_column(String, nullable=False, default="")
+    email: Mapped[str] = mapped_column(String, nullable=False, default="")
+    max_users: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_organizations: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    expires_at: Mapped[str] = mapped_column(String, nullable=False, default="")
+    features: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    signature: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
 class OrgActivityEventORM(Base):
     __tablename__ = "org_activity_events"
 

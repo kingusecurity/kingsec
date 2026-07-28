@@ -125,6 +125,14 @@ class AuditAction(StrEnum):
     EXPORT_COMPLETED = "export_completed"
     CONNECTION_FAILED = "connection_failed"
 
+    # License lifecycle
+    LICENSE_ACTIVATED = "license_activated"
+    LICENSE_EXPIRED = "license_expired"
+    LICENSE_RENEWED = "license_renewed"
+    LICENSE_VALIDATION_FAILED = "license_validation_failed"
+    LICENSE_DEACTIVATED = "license_deactivated"
+    EDITION_CHANGED = "edition_changed"
+
     HEALTH_CHECK = "health_check"
     LIVENESS_CHECK = "liveness_check"
     READINESS_CHECK = "readiness_check"
