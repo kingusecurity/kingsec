@@ -1,14 +1,15 @@
-import { useState } from 'react'
-import { Shield, ShieldOff, AlertTriangle, CheckCircle, RefreshCw, Package, Wifi, WifiOff, Search, Filter } from 'lucide-react'
+import { useState, useCallback, useEffect } from 'react'
+import { Shield, ShieldOff, AlertTriangle, CheckCircle, RefreshCw, Package, Wifi, WifiOff, Search, Filter, Copy, Terminal, ExternalLink, FileText } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Button } from '@/components/ui/Button'
+import { toast } from '@/components/ui/Toast'
 import { cn } from '@/lib/utils'
-import { useScannerHealth, useScannerDetail } from '@/hooks/use-scanner-health'
-import type { ScannerStatus } from '@/api/scanner-health'
+import { useScannerHealth, useScannerDetail, useScannerInstallInfo } from '@/hooks/use-scanner-health'
+import type { ScannerStatus, InstallCommand } from '@/api/scanner-health'
 
 type FilterMode = 'all' | 'installed' | 'missing' | 'warning'
 
@@ -114,6 +115,59 @@ function ScannerRow({
   )
 }
 
+function CopyButton({ text, label }: { text: string; label: string }) {
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success('Copied', `${label} copied to clipboard`)
+    } catch {
+      toast.error('Copy failed', 'Could not copy to clipboard')
+    }
+  }, [text, label])
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="inline-flex items-center gap-1 text-xs text-accent hover:text-accent/80 transition-colors"
+      title={`Copy ${label}`}
+    >
+      <Copy className="h-3 w-3" />
+      Copy
+    </button>
+  )
+}
+
+function FixButton({ scannerId }: { scannerId: string }) {
+  const { data: installInfo, isLoading } = useScannerInstallInfo(scannerId)
+  const [copied, setCopied] = useState(false)
+
+  const handleFix = useCallback(async () => {
+    if (!installInfo?.best_command?.command) return
+    try {
+      await navigator.clipboard.writeText(installInfo.best_command.command)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+      toast.success('Command copied', 'Paste and run in your terminal')
+    } catch {
+      toast.error('Copy failed', 'Could not copy command to clipboard')
+    }
+  }, [installInfo])
+
+  if (isLoading) return <Skeleton className="h-7 w-24 rounded-md" />
+  if (!installInfo?.best_command) return null
+
+  return (
+    <Button
+      variant="outline"
+      size="xs"
+      onClick={handleFix}
+      iconLeft={<Terminal className="h-3 w-3" />}
+    >
+      {copied ? 'Copied!' : 'Copy Install Command'}
+    </Button>
+  )
+}
+
 function ScannerDetailPanel({
   scannerId,
   onClose,
@@ -122,6 +176,7 @@ function ScannerDetailPanel({
   onClose: () => void
 }) {
   const { data, isLoading, error } = useScannerDetail(scannerId)
+  const { data: installInfo } = useScannerInstallInfo(scannerId)
   const scanner = data
 
   if (isLoading) {
@@ -140,7 +195,10 @@ function ScannerDetailPanel({
     <div className="border-t border-border p-4 space-y-3">
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-semibold text-text-primary">{scanner.name} Details</h4>
-        <Button variant="ghost" size="xs" onClick={onClose}>Close</Button>
+        <div className="flex items-center gap-2">
+          {!scanner.installed && <FixButton scannerId={scannerId} />}
+          <Button variant="ghost" size="xs" onClick={onClose}>Close</Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 text-xs">
@@ -161,12 +219,37 @@ function ScannerDetailPanel({
           <span className="text-text-muted block">Executable</span>
           <span className="font-medium text-text-primary break-all">{scanner.executable_path || 'Not found'}</span>
         </div>
+        <div>
+          <span className="text-text-muted block">Permissions</span>
+          <span className={cn('font-medium', scanner.permissions_ok ? 'text-emerald-400' : 'text-yellow-400')}>
+            {scanner.permissions_ok ? 'OK' : 'Check'}
+          </span>
+        </div>
+        <div>
+          <span className="text-text-muted block">Min Version</span>
+          <span className="font-medium text-text-primary">{installInfo?.min_version || 'N/A'}</span>
+        </div>
       </div>
 
       {scanner.availability_reason && (
         <div className="rounded-lg bg-yellow-900/20 p-2.5 text-xs text-yellow-300">
           <p className="font-medium mb-1">Reason</p>
           <p>{scanner.availability_reason}</p>
+        </div>
+      )}
+
+      {scanner.recommendations.length > 0 && (
+        <div>
+          <span className="text-xs text-text-muted block mb-1">Recommendations</span>
+          <ul className="space-y-1">
+            {scanner.recommendations.map((r, i) => (
+              <li key={i} className="flex items-center gap-2 text-xs text-blue-300">
+                <Terminal className="h-3 w-3 shrink-0" />
+                <span className="flex-1">{r}</span>
+                <CopyButton text={r} label="recommendation" />
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -184,18 +267,83 @@ function ScannerDetailPanel({
         </div>
       )}
 
-      {scanner.install_hints.length > 0 && (
-        <div>
-          <span className="text-xs text-text-muted block mb-1">Installation Hints</span>
-          <ul className="space-y-1">
-            {scanner.install_hints.map((h, i) => (
-              <li key={i} className="text-xs text-text-secondary font-mono bg-surface-tertiary rounded px-2 py-1">
-                {h}
-              </li>
-            ))}
-          </ul>
+      {installInfo?.website && (
+        <div className="flex items-center gap-2 text-xs">
+          <ExternalLink className="h-3 w-3 text-text-muted" />
+          <a
+            href={installInfo.website}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent hover:text-accent/80 transition-colors"
+          >
+            {installInfo.website}
+          </a>
         </div>
       )}
+
+      {installInfo?.best_command && (
+        <div>
+          <span className="text-xs text-text-muted block mb-1">Recommended Install</span>
+          <div className="flex items-center gap-2 rounded-lg bg-surface-tertiary px-3 py-2">
+            <code className="flex-1 text-xs text-text-primary font-mono">{installInfo.best_command.command}</code>
+            <CopyButton text={installInfo.best_command.command} label="install command" />
+          </div>
+          <div className="mt-1 flex items-center gap-2 text-[10px] text-text-muted">
+            <span>via {installInfo.best_command.manager}</span>
+            {installInfo.best_command.requires_admin && <Badge variant="warning" size="sm">Admin required</Badge>}
+          </div>
+        </div>
+      )}
+
+      {installInfo?.verify_command && scanner.installed && (
+        <div>
+          <span className="text-xs text-text-muted block mb-1">Verify</span>
+          <div className="flex items-center gap-2 rounded-lg bg-surface-tertiary px-3 py-2">
+            <code className="flex-1 text-xs text-text-primary font-mono">{installInfo.verify_command}</code>
+            <CopyButton text={installInfo.verify_command} label="verify command" />
+          </div>
+        </div>
+      )}
+
+      {installInfo?.commands && installInfo.commands.length > 1 && (
+        <div>
+          <span className="text-xs text-text-muted block mb-1">Other Installation Options</span>
+          <div className="space-y-1">
+            {installInfo.commands.map((cmd, i) => (
+              <div key={i} className="flex items-center gap-2 rounded bg-surface-tertiary/50 px-2.5 py-1.5">
+                <span className="text-[10px] font-medium text-text-muted w-16 shrink-0">{cmd.manager}</span>
+                <code className="flex-1 text-xs text-text-secondary font-mono truncate">{cmd.command}</code>
+                <CopyButton text={cmd.command} label={`${cmd.manager} command`} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 pt-1">
+        <Button
+          variant="ghost"
+          size="xs"
+          onClick={() => {
+            const exportUrl = `/api/v1/scanners/${scannerId}/diagnostics?fmt=markdown`
+            window.open(exportUrl, '_blank')
+          }}
+          iconLeft={<FileText className="h-3 w-3" />}
+        >
+          Export Markdown
+        </Button>
+        <Button
+          variant="ghost"
+          size="xs"
+          onClick={() => {
+            const exportUrl = `/api/v1/scanners/${scannerId}/diagnostics?fmt=text`
+            window.open(exportUrl, '_blank')
+          }}
+          iconLeft={<FileText className="h-3 w-3" />}
+        >
+          Export Text
+        </Button>
+      </div>
     </div>
   )
 }

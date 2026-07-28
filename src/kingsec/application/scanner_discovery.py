@@ -10,6 +10,7 @@ version information. It never installs or modifies anything.
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -49,6 +50,12 @@ class ScannerStatus:
     required_assets: tuple[str, ...] = ()
     missing_assets: tuple[str, ...] = ()
     install_hints: tuple[str, ...] = ()
+    permissions_ok: bool = True
+    recommendations: tuple[str, ...] = ()
+    has_templates: bool = False
+    has_perl: bool = False
+    has_java: bool = False
+    has_wordlists: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +123,9 @@ _SCANNER_MANIFEST: dict[str, dict[str, Any]] = {
         "version_args": ("--version",),
         "version_regex": r"version\s+([\d.]+)",
         "assets": [],
+        "extra_checks": {
+            "required_permissions": True,
+        },
     },
     "nuclei": {
         "name": "Nuclei",
@@ -129,28 +139,66 @@ _SCANNER_MANIFEST: dict[str, dict[str, Any]] = {
                 path=str(Path.home() / "nuclei-templates"),
                 install_hint="nuclei -update-templates",
             ),
+            AssetRequirement(
+                name="Nuclei template config",
+                kind="file",
+                path=str(Path.home() / ".config" / "nuclei" / ".templates-config.json"),
+                install_hint="nuclei -update-templates",
+                optional=True,
+            ),
         ],
+        "extra_checks": {
+            "has_templates": True,
+        },
     },
     "nikto": {
         "name": "Nikto",
         "binary": "nikto",
         "version_args": ("-Version",),
         "version_regex": r"([\d.]+)",
-        "assets": [],
+        "assets": [
+            AssetRequirement(
+                name="Perl runtime",
+                kind="command",
+                path=None,
+                install_hint="Install Perl from https://www.perl.org/get.html",
+            ),
+        ],
+        "extra_checks": {
+            "check_perl": True,
+        },
     },
     "ffuf": {
         "name": "FFUF",
         "binary": "ffuf",
         "version_args": ("--version",),
         "version_regex": r"([\d.]+)",
-        "assets": [],
+        "assets": [
+            AssetRequirement(
+                name="Wordlist directory",
+                kind="directory",
+                path="/usr/share/wordlists",
+                install_hint="sudo apt-get install wordlist  or  Download SecLists from https://github.com/danielmiessler/SecLists",
+                optional=True,
+            ),
+        ],
+        "extra_checks": {},
     },
     "gobuster": {
         "name": "Gobuster",
         "binary": "gobuster",
         "version_args": ("--version",),
         "version_regex": r"([\d.]+)",
-        "assets": [],
+        "assets": [
+            AssetRequirement(
+                name="Wordlist directory",
+                kind="directory",
+                path="/usr/share/wordlists",
+                install_hint="sudo apt-get install wordlist  or  Download SecLists from https://github.com/danielmiessler/SecLists",
+                optional=True,
+            ),
+        ],
+        "extra_checks": {},
     },
     "trivy": {
         "name": "Trivy",
@@ -166,6 +214,7 @@ _SCANNER_MANIFEST: dict[str, dict[str, Any]] = {
                 optional=True,
             ),
         ],
+        "extra_checks": {},
     },
     "semgrep": {
         "name": "Semgrep",
@@ -173,20 +222,40 @@ _SCANNER_MANIFEST: dict[str, dict[str, Any]] = {
         "version_args": ("--version",),
         "version_regex": r"([\d.]+)",
         "assets": [],
+        "extra_checks": {},
     },
     "amass": {
         "name": "Amass",
         "binary": "amass",
         "version_args": ("--version",),
         "version_regex": r"([\d.]+)",
-        "assets": [],
+        "assets": [
+            AssetRequirement(
+                name="Amass config directory",
+                kind="directory",
+                path=str(Path.home() / ".amass"),
+                install_hint="mkdir -p ~/.amass  or  amass enum -list",
+                optional=True,
+            ),
+        ],
+        "extra_checks": {},
     },
     "zap": {
         "name": "OWASP ZAP",
         "binary": "zap",
         "version_args": ("-version",),
         "version_regex": r"([\d.]+)",
-        "assets": [],
+        "assets": [
+            AssetRequirement(
+                name="Java runtime",
+                kind="command",
+                path=None,
+                install_hint="Install Java 11+ from https://adoptium.net",
+            ),
+        ],
+        "extra_checks": {
+            "check_java": True,
+        },
     },
 }
 
@@ -284,6 +353,8 @@ def _get_version(path: str, args: tuple[str, ...], regex: str) -> str | None:
 
 def _check_asset(asset: AssetRequirement) -> bool:
     """Check whether an asset requirement is satisfied."""
+    if asset.kind == "command":
+        return shutil.which(asset.name.split()[0].lower()) is not None
     if not asset.path:
         return False
     p = Path(asset.path)
@@ -292,6 +363,39 @@ def _check_asset(asset: AssetRequirement) -> bool:
     if asset.kind == "directory":
         return p.is_dir()
     return False
+
+
+def _check_permissions(path: str | None) -> bool:
+    """Check if a binary has execute permissions."""
+    if path is None:
+        return False
+    p = Path(path)
+    if not p.is_file():
+        return False
+    return os.access(p, os.X_OK)
+
+
+def _check_java() -> bool:
+    """Check if Java runtime is available."""
+    java = shutil.which("java")
+    if java is None:
+        return False
+    try:
+        result = subprocess.run(
+            [java, "-version"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            shell=False,
+        )
+        combined = (result.stdout or "") + "\n" + (result.stderr or "")
+        match = re.search(r'(?:version|openjdk version)\s+"?(\d+)', combined)
+        if match:
+            major = int(match.group(1))
+            return major >= 11
+        return False
+    except (OSError, subprocess.TimeoutExpired):
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -365,6 +469,41 @@ class ScannerDiscoveryService:
                 if asset.install_hint:
                     install_hints.append(asset.install_hint)
 
+        extra = manifest.get("extra_checks", {})
+
+        permissions_ok = _check_permissions(path)
+
+        has_templates = bool(
+            Path.home().joinpath("nuclei-templates").is_dir()
+        ) if scanner_id == "nuclei" else False
+        has_perl = shutil.which("perl") is not None if scanner_id == "nikto" else False
+        has_java = _check_java() if scanner_id == "zap" else False
+        has_wordlists = (
+            Path("/usr/share/wordlists").is_dir()
+            or any(Path(p).is_dir() for p in [
+                str(Path.home() / "wordlists"),
+                "/usr/share/dict",
+                "/usr/share/seclists",
+            ])
+        ) if scanner_id in ("ffuf", "gobuster") else False
+
+        if extra.get("required_permissions") and not permissions_ok:
+            warnings.append(f"{binary!r} may need elevated privileges for full functionality")
+
+        recommendations: list[str] = []
+        if scanner_id == "nuclei" and not has_templates:
+            recommendations.append("Run 'nuclei -update-templates' to download the template database")
+        if scanner_id == "trivy":
+            recommendations.append("Download the vulnerability DB with 'trivy image --download-db-only'")
+        if scanner_id == "nikto" and not has_perl:
+            recommendations.append("Install Perl (required: https://www.perl.org/get.html)")
+        if scanner_id == "zap" and not has_java:
+            recommendations.append("Install Java 11+ (required: https://adoptium.net)")
+        if scanner_id in ("ffuf", "gobuster") and not has_wordlists:
+            recommendations.append("Install wordlists: sudo apt-get install wordlist  or  download SecLists")
+        if not permissions_ok:
+            recommendations.append(f"Ensure {binary!r} has execute permissions")
+
         return ScannerStatus(
             scanner_id=scanner_id,
             name=name,
@@ -377,6 +516,12 @@ class ScannerDiscoveryService:
             required_assets=all_asset_names,
             missing_assets=missing_names,
             install_hints=tuple(install_hints),
+            permissions_ok=permissions_ok,
+            recommendations=tuple(recommendations),
+            has_templates=has_templates,
+            has_perl=has_perl,
+            has_java=has_java,
+            has_wordlists=has_wordlists,
         )
 
     def get_all_statuses(self) -> tuple[ScannerStatus, ...]:

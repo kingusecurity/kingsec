@@ -26,3 +26,12 @@ export function useScannerList() {
     refetchInterval: POLL_INTERVAL,
   })
 }
+
+export function useScannerInstallInfo(scannerId: string | null) {
+  return useQuery({
+    queryKey: ['scanner-install', scannerId],
+    queryFn: () => scannerHealthApi.installInfo(scannerId!),
+    enabled: !!scannerId,
+    staleTime: 60000,
+  })
+}
