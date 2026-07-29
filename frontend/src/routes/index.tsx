@@ -45,6 +45,7 @@ const AICopilotPage = lazy(() => import('@/pages/AICopilotPage').then(m => ({ de
 const PlaybooksPage = lazy(() => import('@/pages/PlaybooksPage').then(m => ({ default: m.PlaybooksPage })))
 const PlaybookDetailPage = lazy(() => import('@/pages/PlaybookDetailPage').then(m => ({ default: m.PlaybookDetailPage })))
 const ExecutionHistoryPage = lazy(() => import('@/pages/ExecutionHistoryPage').then(m => ({ default: m.ExecutionHistoryPage })))
+const PluginsSdkPage = lazy(() => import('@/pages/PluginsSdkPage').then(m => ({ default: m.PluginsSdkPage })))
 
 function PageLoader() {
   return (
@@ -211,6 +212,10 @@ export const router = createBrowserRouter([
       {
         path: 'playbooks/history',
         element: <Suspense fallback={<PageLoader />}><ExecutionHistoryPage /></Suspense>,
+      },
+      {
+        path: 'plugins',
+        element: <Suspense fallback={<PageLoader />}><PluginsSdkPage /></Suspense>,
       },
       {
         path: 'playbooks/:id',

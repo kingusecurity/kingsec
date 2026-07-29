@@ -244,6 +244,9 @@ def _register_adapters(
     # Security Automation, Playbooks & Incident Response (Phase 23).
     _register_playbook_services(container, session_factory)
 
+    # Plugin SDK & Extension Framework (Phase 24).
+    _register_plugin_sdk_services(container, session_factory)
+
     # MFA (TOTP) infrastructure.
     register_mfa(container, session_factory)
 
@@ -1297,3 +1300,30 @@ def _register_playbook_services(container: Container, session_factory: Any) -> N
             audit=c.resolve(PlaybookAuditPort) if c.has(PlaybookAuditPort) else c.resolve(AuditPublisher) if c.has(AuditPublisher) else None,
         ),
     )
+
+
+def _register_plugin_sdk_services(container: Container, session_factory: Any) -> None:
+    from kingsec.application.plugin_sdk.loader import PluginLoader
+    from kingsec.application.plugin_sdk.registry import PluginMarketplace, PluginRegistry
+
+    settings = container.resolve("kingsec.infrastructure.config.settings.Settings") if container.has("kingsec.infrastructure.config.settings.Settings") else None
+
+    def _make_loader(_c: Any) -> PluginLoader:
+        from pathlib import Path
+        plugins_dir = Path(settings.storage.data_dir / "plugins") if settings else Path("./plugins")
+        return PluginLoader(plugins_dir)
+
+    def _make_registry(c: Any) -> PluginRegistry:
+        loader = c.resolve(PluginLoader)
+        registry = PluginRegistry(loader)
+        registry.discover()
+        return registry
+
+    def _make_marketplace(_c: Any) -> PluginMarketplace:
+        mp = PluginMarketplace()
+        mp.seed_default_catalog()
+        return mp
+
+    container.register_factory(PluginLoader, _make_loader)
+    container.register_factory(PluginRegistry, _make_registry)
+    container.register_factory(PluginMarketplace, _make_marketplace)

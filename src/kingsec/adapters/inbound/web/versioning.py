@@ -30,6 +30,7 @@ from .health_routes import router as v1_health_router
 from .license_routes import router as v1_license_router
 from .monitoring_routes import router as v1_monitoring_router
 from .playbook_routes import router as v1_playbook_router
+from .plugin_sdk_routes import router as v1_plugin_sdk_router
 from .integration_routes import router as v1_integration_router
 from .mfa_routes import router as v1_mfa_router
 from .organization_routes import router as v1_organization_router
@@ -75,6 +76,7 @@ def register_versioned_routes(app: FastAPI) -> None:
     app.include_router(v1_compliance_router)
     app.include_router(v1_monitoring_router)
     app.include_router(v1_playbook_router)
+    app.include_router(v1_plugin_sdk_router)
     app.include_router(v1_integration_router)
     app.include_router(v1_organization_router)
     app.include_router(v1_license_router)

@@ -23,6 +23,7 @@ ALLOWED_PUBLIC: set[tuple[str, str]] = {
     ("POST", "/api/v1/mfa/verify"),
     ("POST", "/api/v1/mfa/recovery"),
     ("POST", "/api/v1/sessions/refresh"),
+    ("GET", "/api/v1/plugin-sdk/permissions"),
 }
 
 

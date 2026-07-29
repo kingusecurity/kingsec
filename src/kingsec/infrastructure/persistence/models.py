@@ -832,3 +832,25 @@ class ExecutionHistoryModel(Base):
         Index("ix_execution_history_status", "status"),
         Index("ix_execution_history_created", "created_at"),
     )
+
+
+class PluginSdkManifestModel(Base):
+    __tablename__ = "plugin_sdk_manifests"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    version: Mapped[str] = mapped_column(String, nullable=False, default="0.0.0")
+    author: Mapped[str] = mapped_column(String, nullable=False, default="")
+    website: Mapped[str] = mapped_column(String, nullable=False, default="")
+    license: Mapped[str] = mapped_column(String, nullable=False, default="")
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    category: Mapped[str] = mapped_column(String, nullable=False, default="other")
+    entrypoint: Mapped[str] = mapped_column(String, nullable=False, default="")
+    minimum_kingsec_version: Mapped[str] = mapped_column(String, nullable=False, default="0.0.0")
+    permissions_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    dependencies_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    signature: Mapped[str] = mapped_column(String, nullable=False, default="")
+    installed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    loaded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
