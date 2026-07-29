@@ -253,6 +253,9 @@ def _register_adapters(
     # Enterprise Identity & SSO (Phase 26).
     _register_idp_services(container, session_factory)
 
+    # Backup, Disaster Recovery & High Availability (Phase 27).
+    _register_backup_services(container, session_factory)
+
     # MFA (TOTP) infrastructure.
     register_mfa(container, session_factory)
 
@@ -1467,5 +1470,56 @@ def _register_idp_services(container: Container, session_factory: Any) -> None:
             user_repo=c.resolve(UserRepository),
             account_link_repo=c.resolve(AccountLinkRepositoryPort),
             role_mapping=c.resolve(RoleMappingService),
+        ),
+    )
+
+
+def _register_backup_services(container: Container, session_factory: Any) -> None:
+    from kingsec.application.backup_service import BackupService
+    from kingsec.application.ports.backup_service import BackupServicePort
+    from kingsec.application.ports.outbound import (
+        BackupCompressionPort,
+        BackupEncryptionPort,
+        BackupRepositoryPort,
+        BackupStoragePort,
+    )
+    from kingsec.infrastructure.backup import (
+        AESBackupEncryptionService,
+        FilesystemBackupStorage,
+        SQLAlchemyBackupRepository,
+        ZipCompressionService,
+        ensure_backup_tables,
+    )
+    from kingsec.infrastructure.config.models import AppSettings
+
+    ensure_backup_tables(session_factory)
+
+    def _make_backup_repo(_c: Any) -> BackupRepositoryPort:
+        return SQLAlchemyBackupRepository(session_factory)
+
+    def _make_backup_storage(_c: Any) -> BackupStoragePort:
+        settings = _c.resolve(AppSettings) if _c.has(AppSettings) else None
+        base = str(settings.storage.data_dir / "backups") if settings else "backups"
+        return FilesystemBackupStorage(base)
+
+    def _make_backup_encryption(_c: Any) -> BackupEncryptionPort:
+        return AESBackupEncryptionService()
+
+    def _make_backup_compression(_c: Any) -> BackupCompressionPort:
+        return ZipCompressionService()
+
+    container.register_factory(BackupRepositoryPort, _make_backup_repo)
+    container.register_factory(BackupStoragePort, _make_backup_storage)
+    container.register_factory(BackupEncryptionPort, _make_backup_encryption)
+    container.register_factory(BackupCompressionPort, _make_backup_compression)
+
+    container.register_factory(
+        BackupServicePort,
+        lambda c: BackupService(
+            repo=c.resolve(BackupRepositoryPort),
+            storage=c.resolve(BackupStoragePort),
+            encryption=c.resolve(BackupEncryptionPort),
+            compression=c.resolve(BackupCompressionPort),
+            audit=c.resolve(AuditPublisher),
         ),
     )

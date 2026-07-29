@@ -210,3 +210,35 @@ class AccountLinkNotFoundError(ApplicationError):
 
 class JITProvisioningError(ApplicationError):
     """Just-In-Time user provisioning failed."""
+
+
+class ScheduleNotFoundError(ApplicationError):
+    """No backup schedule exists for the requested identifier."""
+
+
+class VerificationNotFoundError(ApplicationError):
+    """No backup verification exists for the requested identifier."""
+
+
+class RecoveryPlanNotFoundError(ApplicationError):
+    """No disaster recovery plan exists for the requested identifier."""
+
+
+class RecoveryTestNotFoundError(ApplicationError):
+    """No recovery test exists for the requested identifier."""
+
+
+class BackupCancellationError(ApplicationError):
+    """The backup could not be cancelled."""
+
+
+class RestoreRollbackError(ApplicationError):
+    """Restore rollback failed."""
+
+
+class StorageConnectionError(ApplicationError):
+    """Could not connect to backup storage."""
+
+
+class EncryptionKeyError(ApplicationError):
+    """Encryption/decryption key error."""

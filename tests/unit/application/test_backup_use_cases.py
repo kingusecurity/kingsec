@@ -15,21 +15,43 @@ from kingsec.application.ports.outbound.audit_publisher import AuditPublisher
 from kingsec.application.use_cases.backup import (
     CleanupExpiredBackups,
     CreateBackup,
+    CreateRecoveryPlan,
+    CreateSchedule,
     CreateSnapshot,
     DeleteBackup,
+    DeleteRecoveryPlan,
+    DeleteSchedule,
+    GetHealthReport,
+    GetRecoveryPlan,
+    GetSchedule,
     ListBackups,
+    ListRecoveryPlans,
+    ListRecoveryTests,
+    ListSchedules,
+    ListVerifications,
     RestoreBackup,
     RestoreSnapshot,
+    RestoreWithScope,
+    RunRecoveryTest,
+    UpdateRecoveryPlan,
+    UpdateSchedule,
     ValidateBackup,
+    VerifyBackup,
     VerifyRestore,
 )
 from kingsec.domain.backup import (
     BackupId,
     BackupMetadata,
+    BackupSchedule,
     BackupSnapshot,
     BackupStatus,
     BackupType,
+    BackupVerification,
+    DisasterRecoveryPlan,
+    RecoveryChecklistItem,
+    RecoveryStatus,
     RetentionPolicy,
+    ScheduleFrequency,
 )
 
 
@@ -298,3 +320,270 @@ class TestCleanupExpiredBackups:
         uc = CleanupExpiredBackups(repo, storage, audit)
         deleted = uc.execute()
         assert deleted == 0
+
+
+class TestRestoreWithScope:
+    def test_restore_complete(self, repo, storage, encryption, compression, audit) -> None:
+        bid = BackupId(value="bkp-1")
+        backup = BackupMetadata(
+            backup_id=bid, backup_type=BackupType.FULL, status=BackupStatus.COMPLETED,
+            encrypted=True, compressed=True, checksum="",
+        )
+        repo.find_backup_by_id.return_value = backup
+        uc = RestoreWithScope(repo, storage, encryption, compression, audit)
+        result = uc.execute("bkp-1", scope="complete", dry_run=False)
+        assert result.status == BackupStatus.COMPLETED
+        assert result.scope == "complete"
+        assert result.dry_run is False
+
+    def test_restore_dry_run(self, repo, storage, encryption, compression, audit) -> None:
+        bid = BackupId(value="bkp-1")
+        backup = BackupMetadata(
+            backup_id=bid, backup_type=BackupType.FULL, status=BackupStatus.COMPLETED,
+            encrypted=True, compressed=True, checksum="",
+        )
+        repo.find_backup_by_id.return_value = backup
+        uc = RestoreWithScope(repo, storage, encryption, compression, audit)
+        result = uc.execute("bkp-1", scope="database", dry_run=True)
+        assert result.dry_run is True
+        assert result.scope == "database"
+
+    def test_restore_not_found(self, repo, storage, encryption, compression, audit) -> None:
+        repo.find_backup_by_id.return_value = None
+        uc = RestoreWithScope(repo, storage, encryption, compression, audit)
+        with pytest.raises(BackupNotFoundError):
+            uc.execute("bkp-missing")
+
+
+class TestVerifyBackup:
+    def test_verify_success(self, repo, storage, encryption, compression, audit) -> None:
+        bid = BackupId(value="bkp-1")
+        backup = BackupMetadata(
+            backup_id=bid, backup_type=BackupType.FULL, status=BackupStatus.COMPLETED,
+            encrypted=True, compressed=True,
+        )
+        repo.find_backup_by_id.return_value = backup
+        uc = VerifyBackup(repo, storage, encryption, compression, audit)
+        result = uc.execute("bkp-1", verified_by="admin")
+        assert result.checksum_valid is True
+        assert result.archive_integrity is True
+        assert result.restore_simulation is True
+        repo.save_verification.assert_called_once()
+
+    def test_verify_not_found(self, repo, storage, encryption, compression, audit) -> None:
+        repo.find_backup_by_id.return_value = None
+        uc = VerifyBackup(repo, storage, encryption, compression, audit)
+        with pytest.raises(BackupNotFoundError):
+            uc.execute("bkp-missing")
+
+
+class TestListVerifications:
+    def test_list_all(self, repo) -> None:
+        repo.find_all_verifications.return_value = [
+            BackupVerification(verification_id=BackupId(value="v1"), backup_id="bkp-1", checksum_valid=True),
+        ]
+        uc = ListVerifications(repo)
+        result = uc.execute()
+        assert len(result) == 1
+
+    def test_list_by_backup(self, repo) -> None:
+        repo.find_verifications_by_backup.return_value = [
+            BackupVerification(verification_id=BackupId(value="v1"), backup_id="bkp-1", checksum_valid=True),
+        ]
+        uc = ListVerifications(repo)
+        result = uc.execute(backup_id="bkp-1")
+        assert len(result) == 1
+
+
+class TestCreateSchedule:
+    def test_create(self, repo, audit) -> None:
+        sched = BackupSchedule(
+            schedule_id=BackupId(value="sched-new"),
+            name="Daily",
+            frequency=ScheduleFrequency.DAILY,
+        )
+        uc = CreateSchedule(repo, audit)
+        result = uc.execute(sched)
+        assert result.name == "Daily"
+        repo.save_schedule.assert_called_once()
+        audit.record.assert_called_once()
+
+
+class TestUpdateSchedule:
+    def test_update(self, repo, audit) -> None:
+        existing = BackupSchedule(
+            schedule_id=BackupId(value="sched-1"),
+            name="Old Name",
+            frequency=ScheduleFrequency.DAILY,
+        )
+        repo.find_schedule_by_id.return_value = existing
+        uc = UpdateSchedule(repo, audit)
+        result = uc.execute("sched-1", name="New Name")
+        assert result.name == "New Name"
+
+    def test_update_not_found(self, repo, audit) -> None:
+        repo.find_schedule_by_id.return_value = None
+        uc = UpdateSchedule(repo, audit)
+        from kingsec.application.errors import ScheduleNotFoundError
+        with pytest.raises(ScheduleNotFoundError):
+            uc.execute("sched-missing")
+
+
+class TestDeleteSchedule:
+    def test_delete(self, repo, audit) -> None:
+        existing = BackupSchedule(
+            schedule_id=BackupId(value="sched-1"), name="Daily", frequency=ScheduleFrequency.DAILY,
+        )
+        repo.find_schedule_by_id.return_value = existing
+        uc = DeleteSchedule(repo, audit)
+        uc.execute("sched-1")
+        repo.delete_schedule.assert_called_with("sched-1")
+
+    def test_delete_not_found(self, repo, audit) -> None:
+        repo.find_schedule_by_id.return_value = None
+        uc = DeleteSchedule(repo, audit)
+        from kingsec.application.errors import ScheduleNotFoundError
+        with pytest.raises(ScheduleNotFoundError):
+            uc.execute("sched-missing")
+
+
+class TestListSchedules:
+    def test_list(self, repo) -> None:
+        repo.find_all_schedules.return_value = [
+            BackupSchedule(schedule_id=BackupId(value="s1"), name="D", frequency=ScheduleFrequency.DAILY),
+        ]
+        uc = ListSchedules(repo)
+        assert len(uc.execute()) == 1
+
+
+class TestGetSchedule:
+    def test_get(self, repo) -> None:
+        sched = BackupSchedule(schedule_id=BackupId(value="s1"), name="D", frequency=ScheduleFrequency.DAILY)
+        repo.find_schedule_by_id.return_value = sched
+        uc = GetSchedule(repo)
+        assert uc.execute("s1").name == "D"
+
+    def test_get_not_found(self, repo) -> None:
+        repo.find_schedule_by_id.return_value = None
+        uc = GetSchedule(repo)
+        from kingsec.application.errors import ScheduleNotFoundError
+        with pytest.raises(ScheduleNotFoundError):
+            uc.execute("s-missing")
+
+
+class TestCreateRecoveryPlan:
+    def test_create(self, repo, audit) -> None:
+        items = (RecoveryChecklistItem(item_id="c1", description="Step 1"),)
+        plan = DisasterRecoveryPlan(
+            plan_id=BackupId(value="dr-new"), name="DR Plan", checklist=items,
+        )
+        uc = CreateRecoveryPlan(repo, audit)
+        result = uc.execute(plan)
+        assert result.name == "DR Plan"
+        repo.save_recovery_plan.assert_called_once()
+
+
+class TestUpdateRecoveryPlan:
+    def test_update(self, repo, audit) -> None:
+        existing = DisasterRecoveryPlan(
+            plan_id=BackupId(value="dr-1"), name="Old Plan",
+        )
+        repo.find_recovery_plan_by_id.return_value = existing
+        uc = UpdateRecoveryPlan(repo, audit)
+        result = uc.execute("dr-1", name="New Plan")
+        assert result.name == "New Plan"
+
+    def test_update_not_found(self, repo, audit) -> None:
+        repo.find_recovery_plan_by_id.return_value = None
+        uc = UpdateRecoveryPlan(repo, audit)
+        from kingsec.application.errors import RecoveryPlanNotFoundError
+        with pytest.raises(RecoveryPlanNotFoundError):
+            uc.execute("dr-missing")
+
+
+class TestDeleteRecoveryPlan:
+    def test_delete(self, repo, audit) -> None:
+        existing = DisasterRecoveryPlan(plan_id=BackupId(value="dr-1"), name="DR")
+        repo.find_recovery_plan_by_id.return_value = existing
+        uc = DeleteRecoveryPlan(repo, audit)
+        uc.execute("dr-1")
+        repo.delete_recovery_plan.assert_called_with("dr-1")
+
+    def test_delete_not_found(self, repo, audit) -> None:
+        repo.find_recovery_plan_by_id.return_value = None
+        uc = DeleteRecoveryPlan(repo, audit)
+        from kingsec.application.errors import RecoveryPlanNotFoundError
+        with pytest.raises(RecoveryPlanNotFoundError):
+            uc.execute("dr-missing")
+
+
+class TestListRecoveryPlans:
+    def test_list(self, repo) -> None:
+        repo.find_all_recovery_plans.return_value = [
+            DisasterRecoveryPlan(plan_id=BackupId(value="dr-1"), name="DR"),
+        ]
+        uc = ListRecoveryPlans(repo)
+        assert len(uc.execute()) == 1
+
+
+class TestGetRecoveryPlan:
+    def test_get(self, repo) -> None:
+        plan = DisasterRecoveryPlan(plan_id=BackupId(value="dr-1"), name="DR")
+        repo.find_recovery_plan_by_id.return_value = plan
+        uc = GetRecoveryPlan(repo)
+        assert uc.execute("dr-1").name == "DR"
+
+    def test_get_not_found(self, repo) -> None:
+        repo.find_recovery_plan_by_id.return_value = None
+        uc = GetRecoveryPlan(repo)
+        from kingsec.application.errors import RecoveryPlanNotFoundError
+        with pytest.raises(RecoveryPlanNotFoundError):
+            uc.execute("dr-missing")
+
+
+class RecoveryTestUseCaseTests:
+    def test_test_recovery(self, repo, audit) -> None:
+        items = (RecoveryChecklistItem(item_id="c1", description="Step 1"),)
+        plan = DisasterRecoveryPlan(plan_id=BackupId(value="dr-1"), name="DR", checklist=items)
+        repo.find_recovery_plan_by_id.return_value = plan
+        uc = RunRecoveryTest(repo, audit)
+        result = uc.execute("dr-1", executed_by="admin")
+        assert result.status == RecoveryStatus.COMPLETED
+        assert result.executed_by == "admin"
+        repo.save_recovery_test.assert_called_once()
+
+    def test_test_not_found(self, repo, audit) -> None:
+        repo.find_recovery_plan_by_id.return_value = None
+        uc = RunRecoveryTest(repo, audit)
+        from kingsec.application.errors import RecoveryPlanNotFoundError
+        with pytest.raises(RecoveryPlanNotFoundError):
+            uc.execute("dr-missing")
+
+
+class TestListRecoveryTests:
+    def test_list_all(self, repo) -> None:
+        repo.find_all_recovery_tests.return_value = []
+        uc = ListRecoveryTests(repo)
+        assert uc.execute() == []
+
+    def test_list_by_plan(self, repo) -> None:
+        repo.find_recovery_tests_by_plan.return_value = []
+        uc = ListRecoveryTests(repo)
+        assert uc.execute(plan_id="dr-1") == []
+
+
+class TestGetHealthReport:
+    def test_report_healthy(self, repo) -> None:
+        repo.find_all_backups.return_value = [
+            BackupMetadata(backup_id=BackupId(value="bkp-1"), backup_type=BackupType.FULL, status=BackupStatus.COMPLETED),
+        ]
+        uc = GetHealthReport(repo)
+        report = uc.execute()
+        assert report.database_healthy is True
+        assert report.storage_healthy is True
+
+    def test_report_no_backups(self, repo) -> None:
+        repo.find_all_backups.return_value = []
+        uc = GetHealthReport(repo)
+        report = uc.execute()
+        assert report.overall.value == "healthy"

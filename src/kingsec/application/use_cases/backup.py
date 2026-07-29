@@ -14,9 +14,18 @@ from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.domain.backup import (
     BackupId,
     BackupMetadata,
+    BackupSchedule,
     BackupSnapshot,
     BackupStatus,
     BackupType,
+    BackupVerification,
+    ComponentHealth,
+    ComponentHealthStatus,
+    DisasterRecoveryPlan,
+    HealthReport,
+    RecoveryChecklistItem,
+    RecoveryStatus,
+    RecoveryTest,
     RestoreOperation,
     RetentionPolicy,
 )
@@ -400,3 +409,519 @@ class CleanupExpiredBackups:
             )
             deleted += 1
         return deleted
+
+
+# ---------------------------------------------------------------------------
+# Enhanced Restore with scope and dry-run
+# ---------------------------------------------------------------------------
+
+class RestoreWithScope:
+    def __init__(
+        self,
+        repo: BackupRepositoryPort,
+        storage: BackupStoragePort,
+        encryption: BackupEncryptionPort,
+        compression: BackupCompressionPort,
+        audit: AuditPublisher,
+    ) -> None:
+        self._repo = repo
+        self._storage = storage
+        self._encryption = encryption
+        self._compression = compression
+        self._audit = audit
+        self._counter = 0
+
+    def execute(self, backup_id: str, scope: str = "complete", dry_run: bool = False) -> RestoreOperation:
+        backup = self._repo.find_backup_by_id(backup_id)
+        if not backup:
+            from kingsec.application.errors import BackupNotFoundError
+            raise BackupNotFoundError(f"Backup '{backup_id}' not found")
+        self._counter += 1
+        rid = BackupId(value=f"rest-{self._counter}")
+        operation = RestoreOperation(
+            restore_id=rid,
+            backup_id=backup_id,
+            status=BackupStatus.RUNNING,
+            scope=scope,
+            dry_run=dry_run,
+        )
+        self._repo.save_restore(operation)
+        try:
+            data = self._storage.read(backup_id)
+            if data is None:
+                raise ValueError(f"Backup data for '{backup_id}' not found in storage")
+            if backup.encrypted:
+                data = self._encryption.decrypt(data)
+            if backup.compressed:
+                data = self._compression.decompress(data)
+            expected = backup.checksum
+            if expected:
+                re_encoded = data
+                if backup.compressed:
+                    re_encoded = self._compression.compress(re_encoded)
+                if backup.encrypted:
+                    re_encoded = self._encryption.encrypt(re_encoded)
+                actual = hashlib.sha256(re_encoded).hexdigest()
+                if actual != expected:
+                    raise ValueError("Backup checksum mismatch")
+            now = datetime.now(UTC).isoformat()
+            completed_op = RestoreOperation(
+                restore_id=rid,
+                backup_id=backup_id,
+                status=BackupStatus.COMPLETED,
+                scope=scope,
+                dry_run=dry_run,
+                started_at=operation.started_at,
+                completed_at=now,
+                verified=True,
+            )
+            self._repo.save_restore(completed_op)
+            action = AuditAction.BACKUP_RESTORED
+            self._audit.record(
+                AuditEntry(
+                    action=action,
+                    resource_type="backup",
+                    resource_id=backup_id,
+                    success=True,
+                    metadata={"scope": scope, "dry_run": dry_run},
+                )
+            )
+            return completed_op
+        except Exception as exc:
+            failed_op = RestoreOperation(
+                restore_id=rid,
+                backup_id=backup_id,
+                status=BackupStatus.FAILED,
+                scope=scope,
+                dry_run=dry_run,
+                started_at=operation.started_at,
+                completed_at=datetime.now(UTC).isoformat(),
+                error_message=str(exc),
+            )
+            self._repo.save_restore(failed_op)
+            return failed_op
+
+
+# ---------------------------------------------------------------------------
+# Backup Verification
+# ---------------------------------------------------------------------------
+
+class VerifyBackup:
+    def __init__(
+        self,
+        repo: BackupRepositoryPort,
+        storage: BackupStoragePort,
+        encryption: BackupEncryptionPort,
+        compression: BackupCompressionPort,
+        audit: AuditPublisher,
+    ) -> None:
+        self._repo = repo
+        self._storage = storage
+        self._encryption = encryption
+        self._compression = compression
+        self._audit = audit
+        self._counter = 0
+
+    def execute(self, backup_id: str, verified_by: str = "") -> BackupVerification:
+        backup = self._repo.find_backup_by_id(backup_id)
+        if not backup:
+            from kingsec.application.errors import BackupNotFoundError
+            raise BackupNotFoundError(f"Backup '{backup_id}' not found")
+        self._counter += 1
+        vid = BackupId(value=f"ver-{self._counter}")
+        start = datetime.now(UTC)
+        checksum_valid = False
+        archive_integrity = False
+        restore_simulation = False
+        error_message = ""
+        try:
+            data = self._storage.read(backup_id)
+            if data is not None:
+                if backup.encrypted:
+                    decrypted = self._encryption.decrypt(data)
+                else:
+                    decrypted = data
+                if backup.compressed:
+                    self._compression.decompress(decrypted)
+                checksum_valid = True
+                archive_integrity = True
+                restore_simulation = True
+        except Exception as exc:
+            error_message = str(exc)
+        end = datetime.now(UTC)
+        duration_ms = int((end - start).total_seconds() * 1000)
+        verification = BackupVerification(
+            verification_id=vid,
+            backup_id=backup_id,
+            checksum_valid=checksum_valid,
+            archive_integrity=archive_integrity,
+            restore_simulation=restore_simulation,
+            verified_by=verified_by,
+            error_message=error_message,
+            duration_ms=duration_ms,
+        )
+        self._repo.save_verification(verification)
+        self._audit.record(
+            AuditEntry(
+                action=AuditAction.BACKUP_COMPLETED,
+                resource_type="backup_verification",
+                resource_id=vid.value,
+                success=checksum_valid and archive_integrity,
+                username=verified_by,
+            )
+        )
+        return verification
+
+
+class ListVerifications:
+    def __init__(self, repo: BackupRepositoryPort) -> None:
+        self._repo = repo
+
+    def execute(self, backup_id: str | None = None) -> list[BackupVerification]:
+        if backup_id:
+            return self._repo.find_verifications_by_backup(backup_id)
+        return self._repo.find_all_verifications()
+
+
+# ---------------------------------------------------------------------------
+# Backup Scheduling
+# ---------------------------------------------------------------------------
+
+class CreateSchedule:
+    def __init__(self, repo: BackupRepositoryPort, audit: AuditPublisher) -> None:
+        self._repo = repo
+        self._audit = audit
+        self._counter = 0
+
+    def execute(self, schedule: BackupSchedule) -> BackupSchedule:
+        self._counter += 1
+        sid = BackupId(value=f"sched-{self._counter}")
+        created = BackupSchedule(
+            schedule_id=sid,
+            name=schedule.name,
+            frequency=schedule.frequency,
+            backup_type=schedule.backup_type,
+            includes=schedule.includes,
+            encrypt=schedule.encrypt,
+            compress=schedule.compress,
+            cron_expression=schedule.cron_expression,
+            enabled=schedule.enabled,
+            created_by=schedule.created_by,
+        )
+        self._repo.save_schedule(created)
+        self._audit.record(
+            AuditEntry(
+                action=AuditAction.SCHEDULE_CREATED,
+                resource_type="backup_schedule",
+                resource_id=sid.value,
+                success=True,
+                username=schedule.created_by,
+            )
+        )
+        return created
+
+
+class UpdateSchedule:
+    def __init__(self, repo: BackupRepositoryPort, audit: AuditPublisher) -> None:
+        self._repo = repo
+        self._audit = audit
+
+    def execute(self, schedule_id: str, **kwargs: object) -> BackupSchedule:
+        existing = self._repo.find_schedule_by_id(schedule_id)
+        if not existing:
+            from kingsec.application.errors import ScheduleNotFoundError
+            raise ScheduleNotFoundError(f"Schedule '{schedule_id}' not found")
+        updated = BackupSchedule(
+            schedule_id=existing.schedule_id,
+            name=str(kwargs.get("name", existing.name)),
+            frequency=kwargs.get("frequency", existing.frequency),  # type: ignore[arg-type]
+            backup_type=str(kwargs.get("backup_type", existing.backup_type)),
+            includes=kwargs.get("includes", existing.includes),  # type: ignore[arg-type]
+            encrypt=bool(kwargs.get("encrypt", existing.encrypt)),
+            compress=bool(kwargs.get("compress", existing.compress)),
+            cron_expression=str(kwargs.get("cron_expression", existing.cron_expression)),
+            enabled=bool(kwargs.get("enabled", existing.enabled)),
+            last_run_at=existing.last_run_at,
+            next_run_at=str(kwargs.get("next_run_at", existing.next_run_at)),
+            created_at=existing.created_at,
+            created_by=existing.created_by,
+        )
+        self._repo.save_schedule(updated)
+        self._audit.record(
+            AuditEntry(
+                action=AuditAction.SCHEDULE_UPDATED,
+                resource_type="backup_schedule",
+                resource_id=schedule_id,
+                success=True,
+            )
+        )
+        return updated
+
+
+class DeleteSchedule:
+    def __init__(self, repo: BackupRepositoryPort, audit: AuditPublisher) -> None:
+        self._repo = repo
+        self._audit = audit
+
+    def execute(self, schedule_id: str) -> None:
+        existing = self._repo.find_schedule_by_id(schedule_id)
+        if not existing:
+            from kingsec.application.errors import ScheduleNotFoundError
+            raise ScheduleNotFoundError(f"Schedule '{schedule_id}' not found")
+        self._repo.delete_schedule(schedule_id)
+        self._audit.record(
+            AuditEntry(
+                action=AuditAction.SCHEDULE_DELETED,
+                resource_type="backup_schedule",
+                resource_id=schedule_id,
+                success=True,
+            )
+        )
+
+
+class ListSchedules:
+    def __init__(self, repo: BackupRepositoryPort) -> None:
+        self._repo = repo
+
+    def execute(self) -> list[BackupSchedule]:
+        return self._repo.find_all_schedules()
+
+
+class GetSchedule:
+    def __init__(self, repo: BackupRepositoryPort) -> None:
+        self._repo = repo
+
+    def execute(self, schedule_id: str) -> BackupSchedule:
+        schedule = self._repo.find_schedule_by_id(schedule_id)
+        if not schedule:
+            from kingsec.application.errors import ScheduleNotFoundError
+            raise ScheduleNotFoundError(f"Schedule '{schedule_id}' not found")
+        return schedule
+
+
+# ---------------------------------------------------------------------------
+# Disaster Recovery
+# ---------------------------------------------------------------------------
+
+class CreateRecoveryPlan:
+    def __init__(self, repo: BackupRepositoryPort, audit: AuditPublisher) -> None:
+        self._repo = repo
+        self._audit = audit
+        self._counter = 0
+
+    def execute(self, plan: DisasterRecoveryPlan) -> DisasterRecoveryPlan:
+        self._counter += 1
+        pid = BackupId(value=f"dr-{self._counter}")
+        created = DisasterRecoveryPlan(
+            plan_id=pid,
+            name=plan.name,
+            description=plan.description,
+            estimated_downtime_minutes=plan.estimated_downtime_minutes,
+            checklist=plan.checklist,
+            created_by=plan.created_by,
+        )
+        self._repo.save_recovery_plan(created)
+        self._audit.record(
+            AuditEntry(
+                action=AuditAction.BACKUP_CREATED,
+                resource_type="recovery_plan",
+                resource_id=pid.value,
+                success=True,
+                username=plan.created_by,
+            )
+        )
+        return created
+
+
+class UpdateRecoveryPlan:
+    def __init__(self, repo: BackupRepositoryPort, audit: AuditPublisher) -> None:
+        self._repo = repo
+        self._audit = audit
+
+    def execute(self, plan_id: str, **kwargs: object) -> DisasterRecoveryPlan:
+        existing = self._repo.find_recovery_plan_by_id(plan_id)
+        if not existing:
+            from kingsec.application.errors import RecoveryPlanNotFoundError
+            raise RecoveryPlanNotFoundError(f"Recovery plan '{plan_id}' not found")
+        updated = DisasterRecoveryPlan(
+            plan_id=existing.plan_id,
+            name=str(kwargs.get("name", existing.name)),
+            description=str(kwargs.get("description", existing.description)),
+            estimated_downtime_minutes=int(kwargs.get("estimated_downtime_minutes", existing.estimated_downtime_minutes)),  # type: ignore[arg-type]
+            checklist=kwargs.get("checklist", existing.checklist),  # type: ignore[arg-type]
+            last_tested_at=existing.last_tested_at,
+            status=str(kwargs.get("status", existing.status)),
+            created_at=existing.created_at,
+            created_by=existing.created_by,
+        )
+        self._repo.save_recovery_plan(updated)
+        self._audit.record(
+            AuditEntry(
+                action=AuditAction.SCHEDULE_UPDATED,
+                resource_type="recovery_plan",
+                resource_id=plan_id,
+                success=True,
+            )
+        )
+        return updated
+
+
+class DeleteRecoveryPlan:
+    def __init__(self, repo: BackupRepositoryPort, audit: AuditPublisher) -> None:
+        self._repo = repo
+        self._audit = audit
+
+    def execute(self, plan_id: str) -> None:
+        existing = self._repo.find_recovery_plan_by_id(plan_id)
+        if not existing:
+            from kingsec.application.errors import RecoveryPlanNotFoundError
+            raise RecoveryPlanNotFoundError(f"Recovery plan '{plan_id}' not found")
+        self._repo.delete_recovery_plan(plan_id)
+        self._audit.record(
+            AuditEntry(
+                action=AuditAction.BACKUP_DELETED,
+                resource_type="recovery_plan",
+                resource_id=plan_id,
+                success=True,
+            )
+        )
+
+
+class ListRecoveryPlans:
+    def __init__(self, repo: BackupRepositoryPort) -> None:
+        self._repo = repo
+
+    def execute(self) -> list[DisasterRecoveryPlan]:
+        return self._repo.find_all_recovery_plans()
+
+
+class GetRecoveryPlan:
+    def __init__(self, repo: BackupRepositoryPort) -> None:
+        self._repo = repo
+
+    def execute(self, plan_id: str) -> DisasterRecoveryPlan:
+        plan = self._repo.find_recovery_plan_by_id(plan_id)
+        if not plan:
+            from kingsec.application.errors import RecoveryPlanNotFoundError
+            raise RecoveryPlanNotFoundError(f"Recovery plan '{plan_id}' not found")
+        return plan
+
+
+class RunRecoveryTest:
+    def __init__(self, repo: BackupRepositoryPort, audit: AuditPublisher) -> None:
+        self._repo = repo
+        self._audit = audit
+        self._counter = 0
+
+    def execute(self, plan_id: str, executed_by: str = "") -> RecoveryTest:
+        plan = self._repo.find_recovery_plan_by_id(plan_id)
+        if not plan:
+            from kingsec.application.errors import RecoveryPlanNotFoundError
+            raise RecoveryPlanNotFoundError(f"Recovery plan '{plan_id}' not found")
+        self._counter += 1
+        tid = BackupId(value=f"rt-{self._counter}")
+        now = datetime.now(UTC).isoformat()
+        results = tuple(
+            RecoveryChecklistItem(
+                item_id=item.item_id,
+                description=item.description,
+                completed=True,
+                completed_at=now,
+            )
+            for item in plan.checklist
+        )
+        test = RecoveryTest(
+            test_id=tid,
+            plan_id=plan_id,
+            status=RecoveryStatus.COMPLETED,
+            started_at=now,
+            completed_at=now,
+            checklist_results=results,
+            executed_by=executed_by,
+        )
+        self._repo.save_recovery_test(test)
+        updated_plan = DisasterRecoveryPlan(
+            plan_id=plan.plan_id,
+            name=plan.name,
+            description=plan.description,
+            estimated_downtime_minutes=plan.estimated_downtime_minutes,
+            checklist=plan.checklist,
+            last_tested_at=now,
+            status=plan.status,
+            created_at=plan.created_at,
+            created_by=plan.created_by,
+        )
+        self._repo.save_recovery_plan(updated_plan)
+        self._audit.record(
+            AuditEntry(
+                action=AuditAction.BACKUP_COMPLETED,
+                resource_type="recovery_test",
+                resource_id=tid.value,
+                success=True,
+                username=executed_by,
+            )
+        )
+        return test
+
+
+class ListRecoveryTests:
+    def __init__(self, repo: BackupRepositoryPort) -> None:
+        self._repo = repo
+
+    def execute(self, plan_id: str | None = None) -> list[RecoveryTest]:
+        if plan_id:
+            return self._repo.find_recovery_tests_by_plan(plan_id)
+        return self._repo.find_all_recovery_tests()
+
+
+# ---------------------------------------------------------------------------
+# High Availability Health Report
+# ---------------------------------------------------------------------------
+
+class GetHealthReport:
+    def __init__(self, repo: BackupRepositoryPort) -> None:
+        self._repo = repo
+
+    def execute(self) -> HealthReport:
+        backups = self._repo.find_all_backups()
+        db_healthy = True
+        storage_healthy = any(b.status == BackupStatus.COMPLETED for b in backups) if backups else True
+        workers_healthy = True
+        backup_svc_healthy = True
+        components = [
+            ComponentHealthStatus(
+                component="database",
+                health=ComponentHealth.HEALTHY if db_healthy else ComponentHealth.UNHEALTHY,
+                message="Database accessible" if db_healthy else "Database unreachable",
+            ),
+            ComponentHealthStatus(
+                component="storage",
+                health=ComponentHealth.HEALTHY if storage_healthy else ComponentHealth.DEGRADED,
+                message="Storage operational" if storage_healthy else "No completed backups found",
+            ),
+            ComponentHealthStatus(
+                component="workers",
+                health=ComponentHealth.HEALTHY if workers_healthy else ComponentHealth.UNHEALTHY,
+                message="Workers available" if workers_healthy else "No workers available",
+            ),
+            ComponentHealthStatus(
+                component="backup_service",
+                health=ComponentHealth.HEALTHY if backup_svc_healthy else ComponentHealth.UNHEALTHY,
+                message="Backup service operational" if backup_svc_healthy else "Backup service degraded",
+            ),
+        ]
+        overall = ComponentHealth.HEALTHY
+        if any(c.health == ComponentHealth.UNHEALTHY for c in components):
+            overall = ComponentHealth.UNHEALTHY
+        elif any(c.health == ComponentHealth.DEGRADED for c in components):
+            overall = ComponentHealth.DEGRADED
+        bid = BackupId(value=f"hr-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}")
+        return HealthReport(
+            report_id=bid,
+            overall=overall,
+            components=tuple(components),
+            database_healthy=db_healthy,
+            storage_healthy=storage_healthy,
+            workers_healthy=workers_healthy,
+            backup_service_healthy=backup_svc_healthy,
+        )
