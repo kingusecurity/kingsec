@@ -40,11 +40,13 @@ from .models import (
     AlertModel,
     AssessmentORM,
     AssetModel,
+    CopilotConversationModel,
     CveEntryModel,
     EvidenceORM,
     ExposureModel,
     FindingModel,
     FindingORM,
+    InvestigationNoteModel,
     JobModel,
     MonitorEventModel,
     RecommendationORM,
@@ -971,3 +973,96 @@ def threat_feed_to_domain(orm: ThreatFeedModel) -> DomainThreatFeedEntry:
 
 
 from kingsec.domain.threat_intelligence import AttackVector, AttackComplexity, PrivilegesRequired, UserInteraction, CiaImpact
+
+
+# --- AI Copilot -------------------------------------------------------------
+
+
+import json
+
+from kingsec.domain.copilot import CopilotConversation as DomainCopilotConversation, CopilotMessage, InvestigationNote as DomainInvestigationNote
+from .models import CopilotConversationModel, InvestigationNoteModel
+
+
+def copilot_conversation_to_orm(conv: DomainCopilotConversation) -> CopilotConversationModel:
+    messages = [{"role": m.role, "content": m.content, "timestamp": m.timestamp} for m in conv.messages]
+    return CopilotConversationModel(
+        id=conv.id,
+        title=conv.title,
+        assessment_id=conv.assessment_id,
+        finding_id=conv.finding_id,
+        asset_id=conv.asset_id,
+        cve_id=conv.cve_id,
+        alert_id=conv.alert_id,
+        exposure_id=conv.exposure_id,
+        messages_json=json.dumps(messages) if messages else None,
+        metadata_json=json.dumps(conv.metadata) if conv.metadata else None,
+        created_at=conv.created_at,
+        updated_at=conv.updated_at,
+    )
+
+
+def copilot_conversation_to_domain(orm: CopilotConversationModel) -> DomainCopilotConversation:
+    messages: list[CopilotMessage] = []
+    if orm.messages_json:
+        try:
+            raw = json.loads(orm.messages_json)
+            messages = [CopilotMessage(role=m.get("role", "user"), content=m.get("content", ""), timestamp=m.get("timestamp", "")) for m in raw]
+        except (json.JSONDecodeError, TypeError):
+            pass
+    metadata: dict[str, object] = {}
+    if orm.metadata_json:
+        try:
+            metadata = json.loads(orm.metadata_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return DomainCopilotConversation(
+        id=orm.id,
+        title=orm.title,
+        assessment_id=orm.assessment_id,
+        finding_id=orm.finding_id,
+        asset_id=orm.asset_id,
+        cve_id=orm.cve_id,
+        alert_id=orm.alert_id,
+        exposure_id=orm.exposure_id,
+        messages=tuple(messages),
+        metadata=metadata,
+        created_at=orm.created_at,
+        updated_at=orm.updated_at,
+    )
+
+
+def investigation_note_to_orm(note: DomainInvestigationNote) -> InvestigationNoteModel:
+    return InvestigationNoteModel(
+        id=note.id,
+        conversation_id=note.conversation_id,
+        content=note.content,
+        author=note.author,
+        pinned=note.pinned,
+        assessment_id=note.assessment_id,
+        finding_id=note.finding_id,
+        tags_json=json.dumps(list(note.tags)) if note.tags else None,
+        created_at=note.created_at,
+        updated_at=note.updated_at,
+    )
+
+
+def investigation_note_to_domain(orm: InvestigationNoteModel) -> DomainInvestigationNote:
+    tags: list[str] = []
+    if orm.tags_json:
+        try:
+            tags = json.loads(orm.tags_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return DomainInvestigationNote(
+        id=orm.id,
+        conversation_id=orm.conversation_id,
+        content=orm.content,
+        author=orm.author,
+        pinned=orm.pinned,
+        assessment_id=orm.assessment_id,
+        finding_id=orm.finding_id,
+        tags=tuple(tags),
+        created_at=orm.created_at,
+        updated_at=orm.updated_at,
+    )

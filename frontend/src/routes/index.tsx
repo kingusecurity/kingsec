@@ -41,6 +41,7 @@ const CveExplorerPage = lazy(() => import('@/pages/CveExplorerPage').then(m => (
 const CveDetailPage = lazy(() => import('@/pages/CveDetailPage').then(m => ({ default: m.CveDetailPage })))
 const KevViewPage = lazy(() => import('@/pages/KevViewPage').then(m => ({ default: m.KevViewPage })))
 const ThreatTimelinePage = lazy(() => import('@/pages/ThreatTimelinePage').then(m => ({ default: m.ThreatTimelinePage })))
+const AICopilotPage = lazy(() => import('@/pages/AICopilotPage').then(m => ({ default: m.AICopilotPage })))
 
 function PageLoader() {
   return (
@@ -175,6 +176,10 @@ export const router = createBrowserRouter([
       {
         path: 'monitoring/timeline',
         element: <Suspense fallback={<PageLoader />}><MonitoringTimelinePage /></Suspense>,
+      },
+      {
+        path: 'copilot',
+        element: <Suspense fallback={<PageLoader />}><AICopilotPage /></Suspense>,
       },
       {
         path: 'threat-intelligence',

@@ -142,3 +142,11 @@ class CveNotFoundError(ApplicationError):
 
 class ThreatFeedNotFoundError(ApplicationError):
     """No threat feed exists for the requested identifier."""
+
+
+class CopilotConversationNotFoundError(ApplicationError):
+    """No copilot conversation exists for the requested identifier."""
+
+
+class InvestigationNoteNotFoundError(ApplicationError):
+    """No investigation note exists for the requested identifier."""

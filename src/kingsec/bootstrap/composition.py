@@ -238,6 +238,9 @@ def _register_adapters(
     # Threat intelligence & CVE enrichment (Phase 21).
     _register_threat_intelligence_services(container, session_factory)
 
+    # AI Security Copilot (Phase 22).
+    _register_copilot_services(container, session_factory)
+
     # MFA (TOTP) infrastructure.
     register_mfa(container, session_factory)
 
@@ -1158,3 +1161,87 @@ def _register_threat_intelligence_services(container: Container, session_factory
 
     container.register_instance(ThreatRiskCalculator, ThreatRiskCalculator)
     container.register_instance(CvssService, CvssService)
+
+
+def _register_copilot_services(container: Container, session_factory: Any) -> None:
+    from kingsec.application.ai.ports import AIQueryPort
+    from kingsec.application.ai.redactor import Redactor
+    from kingsec.application.ai_copilot.context_builder import (
+        AlertRepositoryPort as CopilotAlertRepoPort,
+        AssetRepositoryPort as CopilotAssetRepoPort,
+        AssessmentRepositoryPort as CopilotAssessmentRepoPort,
+        CopilotContextBuilder,
+        CveRepositoryPort as CopilotCveRepoPort,
+        ExposureRepositoryPort as CopilotExposureRepoPort,
+        FindingRepositoryPort as CopilotFindingRepoPort,
+    )
+    from kingsec.application.ai_copilot.copilot_service import CopilotService
+    from kingsec.application.ai_copilot.export_service import CopilotExportService
+    from kingsec.application.ai_copilot.notes_service import InvestigationNotesService
+    from kingsec.application.ai_copilot.ports import (
+        AuditPublisherPort as CopilotAuditPublisherPort,
+        CacheServicePort as CopilotCacheServicePort,
+        CopilotConversationRepositoryPort,
+        InvestigationNoteRepositoryPort,
+    )
+    from kingsec.infrastructure.persistence.repositories.copilot import (
+        SQLAlchemyCopilotConversationRepository,
+        SQLAlchemyInvestigationNoteRepository,
+    )
+
+    from kingsec.application.ports.repositories import Asset
+    from kingsec.application import AssessmentRepository
+    from kingsec.application.threat_intelligence.ports import CveRepositoryPort as TICveRepositoryPort
+    from kingsec.application.monitoring.ports import AlertRepositoryPort as MonitoringAlertRepositoryPort
+    from kingsec.application.ports.attack_surface import AttackSurfaceRepositoryPort
+
+    def _make_conv_repo(_c: Any) -> CopilotConversationRepositoryPort:
+        return SQLAlchemyCopilotConversationRepository(session_factory())
+
+    def _make_note_repo(_c: Any) -> InvestigationNoteRepositoryPort:
+        return SQLAlchemyInvestigationNoteRepository(session_factory())
+
+    container.register_factory(CopilotConversationRepositoryPort, _make_conv_repo)
+    container.register_factory(InvestigationNoteRepositoryPort, _make_note_repo)
+
+    container.register_factory(
+        CopilotContextBuilder,
+        lambda c: CopilotContextBuilder(
+            finding_repo=None,
+            assessment_repo=c.resolve(AssessmentRepository) if c.has(AssessmentRepository) else None,
+            asset_repo=c.resolve(Asset) if c.has(Asset) else None,
+            cve_repo=c.resolve(TICveRepositoryPort) if c.has(TICveRepositoryPort) else None,
+            alert_repo=c.resolve(MonitoringAlertRepositoryPort) if c.has(MonitoringAlertRepositoryPort) else None,
+            exposure_repo=c.resolve(AttackSurfaceRepositoryPort) if c.has(AttackSurfaceRepositoryPort) else None,
+        ),
+    )
+
+    container.register_factory(
+        CopilotService,
+        lambda c: CopilotService(
+            ai=c.resolve(AIQueryPort),
+            context_builder=c.resolve(CopilotContextBuilder),
+            conversation_repo=c.resolve(CopilotConversationRepositoryPort),
+            redactor=c.resolve(Redactor) if c.has(Redactor) else None,
+            cache=c.resolve(CopilotCacheServicePort) if c.has(CopilotCacheServicePort) else None,
+            audit=c.resolve(CopilotAuditPublisherPort) if c.has(CopilotAuditPublisherPort) else None,
+        ),
+    )
+
+    container.register_factory(
+        InvestigationNotesService,
+        lambda c: InvestigationNotesService(
+            note_repo=c.resolve(InvestigationNoteRepositoryPort),
+            audit=c.resolve(CopilotAuditPublisherPort) if c.has(CopilotAuditPublisherPort) else None,
+        ),
+    )
+
+    container.register_factory(
+        CopilotExportService,
+        lambda c: CopilotExportService(
+            conversation_repo=c.resolve(CopilotConversationRepositoryPort),
+            note_repo=c.resolve(InvestigationNoteRepositoryPort),
+            context_builder=c.resolve(CopilotContextBuilder),
+            audit=c.resolve(CopilotAuditPublisherPort) if c.has(CopilotAuditPublisherPort) else None,
+        ),
+    )

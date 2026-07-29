@@ -760,3 +760,35 @@ class ThreatFeedModel(Base):
     last_synced: Mapped[str] = mapped_column(String, nullable=False, default="")
     status: Mapped[str] = mapped_column(String, nullable=False, default="active")
     metadata_json: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class CopilotConversationModel(Base):
+    __tablename__ = "copilot_conversations"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    title: Mapped[str] = mapped_column(String, nullable=False, default="New Investigation")
+    assessment_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    finding_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    asset_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    cve_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    alert_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    exposure_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    messages_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    metadata_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class InvestigationNoteModel(Base):
+    __tablename__ = "investigation_notes"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    conversation_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    author: Mapped[str] = mapped_column(String, nullable=False, default="")
+    pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    assessment_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    finding_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    tags_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
