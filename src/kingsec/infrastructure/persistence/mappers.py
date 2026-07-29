@@ -40,6 +40,7 @@ from .models import (
     AlertModel,
     AssessmentORM,
     AssetModel,
+    CveEntryModel,
     EvidenceORM,
     ExposureModel,
     FindingModel,
@@ -50,6 +51,7 @@ from .models import (
     ReportORM,
     RuleModel,
     ScanModel,
+    ThreatFeedModel,
 )
 
 # --- domain -> ORM (for writing) ---------------------------------------------
@@ -754,3 +756,218 @@ def rule_to_domain(orm: RuleModel) -> DomainRule:
         updated_at=orm.updated_at,
     )
 
+
+# --- Threat Intelligence -----------------------------------------------------
+
+
+from kingsec.domain.threat_intelligence import (
+    AffectedProduct,
+    CveEntry as DomainCveEntry,
+    CveReference,
+    CvssData,
+    EpssData,
+    ExploitMaturity,
+    KevEntry,
+    ThreatFeedEntry as DomainThreatFeedEntry,
+    ThreatFeedType,
+)
+from kingsec.domain.identifiers import CveId, ThreatFeedId
+
+
+def cve_entry_to_orm(entry: DomainCveEntry) -> CveEntryModel:
+    import json
+    cvss = entry.cvss_data
+    cvss_json = json.dumps({
+        "version": cvss.version,
+        "vector_string": cvss.vector_string,
+        "base_score": cvss.base_score,
+        "base_severity": cvss.base_severity,
+        "exploitability_score": cvss.exploitability_score,
+        "impact_score": cvss.impact_score,
+        "attack_vector": cvss.attack_vector.value if cvss.attack_vector else None,
+        "attack_complexity": cvss.attack_complexity.value if cvss.attack_complexity else None,
+        "privileges_required": cvss.privileges_required.value if cvss.privileges_required else None,
+        "user_interaction": cvss.user_interaction.value if cvss.user_interaction else None,
+        "confidentiality_impact": cvss.confidentiality_impact.value if cvss.confidentiality_impact else None,
+        "integrity_impact": cvss.integrity_impact.value if cvss.integrity_impact else None,
+        "availability_impact": cvss.availability_impact.value if cvss.availability_impact else None,
+    }) if entry.cvss_data else None
+    epss_json = json.dumps({
+        "score": entry.epss_data.score,
+        "percentile": entry.epss_data.percentile,
+        "model_version": entry.epss_data.model_version,
+        "date": entry.epss_data.date,
+    }) if entry.epss_data else None
+    products_json = json.dumps([{
+        "vendor": p.vendor, "product": p.product, "version": p.version, "operator": p.operator
+    } for p in entry.affected_products]) if entry.affected_products else None
+    refs_json = json.dumps([{
+        "url": r.url, "source": r.source, "tags": list(r.tags)
+    } for r in entry.references]) if entry.references else None
+    advisories_json = json.dumps(list(entry.vendor_advisories)) if entry.vendor_advisories else None
+    weaknesses_json = json.dumps(list(entry.weaknesses)) if entry.weaknesses else None
+    kev_json = json.dumps({
+        "id": entry.kev_entry.id,
+        "cve_id": entry.kev_entry.cve_id,
+        "vendor_project": entry.kev_entry.vendor_project,
+        "product": entry.kev_entry.product,
+        "vulnerability_name": entry.kev_entry.vulnerability_name,
+        "date_added": entry.kev_entry.date_added,
+        "due_date": entry.kev_entry.due_date,
+        "required_action": entry.kev_entry.required_action,
+        "known_ransomware_campaign_use": entry.kev_entry.known_ransomware_campaign_use,
+        "notes": entry.kev_entry.notes,
+    }) if entry.kev_entry else None
+    return CveEntryModel(
+        id=str(entry.id),
+        cve_code=entry.cve_code,
+        description=entry.description,
+        severity=entry.severity,
+        published_date=entry.published_date,
+        last_modified=entry.last_modified,
+        cvss_data_json=cvss_json,
+        epss_data_json=epss_json,
+        exploit_maturity=entry.exploit_maturity.value,
+        affected_products_json=products_json,
+        references_json=refs_json,
+        vendor_advisories_json=advisories_json,
+        weaknesses_json=weaknesses_json,
+        is_kev=entry.is_kev,
+        kev_entry_json=kev_json,
+        threat_score=entry.threat_score,
+        exploitability_score=entry.exploitability_score,
+        priority_score=entry.priority_score,
+        metadata_json=None,
+        created_at=entry.created_at,
+        updated_at=entry.updated_at,
+    )
+
+
+def cve_entry_to_domain(orm: CveEntryModel) -> DomainCveEntry:
+    import json
+    cvss = CvssData()
+    if orm.cvss_data_json:
+        try:
+            d = json.loads(orm.cvss_data_json)
+            cvss = CvssData(
+                version=d.get("version", "3.1"),
+                vector_string=d.get("vector_string", ""),
+                base_score=float(d.get("base_score", 0)),
+                base_severity=d.get("base_severity", "NONE"),
+                exploitability_score=float(d.get("exploitability_score", 0)),
+                impact_score=float(d.get("impact_score", 0)),
+                attack_vector=AttackVector(d["attack_vector"]) if d.get("attack_vector") else None,
+                attack_complexity=AttackComplexity(d["attack_complexity"]) if d.get("attack_complexity") else None,
+                privileges_required=PrivilegesRequired(d["privileges_required"]) if d.get("privileges_required") else None,
+                user_interaction=UserInteraction(d["user_interaction"]) if d.get("user_interaction") else None,
+                confidentiality_impact=CiaImpact(d["confidentiality_impact"]) if d.get("confidentiality_impact") else None,
+                integrity_impact=CiaImpact(d["integrity_impact"]) if d.get("integrity_impact") else None,
+                availability_impact=CiaImpact(d["availability_impact"]) if d.get("availability_impact") else None,
+            )
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+    epss = None
+    if orm.epss_data_json:
+        try:
+            d = json.loads(orm.epss_data_json)
+            epss = EpssData(
+                score=float(d.get("score", 0)),
+                percentile=float(d.get("percentile", 0)),
+                model_version=d.get("model_version", ""),
+                date=d.get("date", ""),
+            )
+        except (json.JSONDecodeError, TypeError):
+            pass
+    products = []
+    if orm.affected_products_json:
+        try:
+            products = [AffectedProduct(**p) for p in json.loads(orm.affected_products_json)]
+        except (json.JSONDecodeError, TypeError):
+            pass
+    refs = []
+    if orm.references_json:
+        try:
+            refs = [CveReference(url=r.get("url", ""), source=r.get("source", ""), tags=tuple(r.get("tags", [])))
+                    for r in json.loads(orm.references_json)]
+        except (json.JSONDecodeError, TypeError):
+            pass
+    advisories: list[str] = []
+    if orm.vendor_advisories_json:
+        try:
+            advisories = json.loads(orm.vendor_advisories_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    weaknesses: list[str] = []
+    if orm.weaknesses_json:
+        try:
+            weaknesses = json.loads(orm.weaknesses_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    kev_entry = None
+    if orm.kev_entry_json:
+        try:
+            d = json.loads(orm.kev_entry_json)
+            kev_entry = KevEntry(**d)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return DomainCveEntry(
+        cve_id=CveId(orm.id),
+        cve_code=orm.cve_code,
+        description=orm.description,
+        severity=orm.severity,
+        published_date=orm.published_date,
+        last_modified=orm.last_modified,
+        cvss_data=cvss,
+        epss_data=epss,
+        exploit_maturity=ExploitMaturity(orm.exploit_maturity) if orm.exploit_maturity else ExploitMaturity.UNKNOWN,
+        affected_products=products,
+        references=refs,
+        vendor_advisories=advisories,
+        weaknesses=weaknesses,
+        is_kev=orm.is_kev,
+        kev_entry=kev_entry,
+        threat_score=orm.threat_score,
+        exploitability_score=orm.exploitability_score,
+        priority_score=orm.priority_score,
+        created_at=orm.created_at,
+        updated_at=orm.updated_at,
+    )
+
+
+def threat_feed_to_orm(feed: DomainThreatFeedEntry) -> ThreatFeedModel:
+    import json
+    return ThreatFeedModel(
+        id=feed.feed_id,
+        feed_type=feed.feed_type.value,
+        title=feed.title,
+        description=feed.description,
+        source_url=feed.source_url,
+        entries=feed.entries,
+        last_synced=feed.last_synced,
+        status=feed.status,
+        metadata_json=json.dumps(feed.metadata) if feed.metadata else None,
+    )
+
+
+def threat_feed_to_domain(orm: ThreatFeedModel) -> DomainThreatFeedEntry:
+    import json
+    metadata: dict[str, object] = {}
+    if orm.metadata_json:
+        try:
+            metadata = json.loads(orm.metadata_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return DomainThreatFeedEntry(
+        feed_id=orm.id,
+        feed_type=ThreatFeedType(orm.feed_type),
+        title=orm.title,
+        description=orm.description,
+        source_url=orm.source_url,
+        entries=orm.entries,
+        last_synced=orm.last_synced,
+        status=orm.status,
+        metadata=metadata,
+    )
+
+
+from kingsec.domain.threat_intelligence import AttackVector, AttackComplexity, PrivilegesRequired, UserInteraction, CiaImpact

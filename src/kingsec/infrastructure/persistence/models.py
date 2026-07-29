@@ -720,3 +720,43 @@ class RuleModel(Base):
     metadata_json: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class CveEntryModel(Base):
+    __tablename__ = "cve_entries"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    cve_code: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    severity: Mapped[str] = mapped_column(String, nullable=False, default="NONE", index=True)
+    published_date: Mapped[str | None] = mapped_column(String, nullable=True)
+    last_modified: Mapped[str | None] = mapped_column(String, nullable=True)
+    cvss_data_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    epss_data_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    exploit_maturity: Mapped[str] = mapped_column(String, nullable=False, default="unknown")
+    affected_products_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    references_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    vendor_advisories_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    weaknesses_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    is_kev: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+    kev_entry_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    threat_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0, index=True)
+    exploitability_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    priority_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    metadata_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class ThreatFeedModel(Base):
+    __tablename__ = "threat_feeds"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    feed_type: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String, nullable=False, default="")
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    source_url: Mapped[str] = mapped_column(String, nullable=False, default="")
+    entries: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_synced: Mapped[str] = mapped_column(String, nullable=False, default="")
+    status: Mapped[str] = mapped_column(String, nullable=False, default="active")
+    metadata_json: Mapped[str | None] = mapped_column(String, nullable=True)

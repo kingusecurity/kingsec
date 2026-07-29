@@ -36,6 +36,11 @@ const AlertsPage = lazy(() => import('@/pages/AlertsPage').then(m => ({ default:
 const AlertDetailPage = lazy(() => import('@/pages/AlertDetailPage').then(m => ({ default: m.AlertDetailPage })))
 const MonitoringRulesPage = lazy(() => import('@/pages/MonitoringRulesPage').then(m => ({ default: m.MonitoringRulesPage })))
 const MonitoringTimelinePage = lazy(() => import('@/pages/MonitoringTimelinePage').then(m => ({ default: m.MonitoringTimelinePage })))
+const ThreatIntelligenceDashboard = lazy(() => import('@/pages/ThreatIntelligenceDashboard').then(m => ({ default: m.ThreatIntelligenceDashboard })))
+const CveExplorerPage = lazy(() => import('@/pages/CveExplorerPage').then(m => ({ default: m.CveExplorerPage })))
+const CveDetailPage = lazy(() => import('@/pages/CveDetailPage').then(m => ({ default: m.CveDetailPage })))
+const KevViewPage = lazy(() => import('@/pages/KevViewPage').then(m => ({ default: m.KevViewPage })))
+const ThreatTimelinePage = lazy(() => import('@/pages/ThreatTimelinePage').then(m => ({ default: m.ThreatTimelinePage })))
 
 function PageLoader() {
   return (
@@ -170,6 +175,26 @@ export const router = createBrowserRouter([
       {
         path: 'monitoring/timeline',
         element: <Suspense fallback={<PageLoader />}><MonitoringTimelinePage /></Suspense>,
+      },
+      {
+        path: 'threat-intelligence',
+        element: <Suspense fallback={<PageLoader />}><ThreatIntelligenceDashboard /></Suspense>,
+      },
+      {
+        path: 'threat-intelligence/cves',
+        element: <Suspense fallback={<PageLoader />}><CveExplorerPage /></Suspense>,
+      },
+      {
+        path: 'threat-intelligence/cves/:id',
+        element: <Suspense fallback={<PageLoader />}><CveDetailPage /></Suspense>,
+      },
+      {
+        path: 'threat-intelligence/kev',
+        element: <Suspense fallback={<PageLoader />}><KevViewPage /></Suspense>,
+      },
+      {
+        path: 'threat-intelligence/timeline',
+        element: <Suspense fallback={<PageLoader />}><ThreatTimelinePage /></Suspense>,
       },
       {
         path: 'settings',

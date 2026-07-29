@@ -190,6 +190,51 @@ class RuleId:
 
 
 @dataclass(frozen=True, slots=True)
+class CveId:
+    value: str
+
+    def __post_init__(self) -> None:
+        ensure_non_empty(self.value, "CveId")
+
+    @classmethod
+    def generate(cls) -> CveId:
+        return cls(f"cve-{uuid.uuid4().hex}")
+
+    def __str__(self) -> str:
+        return self.value
+
+
+@dataclass(frozen=True, slots=True)
+class ThreatFeedId:
+    value: str
+
+    def __post_init__(self) -> None:
+        ensure_non_empty(self.value, "ThreatFeedId")
+
+    @classmethod
+    def generate(cls) -> ThreatFeedId:
+        return cls(f"feed-{uuid.uuid4().hex}")
+
+    def __str__(self) -> str:
+        return self.value
+
+
+@dataclass(frozen=True, slots=True)
+class KevEntryId:
+    value: str
+
+    def __post_init__(self) -> None:
+        ensure_non_empty(self.value, "KevEntryId")
+
+    @classmethod
+    def generate(cls) -> KevEntryId:
+        return cls(f"kev-{uuid.uuid4().hex}")
+
+    def __str__(self) -> str:
+        return self.value
+
+
+@dataclass(frozen=True, slots=True)
 class AttackSurfaceId:
     value: str
 

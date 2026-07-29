@@ -235,6 +235,9 @@ def _register_adapters(
     # Continuous monitoring (Phase 20).
     _register_monitoring_services(container, session_factory)
 
+    # Threat intelligence & CVE enrichment (Phase 21).
+    _register_threat_intelligence_services(container, session_factory)
+
     # MFA (TOTP) infrastructure.
     register_mfa(container, session_factory)
 
@@ -1052,3 +1055,106 @@ def _register_asset_inventory_services(container: Container, session_factory: An
             repo=c.resolve(AssetInventoryRepositoryPort),
         ),
     )
+
+
+def _register_threat_intelligence_services(container: Container, session_factory: Any) -> None:
+    from kingsec.application.threat_intelligence.enrichment import CveEnrichmentService, CvssService, EpssService, KevService
+    from kingsec.application.threat_intelligence.feed_aggregator import ThreatFeedAggregator
+    from kingsec.application.threat_intelligence.ports import (
+        AuditPublisherPort as TIAuditPublisherPort,
+        CacheServicePort as TICacheServicePort,
+        CveRepositoryPort,
+        EpssProviderPort,
+        KevProviderPort,
+        MitreCveProviderPort,
+        NvdProviderPort,
+        ThreatFeedRepositoryPort,
+    )
+    from kingsec.application.threat_intelligence.reports import ThreatReportGenerator
+    from kingsec.application.threat_intelligence.risk_calculator import ThreatRiskCalculator
+    from kingsec.application.threat_intelligence.service import ThreatIntelligenceService
+    from kingsec.infrastructure.persistence.repositories.threat_intelligence import (
+        SQLAlchemyCveRepository,
+        SQLAlchemyThreatFeedRepository,
+    )
+
+    from kingsec.adapters.outbound.threat_intelligence.nvd_provider import NvdApiProvider
+    from kingsec.adapters.outbound.threat_intelligence.cisa_kev_provider import CisaKevApiProvider
+    from kingsec.adapters.outbound.threat_intelligence.epss_provider import EpssApiProvider
+    from kingsec.adapters.outbound.threat_intelligence.mitre_provider import MitreCveProvider
+
+    def _make_cve_repo(_c: Any) -> CveRepositoryPort:
+        return SQLAlchemyCveRepository(session_factory())
+
+    def _make_feed_repo(_c: Any) -> ThreatFeedRepositoryPort:
+        return SQLAlchemyThreatFeedRepository(session_factory())
+
+    container.register_factory(CveRepositoryPort, _make_cve_repo)
+    container.register_factory(ThreatFeedRepositoryPort, _make_feed_repo)
+
+    container.register_instance(NvdProviderPort, NvdApiProvider())
+    container.register_instance(EpssProviderPort, EpssApiProvider())
+    container.register_instance(KevProviderPort, CisaKevApiProvider())
+    container.register_instance(MitreCveProviderPort, MitreCveProvider())
+
+    container.register_factory(
+        EpssService,
+        lambda c: EpssService(
+            epss_provider=c.resolve(EpssProviderPort) if c.has(EpssProviderPort) else None,
+        ),
+    )
+
+    container.register_factory(
+        KevService,
+        lambda c: KevService(
+            kev_provider=c.resolve(KevProviderPort) if c.has(KevProviderPort) else None,
+        ),
+    )
+
+    container.register_factory(
+        CveEnrichmentService,
+        lambda c: CveEnrichmentService(
+            nvd_provider=c.resolve(NvdProviderPort) if c.has(NvdProviderPort) else None,
+            epss_provider=c.resolve(EpssProviderPort) if c.has(EpssProviderPort) else None,
+            kev_provider=c.resolve(KevProviderPort) if c.has(KevProviderPort) else None,
+            mitre_provider=c.resolve(MitreCveProviderPort) if c.has(MitreCveProviderPort) else None,
+        ),
+    )
+
+    container.register_factory(
+        ThreatFeedAggregator,
+        lambda c: ThreatFeedAggregator(
+            nvd_provider=c.resolve(NvdProviderPort) if c.has(NvdProviderPort) else None,
+            kev_provider=c.resolve(KevProviderPort) if c.has(KevProviderPort) else None,
+            epss_provider=c.resolve(EpssProviderPort) if c.has(EpssProviderPort) else None,
+            mitre_provider=c.resolve(MitreCveProviderPort) if c.has(MitreCveProviderPort) else None,
+            feed_repo=c.resolve(ThreatFeedRepositoryPort) if c.has(ThreatFeedRepositoryPort) else None,
+            cache=c.resolve(TICacheServicePort) if c.has(TICacheServicePort) else None,
+            audit=c.resolve(TIAuditPublisherPort) if c.has(TIAuditPublisherPort) else None,
+        ),
+    )
+
+    container.register_factory(
+        ThreatIntelligenceService,
+        lambda c: ThreatIntelligenceService(
+            cve_repo=c.resolve(CveRepositoryPort),
+            enrichment=c.resolve(CveEnrichmentService),
+            epss_service=c.resolve(EpssService),
+            kev_service=c.resolve(KevService),
+            feed_repo=c.resolve(ThreatFeedRepositoryPort) if c.has(ThreatFeedRepositoryPort) else None,
+            cache=c.resolve(TICacheServicePort) if c.has(TICacheServicePort) else None,
+            audit=c.resolve(TIAuditPublisherPort) if c.has(TIAuditPublisherPort) else None,
+        ),
+    )
+
+    container.register_factory(
+        ThreatReportGenerator,
+        lambda c: ThreatReportGenerator(
+            cve_repo=c.resolve(CveRepositoryPort),
+            feed_repo=c.resolve(ThreatFeedRepositoryPort) if c.has(ThreatFeedRepositoryPort) else None,
+            audit=c.resolve(TIAuditPublisherPort) if c.has(TIAuditPublisherPort) else None,
+        ),
+    )
+
+    container.register_instance(ThreatRiskCalculator, ThreatRiskCalculator)
+    container.register_instance(CvssService, CvssService)

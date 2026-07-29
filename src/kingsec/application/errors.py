@@ -134,3 +134,11 @@ class AlertNotFoundError(ApplicationError):
 
 class RuleNotFoundError(ApplicationError):
     """No monitoring rule exists for the requested identifier."""
+
+
+class CveNotFoundError(ApplicationError):
+    """No CVE entry exists for the requested identifier."""
+
+
+class ThreatFeedNotFoundError(ApplicationError):
+    """No threat feed exists for the requested identifier."""
