@@ -247,6 +247,9 @@ def _register_adapters(
     # Plugin SDK & Extension Framework (Phase 24).
     _register_plugin_sdk_services(container, session_factory)
 
+    # Distributed Scan Workers & Job Queue (Phase 25).
+    _register_distributed_worker_services(container, session_factory)
+
     # MFA (TOTP) infrastructure.
     register_mfa(container, session_factory)
 
@@ -1327,3 +1330,90 @@ def _register_plugin_sdk_services(container: Container, session_factory: Any) ->
     container.register_factory(PluginLoader, _make_loader)
     container.register_factory(PluginRegistry, _make_registry)
     container.register_factory(PluginMarketplace, _make_marketplace)
+
+
+def _register_distributed_worker_services(container: Container, session_factory: Any) -> None:
+    from kingsec.application.distributed.job_dispatcher import JobDispatcher, JobLeaseManager
+    from kingsec.application.distributed.ports import (
+        DeadLetterRepositoryPort,
+        JobLeaseRepositoryPort,
+        JobQueueRepositoryPort,
+        WorkerRepositoryPort,
+    )
+    from kingsec.application.distributed.retry_manager import DeadLetterService, RetryManager
+    from kingsec.application.distributed.scheduler import CapabilityMatchingScheduler, create_scheduler
+    from kingsec.application.distributed.worker_service import HeartbeatManager, WorkerRegistrationService
+    from kingsec.infrastructure.persistence.repositories.dead_letter import SQLAlchemyDeadLetterRepository
+    from kingsec.infrastructure.persistence.repositories.job_queue import SQLAlchemyJobQueueRepository
+    from kingsec.infrastructure.persistence.repositories.lease import SQLAlchemyJobLeaseRepository
+    from kingsec.infrastructure.persistence.repositories.worker import SQLAlchemyWorkerRepository
+
+    def _make_worker_repo(_c: Any) -> WorkerRepositoryPort:
+        return SQLAlchemyWorkerRepository(session_factory())
+
+    def _make_queue_repo(_c: Any) -> JobQueueRepositoryPort:
+        return SQLAlchemyJobQueueRepository(session_factory())
+
+    def _make_lease_repo(_c: Any) -> JobLeaseRepositoryPort:
+        return SQLAlchemyJobLeaseRepository(session_factory())
+
+    def _make_dead_letter_repo(_c: Any) -> DeadLetterRepositoryPort:
+        return SQLAlchemyDeadLetterRepository(session_factory())
+
+    container.register_factory(WorkerRepositoryPort, _make_worker_repo)
+    container.register_factory(JobQueueRepositoryPort, _make_queue_repo)
+    container.register_factory(JobLeaseRepositoryPort, _make_lease_repo)
+    container.register_factory(DeadLetterRepositoryPort, _make_dead_letter_repo)
+
+    container.register_factory(
+        WorkerRegistrationService,
+        lambda c: WorkerRegistrationService(repo=c.resolve(WorkerRepositoryPort)),
+    )
+
+    container.register_factory(
+        HeartbeatManager,
+        lambda c: HeartbeatManager(
+            worker_repo=c.resolve(WorkerRepositoryPort),
+            job_queue_repo=c.resolve(JobQueueRepositoryPort),
+            lease_repo=c.resolve(JobLeaseRepositoryPort),
+            dead_letter_repo=c.resolve(DeadLetterRepositoryPort),
+            heartbeat_timeout_seconds=30,
+        ),
+    )
+
+    container.register_factory(
+        JobLeaseManager,
+        lambda c: JobLeaseManager(
+            lease_repo=c.resolve(JobLeaseRepositoryPort),
+            queue_repo=c.resolve(JobQueueRepositoryPort),
+            ttl_seconds=120,
+        ),
+    )
+
+    container.register_factory(
+        JobDispatcher,
+        lambda c: JobDispatcher(
+            queue_repo=c.resolve(JobQueueRepositoryPort),
+            worker_repo=c.resolve(WorkerRepositoryPort),
+            lease_manager=c.resolve(JobLeaseManager),
+            scheduler=CapabilityMatchingScheduler(),
+            dead_letter_repo=c.resolve(DeadLetterRepositoryPort),
+        ),
+    )
+
+    container.register_factory(
+        RetryManager,
+        lambda c: RetryManager(
+            queue_repo=c.resolve(JobQueueRepositoryPort),
+            dead_letter_repo=c.resolve(DeadLetterRepositoryPort),
+            max_retries=3,
+        ),
+    )
+
+    container.register_factory(
+        DeadLetterService,
+        lambda c: DeadLetterService(
+            repo=c.resolve(DeadLetterRepositoryPort),
+            queue_repo=c.resolve(JobQueueRepositoryPort),
+        ),
+    )

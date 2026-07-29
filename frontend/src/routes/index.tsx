@@ -46,6 +46,10 @@ const PlaybooksPage = lazy(() => import('@/pages/PlaybooksPage').then(m => ({ de
 const PlaybookDetailPage = lazy(() => import('@/pages/PlaybookDetailPage').then(m => ({ default: m.PlaybookDetailPage })))
 const ExecutionHistoryPage = lazy(() => import('@/pages/ExecutionHistoryPage').then(m => ({ default: m.ExecutionHistoryPage })))
 const PluginsSdkPage = lazy(() => import('@/pages/PluginsSdkPage').then(m => ({ default: m.PluginsSdkPage })))
+const WorkersPage = lazy(() => import('@/pages/WorkersPage').then(m => ({ default: m.WorkersPage })))
+const QueuePage = lazy(() => import('@/pages/QueuePage').then(m => ({ default: m.QueuePage })))
+const WorkerDetailPage = lazy(() => import('@/pages/WorkerDetailPage').then(m => ({ default: m.WorkerDetailPage })))
+const JobDetailPage = lazy(() => import('@/pages/JobDetailPage').then(m => ({ default: m.JobDetailPage })))
 
 function PageLoader() {
   return (
@@ -220,6 +224,22 @@ export const router = createBrowserRouter([
       {
         path: 'playbooks/:id',
         element: <Suspense fallback={<PageLoader />}><PlaybookDetailPage /></Suspense>,
+      },
+      {
+        path: 'workers',
+        element: <Suspense fallback={<PageLoader />}><WorkersPage /></Suspense>,
+      },
+      {
+        path: 'workers/:id',
+        element: <Suspense fallback={<PageLoader />}><WorkerDetailPage /></Suspense>,
+      },
+      {
+        path: 'queue',
+        element: <Suspense fallback={<PageLoader />}><QueuePage /></Suspense>,
+      },
+      {
+        path: 'queue/:id',
+        element: <Suspense fallback={<PageLoader />}><JobDetailPage /></Suspense>,
       },
       {
         path: 'settings',

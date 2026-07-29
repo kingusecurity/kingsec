@@ -158,3 +158,35 @@ class PlaybookNotFoundError(ApplicationError):
 
 class ExecutionHistoryNotFoundError(ApplicationError):
     """No execution history exists for the requested identifier."""
+
+
+class WorkerNotFoundError(ApplicationError):
+    """No worker exists for the requested identifier."""
+
+
+class WorkerOfflineError(ApplicationError):
+    """The worker is offline and cannot accept jobs."""
+
+
+class JobQueueEntryNotFoundError(ApplicationError):
+    """No job queue entry exists for the requested identifier."""
+
+
+class JobLeaseExpiredError(ApplicationError):
+    """The job lease has expired."""
+
+
+class JobLeaseNotFoundError(ApplicationError):
+    """No job lease exists for the requested identifier."""
+
+
+class DuplicateJobAssignmentError(ApplicationError):
+    """The job is already assigned to another worker."""
+
+
+class DeadLetterEntryNotFoundError(ApplicationError):
+    """No dead letter entry exists for the requested identifier."""
+
+
+class SchedulingStrategyNotAvailableError(ApplicationError):
+    """The requested scheduling strategy is not available."""

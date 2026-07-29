@@ -854,3 +854,65 @@ class PluginSdkManifestModel(Base):
     loaded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class WorkerModel(Base):
+    __tablename__ = "workers"
+
+    worker_id: Mapped[str] = mapped_column(String, primary_key=True)
+    hostname: Mapped[str] = mapped_column(String, nullable=False)
+    os: Mapped[str] = mapped_column(String, nullable=False, default="")
+    cpu: Mapped[str] = mapped_column(String, nullable=False, default="")
+    ram_mb: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    capabilities_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    current_jobs_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    health: Mapped[str] = mapped_column(String, nullable=False, default="healthy")
+    last_heartbeat: Mapped[str] = mapped_column(String, nullable=False, default="")
+    status: Mapped[str] = mapped_column(String, nullable=False, default="online", index=True)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class JobQueueEntryModel(Base):
+    __tablename__ = "job_queue_entries"
+
+    entry_id: Mapped[str] = mapped_column(String, primary_key=True)
+    job_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    state: Mapped[str] = mapped_column(String, nullable=False, default="queued", index=True)
+    payload: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    target: Mapped[str] = mapped_column(String, nullable=False, default="", index=True)
+    scanner_ids_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    assigned_worker_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    max_retries: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    error_message: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+    started_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    completed_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class JobLeaseModel(Base):
+    __tablename__ = "job_leases"
+
+    lease_id: Mapped[str] = mapped_column(String, primary_key=True)
+    job_id: Mapped[str] = mapped_column(String, nullable=False, index=True, unique=True)
+    worker_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    acquired_at: Mapped[str] = mapped_column(String, nullable=False)
+    expires_at: Mapped[str] = mapped_column(String, nullable=False)
+    renewed_at: Mapped[str] = mapped_column(String, nullable=False, default="")
+    released_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class DeadLetterEntryModel(Base):
+    __tablename__ = "dead_letter_entries"
+
+    entry_id: Mapped[str] = mapped_column(String, primary_key=True)
+    original_job_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    original_entry_id: Mapped[str] = mapped_column(String, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    payload: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    target: Mapped[str] = mapped_column(String, nullable=False, default="")
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed_at: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)

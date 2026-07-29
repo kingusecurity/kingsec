@@ -35,6 +35,15 @@ from kingsec.domain import (
     TargetType,
     Verdict,
 )
+from kingsec.domain.job import (
+    DeadLetterEntry,
+    JobLease,
+    JobQueueEntry,
+    JobState,
+    WorkerCapability,
+    WorkerNode,
+    WorkerStatus,
+)
 from kingsec.domain.playbook import (
     ActionExecutionLog,
     ExecutionHistory,
@@ -60,9 +69,13 @@ from .models import (
     PlaybookModel,
     RecommendationORM,
     ReportORM,
+    DeadLetterEntryModel,
+    JobLeaseModel,
+    JobQueueEntryModel,
     RuleModel,
     ScanModel,
     ThreatFeedModel,
+    WorkerModel,
 )
 
 # --- domain -> ORM (for writing) ---------------------------------------------
@@ -1238,5 +1251,148 @@ def execution_history_to_domain(orm: ExecutionHistoryModel) -> ExecutionHistory:
         duration_ms=orm.duration_ms,
         error=orm.error,
         rolled_back=orm.rolled_back,
+        created_at=orm.created_at,
+    )
+
+
+def worker_to_orm(worker: WorkerNode) -> WorkerModel:
+    return WorkerModel(
+        worker_id=worker.worker_id,
+        hostname=worker.hostname,
+        os=worker.os,
+        cpu=worker.cpu,
+        ram_mb=worker.ram_mb,
+        capabilities_json=json.dumps([{"scanner_id": c.scanner_id, "scanner_name": c.scanner_name, "scanner_version": c.scanner_version} for c in worker.capabilities]),
+        current_jobs_json=json.dumps(list(worker.current_jobs)),
+        health=worker.health,
+        last_heartbeat=worker.last_heartbeat,
+        status=worker.status.value,
+        created_at=worker.created_at,
+        updated_at=worker.updated_at,
+    )
+
+
+def worker_to_domain(orm: WorkerModel) -> WorkerNode:
+    caps = []
+    if orm.capabilities_json:
+        try:
+            caps_data = json.loads(orm.capabilities_json)
+            caps = [WorkerCapability(**c) for c in caps_data]
+        except (json.JSONDecodeError, TypeError):
+            pass
+    current = []
+    if orm.current_jobs_json:
+        try:
+            current = json.loads(orm.current_jobs_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return WorkerNode(
+        worker_id=orm.worker_id,
+        hostname=orm.hostname,
+        os=orm.os,
+        cpu=orm.cpu,
+        ram_mb=orm.ram_mb,
+        capabilities=tuple(caps),
+        current_jobs=tuple(current),
+        health=orm.health,
+        last_heartbeat=orm.last_heartbeat,
+        status=WorkerStatus(orm.status),
+        created_at=orm.created_at,
+        updated_at=orm.updated_at,
+    )
+
+
+def job_queue_entry_to_orm(entry: JobQueueEntry) -> JobQueueEntryModel:
+    return JobQueueEntryModel(
+        entry_id=entry.entry_id,
+        job_id=entry.job_id,
+        state=entry.state.value,
+        payload=entry.payload,
+        target=entry.target,
+        scanner_ids_json=json.dumps(list(entry.scanner_ids)),
+        assigned_worker_id=entry.assigned_worker_id,
+        retry_count=entry.retry_count,
+        max_retries=entry.max_retries,
+        error_message=entry.error_message,
+        created_at=entry.created_at,
+        updated_at=entry.updated_at,
+        started_at=entry.started_at,
+        completed_at=entry.completed_at,
+    )
+
+
+def job_queue_entry_to_domain(orm: JobQueueEntryModel) -> JobQueueEntry:
+    scanner_ids = []
+    if orm.scanner_ids_json:
+        try:
+            scanner_ids = json.loads(orm.scanner_ids_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return JobQueueEntry(
+        entry_id=orm.entry_id,
+        job_id=orm.job_id,
+        state=JobState(orm.state),
+        payload=orm.payload,
+        target=orm.target,
+        scanner_ids=tuple(scanner_ids),
+        assigned_worker_id=orm.assigned_worker_id,
+        retry_count=orm.retry_count,
+        max_retries=orm.max_retries,
+        error_message=orm.error_message,
+        created_at=orm.created_at,
+        updated_at=orm.updated_at,
+        started_at=orm.started_at,
+        completed_at=orm.completed_at,
+    )
+
+
+def job_lease_to_orm(lease: JobLease) -> JobLeaseModel:
+    return JobLeaseModel(
+        lease_id=lease.lease_id,
+        job_id=lease.job_id,
+        worker_id=lease.worker_id,
+        acquired_at=lease.acquired_at,
+        expires_at=lease.expires_at,
+        renewed_at=lease.renewed_at,
+        released_at=lease.released_at,
+    )
+
+
+def job_lease_to_domain(orm: JobLeaseModel) -> JobLease:
+    return JobLease(
+        lease_id=orm.lease_id,
+        job_id=orm.job_id,
+        worker_id=orm.worker_id,
+        acquired_at=orm.acquired_at,
+        expires_at=orm.expires_at,
+        renewed_at=orm.renewed_at,
+        released_at=orm.released_at,
+    )
+
+
+def dead_letter_to_orm(entry: DeadLetterEntry) -> DeadLetterEntryModel:
+    return DeadLetterEntryModel(
+        entry_id=entry.entry_id,
+        original_job_id=entry.original_job_id,
+        original_entry_id=entry.original_entry_id,
+        reason=entry.reason,
+        payload=entry.payload,
+        target=entry.target,
+        retry_count=entry.retry_count,
+        failed_at=entry.failed_at,
+        created_at=entry.created_at,
+    )
+
+
+def dead_letter_to_domain(orm: DeadLetterEntryModel) -> DeadLetterEntry:
+    return DeadLetterEntry(
+        entry_id=orm.entry_id,
+        original_job_id=orm.original_job_id,
+        original_entry_id=orm.original_entry_id,
+        reason=orm.reason,
+        payload=orm.payload,
+        target=orm.target,
+        retry_count=orm.retry_count,
+        failed_at=orm.failed_at,
         created_at=orm.created_at,
     )

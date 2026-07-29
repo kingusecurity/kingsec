@@ -37,6 +37,8 @@ from .organization_routes import router as v1_organization_router
 from .notification_routes import router as v1_notification_router
 from .threat_intelligence_routes import router as v1_threat_intelligence_router
 from .copilot_routes import router as v1_copilot_router
+from .distributed_routes import router as v1_distributed_queue_router
+from .worker_routes import router as v1_worker_router
 from .pipeline_routes import router as v1_pipeline_router
 from .plugin_routes import router as v1_plugin_router
 from .queue_routes import router as v1_queue_router
@@ -82,6 +84,8 @@ def register_versioned_routes(app: FastAPI) -> None:
     app.include_router(v1_license_router)
     app.include_router(v1_threat_intelligence_router)
     app.include_router(v1_copilot_router)
+    app.include_router(v1_distributed_queue_router)
+    app.include_router(v1_worker_router)
 
     # Future example:
     # from .routes_v2 import router as v2_router
