@@ -250,6 +250,9 @@ def _register_adapters(
     # Distributed Scan Workers & Job Queue (Phase 25).
     _register_distributed_worker_services(container, session_factory)
 
+    # Enterprise Identity & SSO (Phase 26).
+    _register_idp_services(container, session_factory)
+
     # MFA (TOTP) infrastructure.
     register_mfa(container, session_factory)
 
@@ -1415,5 +1418,54 @@ def _register_distributed_worker_services(container: Container, session_factory:
         lambda c: DeadLetterService(
             repo=c.resolve(DeadLetterRepositoryPort),
             queue_repo=c.resolve(JobQueueRepositoryPort),
+        ),
+    )
+
+
+def _register_idp_services(container: Container, session_factory: Any) -> None:
+    from kingsec.application.idp.ports import (
+        AccountLinkRepositoryPort,
+        IdentityProviderRepositoryPort,
+        SSOSessionRepositoryPort,
+    )
+    from kingsec.application.idp.provider_service import IdentityProviderService
+    from kingsec.application.idp.role_mapping_service import RoleMappingService
+    from kingsec.application.idp.jit_provisioning import JITProvisioningService
+    from kingsec.infrastructure.persistence.repositories.identity import (
+        SQLAlchemyAccountLinkRepository,
+        SQLAlchemyIdentityProviderRepository,
+        SQLAlchemySSOSessionRepository,
+    )
+    from kingsec.application.ports.outbound import UserRepository
+
+    def _make_idp_repo(_c: Any) -> IdentityProviderRepositoryPort:
+        return SQLAlchemyIdentityProviderRepository(session_factory())
+
+    def _make_sso_session_repo(_c: Any) -> SSOSessionRepositoryPort:
+        return SQLAlchemySSOSessionRepository(session_factory())
+
+    def _make_account_link_repo(_c: Any) -> AccountLinkRepositoryPort:
+        return SQLAlchemyAccountLinkRepository(session_factory())
+
+    container.register_factory(IdentityProviderRepositoryPort, _make_idp_repo)
+    container.register_factory(SSOSessionRepositoryPort, _make_sso_session_repo)
+    container.register_factory(AccountLinkRepositoryPort, _make_account_link_repo)
+
+    container.register_factory(
+        IdentityProviderService,
+        lambda c: IdentityProviderService(repo=c.resolve(IdentityProviderRepositoryPort)),
+    )
+
+    container.register_factory(
+        RoleMappingService,
+        lambda c: RoleMappingService(),
+    )
+
+    container.register_factory(
+        JITProvisioningService,
+        lambda c: JITProvisioningService(
+            user_repo=c.resolve(UserRepository),
+            account_link_repo=c.resolve(AccountLinkRepositoryPort),
+            role_mapping=c.resolve(RoleMappingService),
         ),
     )

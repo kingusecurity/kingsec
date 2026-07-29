@@ -35,6 +35,19 @@ from kingsec.domain import (
     TargetType,
     Verdict,
 )
+from kingsec.domain.identity import (
+    AccountLink,
+    GroupMapping,
+    IdentityProvider,
+    IdentityProviderStatus,
+    LdapConfig,
+    OAuth2Config,
+    OidcConfig,
+    ProtocolType,
+    RoleMappingRule,
+    SSOSession,
+    Saml2Config,
+)
 from kingsec.domain.job import (
     DeadLetterEntry,
     JobLease,
@@ -69,9 +82,12 @@ from .models import (
     PlaybookModel,
     RecommendationORM,
     ReportORM,
+    AccountLinkModel,
     DeadLetterEntryModel,
+    IdentityProviderModel,
     JobLeaseModel,
     JobQueueEntryModel,
+    SSOSessionModel,
     RuleModel,
     ScanModel,
     ThreatFeedModel,
@@ -1395,4 +1411,156 @@ def dead_letter_to_domain(orm: DeadLetterEntryModel) -> DeadLetterEntry:
         retry_count=orm.retry_count,
         failed_at=orm.failed_at,
         created_at=orm.created_at,
+    )
+
+
+def identity_provider_to_orm(provider: IdentityProvider) -> IdentityProviderModel:
+    import json
+    return IdentityProviderModel(
+        id=provider.id,
+        name=provider.name,
+        protocol=provider.protocol.value,
+        status=provider.status.value,
+        issuer=provider.issuer,
+        domain_hint=provider.domain_hint,
+        role_mappings_json=json.dumps([{"external_group": r.external_group, "kingsec_role": r.kingsec_role, "priority": r.priority} for r in provider.role_mappings]),
+        group_mappings_json=json.dumps([{"external_group": g.external_group, "kingsec_role": g.kingsec_role, "organization_id": g.organization_id} for g in provider.group_mappings]),
+        jit_provisioning=provider.jit_provisioning,
+        auto_link_users=provider.auto_link_users,
+        enforce_sso=provider.enforce_sso,
+        metadata_xml=provider.metadata_xml,
+        saml_config_json=json.dumps({"entity_id": provider.saml_config.entity_id, "sso_url": provider.saml_config.sso_url, "slo_url": provider.saml_config.slo_url, "certificate": provider.saml_config.certificate, "name_id_format": provider.saml_config.name_id_format, "assertion_encrypted": provider.saml_config.assertion_encrypted, "signature_algorithm": provider.saml_config.signature_algorithm, "metadata_url": provider.saml_config.metadata_url, "clock_skew_seconds": provider.saml_config.clock_skew_seconds}),
+        oidc_config_json=json.dumps({"issuer_url": provider.oidc_config.issuer_url, "client_id": provider.oidc_config.client_id, "authorization_url": provider.oidc_config.authorization_url, "token_url": provider.oidc_config.token_url, "userinfo_url": provider.oidc_config.userinfo_url, "jwks_url": provider.oidc_config.jwks_url, "end_session_url": provider.oidc_config.end_session_url, "scopes": list(provider.oidc_config.scopes), "subject_claim": provider.oidc_config.subject_claim, "clock_skew_seconds": provider.oidc_config.clock_skew_seconds}),
+        ldap_config_json=json.dumps({"server_url": provider.ldap_config.server_url, "bind_dn": provider.ldap_config.bind_dn, "base_dn": provider.ldap_config.base_dn, "user_filter": provider.ldap_config.user_filter, "group_filter": provider.ldap_config.group_filter, "username_attribute": provider.ldap_config.username_attribute, "email_attribute": provider.ldap_config.email_attribute, "use_tls": provider.ldap_config.use_tls, "timeout_seconds": provider.ldap_config.timeout_seconds}),
+        oauth2_config_json=json.dumps({"authorize_url": provider.oauth2_config.authorize_url, "token_url": provider.oauth2_config.token_url, "client_id": provider.oauth2_config.client_id, "scopes": list(provider.oauth2_config.scopes), "userinfo_endpoint": provider.oauth2_config.userinfo_endpoint, "subject_claim": provider.oauth2_config.subject_claim}),
+        organization_id=provider.organization_id,
+        created_by=provider.created_by,
+        created_at=provider.created_at,
+        updated_at=provider.updated_at,
+    )
+
+
+def identity_provider_to_domain(orm: IdentityProviderModel) -> IdentityProvider:
+    import json
+    role_mappings = []
+    if orm.role_mappings_json:
+        try:
+            role_mappings = [RoleMappingRule(**r) for r in json.loads(orm.role_mappings_json)]
+        except (json.JSONDecodeError, TypeError):
+            pass
+    group_mappings = []
+    if orm.group_mappings_json:
+        try:
+            group_mappings = [GroupMapping(**g) for g in json.loads(orm.group_mappings_json)]
+        except (json.JSONDecodeError, TypeError):
+            pass
+    saml_cfg = Saml2Config()
+    if orm.saml_config_json:
+        try:
+            d = json.loads(orm.saml_config_json)
+            if isinstance(d.get("scopes"), list): d["scopes"] = tuple(d["scopes"])
+            saml_cfg = Saml2Config(**d)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    oidc_cfg = OidcConfig()
+    if orm.oidc_config_json:
+        try:
+            d = json.loads(orm.oidc_config_json)
+            if isinstance(d.get("scopes"), list): d["scopes"] = tuple(d["scopes"])
+            oidc_cfg = OidcConfig(**d)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    ldap_cfg = LdapConfig()
+    if orm.ldap_config_json:
+        try:
+            ldap_cfg = LdapConfig(**json.loads(orm.ldap_config_json))
+        except (json.JSONDecodeError, TypeError):
+            pass
+    oauth2_cfg = OAuth2Config()
+    if orm.oauth2_config_json:
+        try:
+            d = json.loads(orm.oauth2_config_json)
+            if isinstance(d.get("scopes"), list): d["scopes"] = tuple(d["scopes"])
+            oauth2_cfg = OAuth2Config(**d)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return IdentityProvider(
+        id=orm.id,
+        name=orm.name,
+        protocol=ProtocolType(orm.protocol),
+        status=IdentityProviderStatus(orm.status),
+        issuer=orm.issuer,
+        domain_hint=orm.domain_hint,
+        role_mappings=tuple(role_mappings),
+        group_mappings=tuple(group_mappings),
+        jit_provisioning=orm.jit_provisioning,
+        auto_link_users=orm.auto_link_users,
+        enforce_sso=orm.enforce_sso,
+        metadata_xml=orm.metadata_xml or "",
+        saml_config=saml_cfg,
+        oidc_config=oidc_cfg,
+        ldap_config=ldap_cfg,
+        oauth2_config=oauth2_cfg,
+        organization_id=orm.organization_id,
+        created_by=orm.created_by,
+        created_at=orm.created_at,
+        updated_at=orm.updated_at,
+    )
+
+
+def sso_session_to_orm(session: SSOSession) -> SSOSessionModel:
+    return SSOSessionModel(
+        id=session.id,
+        provider_id=session.provider_id,
+        user_id=session.user_id,
+        external_user_id=session.external_user_id,
+        idp_session_id=session.idp_session_id,
+        idp_assertion=session.idp_assertion,
+        attributes_json=session.attributes_json,
+        session_index=session.session_index,
+        created_at=session.created_at,
+        expires_at=session.expires_at,
+        last_activity=session.last_activity,
+        is_active=session.is_active,
+    )
+
+
+def sso_session_to_domain(orm: SSOSessionModel) -> SSOSession:
+    return SSOSession(
+        id=orm.id,
+        provider_id=orm.provider_id,
+        user_id=orm.user_id,
+        external_user_id=orm.external_user_id,
+        idp_session_id=orm.idp_session_id,
+        idp_assertion=orm.idp_assertion,
+        attributes_json=orm.attributes_json or "",
+        session_index=orm.session_index,
+        created_at=orm.created_at,
+        expires_at=orm.expires_at,
+        last_activity=orm.last_activity,
+        is_active=orm.is_active,
+    )
+
+
+def account_link_to_orm(link: AccountLink) -> AccountLinkModel:
+    return AccountLinkModel(
+        id=link.id,
+        user_id=link.user_id,
+        provider_id=link.provider_id,
+        external_user_id=link.external_user_id,
+        external_username=link.external_username,
+        external_email=link.external_email,
+        linked_at=link.linked_at,
+    )
+
+
+def account_link_to_domain(orm: AccountLinkModel) -> AccountLink:
+    return AccountLink(
+        id=orm.id,
+        user_id=orm.user_id,
+        provider_id=orm.provider_id,
+        external_user_id=orm.external_user_id,
+        external_username=orm.external_username,
+        external_email=orm.external_email,
+        linked_at=orm.linked_at,
     )

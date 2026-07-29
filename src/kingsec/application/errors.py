@@ -190,3 +190,23 @@ class DeadLetterEntryNotFoundError(ApplicationError):
 
 class SchedulingStrategyNotAvailableError(ApplicationError):
     """The requested scheduling strategy is not available."""
+
+
+class IdentityProviderNotFoundError(ApplicationError):
+    """No identity provider exists for the requested identifier."""
+
+
+class SSOSessionNotFoundError(ApplicationError):
+    """No SSO session exists for the requested identifier."""
+
+
+class ProtocolNotSupportedError(ApplicationError):
+    """The requested SSO protocol is not supported."""
+
+
+class AccountLinkNotFoundError(ApplicationError):
+    """No account link exists for the requested identifier."""
+
+
+class JITProvisioningError(ApplicationError):
+    """Just-In-Time user provisioning failed."""

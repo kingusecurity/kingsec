@@ -904,6 +904,64 @@ class JobLeaseModel(Base):
     released_at: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
+class IdentityProviderModel(Base):
+    __tablename__ = "identity_providers"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    protocol: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
+    issuer: Mapped[str] = mapped_column(String, nullable=False, default="")
+    domain_hint: Mapped[str] = mapped_column(String, nullable=False, default="", index=True)
+    role_mappings_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    group_mappings_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    jit_provisioning: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    auto_link_users: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    enforce_sso: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    metadata_xml: Mapped[str | None] = mapped_column(String, nullable=True)
+    saml_config_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    oidc_config_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    ldap_config_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    oauth2_config_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    organization_id: Mapped[str] = mapped_column(String, nullable=False, default="")
+    created_by: Mapped[str] = mapped_column(String, nullable=False, default="")
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class SSOSessionModel(Base):
+    __tablename__ = "sso_sessions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    provider_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    external_user_id: Mapped[str] = mapped_column(String, nullable=False, default="")
+    idp_session_id: Mapped[str] = mapped_column(String, nullable=False, default="")
+    idp_assertion: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    attributes_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    session_index: Mapped[str] = mapped_column(String, nullable=False, default="")
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    expires_at: Mapped[str] = mapped_column(String, nullable=False, default="")
+    last_activity: Mapped[str] = mapped_column(String, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class AccountLinkModel(Base):
+    __tablename__ = "account_links"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    provider_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    external_user_id: Mapped[str] = mapped_column(String, nullable=False)
+    external_username: Mapped[str] = mapped_column(String, nullable=False, default="")
+    external_email: Mapped[str] = mapped_column(String, nullable=False, default="")
+    linked_at: Mapped[str] = mapped_column(String, nullable=False)
+
+    __table_args__ = (
+        Index("ix_account_links_provider_user", "provider_id", "external_user_id", unique=True),
+    )
+
+
 class DeadLetterEntryModel(Base):
     __tablename__ = "dead_letter_entries"
 

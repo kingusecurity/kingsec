@@ -26,6 +26,7 @@ import {
   Puzzle,
   Cpu,
   ListOrdered,
+  Fingerprint,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -56,6 +57,7 @@ const navItems: NavItem[] = [
   { to: '/playbooks', label: 'Automation', icon: Workflow, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/plugins', label: 'Plugins', icon: Puzzle, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/copilot', label: 'AI Copilot', icon: Bot, roles: ['viewer', 'analyst', 'admin'] },
+  { to: '/identity', label: 'Identity', icon: Fingerprint, roles: ['admin'] },
   { to: '/workers', label: 'Workers', icon: Cpu, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/queue', label: 'Job Queue', icon: ListOrdered, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/audit', label: 'Audit Log', icon: ScrollText, roles: ['admin'] },

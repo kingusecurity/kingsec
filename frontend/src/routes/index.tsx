@@ -50,6 +50,7 @@ const WorkersPage = lazy(() => import('@/pages/WorkersPage').then(m => ({ defaul
 const QueuePage = lazy(() => import('@/pages/QueuePage').then(m => ({ default: m.QueuePage })))
 const WorkerDetailPage = lazy(() => import('@/pages/WorkerDetailPage').then(m => ({ default: m.WorkerDetailPage })))
 const JobDetailPage = lazy(() => import('@/pages/JobDetailPage').then(m => ({ default: m.JobDetailPage })))
+const IdentityProvidersPage = lazy(() => import('@/pages/IdentityProvidersPage').then(m => ({ default: m.IdentityProvidersPage })))
 
 function PageLoader() {
   return (
@@ -240,6 +241,10 @@ export const router = createBrowserRouter([
       {
         path: 'queue/:id',
         element: <Suspense fallback={<PageLoader />}><JobDetailPage /></Suspense>,
+      },
+      {
+        path: 'identity',
+        element: <Suspense fallback={<PageLoader />}><IdentityProvidersPage /></Suspense>,
       },
       {
         path: 'settings',
