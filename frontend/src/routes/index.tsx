@@ -42,6 +42,9 @@ const CveDetailPage = lazy(() => import('@/pages/CveDetailPage').then(m => ({ de
 const KevViewPage = lazy(() => import('@/pages/KevViewPage').then(m => ({ default: m.KevViewPage })))
 const ThreatTimelinePage = lazy(() => import('@/pages/ThreatTimelinePage').then(m => ({ default: m.ThreatTimelinePage })))
 const AICopilotPage = lazy(() => import('@/pages/AICopilotPage').then(m => ({ default: m.AICopilotPage })))
+const PlaybooksPage = lazy(() => import('@/pages/PlaybooksPage').then(m => ({ default: m.PlaybooksPage })))
+const PlaybookDetailPage = lazy(() => import('@/pages/PlaybookDetailPage').then(m => ({ default: m.PlaybookDetailPage })))
+const ExecutionHistoryPage = lazy(() => import('@/pages/ExecutionHistoryPage').then(m => ({ default: m.ExecutionHistoryPage })))
 
 function PageLoader() {
   return (
@@ -200,6 +203,18 @@ export const router = createBrowserRouter([
       {
         path: 'threat-intelligence/timeline',
         element: <Suspense fallback={<PageLoader />}><ThreatTimelinePage /></Suspense>,
+      },
+      {
+        path: 'playbooks',
+        element: <Suspense fallback={<PageLoader />}><PlaybooksPage /></Suspense>,
+      },
+      {
+        path: 'playbooks/history',
+        element: <Suspense fallback={<PageLoader />}><ExecutionHistoryPage /></Suspense>,
+      },
+      {
+        path: 'playbooks/:id',
+        element: <Suspense fallback={<PageLoader />}><PlaybookDetailPage /></Suspense>,
       },
       {
         path: 'settings',

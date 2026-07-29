@@ -19,7 +19,7 @@ Storage decisions worth noting:
 
 from typing import Any
 
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
 
@@ -792,3 +792,43 @@ class InvestigationNoteModel(Base):
     tags_json: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class PlaybookModel(Base):
+    __tablename__ = "playbooks"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    category: Mapped[str] = mapped_column(String, nullable=False, default="general")
+    severity: Mapped[str] = mapped_column(String, nullable=False, default="medium")
+    tags_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    trigger_json: Mapped[str] = mapped_column(String, nullable=False, default="{}")
+    actions_json: Mapped[str] = mapped_column(String, nullable=False, default="[]")
+    rollback_actions_json: Mapped[str] = mapped_column(String, nullable=False, default="[]")
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class ExecutionHistoryModel(Base):
+    __tablename__ = "execution_history"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    playbook_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    playbook_name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    trigger_type: Mapped[str] = mapped_column(String, nullable=False, default="manual")
+    trigger_entity_id: Mapped[str] = mapped_column(String, nullable=False, default="")
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
+    action_logs_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    started_at: Mapped[str] = mapped_column(String, nullable=False)
+    completed_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    rolled_back: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+
+    __table_args__ = (
+        Index("ix_execution_history_status", "status"),
+        Index("ix_execution_history_created", "created_at"),
+    )

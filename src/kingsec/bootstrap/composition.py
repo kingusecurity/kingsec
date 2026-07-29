@@ -241,6 +241,9 @@ def _register_adapters(
     # AI Security Copilot (Phase 22).
     _register_copilot_services(container, session_factory)
 
+    # Security Automation, Playbooks & Incident Response (Phase 23).
+    _register_playbook_services(container, session_factory)
+
     # MFA (TOTP) infrastructure.
     register_mfa(container, session_factory)
 
@@ -1243,5 +1246,54 @@ def _register_copilot_services(container: Container, session_factory: Any) -> No
             note_repo=c.resolve(InvestigationNoteRepositoryPort),
             context_builder=c.resolve(CopilotContextBuilder),
             audit=c.resolve(CopilotAuditPublisherPort) if c.has(CopilotAuditPublisherPort) else None,
+        ),
+    )
+
+
+def _register_playbook_services(container: Container, session_factory: Any) -> None:
+    from kingsec.application.playbooks.actions import ActionExecutor
+    from kingsec.application.playbooks.engine import PlaybookEngine
+    from kingsec.application.playbooks.ports import (
+        ExecutionHistoryRepositoryPort,
+        PlaybookAuditPort,
+        PlaybookRepositoryPort,
+    )
+    from kingsec.application.playbooks.service import PlaybookService
+    from kingsec.infrastructure.persistence.repositories.playbook import (
+        SQLAlchemyExecutionHistoryRepository,
+        SQLAlchemyPlaybookRepository,
+    )
+
+    from kingsec.application.ports.outbound import AuditPublisher
+
+    def _make_pb_repo(_c: Any) -> PlaybookRepositoryPort:
+        return SQLAlchemyPlaybookRepository(session_factory())
+
+    def _make_hist_repo(_c: Any) -> ExecutionHistoryRepositoryPort:
+        return SQLAlchemyExecutionHistoryRepository(session_factory())
+
+    def _make_action_executor(_c: Any) -> ActionExecutor:
+        return ActionExecutor()
+
+    container.register_factory(PlaybookRepositoryPort, _make_pb_repo)
+    container.register_factory(ExecutionHistoryRepositoryPort, _make_hist_repo)
+    container.register_factory(ActionExecutor, _make_action_executor)
+
+    container.register_factory(
+        PlaybookEngine,
+        lambda c: PlaybookEngine(
+            history_repo=c.resolve(ExecutionHistoryRepositoryPort),
+            action_executor=c.resolve(ActionExecutor),
+            audit=c.resolve(PlaybookAuditPort) if c.has(PlaybookAuditPort) else None,
+        ),
+    )
+
+    container.register_factory(
+        PlaybookService,
+        lambda c: PlaybookService(
+            playbook_repo=c.resolve(PlaybookRepositoryPort),
+            engine=c.resolve(PlaybookEngine),
+            history_repo=c.resolve(ExecutionHistoryRepositoryPort),
+            audit=c.resolve(PlaybookAuditPort) if c.has(PlaybookAuditPort) else c.resolve(AuditPublisher) if c.has(AuditPublisher) else None,
         ),
     )

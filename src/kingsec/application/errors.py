@@ -150,3 +150,11 @@ class CopilotConversationNotFoundError(ApplicationError):
 
 class InvestigationNoteNotFoundError(ApplicationError):
     """No investigation note exists for the requested identifier."""
+
+
+class PlaybookNotFoundError(ApplicationError):
+    """No playbook exists for the requested identifier."""
+
+
+class ExecutionHistoryNotFoundError(ApplicationError):
+    """No execution history exists for the requested identifier."""

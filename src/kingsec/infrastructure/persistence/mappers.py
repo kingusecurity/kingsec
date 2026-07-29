@@ -35,6 +35,13 @@ from kingsec.domain import (
     TargetType,
     Verdict,
 )
+from kingsec.domain.playbook import (
+    ActionExecutionLog,
+    ExecutionHistory,
+    Playbook,
+    PlaybookAction,
+    PlaybookTrigger,
+)
 
 from .models import (
     AlertModel,
@@ -46,9 +53,11 @@ from .models import (
     ExposureModel,
     FindingModel,
     FindingORM,
+    ExecutionHistoryModel,
     InvestigationNoteModel,
     JobModel,
     MonitorEventModel,
+    PlaybookModel,
     RecommendationORM,
     ReportORM,
     RuleModel,
@@ -1065,4 +1074,169 @@ def investigation_note_to_domain(orm: InvestigationNoteModel) -> DomainInvestiga
         tags=tuple(tags),
         created_at=orm.created_at,
         updated_at=orm.updated_at,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Playbook mappers
+# ---------------------------------------------------------------------------
+
+
+def playbook_to_orm(playbook: Playbook) -> PlaybookModel:
+    return PlaybookModel(
+        id=playbook.id,
+        name=playbook.name,
+        description=playbook.description,
+        category=playbook.category,
+        severity=playbook.severity,
+        tags_json=json.dumps(list(playbook.tags)),
+        enabled=playbook.enabled,
+        trigger_json=json.dumps({
+            "trigger_type": playbook.trigger.trigger_type.value,
+            "config": playbook.trigger.config,
+            "conditions": playbook.trigger.conditions,
+        }),
+        actions_json=json.dumps([
+            {
+                "action_type": a.action_type.value,
+                "config": a.config,
+                "order": a.order,
+                "timeout_seconds": a.timeout_seconds,
+                "retry_count": a.retry_count,
+                "continue_on_failure": a.continue_on_failure,
+            }
+            for a in playbook.actions
+        ]),
+        rollback_actions_json=json.dumps([
+            {
+                "action_type": a.action_type.value,
+                "config": a.config,
+                "order": a.order,
+                "timeout_seconds": a.timeout_seconds,
+                "retry_count": a.retry_count,
+                "continue_on_failure": a.continue_on_failure,
+            }
+            for a in playbook.rollback_actions
+        ]),
+        created_at=playbook.created_at,
+        updated_at=playbook.updated_at,
+    )
+
+
+def playbook_to_domain(orm: PlaybookModel) -> Playbook:
+    from kingsec.domain.playbook import PlaybookActionType, PlaybookTriggerType
+    trigger_data = json.loads(orm.trigger_json) if orm.trigger_json else {}
+    actions_data = json.loads(orm.actions_json) if orm.actions_json else []
+    rollback_data = json.loads(orm.rollback_actions_json) if orm.rollback_actions_json else []
+    tags: list[str] = []
+    if orm.tags_json:
+        try:
+            tags = json.loads(orm.tags_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return Playbook(
+        playbook_id=orm.id,
+        name=orm.name,
+        description=orm.description,
+        category=orm.category,
+        severity=orm.severity,
+        tags=tags,
+        enabled=orm.enabled,
+        trigger=PlaybookTrigger(
+            trigger_type=PlaybookTriggerType(trigger_data.get("trigger_type", "manual")),
+            config=trigger_data.get("config", {}),
+            conditions=trigger_data.get("conditions", {}),
+        ),
+        actions=[
+            PlaybookAction(
+                action_type=PlaybookActionType(a["action_type"]),
+                config=a.get("config", {}),
+                order=a.get("order", i),
+                timeout_seconds=a.get("timeout_seconds", 60),
+                retry_count=a.get("retry_count", 0),
+                continue_on_failure=a.get("continue_on_failure", False),
+            )
+            for i, a in enumerate(actions_data)
+        ],
+        rollback_actions=[
+            PlaybookAction(
+                action_type=PlaybookActionType(a["action_type"]),
+                config=a.get("config", {}),
+                order=a.get("order", i),
+                timeout_seconds=a.get("timeout_seconds", 60),
+                retry_count=a.get("retry_count", 0),
+                continue_on_failure=a.get("continue_on_failure", False),
+            )
+            for i, a in enumerate(rollback_data)
+        ],
+        created_at=orm.created_at,
+        updated_at=orm.updated_at,
+    )
+
+
+def execution_history_to_orm(history: ExecutionHistory) -> ExecutionHistoryModel:
+    return ExecutionHistoryModel(
+        id=history.id,
+        playbook_id=history.playbook_id,
+        playbook_name=history.playbook_name,
+        trigger_type=history.trigger_type,
+        trigger_entity_id=history.trigger_entity_id,
+        status=history.status.value,
+        action_logs_json=json.dumps([
+            {
+                "action_type": l.action_type,
+                "status": l.status,
+                "started_at": l.started_at,
+                "completed_at": l.completed_at,
+                "duration_ms": l.duration_ms,
+                "output": l.output,
+                "error": l.error,
+                "retry_attempts": l.retry_attempts,
+            }
+            for l in history.action_logs
+        ]),
+        started_at=history.started_at,
+        completed_at=history.completed_at,
+        duration_ms=history.duration_ms,
+        error=history.error,
+        rolled_back=history.rolled_back,
+        created_at=history.created_at,
+    )
+
+
+def execution_history_to_domain(orm: ExecutionHistoryModel) -> ExecutionHistory:
+    logs: list[ActionExecutionLog] = []
+    if orm.action_logs_json:
+        try:
+            logs_data = json.loads(orm.action_logs_json)
+            logs = [
+                ActionExecutionLog(
+                    action_type=l.get("action_type", ""),
+                    status=l.get("status", ""),
+                    started_at=l.get("started_at", ""),
+                    completed_at=l.get("completed_at", ""),
+                    duration_ms=l.get("duration_ms", 0),
+                    output=l.get("output", ""),
+                    error=l.get("error", ""),
+                    retry_attempts=l.get("retry_attempts", 0),
+                )
+                for l in logs_data
+            ]
+        except (json.JSONDecodeError, TypeError):
+            pass
+    from kingsec.domain.playbook import ExecutionStatus
+    return ExecutionHistory(
+        id=orm.id,
+        playbook_id=orm.playbook_id,
+        playbook_name=orm.playbook_name,
+        trigger_type=orm.trigger_type,
+        trigger_entity_id=orm.trigger_entity_id,
+        status=ExecutionStatus(orm.status),
+        action_logs=tuple(logs),
+        started_at=orm.started_at,
+        completed_at=orm.completed_at or "",
+        duration_ms=orm.duration_ms,
+        error=orm.error,
+        rolled_back=orm.rolled_back,
+        created_at=orm.created_at,
     )

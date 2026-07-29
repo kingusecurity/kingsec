@@ -22,6 +22,7 @@ import {
   Activity,
   ShieldAlert,
   Bot,
+  Workflow,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -49,6 +50,7 @@ const navItems: NavItem[] = [
   { to: '/monitor', label: 'Monitor', icon: Radio, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/notifications', label: 'Notifications', icon: Bell, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/threat-intelligence', label: 'Threat Intel', icon: ShieldAlert, roles: ['viewer', 'analyst', 'admin'] },
+  { to: '/playbooks', label: 'Automation', icon: Workflow, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/copilot', label: 'AI Copilot', icon: Bot, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/audit', label: 'Audit Log', icon: ScrollText, roles: ['admin'] },
   { to: '/settings', label: 'Settings', icon: Settings, roles: ['viewer', 'analyst', 'admin'] },
