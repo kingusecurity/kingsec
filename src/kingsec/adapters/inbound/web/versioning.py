@@ -28,6 +28,7 @@ from .asset_routes import router as v1_asset_router
 from .attack_surface_routes import router as v1_attack_surface_router
 from .health_routes import router as v1_health_router
 from .license_routes import router as v1_license_router
+from .monitoring_routes import router as v1_monitoring_router
 from .integration_routes import router as v1_integration_router
 from .mfa_routes import router as v1_mfa_router
 from .organization_routes import router as v1_organization_router
@@ -69,6 +70,7 @@ def register_versioned_routes(app: FastAPI) -> None:
     app.include_router(v1_attack_surface_router)
     app.include_router(v1_health_router)
     app.include_router(v1_compliance_router)
+    app.include_router(v1_monitoring_router)
     app.include_router(v1_integration_router)
     app.include_router(v1_organization_router)
     app.include_router(v1_license_router)

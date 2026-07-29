@@ -232,6 +232,9 @@ def _register_adapters(
     # Attack surface management (Phase 19).
     _register_attack_surface_services(container, session_factory)
 
+    # Continuous monitoring (Phase 20).
+    _register_monitoring_services(container, session_factory)
+
     # MFA (TOTP) infrastructure.
     register_mfa(container, session_factory)
 
@@ -943,6 +946,91 @@ def _register_attack_surface_services(container: Container, session_factory: Any
         AttackSurfaceService,
         lambda c: AttackSurfaceService(
             repo=c.resolve(AttackSurfaceRepositoryPort),
+        ),
+    )
+
+
+def _register_monitoring_services(container: Container, session_factory: Any) -> None:
+    from kingsec.application.monitoring.alert_manager import AlertManager
+    from kingsec.application.monitoring.dashboard import MonitoringDashboardService
+    from kingsec.application.monitoring.detectors import AssetChangeDetector, FindingChangeDetector
+    from kingsec.application.monitoring.ports import (
+        AlertRepositoryPort,
+        AuditPublisherPort,
+        MonitoringDashboardRepositoryPort,
+        MonitoringEventRepositoryPort,
+        NotificationSenderPort,
+        RuleRepositoryPort,
+    )
+    from kingsec.application.monitoring.rules import MonitoringRuleEngine
+    from kingsec.application.monitoring.scheduler import MonitoringScheduler
+    from kingsec.application.monitoring.service import MonitoringService
+    from kingsec.infrastructure.persistence.repositories.monitoring import (
+        SQLAlchemyAlertRepository,
+        SQLAlchemyMonitoringDashboardRepository,
+        SQLAlchemyMonitoringEventRepository,
+        SQLAlchemyRuleRepository,
+    )
+
+    def _make_event_repo(_c: Any) -> MonitoringEventRepositoryPort:
+        return SQLAlchemyMonitoringEventRepository(session_factory())
+
+    def _make_alert_repo(_c: Any) -> AlertRepositoryPort:
+        return SQLAlchemyAlertRepository(session_factory())
+
+    def _make_rule_repo(_c: Any) -> RuleRepositoryPort:
+        return SQLAlchemyRuleRepository(session_factory())
+
+    def _make_dashboard_repo(_c: Any) -> MonitoringDashboardRepositoryPort:
+        return SQLAlchemyMonitoringDashboardRepository(session_factory())
+
+    container.register_factory(MonitoringEventRepositoryPort, _make_event_repo)
+    container.register_factory(AlertRepositoryPort, _make_alert_repo)
+    container.register_factory(RuleRepositoryPort, _make_rule_repo)
+    container.register_factory(MonitoringDashboardRepositoryPort, _make_dashboard_repo)
+
+    container.register_instance(MonitoringRuleEngine, MonitoringRuleEngine())
+    container.register_instance(AssetChangeDetector, AssetChangeDetector())
+    container.register_instance(FindingChangeDetector, FindingChangeDetector())
+
+    container.register_factory(
+        AlertManager,
+        lambda c: AlertManager(
+            alert_repo=c.resolve(AlertRepositoryPort),
+            notification_sender=c.resolve(NotificationSenderPort) if c.has(NotificationSenderPort) else None,
+            audit_publisher=c.resolve(AuditPublisherPort) if c.has(AuditPublisherPort) else None,
+        ),
+    )
+
+    container.register_factory(
+        MonitoringService,
+        lambda c: MonitoringService(
+            event_repo=c.resolve(MonitoringEventRepositoryPort),
+            rule_repo=c.resolve(RuleRepositoryPort),
+            alert_manager=c.resolve(AlertManager),
+            rule_engine=c.resolve(MonitoringRuleEngine),
+            asset_detector=c.resolve(AssetChangeDetector),
+            finding_detector=c.resolve(FindingChangeDetector),
+            audit_publisher=c.resolve(AuditPublisherPort) if c.has(AuditPublisherPort) else None,
+        ),
+    )
+
+    container.register_factory(
+        MonitoringDashboardService,
+        lambda c: MonitoringDashboardService(
+            dashboard_repo=c.resolve(MonitoringDashboardRepositoryPort),
+            event_repo=c.resolve(MonitoringEventRepositoryPort),
+            alert_repo=c.resolve(AlertRepositoryPort),
+            rule_repo=c.resolve(RuleRepositoryPort),
+        ),
+    )
+
+    container.register_factory(
+        MonitoringScheduler,
+        lambda c: MonitoringScheduler(
+            monitoring_service=c.resolve(MonitoringService),
+            asset_detector=c.resolve(AssetChangeDetector),
+            finding_detector=c.resolve(FindingChangeDetector),
         ),
     )
 

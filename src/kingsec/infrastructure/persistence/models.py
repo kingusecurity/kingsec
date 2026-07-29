@@ -660,3 +660,63 @@ class ExposureHistoryModel(Base):
     previous_value: Mapped[str | None] = mapped_column(String, nullable=True)
     new_value: Mapped[str | None] = mapped_column(String, nullable=True)
     actor: Mapped[str] = mapped_column(String, nullable=False, default="system")
+
+
+# ===========================================================================
+#  Continuous Monitoring models  (Phase 20)
+# ===========================================================================
+
+
+class MonitorEventModel(Base):
+    __tablename__ = "monitor_events"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    event_type: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    asset_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    assessment_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    source: Mapped[str] = mapped_column(String, nullable=False, default="monitor")
+    title: Mapped[str] = mapped_column(String, nullable=False, default="")
+    description: Mapped[str] = mapped_column(String, nullable=False, default="")
+    severity: Mapped[str] = mapped_column(String, nullable=False, default="info")
+    context_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    metadata_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    timestamp: Mapped[str] = mapped_column(String, nullable=False, index=True)
+
+
+class AlertModel(Base):
+    __tablename__ = "monitor_alerts"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    rule_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String, nullable=False, default="")
+    description: Mapped[str] = mapped_column(String, nullable=False, default="")
+    severity: Mapped[str] = mapped_column(String, nullable=False, default="medium", index=True)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="open", index=True)
+    source_event_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    asset_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    assessment_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    metadata_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    acknowledged_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    resolved_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    acknowledged_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    resolved_by: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class RuleModel(Base):
+    __tablename__ = "monitor_rules"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(String, nullable=False, default="")
+    event_type: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    conditions_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    alert_severity: Mapped[str] = mapped_column(String, nullable=False, default="medium")
+    alert_title_template: Mapped[str] = mapped_column(String, nullable=False, default="")
+    alert_description_template: Mapped[str] = mapped_column(String, nullable=False, default="")
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    cooldown_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=60)
+    notify_channels_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    metadata_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)

@@ -122,3 +122,15 @@ class AssetNotFoundError(ApplicationError):
 
 class ExposureNotFoundError(ApplicationError):
     """No exposure exists for the requested identifier."""
+
+
+class MonitorEventNotFoundError(ApplicationError):
+    """No monitoring event exists for the requested identifier."""
+
+
+class AlertNotFoundError(ApplicationError):
+    """No alert exists for the requested identifier."""
+
+
+class RuleNotFoundError(ApplicationError):
+    """No monitoring rule exists for the requested identifier."""

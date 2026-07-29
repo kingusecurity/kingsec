@@ -31,6 +31,11 @@ const AssetInventoryPage = lazy(() => import('@/pages/AssetInventoryPage').then(
 const AssetDetailPage = lazy(() => import('@/pages/AssetDetailPage').then(m => ({ default: m.AssetDetailPage })))
 const AttackSurfacePage = lazy(() => import('@/pages/AttackSurfacePage').then(m => ({ default: m.AttackSurfacePage })))
 const AttackSurfaceDetailPage = lazy(() => import('@/pages/AttackSurfaceDetailPage').then(m => ({ default: m.AttackSurfaceDetailPage })))
+const SecurityOperationsPage = lazy(() => import('@/pages/SecurityOperationsPage').then(m => ({ default: m.SecurityOperationsPage })))
+const AlertsPage = lazy(() => import('@/pages/AlertsPage').then(m => ({ default: m.AlertsPage })))
+const AlertDetailPage = lazy(() => import('@/pages/AlertDetailPage').then(m => ({ default: m.AlertDetailPage })))
+const MonitoringRulesPage = lazy(() => import('@/pages/MonitoringRulesPage').then(m => ({ default: m.MonitoringRulesPage })))
+const MonitoringTimelinePage = lazy(() => import('@/pages/MonitoringTimelinePage').then(m => ({ default: m.MonitoringTimelinePage })))
 
 function PageLoader() {
   return (
@@ -145,6 +150,26 @@ export const router = createBrowserRouter([
       {
         path: 'attack-surface/:id',
         element: <Suspense fallback={<PageLoader />}><AttackSurfaceDetailPage /></Suspense>,
+      },
+      {
+        path: 'monitoring',
+        element: <Suspense fallback={<PageLoader />}><SecurityOperationsPage /></Suspense>,
+      },
+      {
+        path: 'monitoring/alerts',
+        element: <Suspense fallback={<PageLoader />}><AlertsPage /></Suspense>,
+      },
+      {
+        path: 'monitoring/alerts/:id',
+        element: <Suspense fallback={<PageLoader />}><AlertDetailPage /></Suspense>,
+      },
+      {
+        path: 'monitoring/rules',
+        element: <Suspense fallback={<PageLoader />}><MonitoringRulesPage /></Suspense>,
+      },
+      {
+        path: 'monitoring/timeline',
+        element: <Suspense fallback={<PageLoader />}><MonitoringTimelinePage /></Suspense>,
       },
       {
         path: 'settings',

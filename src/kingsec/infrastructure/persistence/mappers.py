@@ -37,6 +37,7 @@ from kingsec.domain import (
 )
 
 from .models import (
+    AlertModel,
     AssessmentORM,
     AssetModel,
     EvidenceORM,
@@ -44,8 +45,10 @@ from .models import (
     FindingModel,
     FindingORM,
     JobModel,
+    MonitorEventModel,
     RecommendationORM,
     ReportORM,
+    RuleModel,
     ScanModel,
 )
 
@@ -574,6 +577,178 @@ def inventory_asset_to_domain(orm: AssetModel) -> DomainAsset:
         first_seen=orm.first_seen,
         last_seen=orm.last_seen,
         risk_score=orm.risk_score,
+        metadata=metadata,
+        created_at=orm.created_at,
+        updated_at=orm.updated_at,
+    )
+
+
+# ===========================================================================
+#  Continuous Monitoring mappers  (Phase 20)
+# ===========================================================================
+
+from kingsec.domain.identifiers import AlertId, MonitorEventId, RuleId
+from kingsec.domain.monitoring import (
+    Alert as DomainAlert,
+    AlertSeverity,
+    AlertStatus,
+    MonitorEvent as DomainMonitorEvent,
+    MonitorEventContext,
+    MonitorEventType,
+    Rule as DomainRule,
+    RuleCondition,
+    RuleConditionOperator,
+)
+
+
+def monitor_event_to_orm(event: DomainMonitorEvent) -> MonitorEventModel:
+    import json
+    return MonitorEventModel(
+        id=str(event.id),
+        event_type=event.event_type.value,
+        asset_id=event.asset_id,
+        assessment_id=event.assessment_id,
+        source=event.source,
+        title=event.title,
+        description=event.description,
+        severity=event.severity.value,
+        context_json=json.dumps([{"key": c.key, "value": c.value, "previous_value": c.previous_value, "metadata": c.metadata} for c in event.context]) if event.context else None,
+        metadata_json=json.dumps(event.metadata) if event.metadata else None,
+        timestamp=event.timestamp,
+    )
+
+
+def monitor_event_to_domain(orm: MonitorEventModel) -> DomainMonitorEvent:
+    import json
+    context: list[MonitorEventContext] = []
+    if orm.context_json:
+        try:
+            raw = json.loads(orm.context_json)
+            context = [MonitorEventContext(key=c["key"], value=c["value"], previous_value=c.get("previous_value"), metadata=c.get("metadata", {})) for c in raw]
+        except (json.JSONDecodeError, TypeError):
+            pass
+    metadata: dict[str, object] = {}
+    if orm.metadata_json:
+        try:
+            metadata = json.loads(orm.metadata_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return DomainMonitorEvent(
+        MonitorEventId(orm.id),
+        MonitorEventType(orm.event_type),
+        asset_id=orm.asset_id,
+        assessment_id=orm.assessment_id,
+        source=orm.source,
+        title=orm.title,
+        description=orm.description,
+        context=context,
+        severity=AlertSeverity(orm.severity),
+        metadata=metadata,
+        timestamp=orm.timestamp,
+    )
+
+
+def alert_to_orm(alert: DomainAlert) -> AlertModel:
+    import json
+    return AlertModel(
+        id=str(alert.id),
+        rule_id=alert.rule_id,
+        title=alert.title,
+        description=alert.description,
+        severity=alert.severity.value,
+        status=alert.status.value,
+        source_event_id=alert.source_event_id,
+        asset_id=alert.asset_id,
+        assessment_id=alert.assessment_id,
+        metadata_json=json.dumps(alert.metadata) if alert.metadata else None,
+        created_at=alert.created_at,
+        acknowledged_at=alert.acknowledged_at,
+        resolved_at=alert.resolved_at,
+        acknowledged_by=alert.acknowledged_by,
+        resolved_by=alert.resolved_by,
+    )
+
+
+def alert_to_domain(orm: AlertModel) -> DomainAlert:
+    import json
+    metadata: dict[str, object] = {}
+    if orm.metadata_json:
+        try:
+            metadata = json.loads(orm.metadata_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return DomainAlert(
+        AlertId(orm.id),
+        orm.rule_id,
+        title=orm.title,
+        description=orm.description,
+        severity=AlertSeverity(orm.severity),
+        status=AlertStatus(orm.status),
+        source_event_id=orm.source_event_id,
+        asset_id=orm.asset_id,
+        assessment_id=orm.assessment_id,
+        metadata=metadata,
+        created_at=orm.created_at,
+        acknowledged_at=orm.acknowledged_at,
+        resolved_at=orm.resolved_at,
+        acknowledged_by=orm.acknowledged_by,
+        resolved_by=orm.resolved_by,
+    )
+
+
+def rule_to_orm(rule: DomainRule) -> RuleModel:
+    import json
+    return RuleModel(
+        id=str(rule.id),
+        name=rule.name,
+        description=rule.description,
+        event_type=rule.event_type.value if rule.event_type else None,
+        conditions_json=json.dumps([{"field": c.field, "operator": c.operator.value, "value": c.value} for c in rule.conditions]) if rule.conditions else None,
+        alert_severity=rule.alert_severity.value,
+        alert_title_template=rule.alert_title_template,
+        alert_description_template=rule.alert_description_template,
+        enabled=rule.enabled,
+        cooldown_minutes=rule.cooldown_minutes,
+        notify_channels_json=json.dumps(list(rule.notify_channels)) if rule.notify_channels else None,
+        metadata_json=json.dumps(rule.metadata) if rule.metadata else None,
+        created_at=rule.created_at,
+        updated_at=rule.updated_at,
+    )
+
+
+def rule_to_domain(orm: RuleModel) -> DomainRule:
+    import json
+    conditions: list[RuleCondition] = []
+    if orm.conditions_json:
+        try:
+            raw = json.loads(orm.conditions_json)
+            conditions = [RuleCondition(field=c["field"], operator=RuleConditionOperator(c["operator"]), value=c["value"]) for c in raw]
+        except (json.JSONDecodeError, TypeError):
+            pass
+    notify_channels: list[str] = []
+    if orm.notify_channels_json:
+        try:
+            notify_channels = json.loads(orm.notify_channels_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    metadata: dict[str, object] = {}
+    if orm.metadata_json:
+        try:
+            metadata = json.loads(orm.metadata_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return DomainRule(
+        RuleId(orm.id),
+        orm.name,
+        description=orm.description,
+        event_type=MonitorEventType(orm.event_type) if orm.event_type else None,
+        conditions=conditions,
+        alert_severity=AlertSeverity(orm.alert_severity),
+        alert_title_template=orm.alert_title_template,
+        alert_description_template=orm.alert_description_template,
+        enabled=orm.enabled,
+        cooldown_minutes=orm.cooldown_minutes,
+        notify_channels=notify_channels,
         metadata=metadata,
         created_at=orm.created_at,
         updated_at=orm.updated_at,

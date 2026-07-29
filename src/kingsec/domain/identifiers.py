@@ -145,6 +145,51 @@ class ScheduleId:
 
 
 @dataclass(frozen=True, slots=True)
+class MonitorEventId:
+    value: str
+
+    def __post_init__(self) -> None:
+        ensure_non_empty(self.value, "MonitorEventId")
+
+    @classmethod
+    def generate(cls) -> MonitorEventId:
+        return cls(f"evt-{uuid.uuid4().hex}")
+
+    def __str__(self) -> str:
+        return self.value
+
+
+@dataclass(frozen=True, slots=True)
+class AlertId:
+    value: str
+
+    def __post_init__(self) -> None:
+        ensure_non_empty(self.value, "AlertId")
+
+    @classmethod
+    def generate(cls) -> AlertId:
+        return cls(f"alrt-{uuid.uuid4().hex}")
+
+    def __str__(self) -> str:
+        return self.value
+
+
+@dataclass(frozen=True, slots=True)
+class RuleId:
+    value: str
+
+    def __post_init__(self) -> None:
+        ensure_non_empty(self.value, "RuleId")
+
+    @classmethod
+    def generate(cls) -> RuleId:
+        return cls(f"rule-{uuid.uuid4().hex}")
+
+    def __str__(self) -> str:
+        return self.value
+
+
+@dataclass(frozen=True, slots=True)
 class AttackSurfaceId:
     value: str
 
