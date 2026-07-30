@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ...domain.threat_intelligence import CveEntry, ExploitMaturity
+from kingsec.domain.threat_intelligence import CveEntry, ExploitMaturity
 
 
 @dataclass

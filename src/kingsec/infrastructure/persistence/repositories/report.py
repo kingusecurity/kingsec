@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List
+import builtins
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -52,7 +52,7 @@ class SQLAlchemyReportRepository(ReportRepository):
         search: str | None = None,
         severity: str | None = None,
         target: str | None = None,
-    ) -> tuple[List[ReportProjection], int]:
+    ) -> tuple[builtins.list[ReportProjection], int]:
         stmt = select(ReportORM)
         count_stmt = select(func.count()).select_from(ReportORM)
 

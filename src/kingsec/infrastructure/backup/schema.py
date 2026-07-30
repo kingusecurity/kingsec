@@ -6,7 +6,6 @@ from typing import Any
 
 from sqlalchemy import text
 
-
 _BACKUP_TABLES = """
 CREATE TABLE IF NOT EXISTS scan_backup (
     backup_id TEXT PRIMARY KEY,

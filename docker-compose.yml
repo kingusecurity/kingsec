@@ -13,7 +13,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: kingsec:1.0.0
+    image: kingsec:2.0.0
     container_name: kingsec
     restart: unless-stopped
     ports:

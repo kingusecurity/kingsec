@@ -4,9 +4,9 @@ from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from kingsec.application.errors import AssetNotFoundError
 from kingsec.application.ports.asset_inventory import AssetFilter, AssetSummary
 from kingsec.application.services.asset_inventory import AssetInventoryService
-from kingsec.application.errors import AssetNotFoundError
 from kingsec.domain.asset import Asset, AssetCriticality, AssetType
 
 from .auth import CurrentUser, require_analyst

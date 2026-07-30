@@ -2,7 +2,7 @@
 
 Local-first, AI-augmented **Attack Surface Management (ASM)** and **Vulnerability Management (VM)** for small and mid-sized businesses.
 
-> **Status:** v2.0.0-rc1 — Release Candidate 1. Production-ready with full security hardening, plugin sandboxing, SSRF protection, account lockout, and comprehensive audit trail.
+> **Status:** v2.0.0 — General Availability. Production-ready with full security hardening, plugin sandboxing, SSRF protection, account lockout, and comprehensive audit trail.
 
 ## Why KingSec?
 
@@ -18,8 +18,8 @@ Local-first, AI-augmented **Attack Surface Management (ASM)** and **Vulnerabilit
 
 ```bash
 # Docker (recommended) — zero to first assessment in 5 minutes
-docker build -t kingsec:2.0.0-rc1 .
-docker run -d --name kingsec -p 8765:8765 -v kingsec-data:/home/kingsec/.kingsec kingsec:2.0.0-rc1
+docker build -t kingsec:2.0.0 .
+docker run -d --name kingsec -p 8765:8765 -v kingsec-data:/home/kingsec/.kingsec kingsec:2.0.0
 # Open http://127.0.0.1:8765 and register the first admin account
 ```
 
@@ -47,9 +47,9 @@ See [QUICK_START.md](QUICK_START.md) for the complete walkthrough.
 
 ### Docker (recommended)
 ```bash
-docker build -t kingsec:2.0.0-rc1 .
+docker build -t kingsec:2.0.0 .
 cp .env.example .env
-docker run -d --name kingsec --env-file .env -p 8765:8765 -v kingsec-data:/home/kingsec/.kingsec kingsec:2.0.0-rc1
+docker run -d --name kingsec --env-file .env -p 8765:8765 -v kingsec-data:/home/kingsec/.kingsec kingsec:2.0.0
 ```
 
 ### Docker Compose

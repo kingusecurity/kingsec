@@ -23,8 +23,21 @@ COPY pyproject.toml README.md LICENSE ./
 
 # Install runtime dependencies into a temporary directory
 RUN uv pip install --system --target=/build/wheelhouse \
-    fastapi uvicorn[standard] pydantic pydantic-settings structlog \
-    sqlalchemy alembic httpx PyJWT argon2-cffi cryptography
+    "fastapi>=0.115,<1" \
+    "uvicorn[standard]>=0.30,<1" \
+    "pydantic>=2.7,<3" \
+    "pydantic-settings>=2.3,<3" \
+    "structlog>=24.1,<27" \
+    "sqlalchemy>=2,<3" \
+    "alembic>=1.13,<2" \
+    "httpx>=0.27,<1" \
+    "PyJWT>=2.9,<3" \
+    "argon2-cffi>=23.1,<26" \
+    "cryptography>=42.0,<50" \
+    "defusedxml>=0.7.1,<1" \
+    "python-multipart>=0.0.7,<1" \
+    "weasyprint>=62.0,<70" \
+    "reportlab>=4.0,<6"
 
 # Copy the application source
 COPY src/ ./src/

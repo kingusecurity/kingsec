@@ -4,10 +4,10 @@ from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from kingsec.application.errors import ExposureNotFoundError
 from kingsec.application.ports.attack_surface import AttackSurfaceSummary, ExposureFilter
 from kingsec.application.services.attack_surface import AttackSurfaceService
-from kingsec.application.errors import ExposureNotFoundError
-from kingsec.domain.attack_surface import Exposure, ExposureSeverity, ExposureRisk, ExposureType
+from kingsec.domain.attack_surface import Exposure, ExposureRisk, ExposureSeverity, ExposureType
 
 from .auth import CurrentUser, require_analyst
 from .dependencies import get_application

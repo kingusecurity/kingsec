@@ -7,14 +7,13 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from kingsec.domain.playbook import ExecutionHistory, ExecutionStatus, Playbook
-
-from ..mappers import (
+from kingsec.infrastructure.persistence.mappers import (
     execution_history_to_domain,
     execution_history_to_orm,
     playbook_to_domain,
     playbook_to_orm,
 )
-from ..models import ExecutionHistoryModel, PlaybookModel
+from kingsec.infrastructure.persistence.models import ExecutionHistoryModel, PlaybookModel
 
 logger = logging.getLogger(__name__)
 

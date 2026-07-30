@@ -40,7 +40,7 @@ class PlaybookService:
         actions: list[dict[str, Any]] | None = None,
         rollback_actions: list[dict[str, Any]] | None = None,
     ) -> Playbook:
-        result_errors = self._engine.validate(
+        self._engine.validate(
             Playbook.create(name=name, description=description)
         )
         from uuid import uuid4

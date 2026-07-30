@@ -13,7 +13,6 @@ from kingsec.domain.monitoring import (
     RuleConditionOperator,
 )
 
-
 PREDEFINED_RULES: list[dict[str, Any]] = [
     {
         "name": "Critical Finding Detected",

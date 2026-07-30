@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from kingsec.application.idp.provider_service import IdentityProviderService
-from kingsec.application.idp.protocol_handlers import test_provider_connection
 from kingsec.application.errors import IdentityProviderNotFoundError
+from kingsec.application.idp.protocol_handlers import test_provider_connection
+from kingsec.application.idp.provider_service import IdentityProviderService
 
 from .auth import CurrentUser, get_current_user
 from .dependencies import get_application
@@ -252,7 +252,11 @@ async def test_connection(
 ) -> dict[str, Any]:
     """Test connection to an identity provider."""
     # Create a temporary provider object from the request body
+    from datetime import UTC, datetime
+    from uuid import uuid4
+
     from kingsec.domain.identity import (
+        GroupMapping,
         IdentityProvider,
         IdentityProviderStatus,
         LdapConfig,
@@ -261,10 +265,7 @@ async def test_connection(
         ProtocolType,
         RoleMappingRule,
         Saml2Config,
-        GroupMapping,
     )
-    from uuid import uuid4
-    from datetime import UTC, datetime
 
     provider = IdentityProvider(
         id=str(uuid4()),

@@ -1,0 +1,104 @@
+{
+  "name": "KingSec",
+  "version": "2.0.0",
+  "codename": "General Availability",
+  "build": {
+    "timestamp": "2026-07-30T00:00:00Z",
+    "python_version": "3.14.4",
+    "build_hash": "386748556101",
+    "build_backend": "hatchling>=1.25"
+  },
+  "frontend": {
+    "name": "kingsec-frontend",
+    "version": "2.0.0",
+    "framework": "React 19",
+    "bundler": "Vite 8",
+    "typescript": "6.0.2",
+    "ui_library": "Tailwind CSS 3.4"
+  },
+  "database": {
+    "engine": "SQLite (SQLAlchemy 2.0)",
+    "migration_tool": "Alembic",
+    "schema_revision": "head",
+    "migration_count": 22,
+    "tables_count": 58
+  },
+  "api": {
+    "version": "v1",
+    "base_path": "/api/v1",
+    "endpoints_count": 87,
+    "auth_method": "JWT (HS256)",
+    "password_hashing": "Argon2id"
+  },
+  "features": [
+    "core_scanners",
+    "pdf_reports",
+    "manual_assessments",
+    "scheduling",
+    "integrations",
+    "api_keys",
+    "advanced_reports",
+    "unlimited_users_orgs",
+    "team_collaboration",
+    "activity_feed",
+    "sso",
+    "priority_support",
+    "enterprise_audit",
+    "custom_roles",
+    "audit_export",
+    "data_retention",
+    "custom_branding",
+    "ai_copilot",
+    "playbooks",
+    "distributed_workers",
+    "plugin_sdk",
+    "backup_restore",
+    "monitoring",
+    "threat_intelligence",
+    "compliance",
+    "asset_inventory",
+    "attack_surface",
+    "security_operations",
+    "diagnostics",
+    "telemetry"
+  ],
+  "modules": {
+    "domain": 18,
+    "application": 35,
+    "infrastructure": 89,
+    "adapters": 42,
+    "frontend_pages": 52,
+    "frontend_hooks": 35,
+    "frontend_api_clients": 30,
+    "python_total": 613,
+    "typescript_total": 262
+  },
+  "security": {
+    "authentication": "JWT + Argon2id",
+    "authorization": "RBAC (viewer/analyst/admin)",
+    "rate_limiting": "Per-IP + per-user",
+    "ssrf_protection": true,
+    "xss_protection": true,
+    "csrf_protection": "SameSite cookies",
+    "sql_injection": "SQLAlchemy ORM parameterized",
+    "command_injection": "Subprocess with validated inputs",
+    "path_traversal": "Canonical path validation",
+    "plugin_sandboxing": "Filesystem + timeout + memory limits",
+    "input_validation": "Pydantic v2 + custom validators",
+    "security_headers": "HSTS, CSP, X-Frame-Options, Permissions-Policy",
+    "account_lockout": "Progressive delays (60s→600s)"
+  },
+  "license": "Proprietary - All Rights Reserved",
+  "git": {
+    "commit": "HEAD",
+    "branch": "main",
+    "dirty": false
+  },
+  "supported_platforms": [
+    "Windows 10/11",
+    "macOS 12+",
+    "Ubuntu 20.04+",
+    "Docker"
+  ],
+  "supported_python": ["3.11", "3.12", "3.13"]
+}

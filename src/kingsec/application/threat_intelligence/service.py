@@ -2,14 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from ...domain.identifiers import CveId
-from ...domain.threat_intelligence import (
-    CveEntry,
-    ThreatFeedEntry,
-    ThreatIntelligenceSummary,
-    ThreatTrendPoint,
-)
-from ..errors import CveNotFoundError
+from kingsec.application.errors import CveNotFoundError
+from kingsec.domain.identifiers import CveId
+from kingsec.domain.threat_intelligence import CveEntry, ThreatFeedEntry, ThreatIntelligenceSummary, ThreatTrendPoint
+
 from .enrichment import CveEnrichmentService, EpssService, KevService
 from .ports import (
     AuditPublisherPort,
@@ -176,8 +172,9 @@ class ThreatIntelligenceService:
         source_url: str = "",
     ) -> ThreatFeedEntry:
         from datetime import UTC, datetime
-        from ...domain.threat_intelligence import ThreatFeedType as TFType
         from uuid import uuid4
+
+        from kingsec.domain.threat_intelligence import ThreatFeedType as TFType
 
         ftype = TFType(feed_type) if feed_type in TFType._value2member_map_ else TFType.CUSTOM
         feed = ThreatFeedEntry(

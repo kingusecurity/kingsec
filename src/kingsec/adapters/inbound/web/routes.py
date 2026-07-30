@@ -1035,7 +1035,7 @@ async def download_report(
     request: Request = None,  # type: ignore[assignment]
 ) -> Any:
     app: Application = request.app.state.kingsec_app
-    from kingsec.application.ports import ReportRepository, ReportGeneratorPort
+    from kingsec.application.ports import ReportGeneratorPort, ReportRepository
     from kingsec.domain import AssessmentId
 
     repo: ReportRepository = app.resolve(ReportRepository)

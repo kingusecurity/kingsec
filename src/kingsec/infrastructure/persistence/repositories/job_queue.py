@@ -51,7 +51,7 @@ class SQLAlchemyJobQueueRepository(JobQueueRepositoryPort):
             self._session.flush()
 
     def get_metrics(self) -> QueueMetrics:
-        total = self._session.execute(select(func.count(JobQueueEntryModel.entry_id))).scalar() or 0
+        self._session.execute(select(func.count(JobQueueEntryModel.entry_id))).scalar() or 0
         queued = self._session.execute(
             select(func.count(JobQueueEntryModel.entry_id)).where(JobQueueEntryModel.state == JobState.QUEUED.value)
         ).scalar() or 0

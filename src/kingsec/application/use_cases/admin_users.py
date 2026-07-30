@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from kingsec.application.ports import UserRepository, PasswordHasher, AuditPublisher
+from kingsec.application.ports import AuditPublisher, PasswordHasher, UserRepository
 from kingsec.domain.audit import AuditAction, AuditEntry
 
 

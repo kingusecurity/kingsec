@@ -3,10 +3,11 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from ...application.ai.ports import AIQueryPort
-from ...application.ai.redactor import Redactor
-from ...application.errors import CopilotConversationNotFoundError
-from ...domain.copilot import CopilotConversation, PromptTemplate
+from kingsec.application.ai.ports import AIQueryPort
+from kingsec.application.ai.redactor import Redactor
+from kingsec.application.errors import CopilotConversationNotFoundError
+from kingsec.domain.copilot import CopilotConversation, PromptTemplate
+
 from .context_builder import CopilotContextBuilder
 from .ports import AuditPublisherPort, CacheServicePort, CopilotConversationRepositoryPort
 

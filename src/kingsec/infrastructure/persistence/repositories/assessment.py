@@ -10,7 +10,7 @@ to the existing ``mappers`` module.
 
 from __future__ import annotations
 
-from typing import List
+import builtins
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
@@ -52,7 +52,7 @@ class SQLAlchemyAssessmentRepository(AssessmentRepository):
         *,
         limit: int = 50,
         offset: int = 0,
-    ) -> List[Assessment]:
+    ) -> builtins.list[Assessment]:
         stmt = select(AssessmentORM).order_by(AssessmentORM.created_at.desc()).offset(offset).limit(limit)
         orms = self._session.execute(stmt).scalars().all()
         return [assessment_to_domain(o) for o in orms]
@@ -68,7 +68,7 @@ class SQLAlchemyAssessmentRepository(AssessmentRepository):
         order_dir: str = "desc",
         limit: int = 50,
         offset: int = 0,
-    ) -> tuple[List[FindingProjection], int]:
+    ) -> tuple[builtins.list[FindingProjection], int]:
         base = select(FindingORM, AssessmentORM.target_value).join(
             AssessmentORM, FindingORM.assessment_id == AssessmentORM.id
         )

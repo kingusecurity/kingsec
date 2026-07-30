@@ -17,38 +17,38 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from .agent_routes import router as v1_agent_router
+from .ai_routes import router as v1_ai_router
+from .asset_routes import router as v1_asset_router
+from .attack_surface_routes import router as v1_attack_surface_router
 from .audit import router as v1_audit_router
 from .audit_events import router as v1_audit_events_router
 from .backup_routes import router as v1_backup_router
 from .compliance_routes import router as v1_compliance_router
-from .dashboard_routes import router as v1_dashboard_router
-from .execution_routes import router as v1_execution_router
-from .ai_routes import router as v1_ai_router
-from .asset_routes import router as v1_asset_router
-from .attack_surface_routes import router as v1_attack_surface_router
-from .health_routes import router as v1_health_router
-from .license_routes import router as v1_license_router
-from .monitoring_routes import router as v1_monitoring_router
-from .playbook_routes import router as v1_playbook_router
-from .plugin_sdk_routes import router as v1_plugin_sdk_router
-from .integration_routes import router as v1_integration_router
-from .mfa_routes import router as v1_mfa_router
-from .organization_routes import router as v1_organization_router
-from .notification_routes import router as v1_notification_router
-from .threat_intelligence_routes import router as v1_threat_intelligence_router
 from .copilot_routes import router as v1_copilot_router
+from .dashboard_routes import router as v1_dashboard_router
 from .distributed_routes import router as v1_distributed_queue_router
+from .execution_routes import router as v1_execution_router
+from .health_routes import router as v1_health_router
 from .identity_routes import router as v1_identity_router
+from .integration_routes import router as v1_integration_router
+from .license_routes import router as v1_license_router
 from .metrics_routes import router as v1_metrics_router
-from .worker_routes import router as v1_worker_router
+from .mfa_routes import router as v1_mfa_router
+from .monitoring_routes import router as v1_monitoring_router
+from .notification_routes import router as v1_notification_router
+from .organization_routes import router as v1_organization_router
 from .pipeline_routes import router as v1_pipeline_router
+from .playbook_routes import router as v1_playbook_router
 from .plugin_routes import router as v1_plugin_router
+from .plugin_sdk_routes import router as v1_plugin_sdk_router
 from .queue_routes import router as v1_queue_router
 from .routes import router as v1_router
 from .schedule_routes import router as v1_schedule_router
 from .secret_routes import router as v1_secret_router
 from .session_routes import router as v1_sessions_router
 from .sse import router as v1_sse_router
+from .threat_intelligence_routes import router as v1_threat_intelligence_router
+from .worker_routes import router as v1_worker_router
 
 
 def register_versioned_routes(app: FastAPI) -> None:

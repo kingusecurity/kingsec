@@ -5,8 +5,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from kingsec.application.idp.ports import IdentityProviderRepositoryPort
 from kingsec.application.errors import IdentityProviderNotFoundError
+from kingsec.application.idp.ports import IdentityProviderRepositoryPort
 from kingsec.domain.identity import (
     GroupMapping,
     IdentityProvider,

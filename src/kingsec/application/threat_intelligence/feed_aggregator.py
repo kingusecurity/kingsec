@@ -2,13 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from ...domain.threat_intelligence import (
-    CveEntry,
-    EpssData,
-    KevEntry,
-    ThreatFeedEntry,
-    ThreatFeedType,
-)
+from kingsec.domain.threat_intelligence import CveEntry, EpssData, KevEntry, ThreatFeedEntry, ThreatFeedType
+
 from .ports import (
     AuditPublisherPort,
     CacheServicePort,

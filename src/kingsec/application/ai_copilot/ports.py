@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from ...domain.copilot import CopilotConversation, InvestigationNote
+from kingsec.domain.copilot import CopilotConversation, InvestigationNote
 
 
 class CopilotConversationRepositoryPort(Protocol):

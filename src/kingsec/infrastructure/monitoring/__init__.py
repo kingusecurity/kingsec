@@ -1,15 +1,15 @@
 """Monitoring and diagnostics infrastructure."""
 
 from kingsec.infrastructure.monitoring.diagnostics import (
-    DiagnosticsCollector,
     DiagnosticEntry,
+    DiagnosticsCollector,
     SystemInfo,
     create_diagnostics_bundle,
 )
 
 __all__ = [
-    "DiagnosticsCollector",
     "DiagnosticEntry",
+    "DiagnosticsCollector",
     "SystemInfo",
     "create_diagnostics_bundle",
 ]

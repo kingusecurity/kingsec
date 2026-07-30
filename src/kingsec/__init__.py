@@ -1,4 +1,4 @@
 """KingSec - local-first, AI-augmented Attack Surface & Vulnerability Management. Root package."""
 
-__version__ = "1.1.0"
-__version_tuple__ = (1, 0, 0)
+__version__ = "2.0.0"
+__version_tuple__ = (2, 0, 0)

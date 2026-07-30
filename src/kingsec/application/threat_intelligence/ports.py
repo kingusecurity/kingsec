@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from ...domain.threat_intelligence import (
+from kingsec.domain.identifiers import CveId, ThreatFeedId
+from kingsec.domain.threat_intelligence import (
     CveEntry,
     EpssData,
     ThreatFeedEntry,
@@ -11,7 +12,6 @@ from ...domain.threat_intelligence import (
     ThreatIntelligenceSummary,
     ThreatTrendPoint,
 )
-from ...domain.identifiers import CveId, ThreatFeedId
 
 
 @dataclass

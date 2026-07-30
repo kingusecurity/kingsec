@@ -1,10 +1,14 @@
 from __future__ import annotations
 
-
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from kingsec.application.threat_intelligence.ports import CveFilter, CveRepositoryPort, KevFilter, ThreatFeedRepositoryPort
+from kingsec.application.threat_intelligence.ports import (
+    CveFilter,
+    CveRepositoryPort,
+    KevFilter,
+    ThreatFeedRepositoryPort,
+)
 from kingsec.domain.identifiers import CveId, ThreatFeedId
 from kingsec.domain.threat_intelligence import (
     CveEntry,
@@ -13,7 +17,12 @@ from kingsec.domain.threat_intelligence import (
     ThreatIntelligenceSummary,
     ThreatTrendPoint,
 )
-from kingsec.infrastructure.persistence.mappers import cve_entry_to_domain, cve_entry_to_orm, threat_feed_to_domain, threat_feed_to_orm
+from kingsec.infrastructure.persistence.mappers import (
+    cve_entry_to_domain,
+    cve_entry_to_orm,
+    threat_feed_to_domain,
+    threat_feed_to_orm,
+)
 from kingsec.infrastructure.persistence.models import CveEntryModel, ThreatFeedModel
 
 
@@ -77,7 +86,7 @@ class SQLAlchemyCveRepository(CveRepositoryPort):
         return [cve_entry_to_domain(m) for m in models]
 
     def find_kev_entries(self, filter_: KevFilter) -> tuple[list[CveEntry], int]:
-        q = self._session.query(CveEntryModel).filter(CveEntryModel.is_kev == True)
+        q = self._session.query(CveEntryModel).filter(CveEntryModel.is_kev)
         if filter_.search:
             q = q.filter(
                 or_(
@@ -114,7 +123,7 @@ class SQLAlchemyCveRepository(CveRepositoryPort):
         high = self._session.query(CveEntryModel).filter(CveEntryModel.severity == "HIGH").count()
         medium = self._session.query(CveEntryModel).filter(CveEntryModel.severity == "MEDIUM").count()
         low = self._session.query(CveEntryModel).filter(CveEntryModel.severity == "LOW").count()
-        kev_count = self._session.query(CveEntryModel).filter(CveEntryModel.is_kev == True).count()
+        kev_count = self._session.query(CveEntryModel).filter(CveEntryModel.is_kev).count()
         active_exploit = self._session.query(CveEntryModel).filter(
             CveEntryModel.exploit_maturity == "active_exploitation"
         ).count()
@@ -132,7 +141,7 @@ class SQLAlchemyCveRepository(CveRepositoryPort):
         from datetime import UTC, datetime, timedelta
         recent_cutoff = (datetime.now(UTC) - timedelta(days=30)).isoformat()
         recent_kev = self._session.query(CveEntryModel).filter(
-            CveEntryModel.is_kev == True,
+            CveEntryModel.is_kev,
             CveEntryModel.created_at >= recent_cutoff,
         ).count()
         feeds_active = self._session.query(ThreatFeedModel).filter(

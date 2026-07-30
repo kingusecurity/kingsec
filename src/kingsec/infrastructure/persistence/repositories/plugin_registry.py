@@ -6,9 +6,8 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from kingsec.domain.plugin_extensions import PluginSdkManifest, PluginType, PluginPermission
-
-from ..models import PluginSdkManifestModel
+from kingsec.domain.plugin_extensions import PluginPermission, PluginSdkManifest, PluginType
+from kingsec.infrastructure.persistence.models import PluginSdkManifestModel
 
 logger = logging.getLogger(__name__)
 

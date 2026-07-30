@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 from typing import Any
 
 
-
 @dataclass(frozen=True, slots=True)
 class CopilotMessage:
     role: str = "user"
@@ -65,7 +64,7 @@ class CopilotConversation:
             cve_id=self.cve_id,
             alert_id=self.alert_id,
             exposure_id=self.exposure_id,
-            messages=self.messages + (msg,),
+            messages=(*self.messages, msg),
             metadata=self.metadata,
             created_at=self.created_at,
             updated_at=datetime.now(UTC).isoformat(),

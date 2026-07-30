@@ -45,8 +45,8 @@ from kingsec.domain.identity import (
     OidcConfig,
     ProtocolType,
     RoleMappingRule,
-    SSOSession,
     Saml2Config,
+    SSOSession,
 )
 from kingsec.domain.job import (
     DeadLetterEntry,
@@ -66,30 +66,30 @@ from kingsec.domain.playbook import (
 )
 
 from .models import (
+    AccountLinkModel,
     AlertModel,
     AssessmentORM,
     AssetModel,
     CopilotConversationModel,
     CveEntryModel,
+    DeadLetterEntryModel,
     EvidenceORM,
+    ExecutionHistoryModel,
     ExposureModel,
     FindingModel,
     FindingORM,
-    ExecutionHistoryModel,
+    IdentityProviderModel,
     InvestigationNoteModel,
+    JobLeaseModel,
     JobModel,
+    JobQueueEntryModel,
     MonitorEventModel,
     PlaybookModel,
     RecommendationORM,
     ReportORM,
-    AccountLinkModel,
-    DeadLetterEntryModel,
-    IdentityProviderModel,
-    JobLeaseModel,
-    JobQueueEntryModel,
-    SSOSessionModel,
     RuleModel,
     ScanModel,
+    SSOSessionModel,
     ThreatFeedModel,
     WorkerModel,
 )
@@ -632,14 +632,20 @@ def inventory_asset_to_domain(orm: AssetModel) -> DomainAsset:
 from kingsec.domain.identifiers import AlertId, MonitorEventId, RuleId
 from kingsec.domain.monitoring import (
     Alert as DomainAlert,
+)
+from kingsec.domain.monitoring import (
     AlertSeverity,
     AlertStatus,
-    MonitorEvent as DomainMonitorEvent,
     MonitorEventContext,
     MonitorEventType,
-    Rule as DomainRule,
     RuleCondition,
     RuleConditionOperator,
+)
+from kingsec.domain.monitoring import (
+    MonitorEvent as DomainMonitorEvent,
+)
+from kingsec.domain.monitoring import (
+    Rule as DomainRule,
 )
 
 
@@ -800,18 +806,22 @@ def rule_to_domain(orm: RuleModel) -> DomainRule:
 # --- Threat Intelligence -----------------------------------------------------
 
 
+from kingsec.domain.identifiers import CveId
 from kingsec.domain.threat_intelligence import (
     AffectedProduct,
-    CveEntry as DomainCveEntry,
     CveReference,
     CvssData,
     EpssData,
     ExploitMaturity,
     KevEntry,
-    ThreatFeedEntry as DomainThreatFeedEntry,
     ThreatFeedType,
 )
-from kingsec.domain.identifiers import CveId
+from kingsec.domain.threat_intelligence import (
+    CveEntry as DomainCveEntry,
+)
+from kingsec.domain.threat_intelligence import (
+    ThreatFeedEntry as DomainThreatFeedEntry,
+)
 
 
 def cve_entry_to_orm(entry: DomainCveEntry) -> CveEntryModel:
@@ -1010,16 +1020,19 @@ def threat_feed_to_domain(orm: ThreatFeedModel) -> DomainThreatFeedEntry:
     )
 
 
-from kingsec.domain.threat_intelligence import AttackVector, AttackComplexity, PrivilegesRequired, UserInteraction, CiaImpact
-
-
 # --- AI Copilot -------------------------------------------------------------
-
-
 import json
 
-from kingsec.domain.copilot import CopilotConversation as DomainCopilotConversation, CopilotMessage, InvestigationNote as DomainInvestigationNote
-from .models import CopilotConversationModel, InvestigationNoteModel
+from kingsec.domain.copilot import CopilotConversation as DomainCopilotConversation
+from kingsec.domain.copilot import CopilotMessage
+from kingsec.domain.copilot import InvestigationNote as DomainInvestigationNote
+from kingsec.domain.threat_intelligence import (
+    AttackComplexity,
+    AttackVector,
+    CiaImpact,
+    PrivilegesRequired,
+    UserInteraction,
+)
 
 
 def copilot_conversation_to_orm(conv: DomainCopilotConversation) -> CopilotConversationModel:

@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Callable
 
-from kingsec.application.distributed.ports import DeadLetterRepositoryPort, JobLeaseRepositoryPort, JobQueueRepositoryPort, WorkerRepositoryPort
+from kingsec.application.distributed.ports import (
+    DeadLetterRepositoryPort,
+    JobLeaseRepositoryPort,
+    JobQueueRepositoryPort,
+    WorkerRepositoryPort,
+)
 from kingsec.application.errors import WorkerNotFoundError
 from kingsec.domain.job import DeadLetterEntry, JobQueueEntry, WorkerCapability, WorkerNode, WorkerStatus
 

@@ -14,7 +14,7 @@ per-call transaction boundary and debug logging around those primitives.
 
 from __future__ import annotations
 
-from typing import List
+import builtins
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
@@ -84,7 +84,7 @@ class SqlAlchemyAssessmentRepository(AssessmentRepository):
         *,
         limit: int = 50,
         offset: int = 0,
-    ) -> List[Assessment]:
+    ) -> builtins.list[Assessment]:
         """Return assessments ordered by created_at DESC with pagination.
 
         Args:
@@ -129,7 +129,7 @@ class SqlAlchemyAssessmentRepository(AssessmentRepository):
         order_dir: str = "desc",
         limit: int = 50,
         offset: int = 0,
-    ) -> tuple[List[FindingProjection], int]:
+    ) -> tuple[builtins.list[FindingProjection], int]:
         with self._session_factory() as session:
             from kingsec.infrastructure.persistence.repositories.assessment import SQLAlchemyAssessmentRepository
 
@@ -201,7 +201,7 @@ class SqlAlchemyReportRepository(ReportRepository):
         search: str | None = None,
         severity: str | None = None,
         target: str | None = None,
-    ) -> tuple[List[ReportProjection], int]:
+    ) -> tuple[builtins.list[ReportProjection], int]:
         with self._session_factory() as session:
             from kingsec.infrastructure.persistence.repositories.report import SQLAlchemyReportRepository
 

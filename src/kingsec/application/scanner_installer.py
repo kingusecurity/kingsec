@@ -13,7 +13,6 @@ import sys
 from dataclasses import dataclass
 from typing import Literal
 
-
 Platform = Literal["windows", "linux", "macos"]
 PackageManager = Literal["chocolatey", "winget", "scoop", "apt", "dnf", "pacman", "brew", "pip", "go", "docker", "manual"]
 

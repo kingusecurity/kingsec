@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from ...domain.threat_intelligence import (
+from kingsec.domain.identifiers import CveId
+from kingsec.domain.threat_intelligence import (
     AttackComplexity,
     AttackVector,
     CiaImpact,
@@ -15,7 +16,7 @@ from ...domain.threat_intelligence import (
     PrivilegesRequired,
     UserInteraction,
 )
-from ...domain.identifiers import CveId
+
 from .ports import EpssProviderPort, KevProviderPort, MitreCveProviderPort, NvdProviderPort
 
 
@@ -137,7 +138,7 @@ class CveEnrichmentService:
             return ExploitMaturity.UNKNOWN
 
     def _parse_products(self, products: list[dict[str, Any]]) -> list[Any]:
-        from ...domain.threat_intelligence import AffectedProduct
+        from kingsec.domain.threat_intelligence import AffectedProduct
         return [AffectedProduct(**p) for p in products if isinstance(p, dict)]
 
     def _parse_references(self, refs: list[Any]) -> list[CveReference]:

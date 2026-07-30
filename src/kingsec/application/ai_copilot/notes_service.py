@@ -3,8 +3,9 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from ...application.errors import InvestigationNoteNotFoundError
-from ...domain.copilot import InvestigationNote
+from kingsec.application.errors import InvestigationNoteNotFoundError
+from kingsec.domain.copilot import InvestigationNote
+
 from .ports import AuditPublisherPort, InvestigationNoteRepositoryPort
 
 

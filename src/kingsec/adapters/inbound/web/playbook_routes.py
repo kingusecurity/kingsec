@@ -8,8 +8,8 @@ from .auth import CurrentUser, get_current_user
 from .dependencies import get_application
 
 if TYPE_CHECKING:
-    from kingsec.bootstrap.application import Application
     from kingsec.application.playbooks.service import PlaybookService
+    from kingsec.bootstrap.application import Application
 
 router = APIRouter(prefix="/api/v1", tags=["Playbooks"])
 

@@ -427,11 +427,11 @@ def _register_ai_services(container: Container) -> None:
         RemediationAssistantService,
         ReportEnhancementService,
     )
-    from kingsec.application.ai.ports import AIQueryPort
     from kingsec.application.ai.cache import PromptCache
+    from kingsec.application.ai.ports import AIQueryPort
     from kingsec.application.ai.redactor import Redactor
-    from kingsec.infrastructure.ai.extended_adapter import ExtendedAIAdapter
     from kingsec.infrastructure.ai.adapter import AIProviderAdapter
+    from kingsec.infrastructure.ai.extended_adapter import ExtendedAIAdapter
 
     container.register_factory(Redactor, lambda c: Redactor())
     container.register_factory(PromptCache, lambda c: PromptCache())
@@ -1079,11 +1079,24 @@ def _register_asset_inventory_services(container: Container, session_factory: An
 
 
 def _register_threat_intelligence_services(container: Container, session_factory: Any) -> None:
-    from kingsec.application.threat_intelligence.enrichment import CveEnrichmentService, CvssService, EpssService, KevService
+    from kingsec.adapters.outbound.threat_intelligence.cisa_kev_provider import CisaKevApiProvider
+    from kingsec.adapters.outbound.threat_intelligence.epss_provider import EpssApiProvider
+    from kingsec.adapters.outbound.threat_intelligence.mitre_provider import MitreCveProvider
+    from kingsec.adapters.outbound.threat_intelligence.nvd_provider import NvdApiProvider
+    from kingsec.application.threat_intelligence.enrichment import (
+        CveEnrichmentService,
+        CvssService,
+        EpssService,
+        KevService,
+    )
     from kingsec.application.threat_intelligence.feed_aggregator import ThreatFeedAggregator
     from kingsec.application.threat_intelligence.ports import (
         AuditPublisherPort as TIAuditPublisherPort,
+    )
+    from kingsec.application.threat_intelligence.ports import (
         CacheServicePort as TICacheServicePort,
+    )
+    from kingsec.application.threat_intelligence.ports import (
         CveRepositoryPort,
         EpssProviderPort,
         KevProviderPort,
@@ -1098,11 +1111,6 @@ def _register_threat_intelligence_services(container: Container, session_factory
         SQLAlchemyCveRepository,
         SQLAlchemyThreatFeedRepository,
     )
-
-    from kingsec.adapters.outbound.threat_intelligence.nvd_provider import NvdApiProvider
-    from kingsec.adapters.outbound.threat_intelligence.cisa_kev_provider import CisaKevApiProvider
-    from kingsec.adapters.outbound.threat_intelligence.epss_provider import EpssApiProvider
-    from kingsec.adapters.outbound.threat_intelligence.mitre_provider import MitreCveProvider
 
     def _make_cve_repo(_c: Any) -> CveRepositoryPort:
         return SQLAlchemyCveRepository(session_factory())
@@ -1182,6 +1190,7 @@ def _register_threat_intelligence_services(container: Container, session_factory
 
 
 def _register_copilot_services(container: Container, session_factory: Any) -> None:
+    from kingsec.application import AssessmentRepository
     from kingsec.application.ai.ports import AIQueryPort
     from kingsec.application.ai.redactor import Redactor
     from kingsec.application.ai_copilot.context_builder import (
@@ -1192,20 +1201,22 @@ def _register_copilot_services(container: Container, session_factory: Any) -> No
     from kingsec.application.ai_copilot.notes_service import InvestigationNotesService
     from kingsec.application.ai_copilot.ports import (
         AuditPublisherPort as CopilotAuditPublisherPort,
+    )
+    from kingsec.application.ai_copilot.ports import (
         CacheServicePort as CopilotCacheServicePort,
+    )
+    from kingsec.application.ai_copilot.ports import (
         CopilotConversationRepositoryPort,
         InvestigationNoteRepositoryPort,
     )
+    from kingsec.application.monitoring.ports import AlertRepositoryPort as MonitoringAlertRepositoryPort
+    from kingsec.application.ports.attack_surface import AttackSurfaceRepositoryPort
+    from kingsec.application.ports.repositories import Asset
+    from kingsec.application.threat_intelligence.ports import CveRepositoryPort as TICveRepositoryPort
     from kingsec.infrastructure.persistence.repositories.copilot import (
         SQLAlchemyCopilotConversationRepository,
         SQLAlchemyInvestigationNoteRepository,
     )
-
-    from kingsec.application.ports.repositories import Asset
-    from kingsec.application import AssessmentRepository
-    from kingsec.application.threat_intelligence.ports import CveRepositoryPort as TICveRepositoryPort
-    from kingsec.application.monitoring.ports import AlertRepositoryPort as MonitoringAlertRepositoryPort
-    from kingsec.application.ports.attack_surface import AttackSurfaceRepositoryPort
 
     def _make_conv_repo(_c: Any) -> CopilotConversationRepositoryPort:
         return SQLAlchemyCopilotConversationRepository(session_factory())
@@ -1268,12 +1279,11 @@ def _register_playbook_services(container: Container, session_factory: Any) -> N
         PlaybookRepositoryPort,
     )
     from kingsec.application.playbooks.service import PlaybookService
+    from kingsec.application.ports.outbound import AuditPublisher
     from kingsec.infrastructure.persistence.repositories.playbook import (
         SQLAlchemyExecutionHistoryRepository,
         SQLAlchemyPlaybookRepository,
     )
-
-    from kingsec.application.ports.outbound import AuditPublisher
 
     def _make_pb_repo(_c: Any) -> PlaybookRepositoryPort:
         return SQLAlchemyPlaybookRepository(session_factory())
@@ -1423,6 +1433,7 @@ def _register_distributed_worker_services(container: Container, session_factory:
 
 
 def _register_idp_services(container: Container, session_factory: Any) -> None:
+    from kingsec.application.idp.jit_provisioning import JITProvisioningService
     from kingsec.application.idp.ports import (
         AccountLinkRepositoryPort,
         IdentityProviderRepositoryPort,
@@ -1430,13 +1441,12 @@ def _register_idp_services(container: Container, session_factory: Any) -> None:
     )
     from kingsec.application.idp.provider_service import IdentityProviderService
     from kingsec.application.idp.role_mapping_service import RoleMappingService
-    from kingsec.application.idp.jit_provisioning import JITProvisioningService
+    from kingsec.application.ports.outbound import UserRepository
     from kingsec.infrastructure.persistence.repositories.identity import (
         SQLAlchemyAccountLinkRepository,
         SQLAlchemyIdentityProviderRepository,
         SQLAlchemySSOSessionRepository,
     )
-    from kingsec.application.ports.outbound import UserRepository
 
     def _make_idp_repo(_c: Any) -> IdentityProviderRepositoryPort:
         return SQLAlchemyIdentityProviderRepository(session_factory())

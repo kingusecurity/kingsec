@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -100,7 +99,7 @@ class SQLAlchemyInvestigationNoteRepository(InvestigationNoteRepositoryPort):
 
     def find_pinned(self, limit: int = 20) -> list[InvestigationNote]:
         models = self._session.query(InvestigationNoteModel).filter(
-            InvestigationNoteModel.pinned == True
+            InvestigationNoteModel.pinned
         ).order_by(InvestigationNoteModel.updated_at.desc()).limit(limit).all()
         return [investigation_note_to_domain(m) for m in models]
 

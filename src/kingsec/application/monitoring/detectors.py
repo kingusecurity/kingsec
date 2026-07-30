@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-
 from kingsec.domain.asset import Asset
 from kingsec.domain.enums import Severity
-from kingsec.domain.monitoring import MonitorEvent, MonitorEventContext, MonitorEventType
 from kingsec.domain.finding import Finding
+from kingsec.domain.monitoring import MonitorEvent, MonitorEventContext, MonitorEventType
 
 
 class AssetChangeDetector:
@@ -45,7 +44,7 @@ class AssetChangeDetector:
                 MonitorEvent.create(
                     MonitorEventType.ASSET_UPDATED,
                     asset_id=str(current.id),
-                    title=f"Hostname changed for {str(current.id)}",
+                    title=f"Hostname changed for {current.id!s}",
                     description=f"Hostname changed: {previous.hostname} -> {current.hostname}",
                     context=[
                         MonitorEventContext(key="hostname", value=current.hostname or "", previous_value=previous.hostname),

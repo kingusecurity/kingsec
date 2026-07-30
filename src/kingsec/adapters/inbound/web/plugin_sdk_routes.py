@@ -10,8 +10,8 @@ from .auth import CurrentUser, get_current_user
 from .dependencies import get_application
 
 if TYPE_CHECKING:
+    from kingsec.application.plugin_sdk.registry import PluginMarketplace, PluginRegistry
     from kingsec.bootstrap.application import Application
-    from kingsec.application.plugin_sdk.registry import PluginRegistry, PluginMarketplace
 
 router = APIRouter(prefix="/api/v1/plugin-sdk", tags=["Plugin SDK"])
 

@@ -19,10 +19,10 @@ from kingsec.application.monitoring.ports import (
     RuleFilter,
     RuleRepositoryPort,
 )
-from kingsec.domain.monitoring import MonitoringDashboardSummary
 from kingsec.domain.monitoring import (
     Alert,
     MonitorEvent,
+    MonitoringDashboardSummary,
     MonitoringStatus,
     Rule,
 )
@@ -226,7 +226,7 @@ class SQLAlchemyMonitoringDashboardRepository(MonitoringDashboardRepositoryPort)
     def get_dashboard_summary(self) -> MonitoringDashboardSummary:
         now = datetime.now(UTC)
         cutoff_24h = (now - timedelta(hours=24)).isoformat()
-        cutoff_7d = (now - timedelta(days=7)).isoformat()
+        (now - timedelta(days=7)).isoformat()
 
         events_24h = self._session.execute(
             select(func.count(MonitorEventModel.id)).where(MonitorEventModel.timestamp >= cutoff_24h)

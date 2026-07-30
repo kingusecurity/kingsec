@@ -10,7 +10,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kingsec"
-version = "2.0.0-rc1"
+version = "2.0.0"
 description = "Local-first, AI-augmented Attack Surface & Vulnerability Management for SMEs."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -94,7 +94,7 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/kingsec"]
-include = ["kingsec/alembic/alembic.ini"]
+include = ["src/kingsec/alembic/alembic.ini", "src/kingsec/alembic/script.py.mako", "src/kingsec/alembic/versions/*.py"]
 
 # =============================================================================
 # Ruff - linting + formatting

@@ -19,8 +19,9 @@ Two UoW styles coexist:
 
 from __future__ import annotations
 
+import builtins
 from types import TracebackType
-from typing import List, Protocol
+from typing import Protocol
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
@@ -71,7 +72,7 @@ class _SessionBoundAssessmentRepository(AssessmentRepository):
         *,
         limit: int = 50,
         offset: int = 0,
-    ) -> List[Assessment]:
+    ) -> builtins.list[Assessment]:
         try:
             return ops.list_assessments(self._session, limit=min(max(limit, 1), 200), offset=max(offset, 0))
         except SQLAlchemyError as exc:
@@ -94,7 +95,7 @@ class _SessionBoundAssessmentRepository(AssessmentRepository):
         order_dir: str = "desc",
         limit: int = 50,
         offset: int = 0,
-    ) -> tuple[List[FindingProjection], int]:
+    ) -> tuple[builtins.list[FindingProjection], int]:
         repo = SQLAlchemyAssessmentRepository(self._session)
         return repo.search_findings(
             severity=severity,
@@ -136,7 +137,7 @@ class _SessionBoundReportRepository(ReportRepository):
         search: str | None = None,
         severity: str | None = None,
         target: str | None = None,
-    ) -> tuple[List[ReportProjection], int]:
+    ) -> tuple[builtins.list[ReportProjection], int]:
         repo = SQLAlchemyReportRepository(self._session)
         return repo.list(
             limit=limit,

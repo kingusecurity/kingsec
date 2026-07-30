@@ -1,0 +1,59 @@
+# Version control
+.git
+.gitignore
+
+# Python artifacts
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+dist
+build
+*.egg
+
+# Testing artifacts
+.coverage
+coverage.xml
+htmlcov
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend (not needed in Docker build)
+frontend/node_modules
+frontend/dist
+frontend/.vite
+
+# Documentation
+docs
+*.md
+!README.md
+LICENSE
+
+# Docker
+docker-compose*.yml
+.dockerignore
+
+# Stale artifacts
+prototypes
+kingsec.db

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import httpx
 from typing import Any
+
+import httpx
 
 from kingsec.application.threat_intelligence.ports import NvdProviderPort
 

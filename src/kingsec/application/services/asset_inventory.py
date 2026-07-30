@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from kingsec.application.errors import AssetNotFoundError
 from kingsec.application.ports.asset_inventory import (
     AssetDetail,
     AssetDiscoveryPort,
@@ -20,7 +21,6 @@ from kingsec.domain.asset import (
     AssetType,
     TechnologyFingerprint,
 )
-from kingsec.application.errors import AssetNotFoundError
 from kingsec.domain.errors import InvariantViolation
 
 
@@ -98,7 +98,7 @@ class AssetInventoryService:
         return asset
 
     def delete_asset(self, asset_id: str) -> None:
-        asset = self._repo.get(asset_id)
+        self._repo.get(asset_id)
         self._repo.delete(asset_id)
 
     # --- Listing & search ---
@@ -205,7 +205,7 @@ class AssetInventoryService:
 
     def recalculate_risk(self, asset_id: str, critical_findings: int = 0, high_findings: int = 0, open_findings: int = 0) -> Asset:
         asset = self._repo.get(asset_id)
-        score = asset.calculate_risk_score(critical_findings, high_findings, open_findings)
+        asset.calculate_risk_score(critical_findings, high_findings, open_findings)
         self._repo.save(asset)
         return asset
 
