@@ -28,6 +28,10 @@ import {
   ListOrdered,
   Fingerprint,
   Database,
+  Gauge,
+  KeyRound,
+  Wrench,
+  History,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -63,6 +67,10 @@ const navItems: NavItem[] = [
   { to: '/workers', label: 'Workers', icon: Cpu, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/queue', label: 'Job Queue', icon: ListOrdered, roles: ['viewer', 'analyst', 'admin'] },
   { to: '/audit', label: 'Audit Log', icon: ScrollText, roles: ['admin'] },
+  { to: '/license', label: 'License', icon: KeyRound, roles: ['admin'] },
+  { to: '/deployment', label: 'Deployment', icon: Gauge, roles: ['admin'] },
+  { to: '/diagnostics', label: 'Diagnostics', icon: Wrench, roles: ['admin'] },
+  { to: '/release-audit', label: 'Releases', icon: History, roles: ['admin'] },
   { to: '/settings', label: 'Settings', icon: Settings, roles: ['viewer', 'analyst', 'admin'] },
 ]
 

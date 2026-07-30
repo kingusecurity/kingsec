@@ -54,6 +54,10 @@ const IdentityProvidersPage = lazy(() => import('@/pages/IdentityProvidersPage')
 const IdentityProviderDetailPage = lazy(() => import('@/pages/IdentityProviderDetailPage').then(m => ({ default: m.IdentityProviderDetailPage })))
 const BackupCenterPage = lazy(() => import('@/pages/BackupCenterPage').then(m => ({ default: m.BackupCenterPage })))
 const BackupDetailPage = lazy(() => import('@/pages/BackupDetailPage').then(m => ({ default: m.BackupDetailPage })))
+const DeploymentPage = lazy(() => import('@/pages/DeploymentPage').then(m => ({ default: m.default })))
+const LicensePage = lazy(() => import('@/pages/LicensePage').then(m => ({ default: m.default })))
+const DiagnosticsPage = lazy(() => import('@/pages/DiagnosticsPage').then(m => ({ default: m.default })))
+const ReleaseAuditPage = lazy(() => import('@/pages/ReleaseAuditPage').then(m => ({ default: m.default })))
 
 function PageLoader() {
   return (
@@ -264,6 +268,22 @@ export const router = createBrowserRouter([
       {
         path: 'settings',
         element: <Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>,
+      },
+      {
+        path: 'deployment',
+        element: <Suspense fallback={<PageLoader />}><DeploymentPage /></Suspense>,
+      },
+      {
+        path: 'license',
+        element: <Suspense fallback={<PageLoader />}><LicensePage /></Suspense>,
+      },
+      {
+        path: 'diagnostics',
+        element: <Suspense fallback={<PageLoader />}><DiagnosticsPage /></Suspense>,
+      },
+      {
+        path: 'release-audit',
+        element: <Suspense fallback={<PageLoader />}><ReleaseAuditPage /></Suspense>,
       },
       ...(isDev ? [{ path: 'ui', element: <Suspense fallback={<PageLoader />}><UIShowcasePage /></Suspense> }] : []),
     ],
