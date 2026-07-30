@@ -256,6 +256,9 @@ def _register_adapters(
     # Backup, Disaster Recovery & High Availability (Phase 27).
     _register_backup_services(container, session_factory)
 
+    # Performance, Caching & Metrics (Phase 28).
+    _register_performance_services(container)
+
     # MFA (TOTP) infrastructure.
     register_mfa(container, session_factory)
 
@@ -1522,4 +1525,32 @@ def _register_backup_services(container: Container, session_factory: Any) -> Non
             compression=c.resolve(BackupCompressionPort),
             audit=c.resolve(AuditPublisher),
         ),
+    )
+
+
+def _register_performance_services(container: Container) -> None:
+    """Register performance, caching, and metrics services."""
+    from kingsec.infrastructure.cache.memory_cache import MemoryCacheService
+    from kingsec.infrastructure.config.models import PerformanceSettings
+    from kingsec.infrastructure.config.settings import Settings
+    from kingsec.infrastructure.monitoring.performance_metrics import PerformanceMetrics
+
+    # Register PerformanceSettings subgroup for DI resolution
+    if not container.has(PerformanceSettings):
+        root_settings = container.resolve(Settings)
+        container.register_instance(PerformanceSettings, root_settings.performance)
+
+    # Register in-memory cache (singleton)
+    container.register_factory(
+        MemoryCacheService,
+        lambda c: MemoryCacheService(
+            max_size=c.resolve(PerformanceSettings).cache_max_size,
+            default_ttl=c.resolve(PerformanceSettings).cache_default_ttl,
+        ),
+    )
+
+    # Register performance metrics (singleton)
+    container.register_factory(
+        PerformanceMetrics,
+        lambda c: PerformanceMetrics(),
     )

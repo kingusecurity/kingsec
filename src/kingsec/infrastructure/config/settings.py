@@ -40,6 +40,7 @@ from .models import (
     MiddlewareSettings,
     NiktoSettings,
     NmapSettings,
+    PerformanceSettings,
     RateLimitSettings,
     ScannerSettings,
     SecretsSettings,
@@ -100,6 +101,7 @@ class Settings(BaseSettings):
     rate_limit: RateLimitSettings = Field(default_factory=RateLimitSettings)
     secrets: SecretsSettings = Field(default_factory=SecretsSettings)
     middleware: MiddlewareSettings = Field(default_factory=MiddlewareSettings)
+    performance: PerformanceSettings = Field(default_factory=PerformanceSettings)
     integrations: IntegrationSettings = Field(default_factory=IntegrationSettings)
 
     @model_validator(mode="after")

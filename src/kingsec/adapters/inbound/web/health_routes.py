@@ -83,3 +83,39 @@ def shutdown(request: Request) -> dict[str, Any]:
 def restart(request: Request) -> dict[str, Any]:
     _get_service(request).restart()
     return {"status": "restart_initiated"}
+
+
+@router.get("/health")
+def health_simple() -> dict[str, Any]:
+    """Simple liveness endpoint (no auth, no dependency checks)."""
+    return {"status": "healthy"}
+
+
+@router.get(
+    "/healthz/performance", response_model=SystemMetrics, dependencies=[Depends(require_role(Role.ADMIN))]
+)
+def performance_health(request: Request) -> dict[str, Any]:
+    """Performance-specific health check with cache and metrics info."""
+    service = _get_service(request)
+    metrics_data = service.collect_metrics()
+    result: dict[str, Any] = {
+        "status": "healthy",
+        "cpu_percent": metrics_data.cpu_percent,
+        "memory_percent": metrics_data.memory_percent,
+        "disk_percent": metrics_data.disk_percent,
+        "uptime_seconds": metrics_data.uptime_seconds,
+    }
+    try:
+        from kingsec.infrastructure.cache.memory_cache import MemoryCacheService
+
+        app: Application = get_application(request)
+        cache = app.resolve(MemoryCacheService)
+        result["cache"] = {
+            "size": cache.size,
+            "hit_ratio": round(cache.hit_ratio, 4),
+            "hits": cache.hits,
+            "misses": cache.misses,
+        }
+    except Exception:
+        result["cache"] = {"status": "unavailable"}
+    return result

@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react'
 import { Shield, AlertTriangle, Activity, TrendingUp, FileText, Eye, ArrowRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { PageContainer, PageHeader, StatGrid } from '@/components/layout/PageContainer'
@@ -75,8 +76,10 @@ const scoreColors: Record<string, string> = {
   LOW: 'text-blue-400 bg-blue-500/10',
 }
 
-function RecentReportsSection() {
+const RecentReportsSection = memo(function RecentReportsSection() {
   const { data, isLoading, isError } = useReports({ limit: 5, order_by: 'generated_at', order_dir: 'desc' })
+
+  const reportItems = useMemo(() => data?.items ?? [], [data?.items])
 
   return (
     <div className="rounded-xl border border-border bg-surface-secondary">
@@ -97,22 +100,29 @@ function RecentReportsSection() {
         </div>
       ) : isError ? (
         <p className="text-sm text-red-400 py-4 text-center">Failed to load reports.</p>
-      ) : !data?.items.length ? (
+      ) : !reportItems.length ? (
         <p className="text-sm text-text-muted py-4 text-center">No reports generated yet.</p>
       ) : (
         <div className="divide-y divide-border">
-          {data.items.map((r) => (
+          {reportItems.map((r) => (
             <RecentReportRow key={r.assessment_id} report={r} />
           ))}
         </div>
       )}
     </div>
   )
-}
+})
 
-function RecentReportRow({ report }: { report: ReportListEntry }) {
+const RecentReportRow = memo(function RecentReportRow({ report }: { report: ReportListEntry }) {
   const score = report.executive_score ?? 0
   const severityLabel = report.verdict_highest_severity ?? ''
+
+  const scoreClass = useMemo(() => {
+    if (score >= 80) return 'text-emerald-400'
+    if (score >= 60) return 'text-yellow-400'
+    if (score >= 40) return 'text-orange-400'
+    return 'text-red-400'
+  }, [score])
 
   return (
     <div className="flex items-center justify-between px-5 py-3 transition-colors hover:bg-surface-tertiary/50">
@@ -128,7 +138,7 @@ function RecentReportRow({ report }: { report: ReportListEntry }) {
               {severityLabel}
             </span>
           )}
-          <span className={`text-xs font-medium ${score >= 80 ? 'text-emerald-400' : score >= 60 ? 'text-yellow-400' : score >= 40 ? 'text-orange-400' : 'text-red-400'}`}>
+          <span className={`text-xs font-medium ${scoreClass}`}>
             Score: {Math.round(score)}
           </span>
         </div>
@@ -145,4 +155,4 @@ function RecentReportRow({ report }: { report: ReportListEntry }) {
       </div>
     </div>
   )
-}
+})

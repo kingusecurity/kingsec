@@ -536,6 +536,46 @@ class MiddlewareSettings(BaseModel):
     request_logging: bool = True
 
 
+class PerformanceSettings(BaseModel):
+    """Performance tuning configuration."""
+
+    _FROZEN = ConfigDict(frozen=True, extra="forbid")
+
+    # --- Cache ---
+    cache_default_ttl: int = Field(default=300, ge=0, description="Default cache TTL in seconds")
+    cache_max_size: int = Field(default=10000, ge=100, description="Max entries in memory cache")
+    cache_enabled: bool = Field(default=True, description="Enable in-memory cache")
+
+    # --- Workers ---
+    worker_count: int = Field(default=2, ge=1, le=64, description="Number of background workers")
+    worker_poll_interval: float = Field(default=5.0, ge=0.5, le=60.0, description="Worker poll interval in seconds")
+    worker_heartbeat_interval: float = Field(default=30.0, ge=5.0, description="Heartbeat interval in seconds")
+
+    # --- Queue ---
+    queue_max_size: int = Field(default=10000, ge=100, description="Max queued jobs")
+    queue_lock_timeout: float = Field(default=300.0, ge=30.0, description="Job lock timeout in seconds")
+
+    # --- Timeouts ---
+    request_timeout: float = Field(default=30.0, ge=1.0, le=300.0, description="Default request timeout in seconds")
+    scanner_timeout: float = Field(default=600.0, ge=30.0, le=3600.0, description="Scanner timeout in seconds")
+    report_timeout: float = Field(default=120.0, ge=10.0, le=600.0, description="Report generation timeout")
+
+    # --- Concurrency ---
+    max_concurrent_assessments: int = Field(default=5, ge=1, le=50, description="Max concurrent assessments")
+    max_concurrent_scans: int = Field(default=10, ge=1, le=100, description="Max concurrent scans")
+    assessment_batch_size: int = Field(default=50, ge=10, le=500, description="Batch size for large assessments")
+
+    # --- Pagination ---
+    default_page_size: int = Field(default=25, ge=5, le=200, description="Default API page size")
+    max_page_size: int = Field(default=100, ge=10, le=1000, description="Max API page size")
+
+    # --- Request body ---
+    max_request_body_bytes: int = Field(default=10 * 1024 * 1024, ge=1024, description="Max request body size (bytes)")
+
+    # --- Health checks ---
+    health_check_interval: float = Field(default=60.0, ge=10.0, description="Health check interval in seconds")
+
+
 class IntegrationSettings(BaseModel):
     """Enterprise integration configuration.
 

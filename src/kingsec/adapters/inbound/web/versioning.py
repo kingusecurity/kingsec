@@ -39,6 +39,7 @@ from .threat_intelligence_routes import router as v1_threat_intelligence_router
 from .copilot_routes import router as v1_copilot_router
 from .distributed_routes import router as v1_distributed_queue_router
 from .identity_routes import router as v1_identity_router
+from .metrics_routes import router as v1_metrics_router
 from .worker_routes import router as v1_worker_router
 from .pipeline_routes import router as v1_pipeline_router
 from .plugin_routes import router as v1_plugin_router
@@ -87,6 +88,7 @@ def register_versioned_routes(app: FastAPI) -> None:
     app.include_router(v1_copilot_router)
     app.include_router(v1_distributed_queue_router)
     app.include_router(v1_identity_router)
+    app.include_router(v1_metrics_router)
     app.include_router(v1_worker_router)
 
     # Future example:

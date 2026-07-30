@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   useBackups,
@@ -42,6 +42,10 @@ export function BackupCenterPage() {
   const [form, setForm] = useState({ backup_type: 'full', includes: '' })
   const [schedForm, setSchedForm] = useState({ name: '', frequency: 'daily', backup_type: 'full' })
   const [planForm, setPlanForm] = useState({ name: '', description: '', estimated_downtime_minutes: 60 })
+
+  const backupList = useMemo(() => backups?.backups ?? [], [backups?.backups])
+  const scheduleList = useMemo(() => schedules?.schedules ?? [], [schedules?.schedules])
+  const planList = useMemo(() => plans?.plans ?? [], [plans?.plans])
 
   const handleCreateBackup = async () => {
     const includes = form.includes ? form.includes.split(',').map(s => s.trim()) : undefined
@@ -136,7 +140,7 @@ export function BackupCenterPage() {
 
       {tab === 'backups' && (
         <div className="grid gap-4">
-          {backups?.backups.map(b => (
+          {backupList.map(b => (
             <Card key={b.backup_id} className="p-4 cursor-pointer hover:border-accent/50 transition-colors" onClick={() => navigate(`/backup/${b.backup_id}`)}>
               <div className="flex items-start justify-between">
                 <div className="space-y-1">
@@ -158,7 +162,7 @@ export function BackupCenterPage() {
               </div>
             </Card>
           ))}
-          {backups?.backups.length === 0 && (
+          {backupList.length === 0 && (
             <Card className="p-8 text-center text-text-muted">No backups yet. Click "New Backup" to create one.</Card>
           )}
         </div>
@@ -185,7 +189,7 @@ export function BackupCenterPage() {
             <Button onClick={handleCreateSchedule} disabled={!schedForm.name}>Create</Button>
           </Card>
           <div className="grid gap-4">
-            {schedules?.schedules.map(s => (
+            {scheduleList.map(s => (
               <Card key={s.schedule_id} className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
@@ -200,7 +204,7 @@ export function BackupCenterPage() {
                 </div>
               </Card>
             ))}
-            {schedules?.schedules.length === 0 && <Card className="p-8 text-center text-text-muted">No schedules configured.</Card>}
+            {scheduleList.length === 0 && <Card className="p-8 text-center text-text-muted">No schedules configured.</Card>}
           </div>
         </div>
       )}
@@ -217,7 +221,7 @@ export function BackupCenterPage() {
             <Button onClick={handleCreatePlan} disabled={!planForm.name}>Create Plan</Button>
           </Card>
           <div className="grid gap-4">
-            {plans?.plans.map(p => (
+            {planList.map(p => (
               <Card key={p.plan_id} className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="space-y-1 cursor-pointer" onClick={() => navigate(`/backup/recovery/${p.plan_id}`)}>
@@ -237,7 +241,7 @@ export function BackupCenterPage() {
                 </div>
               </Card>
             ))}
-            {plans?.plans.length === 0 && <Card className="p-8 text-center text-text-muted">No recovery plans configured.</Card>}
+            {planList.length === 0 && <Card className="p-8 text-center text-text-muted">No recovery plans configured.</Card>}
           </div>
         </div>
       )}
