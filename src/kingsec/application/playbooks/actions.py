@@ -197,6 +197,12 @@ class ActionExecutor:
         url = config.get("url", "")
         if not url:
             return "No webhook URL configured"
+        from kingsec.infrastructure.notifications.url_validator import SSRFError, validate_url
+
+        try:
+            validate_url(url)
+        except SSRFError as exc:
+            raise RuntimeError(f"Webhook URL blocked by SSRF protection: {exc}") from exc
         payload = config.get("payload", {}).copy()
         payload.update(ctx)
         data = json.dumps(payload).encode()

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from kingsec.application.ports.outbound import AgentDispatcherPort, AgentRepositoryPort
 from kingsec.domain.agent import (
     Agent,
@@ -184,7 +186,7 @@ class AssignNextJob:
         idle = self._repo.find_idle()
         for candidate in idle:
             if candidate.id.value == agent_id and candidate.state == AgentState.ONLINE:
-                job_id = f"job-{candidate.id.value}-{__import__('time').time_ns()}"
+                job_id = f"job-{candidate.id.value}-{time.time_ns()}"
                 result = self._dispatcher.assign_job(candidate.id, job_id)
                 if result:
                     self._repo.update(result)

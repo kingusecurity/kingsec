@@ -19,6 +19,12 @@ router = APIRouter(prefix="/api/v1/plugins", tags=["plugins"])
 
 ADMIN_ONLY = Role.ADMIN
 
+# Upload hardening limits
+MAX_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024  # 100 MB
+ALLOWED_EXTENSIONS = frozenset({".zip"})
+_MAX_ARCHIVE_ENTRIES = 10000
+_MAX_SINGLE_ENTRY_SIZE = 50 * 1024 * 1024  # 50 MB per entry
+
 
 def _get_service(request: Request) -> PluginServicePort:
     app: Application = get_application(request)
@@ -30,15 +36,90 @@ def _require_admin(user: CurrentUser) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
 
 
+def _validate_upload_extension(filename: str | None) -> None:
+    """Reject uploads with disallowed file extensions."""
+    if not filename:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required")
+    _, ext = os.path.splitext(filename.lower())
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File extension '{ext}' not allowed. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
+        )
+
+
+def _validate_upload_content(data: bytes, filename: str) -> None:
+    """Basic content sniffing: verify the file starts with a ZIP magic number."""
+    if len(data) < 4:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File is too small")
+    # ZIP magic number: PK\x03\x04 (50 4B 03 04)
+    if data[:4] != b"PK\x03\x04":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File does not appear to be a valid ZIP archive",
+        )
+
+
+def _validate_archive_safety(package_path: str) -> None:
+    """Check for archive bombs and oversized entries."""
+    import zipfile
+
+    try:
+        with zipfile.ZipFile(package_path, "r") as zf:
+            total_entries = len(zf.infolist())
+            if total_entries > _MAX_ARCHIVE_ENTRIES:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Archive contains too many entries ({total_entries}, max {_MAX_ARCHIVE_ENTRIES})",
+                )
+            for entry in zf.infolist():
+                if entry.file_size > _MAX_SINGLE_ENTRY_SIZE:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Archive entry '{entry.filename}' is too large ({entry.file_size} bytes)",
+                    )
+                # Detect potential zip bomb: compressed ratio > 100:1
+                if entry.compress_size > 0 and entry.file_size > 0:
+                    ratio = entry.file_size / entry.compress_size
+                    if ratio > 100:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Archive entry '{entry.filename}' has suspicious compression ratio ({ratio:.0f}:1)",
+                        )
+    except zipfile.BadZipFile as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid ZIP archive") from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to validate archive: {exc}",
+        ) from exc
+
+
 async def _save_upload(file: UploadFile) -> str:
-    suffix = ".zip" if file.filename and file.filename.endswith(".zip") else ".tmp"
-    fd, path = tempfile.mkstemp(suffix=suffix)
+    """Save an uploaded file with security hardening."""
+    _validate_upload_extension(file.filename)
+    fd, path = tempfile.mkstemp(suffix=".zip")
     try:
         content = await file.read()
+        if len(content) > MAX_UPLOAD_SIZE_BYTES:
+            os.unlink(path)
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File too large (max {MAX_UPLOAD_SIZE_BYTES} bytes)",
+            )
+        _validate_upload_content(content, file.filename or "upload")
         with os.fdopen(fd, "wb") as f:
             f.write(content)
+        _validate_archive_safety(path)
+    except HTTPException:
+        if os.path.exists(path):
+            os.unlink(path)
+        raise
     except Exception:
-        os.unlink(path)
+        if os.path.exists(path):
+            os.unlink(path)
         raise
     return path
 

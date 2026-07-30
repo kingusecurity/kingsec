@@ -56,28 +56,32 @@ class CveEnrichmentService:
         return results
 
     async def _fetch_nvd(self, cve_code: str) -> dict[str, Any] | None:
-        assert self._nvd is not None
+        if self._nvd is None:
+            return None
         try:
             return await self._nvd.fetch_cve(cve_code)
         except Exception:
             return None
 
     async def _fetch_mitre(self, cve_code: str) -> dict[str, Any] | None:
-        assert self._mitre is not None
+        if self._mitre is None:
+            return None
         try:
             return await self._mitre.fetch_cve(cve_code)
         except Exception:
             return None
 
     async def _fetch_epss(self, cve_code: str) -> EpssData | None:
-        assert self._epss is not None
+        if self._epss is None:
+            return None
         try:
             return await self._epss.fetch_score(cve_code)
         except Exception:
             return None
 
     async def _fetch_kev(self, cve_code: str) -> dict[str, Any] | None:
-        assert self._kev is not None
+        if self._kev is None:
+            return None
         try:
             return await self._kev.fetch_by_cve(cve_code)
         except Exception:

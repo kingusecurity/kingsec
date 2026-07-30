@@ -13,6 +13,7 @@ from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.domain.integration import IntegrationType, SIEMBatchResult
 from kingsec.infrastructure.config.models import IntegrationSettings
 from kingsec.infrastructure.logging import get_logger
+from kingsec.infrastructure.notifications.url_validator import SSRFError, validate_url
 
 logger = get_logger("kingsec.infrastructure.integrations.siem")
 
@@ -81,6 +82,11 @@ class SIEMExportService:
         if not url or not token:
             raise RuntimeError("Splunk HEC not configured")
 
+        try:
+            validate_url(url)
+        except SSRFError as exc:
+            raise RuntimeError(f"Splunk HEC URL blocked by SSRF protection: {exc}") from exc
+
         events = self._build_events(findings)
         payload = json.dumps({"event": events}).encode()
         req = Request(url, data=payload, method="POST")
@@ -106,6 +112,12 @@ class SIEMExportService:
 
         url = self._settings.sentinel_dce_url or f"https://{workspace_id}.ods.opinsights.azure.com"
         url = f"{url.rstrip('/')}/api/logs?api-version=2016-04-01"
+
+        try:
+            validate_url(url)
+        except SSRFError as exc:
+            raise RuntimeError(f"Sentinel URL blocked by SSRF protection: {exc}") from exc
+
         req = Request(url, data=body, method="POST")
         req.add_header("Content-Type", "application/json")
         req.add_header("Log-Type", "KingSec_Findings")
@@ -124,6 +136,12 @@ class SIEMExportService:
 
         endpoint = url or f"https://{cloud_id}.elastic.cloud"
         bulk_url = f"{endpoint.rstrip('/')}/_bulk"
+
+        try:
+            validate_url(bulk_url)
+        except SSRFError as exc:
+            raise RuntimeError(f"Elastic URL blocked by SSRF protection: {exc}") from exc
+
         lines: list[str] = []
         for f in findings:
             action = json.dumps({"index": {"_index": "kingsec-findings"}})

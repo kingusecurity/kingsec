@@ -9,6 +9,7 @@ from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.domain.integration import IntegrationType, TicketReference
 from kingsec.infrastructure.config.models import IntegrationSettings
 from kingsec.infrastructure.logging import get_logger
+from kingsec.infrastructure.notifications.url_validator import SSRFError, validate_url
 
 logger = get_logger("kingsec.infrastructure.integrations.ticketing")
 
@@ -71,6 +72,10 @@ class TicketingService:
         if not self._settings.jira_url or not self._settings.jira_email or not jira_token:
             raise RuntimeError("Jira not configured")
         url = f"{self._settings.jira_url.rstrip('/')}/rest/api/2/issue"
+        try:
+            validate_url(url)
+        except SSRFError as exc:
+            raise RuntimeError(f"Jira URL blocked by SSRF protection: {exc}") from exc
         auth = f"{self._settings.jira_email}:{jira_token}"
         import base64
         encoded = base64.b64encode(auth.encode()).decode()
@@ -97,6 +102,10 @@ class TicketingService:
         if not gh_token or not self._settings.github_repo:
             raise RuntimeError("GitHub not configured")
         url = f"https://api.github.com/repos/{self._settings.github_repo}/issues"
+        try:
+            validate_url(url)
+        except SSRFError as exc:
+            raise RuntimeError(f"GitHub URL blocked by SSRF protection: {exc}") from exc
         body = json.dumps({
             "title": f"[KingSec] {title}",
             "body": f"**Severity:** {severity}\n**Target:** {target}\n\n{description}\n\n---\n*Created by KingSec*",
@@ -116,6 +125,10 @@ class TicketingService:
             raise RuntimeError("GitLab not configured")
         base_url = self._settings.gitlab_url.rstrip("/") or "https://gitlab.com"
         url = f"{base_url}/api/v4/projects/{self._settings.gitlab_project_id}/issues"
+        try:
+            validate_url(url)
+        except SSRFError as exc:
+            raise RuntimeError(f"GitLab URL blocked by SSRF protection: {exc}") from exc
         body = json.dumps({
             "title": f"[KingSec] {title}",
             "description": f"**Severity:** {severity}\n**Target:** {target}\n\n{description}\n\n---\n*Created by KingSec*",

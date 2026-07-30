@@ -12,10 +12,16 @@ Documentation route CSP
 
     To swap to a self-hosted Swagger bundle in the future, change only the
     ``DOCS_CSP`` constant — no other code needs to change.
+
+Permissions-Policy
+    A restrictive Permissions-Policy header is added to all responses,
+    disabling browser features that have no use in an API context (camera,
+    microphone, geolocation, etc.).
 """
 
 from __future__ import annotations
 
+import secrets
 from typing import Any
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
@@ -32,11 +38,11 @@ _LOCALHOSTS = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
 # bundled locally (v1.1+):
 #
 #   DOCS_CSP = (
-#     "default-src 'none'; "
-#     "script-src 'self' 'unsafe-inline'; "
-#     "style-src 'self' 'unsafe-inline'; "
-#     "img-src 'self' data:; "
-#     "connect-src 'self'"
+#       "default-src 'none'; "
+#       "script-src 'self' 'unsafe-inline'; "
+#       "style-src 'self' 'unsafe-inline'; "
+#       "img-src 'self' data:; "
+#       "connect-src 'self'"
 #   )
 DOCS_CSP = (
     "default-src 'none'; "
@@ -49,6 +55,21 @@ DOCS_CSP = (
 
 # Route prefixes that receive the relaxed documentation CSP.
 DOCS_PATHS = ("/docs", "/redoc")
+
+# Default Permissions-Policy: disable all browser features not needed by an API.
+_DEFAULT_PERMISSIONS_POLICY = (
+    "camera=(), microphone=(), geolocation=(), payment=(), "
+    "usb=(), magnetometer=(), gyroscope=(), accelerometer=(), "
+    "ambient-light-sensor=(), autoplay=(), battery=(), "
+    "bluetooth=(), browsing-topics=(), document-domain=(), "
+    "encrypted-media=(), execution-while-not-rendered=(), "
+    "execution-while-out-of-viewport=(), fullscreen=(), "
+    "gamepad=(), gyroscope=(), inert=(), keyboard-map=(), "
+    "magnetometer=(), midi=(), navigation-override=(), "
+    "payment=(), picture-in-picture=(), publickey-credentials-get=(), "
+    "screen-wake-lock=(), sync-xhr=(), usb=(), "
+    "web-share=(), xr-spatial-tracking=()"
+)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -65,17 +86,29 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = self._settings.x_frame_options
         response.headers["Referrer-Policy"] = self._settings.referrer_policy
 
+        # Permissions-Policy: disable unnecessary browser features.
+        response.headers["Permissions-Policy"] = _DEFAULT_PERMISSIONS_POLICY
+
+        # Content-Security-Policy with optional nonce support.
         if request.url.path.startswith(DOCS_PATHS):
             response.headers["Content-Security-Policy"] = DOCS_CSP
         else:
-            response.headers["Content-Security-Policy"] = self._settings.content_security_policy
+            csp = self._settings.content_security_policy
+            # If CSP contains 'nonce-', generate a per-request nonce.
+            if "nonce-" in csp:
+                nonce = secrets.token_urlsafe(32)
+                csp = csp.replace("nonce-", f"nonce-{nonce}")
+                response.headers["Content-Security-Policy"] = csp
+                response.headers["X-Content-Security-Policy-Nonce"] = nonce
+            else:
+                response.headers["Content-Security-Policy"] = csp
 
         if self._settings.hsts_max_age > 0:
             host = request.url.hostname or ""
             is_localhost_http = host in _LOCALHOSTS and request.url.scheme == "http"
             if not is_localhost_http:
                 response.headers["Strict-Transport-Security"] = (
-                    f"max-age={self._settings.hsts_max_age}; includeSubDomains"
+                    f"max-age={self._settings.hsts_max_age}; includeSubDomains; preload"
                 )
 
         if self._settings.remove_server_header:
