@@ -14,11 +14,10 @@ from kingsec.domain.monitoring import (
     MonitorEvent,
     MonitorEventType,
     MonitoringDashboardSummary,
-    MonitoringStatus,
     Rule,
 )
 
-from .auth import CurrentUser, get_current_user, require_analyst
+from .auth import CurrentUser, require_analyst
 from .dependencies import get_application
 
 if TYPE_CHECKING:

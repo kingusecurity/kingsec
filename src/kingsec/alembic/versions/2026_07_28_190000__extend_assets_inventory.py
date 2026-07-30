@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 
 if TYPE_CHECKING:
-    from alembic.runtime.revision import MigratorCollection
+    pass
 
 
 revision: str = "aabbccddee00"

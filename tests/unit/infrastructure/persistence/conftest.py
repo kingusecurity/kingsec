@@ -27,8 +27,8 @@ from kingsec.domain import (
 from kingsec.infrastructure.config.models import LoggingSettings
 from kingsec.infrastructure.logging import configure_logging
 from kingsec.infrastructure.persistence import (
-    SqlAlchemyAssessmentRepository,
-    SqlAlchemyReportRepository,
+    SQLAlchemyAssessmentRepository,
+    SQLAlchemyReportRepository,
     create_database_engine,
     create_schema,
     create_session_factory,

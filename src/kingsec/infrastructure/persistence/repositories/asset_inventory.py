@@ -14,7 +14,6 @@ from kingsec.application.ports.asset_inventory import (
     AssetSummary,
 )
 from kingsec.domain.asset import Asset, AssetHistoryEntry, AssetRelationship
-from kingsec.domain.identifiers import AssetId
 from kingsec.infrastructure.persistence.mappers import (
     inventory_asset_to_domain,
     inventory_asset_to_orm,

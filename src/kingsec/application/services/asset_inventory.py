@@ -22,7 +22,6 @@ from kingsec.domain.asset import (
 )
 from kingsec.application.errors import AssetNotFoundError
 from kingsec.domain.errors import InvariantViolation
-from kingsec.domain.identifiers import AssetId
 
 
 class AssetInventoryService:

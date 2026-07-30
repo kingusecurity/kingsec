@@ -9,7 +9,7 @@ from kingsec.application.services.asset_inventory import AssetInventoryService
 from kingsec.application.errors import AssetNotFoundError
 from kingsec.domain.asset import Asset, AssetCriticality, AssetType
 
-from .auth import CurrentUser, get_current_user, require_analyst
+from .auth import CurrentUser, require_analyst
 from .dependencies import get_application
 
 if TYPE_CHECKING:

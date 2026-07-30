@@ -9,7 +9,7 @@ from kingsec.application.services.attack_surface import AttackSurfaceService
 from kingsec.application.errors import ExposureNotFoundError
 from kingsec.domain.attack_surface import Exposure, ExposureSeverity, ExposureRisk, ExposureType
 
-from .auth import CurrentUser, get_current_user, require_analyst
+from .auth import CurrentUser, require_analyst
 from .dependencies import get_application
 
 if TYPE_CHECKING:

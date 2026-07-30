@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -23,8 +22,6 @@ from kingsec.application.monitoring.ports import (
 from kingsec.domain.monitoring import MonitoringDashboardSummary
 from kingsec.domain.monitoring import (
     Alert,
-    AlertSeverity,
-    AlertStatus,
     MonitorEvent,
     MonitoringStatus,
     Rule,

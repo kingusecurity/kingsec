@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -13,10 +12,9 @@ from kingsec.application.ports.attack_surface import (
     AttackSurfaceSummary,
     ExposureFilter,
 )
-from kingsec.domain.attack_surface import Exposure, ExposureHistoryEntry, ExposureSeverity, ExposureType
-from kingsec.domain.identifiers import AttackSurfaceId
+from kingsec.domain.attack_surface import Exposure, ExposureHistoryEntry, ExposureType
 from kingsec.infrastructure.persistence.mappers import exposure_to_domain, exposure_to_orm
-from kingsec.infrastructure.persistence.models import AssetModel, ExposureHistoryModel, ExposureModel
+from kingsec.infrastructure.persistence.models import ExposureHistoryModel, ExposureModel
 
 
 class SQLAlchemyAttackSurfaceRepository(AttackSurfaceRepositoryPort):

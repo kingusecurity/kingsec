@@ -811,7 +811,7 @@ from kingsec.domain.threat_intelligence import (
     ThreatFeedEntry as DomainThreatFeedEntry,
     ThreatFeedType,
 )
-from kingsec.domain.identifiers import CveId, ThreatFeedId
+from kingsec.domain.identifiers import CveId
 
 
 def cve_entry_to_orm(entry: DomainCveEntry) -> CveEntryModel:

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
 from typing import Any
 
 from ...domain.copilot import CopilotConversation, InvestigationNote
 from .context_builder import CopilotContextBuilder
-from .ports import AuditPublisherPort, CacheServicePort, CopilotConversationRepositoryPort, InvestigationNoteRepositoryPort
+from .ports import AuditPublisherPort, CopilotConversationRepositoryPort, InvestigationNoteRepositoryPort
 
 
 class CopilotExportService:

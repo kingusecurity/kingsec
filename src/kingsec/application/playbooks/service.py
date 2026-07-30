@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
 from typing import Any
 
 from kingsec.domain.playbook import (
@@ -45,7 +44,6 @@ class PlaybookService:
             Playbook.create(name=name, description=description)
         )
         from uuid import uuid4
-        from kingsec.domain.playbook import PlaybookAction as PBAction, PlaybookTrigger as PBTrigger
         playbook = Playbook(
             playbook_id=uuid4().hex,
             name=name,

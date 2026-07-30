@@ -6,9 +6,7 @@ from typing import Any
 from kingsec.domain.playbook import (
     ActionExecutionLog,
     ExecutionHistory,
-    ExecutionStatus,
     Playbook,
-    PlaybookTrigger,
 )
 
 from .actions import ActionExecutor

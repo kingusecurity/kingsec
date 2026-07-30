@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from kingsec.application.idp.ports import AccountLinkRepositoryPort, IdentityProviderRepositoryPort
+from kingsec.application.idp.ports import AccountLinkRepositoryPort
 from kingsec.application.idp.role_mapping_service import RoleMappingService
 from kingsec.application.ports.outbound import UserRepository
-from kingsec.domain.enums import Role
 from kingsec.domain.identity import AccountLink, IdentityProvider
 from kingsec.domain.user import User
 

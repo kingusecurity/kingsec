@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from kingsec.application.errors import CveNotFoundError
-from kingsec.application.threat_intelligence.ports import CveFilter, KevFilter, TrendingThreat
+from kingsec.application.threat_intelligence.ports import CveFilter, KevFilter
 from kingsec.application.threat_intelligence.reports import ThreatReportGenerator
 from kingsec.application.threat_intelligence.service import ThreatIntelligenceService
 from kingsec.domain.identifiers import CveId

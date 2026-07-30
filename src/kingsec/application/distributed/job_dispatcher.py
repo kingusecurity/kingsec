@@ -12,8 +12,8 @@ from kingsec.application.distributed.ports import (
     WorkerRepositoryPort,
 )
 from kingsec.application.distributed.scheduler import SchedulingStrategy
-from kingsec.application.errors import DuplicateJobAssignmentError, JobLeaseExpiredError, JobLeaseNotFoundError, WorkerOfflineError
-from kingsec.domain.job import DeadLetterEntry, JobLease, JobQueueEntry, JobState, WorkerNode, WorkerStatus
+from kingsec.application.errors import DuplicateJobAssignmentError, JobLeaseNotFoundError
+from kingsec.domain.job import JobLease, JobQueueEntry, JobState
 
 
 class JobLeaseManager:

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
 
 from kingsec.domain.asset import Asset
 from kingsec.domain.enums import Severity

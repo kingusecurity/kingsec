@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from kingsec.domain.plugin_extensions import PluginRuntime, PluginSdkManifest, PluginType, PluginPermission
+from kingsec.domain.plugin_extensions import PluginSdkManifest, PluginType, PluginPermission
 
 from ..models import PluginSdkManifestModel
 

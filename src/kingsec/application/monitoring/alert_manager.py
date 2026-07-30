@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import Any
 
-from kingsec.domain.monitoring import Alert, AlertStatus
+from kingsec.domain.monitoring import Alert
 
 from .ports import AlertFilter, AlertRepositoryPort, AuditPublisherPort, NotificationSenderPort
 

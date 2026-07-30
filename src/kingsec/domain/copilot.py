@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from .errors import InvariantViolation
 
 
 @dataclass(frozen=True, slots=True)

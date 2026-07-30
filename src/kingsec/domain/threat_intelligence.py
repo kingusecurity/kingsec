@@ -6,7 +6,7 @@ from enum import StrEnum
 from typing import Any
 
 from .errors import InvariantViolation
-from .identifiers import CveId, KevEntryId, ThreatFeedId
+from .identifiers import CveId
 
 
 class ThreatFeedType(StrEnum):

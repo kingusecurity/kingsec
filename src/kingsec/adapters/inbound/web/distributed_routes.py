@@ -6,9 +6,8 @@ from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from kingsec.application.distributed.ports import DeadLetterRepositoryPort, JobQueueRepositoryPort
+from kingsec.application.distributed.ports import JobQueueRepositoryPort
 from kingsec.application.distributed.retry_manager import DeadLetterService, RetryManager
-from kingsec.application.errors import WorkerNotFoundError
 
 from .auth import CurrentUser, get_current_user
 from .dependencies import get_application

@@ -3,8 +3,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from ...domain.identifiers import CveId
-from ...domain.threat_intelligence import CveEntry
 from .ports import AuditPublisherPort, CveRepositoryPort, ThreatFeedRepositoryPort
 
 

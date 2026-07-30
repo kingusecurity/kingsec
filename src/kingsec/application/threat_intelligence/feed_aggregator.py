@@ -4,14 +4,11 @@ from typing import Any
 
 from ...domain.threat_intelligence import (
     CveEntry,
-    CveReference,
-    CvssData,
     EpssData,
     KevEntry,
     ThreatFeedEntry,
     ThreatFeedType,
 )
-from ...domain.identifiers import CveId
 from .ports import (
     AuditPublisherPort,
     CacheServicePort,
@@ -115,7 +112,6 @@ class ThreatFeedAggregator:
         return feed
 
     def _convert_nvd(self, raw: list[dict[str, Any]]) -> list[CveEntry]:
-        from ...application.threat_intelligence.enrichment import CveEnrichmentService
         return []
 
     def _convert_kev(self, raw: dict[str, Any]) -> KevEntry:

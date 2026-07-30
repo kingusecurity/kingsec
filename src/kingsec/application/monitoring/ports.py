@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from kingsec.domain.monitoring import (
@@ -13,7 +13,6 @@ from kingsec.domain.monitoring import (
     MonitoringDashboardSummary,
     MonitoringStatus,
     Rule,
-    RuleCondition,
 )
 
 

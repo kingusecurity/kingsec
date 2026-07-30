@@ -11,15 +11,12 @@ from kingsec.application.ports.attack_surface import (
 )
 from kingsec.domain.attack_surface import (
     Exposure,
-    ExposureDetail,
     ExposureHistoryEntry,
     ExposureRisk,
     ExposureSeverity,
     ExposureStatus,
     ExposureType,
-    ExposureTrendPoint,
 )
-from kingsec.domain.identifiers import AttackSurfaceId
 
 
 class AttackSurfaceService:

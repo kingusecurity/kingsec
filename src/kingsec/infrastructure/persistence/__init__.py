@@ -6,7 +6,7 @@ following the Data Mapper pattern (ORM models kept separate from the pure domain
 Public API
     Engine/session:  create_database_engine, create_session_factory, create_schema,
                      validate_schema_version
-    Repositories:    SqlAlchemyAssessmentRepository, SqlAlchemyReportRepository,
+    Repositories:    SQLAlchemyAssessmentRepository, SQLAlchemyReportRepository,
                     SqlAlchemyAuditRepository
     ORM base:        Base
     DI wiring:       register_persistence
@@ -49,7 +49,6 @@ from .repositories import (
 )
 from .unit_of_work import (
     SQLAlchemyUnitOfWork,
-    SqlAlchemyUnitOfWork,
     SqlAlchemyUnitOfWorkFactory,
     register_unit_of_work,
 )
@@ -76,7 +75,6 @@ __all__ = [
     "SqlAlchemyAssessmentRepository",
     "SqlAlchemyAuditRepository",
     "SqlAlchemyReportRepository",
-    "SqlAlchemyUnitOfWork",
     "SqlAlchemyUnitOfWorkFactory",
     "UserORM",
     "build_sqlite_url",

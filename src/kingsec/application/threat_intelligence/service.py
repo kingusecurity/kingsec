@@ -1,18 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
-from ...domain.identifiers import CveId, KevEntryId, ThreatFeedId
+from ...domain.identifiers import CveId
 from ...domain.threat_intelligence import (
     CveEntry,
-    KevEntry,
     ThreatFeedEntry,
     ThreatIntelligenceSummary,
     ThreatTrendPoint,
 )
-from ..errors import CveNotFoundError, ThreatFeedNotFoundError
-from .enrichment import CveEnrichmentService, CvssService, EpssService, KevService
+from ..errors import CveNotFoundError
+from .enrichment import CveEnrichmentService, EpssService, KevService
 from .ports import (
     AuditPublisherPort,
     CacheServicePort,

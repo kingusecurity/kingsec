@@ -1,21 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from ...domain.threat_intelligence import (
     CveEntry,
-    CveReference,
-    CvssData,
     EpssData,
-    ExploitMaturity,
-    KevEntry,
     ThreatFeedEntry,
     ThreatFeedType,
     ThreatIntelligenceSummary,
     ThreatTrendPoint,
 )
-from ...domain.identifiers import CveId, KevEntryId, ThreatFeedId
+from ...domain.identifiers import CveId, ThreatFeedId
 
 
 @dataclass

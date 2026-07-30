@@ -10,7 +10,7 @@ instructions that can be presented to the user or copied to the clipboard.
 from __future__ import annotations
 
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Literal
 
 

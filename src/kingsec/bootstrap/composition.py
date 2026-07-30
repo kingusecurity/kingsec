@@ -1185,13 +1185,7 @@ def _register_copilot_services(container: Container, session_factory: Any) -> No
     from kingsec.application.ai.ports import AIQueryPort
     from kingsec.application.ai.redactor import Redactor
     from kingsec.application.ai_copilot.context_builder import (
-        AlertRepositoryPort as CopilotAlertRepoPort,
-        AssetRepositoryPort as CopilotAssetRepoPort,
-        AssessmentRepositoryPort as CopilotAssessmentRepoPort,
         CopilotContextBuilder,
-        CveRepositoryPort as CopilotCveRepoPort,
-        ExposureRepositoryPort as CopilotExposureRepoPort,
-        FindingRepositoryPort as CopilotFindingRepoPort,
     )
     from kingsec.application.ai_copilot.copilot_service import CopilotService
     from kingsec.application.ai_copilot.export_service import CopilotExportService
@@ -1350,7 +1344,7 @@ def _register_distributed_worker_services(container: Container, session_factory:
         WorkerRepositoryPort,
     )
     from kingsec.application.distributed.retry_manager import DeadLetterService, RetryManager
-    from kingsec.application.distributed.scheduler import CapabilityMatchingScheduler, create_scheduler
+    from kingsec.application.distributed.scheduler import CapabilityMatchingScheduler
     from kingsec.application.distributed.worker_service import HeartbeatManager, WorkerRegistrationService
     from kingsec.infrastructure.persistence.repositories.dead_letter import SQLAlchemyDeadLetterRepository
     from kingsec.infrastructure.persistence.repositories.job_queue import SQLAlchemyJobQueueRepository

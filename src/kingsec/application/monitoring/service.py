@@ -10,7 +10,6 @@ from kingsec.application.monitoring.ports import (
     AuditPublisherPort,
     MonitorEventFilter,
     MonitoringEventRepositoryPort,
-    NotificationSenderPort,
     RuleFilter,
     RuleRepositoryPort,
 )
@@ -21,7 +20,6 @@ from kingsec.domain.monitoring import (
     Rule,
     RuleCondition,
 )
-from kingsec.domain.identifiers import RuleId
 
 
 class MonitoringService:

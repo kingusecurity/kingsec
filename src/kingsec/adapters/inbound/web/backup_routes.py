@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from kingsec.application.errors import (
     BackupNotFoundError,
     RecoveryPlanNotFoundError,
-    RecoveryTestNotFoundError,
     ScheduleNotFoundError,
     SnapshotNotFoundError,
 )
