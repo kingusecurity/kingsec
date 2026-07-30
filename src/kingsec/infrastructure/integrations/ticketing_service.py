@@ -67,10 +67,11 @@ class TicketingService:
         return adapter
 
     def _jira_create(self, title: str, description: str, severity: str, target: str) -> tuple[str, str]:
-        if not self._settings.jira_url or not self._settings.jira_email or not self._settings.jira_api_token:
+        jira_token = self._settings.jira_api_token.get_secret_value()
+        if not self._settings.jira_url or not self._settings.jira_email or not jira_token:
             raise RuntimeError("Jira not configured")
         url = f"{self._settings.jira_url.rstrip('/')}/rest/api/2/issue"
-        auth = f"{self._settings.jira_email}:{self._settings.jira_api_token}"
+        auth = f"{self._settings.jira_email}:{jira_token}"
         import base64
         encoded = base64.b64encode(auth.encode()).decode()
         body = json.dumps({
@@ -92,7 +93,8 @@ class TicketingService:
         return key, browse_url
 
     def _github_create(self, title: str, description: str, severity: str, target: str) -> tuple[str, str]:
-        if not self._settings.github_token or not self._settings.github_repo:
+        gh_token = self._settings.github_token.get_secret_value()
+        if not gh_token or not self._settings.github_repo:
             raise RuntimeError("GitHub not configured")
         url = f"https://api.github.com/repos/{self._settings.github_repo}/issues"
         body = json.dumps({
@@ -101,7 +103,7 @@ class TicketingService:
             "labels": ["security", severity.lower()],
         }).encode()
         req = Request(url, data=body, method="POST")
-        req.add_header("Authorization", f"Bearer {self._settings.github_token}")
+        req.add_header("Authorization", f"Bearer {gh_token}")
         req.add_header("Content-Type", "application/json")
         req.add_header("Accept", "application/vnd.github.v3+json")
         with urlopen(req, timeout=15) as resp:
@@ -109,7 +111,8 @@ class TicketingService:
         return str(data.get("number", "")), data.get("html_url", "")
 
     def _gitlab_create(self, title: str, description: str, severity: str, target: str) -> tuple[str, str]:
-        if not self._settings.gitlab_token or not self._settings.gitlab_project_id:
+        gl_token = self._settings.gitlab_token.get_secret_value()
+        if not gl_token or not self._settings.gitlab_project_id:
             raise RuntimeError("GitLab not configured")
         base_url = self._settings.gitlab_url.rstrip("/") or "https://gitlab.com"
         url = f"{base_url}/api/v4/projects/{self._settings.gitlab_project_id}/issues"
@@ -119,7 +122,7 @@ class TicketingService:
             "labels": "security," + severity.lower(),
         }).encode()
         req = Request(url, data=body, method="POST")
-        req.add_header("PRIVATE-TOKEN", self._settings.gitlab_token)
+        req.add_header("PRIVATE-TOKEN", gl_token)
         req.add_header("Content-Type", "application/json")
         with urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read().decode())

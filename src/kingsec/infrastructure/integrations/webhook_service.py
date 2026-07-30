@@ -82,8 +82,8 @@ class WebhookDeliveryService:
                 body = self._build_body(integration_type, event_type, payload)
                 req = Request(url, data=body, method="POST")
                 req.add_header("Content-Type", "application/json")
-                if self._settings.webhook_secret:
-                    sig = self._sign(body, self._settings.webhook_secret)
+                if self._settings.webhook_secret.get_secret_value():
+                    sig = self._sign(body, self._settings.webhook_secret.get_secret_value())
                     req.add_header("X-Signature-256", sig)
                 with urlopen(req, timeout=15):
                     pass

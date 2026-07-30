@@ -77,7 +77,7 @@ class SIEMExportService:
 
     def _splunk_send(self, findings: list[dict[str, Any]]) -> int:
         url = self._settings.splunk_hec_url
-        token = self._settings.splunk_hec_token
+        token = self._settings.splunk_hec_token.get_secret_value()
         if not url or not token:
             raise RuntimeError("Splunk HEC not configured")
 
@@ -92,7 +92,7 @@ class SIEMExportService:
 
     def _sentinel_send(self, findings: list[dict[str, Any]]) -> int:
         workspace_id = self._settings.sentinel_workspace_id
-        shared_key = self._settings.sentinel_shared_key
+        shared_key = self._settings.sentinel_shared_key.get_secret_value()
         if not workspace_id or not shared_key:
             raise RuntimeError("Microsoft Sentinel not configured")
 
@@ -116,7 +116,7 @@ class SIEMExportService:
         return len(findings)
 
     def _elastic_send(self, findings: list[dict[str, Any]]) -> int:
-        api_key = self._settings.elastic_api_key
+        api_key = self._settings.elastic_api_key.get_secret_value()
         cloud_id = self._settings.elastic_cloud_id
         url = self._settings.elastic_url
         if not api_key or not (cloud_id or url):

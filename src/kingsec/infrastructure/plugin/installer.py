@@ -54,7 +54,15 @@ class PluginInstaller(PluginInstallerPort):
     def __init__(self, base_dir: str | None = None) -> None:
         self._base_dir = base_dir or os.path.join(tempfile.gettempdir(), "kingsec", "plugins")
 
+    def _validate_plugin_id(self, plugin_id: str) -> None:
+        """Reject plugin IDs containing path traversal or special characters."""
+        import re
+
+        if not plugin_id or not re.match(r"^[a-zA-Z0-9_\-\.]+$", plugin_id):
+            raise ValueError(f"Invalid plugin ID: {plugin_id!r}")
+
     def _plugin_dir(self, plugin_id: str) -> str:
+        self._validate_plugin_id(plugin_id)
         return os.path.join(self._base_dir, plugin_id)
 
     def install(self, package_path: str, manifest: PluginManifest) -> str:

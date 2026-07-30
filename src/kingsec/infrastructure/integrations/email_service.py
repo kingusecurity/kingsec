@@ -132,7 +132,7 @@ class EmailNotificationService:
                 if self._settings.smtp_use_tls:
                     server.starttls()
                 if self._settings.smtp_username:
-                    server.login(self._settings.smtp_username, self._settings.smtp_password)
+                    server.login(self._settings.smtp_username, self._settings.smtp_password.get_secret_value())
                 server.sendmail(self._settings.smtp_from_address, to_addresses, msg.as_string())
 
             record = DeliveryRecord(

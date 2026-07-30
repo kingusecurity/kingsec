@@ -596,37 +596,37 @@ class IntegrationSettings(BaseModel):
     teams_webhook_url: str = ""
     discord_webhook_url: str = ""
     generic_webhook_url: str = ""
-    webhook_secret: str = ""
+    webhook_secret: SecretStr = SecretStr("")
 
     # --- SMTP ---
     smtp_host: str = ""
     smtp_port: int = Field(default=587, ge=1, le=65535)
     smtp_username: str = ""
-    smtp_password: str = ""
+    smtp_password: SecretStr = SecretStr("")
     smtp_from_address: str = ""
     smtp_use_tls: bool = True
 
     # --- Jira ---
     jira_url: str = ""
     jira_email: str = ""
-    jira_api_token: str = ""
+    jira_api_token: SecretStr = SecretStr("")
     jira_project_key: str = ""
 
     # --- GitHub Issues ---
-    github_token: str = ""
+    github_token: SecretStr = SecretStr("")
     github_repo: str = ""
 
     # --- GitLab Issues ---
     gitlab_url: str = ""
-    gitlab_token: str = ""
+    gitlab_token: SecretStr = SecretStr("")
     gitlab_project_id: str = ""
 
     # --- SIEM ---
     splunk_hec_url: str = ""
-    splunk_hec_token: str = ""
+    splunk_hec_token: SecretStr = SecretStr("")
     sentinel_workspace_id: str = ""
-    sentinel_shared_key: str = ""
+    sentinel_shared_key: SecretStr = SecretStr("")
     sentinel_dce_url: str = ""
     elastic_cloud_id: str = ""
-    elastic_api_key: str = ""
+    elastic_api_key: SecretStr = SecretStr("")
     elastic_url: str = ""
