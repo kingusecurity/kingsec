@@ -25,13 +25,15 @@ export function CveDetailPage() {
 
   return (
     <PageContainer>
-      <PageHeader title={cve.cve_code} description={cve.description.slice(0, 200)}>
-        <div className="flex gap-2">
+      <PageHeader
+        title={cve.cve_code}
+        description={cve.description.slice(0, 200)}
+        actions={
           <Button onClick={() => syncCve.mutate(cve.cve_code)} variant="outline" className="text-xs" disabled={syncCve.isPending}>
             {syncCve.isPending ? 'Syncing...' : 'Re-sync'}
           </Button>
-        </div>
-      </PageHeader>
+        }
+      />
 
       {/* Overview */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

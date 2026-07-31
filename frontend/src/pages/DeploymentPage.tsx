@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React from 'react'
 import { PageContainer, PageHeader } from '@/components/layout/PageContainer'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -156,21 +156,18 @@ function HealthSection() {
             Startup Checks
           </h3>
           <div className="space-y-2">
-            {startup.checks.map((check) => (
+            {startup.map((check) => (
               <div key={check.name} className="flex items-center justify-between py-1.5 border-b border-gray-800 last:border-0">
                 <div className="flex items-center gap-2">
                   <StatusDot passed={check.passed} />
                   <span className="text-sm font-medium capitalize">{check.name.replace(/_/g, ' ')}</span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-gray-500">{check.message}</span>
-                  <span className="text-xs text-gray-600">{check.duration_ms.toFixed(0)}ms</span>
-                </div>
+                <span className="text-xs text-gray-500">{check.message}</span>
               </div>
             ))}
           </div>
           <div className="mt-3 text-xs text-gray-500">
-            {startup.passed ? 'All checks passed' : 'Some checks failed'}
+            {startup.every((c) => c.passed) ? 'All checks passed' : 'Some checks failed'}
           </div>
         </Card>
       )}

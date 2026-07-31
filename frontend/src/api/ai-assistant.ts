@@ -43,29 +43,29 @@ export interface AIHealthResult {
 
 export const aiAssistantApi = {
   explainFinding: (findingId: string, assessmentId: string) =>
-    apiRequest<ExplainFindingResult>('/api/v1/ai/explain-finding', {
+    apiRequest<ExplainFindingResult>('/ai/explain-finding', {
       method: 'POST',
       body: JSON.stringify({ finding_id: findingId, assessment_id: assessmentId }),
     }),
 
   executiveSummary: (assessmentId: string) =>
-    apiRequest<ExecutiveSummaryResult>('/api/v1/ai/executive-summary', {
+    apiRequest<ExecutiveSummaryResult>('/ai/executive-summary', {
       method: 'POST',
       body: JSON.stringify({ assessment_id: assessmentId }),
     }),
 
   remediationPlan: (assessmentId: string) =>
-    apiRequest<RemediationPlanResult>('/api/v1/ai/remediation-plan', {
+    apiRequest<RemediationPlanResult>('/ai/remediation-plan', {
       method: 'POST',
       body: JSON.stringify({ assessment_id: assessmentId }),
     }),
 
   chat: (question: string, history: Array<{ role: string; content: string }>, assessmentId?: string) =>
-    apiRequest<ChatResult>('/api/v1/ai/chat', {
+    apiRequest<ChatResult>('/ai/chat', {
       method: 'POST',
       body: JSON.stringify({ question, history, assessment_id: assessmentId }),
     }),
 
   health: () =>
-    apiRequest<AIHealthResult>('/api/v1/ai/health'),
+    apiRequest<AIHealthResult>('/ai/health'),
 }

@@ -1,4 +1,3 @@
-import React from 'react'
 import { PageContainer, PageHeader } from '@/components/layout/PageContainer'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -119,7 +118,7 @@ function DiagnosticsSection() {
       )}
 
       <div className="flex gap-3">
-        <Button variant="outline" onClick={refetch}>
+        <Button variant="outline" onClick={() => refetch()}>
           Refresh Diagnostics
         </Button>
         <Button variant="outline" disabled>

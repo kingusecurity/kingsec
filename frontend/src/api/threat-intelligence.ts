@@ -131,7 +131,7 @@ export interface CveFilter {
 // --- Summary ---
 
 export function getTISummary(): Promise<TISummary> {
-  return apiRequest('/api/v1/threat-intelligence/summary')
+  return apiRequest('/threat-intelligence/summary')
 }
 
 // --- CVEs ---
@@ -143,23 +143,23 @@ export function listCves(filter?: CveFilter): Promise<{ items: CveItem[]; total:
       if (v !== undefined && v !== null) params.set(k, String(v))
     })
   }
-  return apiRequest(`/api/v1/cves?${params.toString()}`)
+  return apiRequest(`/cves?${params.toString()}`)
 }
 
 export function getCveById(id: string): Promise<CveItem> {
-  return apiRequest(`/api/v1/cves/${encodeURIComponent(id)}`)
+  return apiRequest(`/cves/${encodeURIComponent(id)}`)
 }
 
 export function syncCve(cveCode: string): Promise<CveItem> {
-  return apiRequest(`/api/v1/cves/${encodeURIComponent(cveCode)}/sync`, { method: 'POST' })
+  return apiRequest(`/cves/${encodeURIComponent(cveCode)}/sync`, { method: 'POST' })
 }
 
 export function deleteCve(id: string): Promise<{ status: string }> {
-  return apiRequest(`/api/v1/cves/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  return apiRequest(`/cves/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
 export function getCveRiskAssessment(id: string): Promise<ThreatRiskAssessment> {
-  return apiRequest(`/api/v1/cves/${encodeURIComponent(id)}/risk`)
+  return apiRequest(`/cves/${encodeURIComponent(id)}/risk`)
 }
 
 // --- KEV ---
@@ -178,72 +178,72 @@ export function listKevEntries(filter?: {
       if (v !== undefined && v !== null) params.set(k, String(v))
     })
   }
-  return apiRequest(`/api/v1/kev?${params.toString()}`)
+  return apiRequest(`/kev?${params.toString()}`)
 }
 
 // --- EPSS ---
 
 export function getEpssScore(cveCode: string): Promise<EpssData> {
-  return apiRequest(`/api/v1/epss/${encodeURIComponent(cveCode)}`)
+  return apiRequest(`/epss/${encodeURIComponent(cveCode)}`)
 }
 
 // --- Trending ---
 
 export function getTrendingThreats(limit?: number): Promise<TrendingThreat[]> {
   const params = limit ? `?limit=${limit}` : ''
-  return apiRequest(`/api/v1/threats/trending${params}`)
+  return apiRequest(`/threats/trending${params}`)
 }
 
 // --- Trends ---
 
 export function getTITrends(days?: number): Promise<TrendPoint[]> {
   const params = days ? `?days=${days}` : ''
-  return apiRequest(`/api/v1/threat-intelligence/trends${params}`)
+  return apiRequest(`/threat-intelligence/trends${params}`)
 }
 
 // --- Timeline ---
 
 export function getTITimeline(days?: number): Promise<Array<{ date: string; cve_code: string; severity: string; threat_score: number; is_kev: boolean; description: string }>> {
   const params = days ? `?days=${days}` : ''
-  return apiRequest(`/api/v1/threat-intelligence/timeline${params}`)
+  return apiRequest(`/threat-intelligence/timeline${params}`)
 }
 
 // --- Feeds ---
 
 export function listFeeds(): Promise<ThreatFeedItem[]> {
-  return apiRequest('/api/v1/threat-intelligence/feeds')
+  return apiRequest('/threat-intelligence/feeds')
 }
 
 export function registerFeed(feedType: string, title: string, sourceUrl?: string): Promise<{ feed_id: string; feed_type: string; title: string; last_synced: string }> {
   const params = new URLSearchParams({ feed_type: feedType, title })
   if (sourceUrl) params.set('source_url', sourceUrl)
-  return apiRequest(`/api/v1/threat-intelligence/feeds?${params.toString()}`, { method: 'POST' })
+  return apiRequest(`/threat-intelligence/feeds?${params.toString()}`, { method: 'POST' })
 }
 
 // --- Critical ---
 
 export function getCriticalCves(limit?: number): Promise<CveItem[]> {
   const params = limit ? `?limit=${limit}` : ''
-  return apiRequest(`/api/v1/threat-intelligence/critical${params}`)
+  return apiRequest(`/threat-intelligence/critical${params}`)
 }
 
 // --- Reports ---
 
 export function generateThreatReport(days?: number): Promise<any> {
   const params = days ? `?days=${days}` : ''
-  return apiRequest(`/api/v1/threat-intelligence/reports/threat${params}`)
+  return apiRequest(`/threat-intelligence/reports/threat${params}`)
 }
 
 export function generateExecutiveReport(days?: number): Promise<any> {
   const params = days ? `?days=${days}` : ''
-  return apiRequest(`/api/v1/threat-intelligence/reports/executive${params}`)
+  return apiRequest(`/threat-intelligence/reports/executive${params}`)
 }
 
 export function generateKevReport(): Promise<any> {
-  return apiRequest('/api/v1/threat-intelligence/reports/kev')
+  return apiRequest('/threat-intelligence/reports/kev')
 }
 
 export function generateHighRiskReport(minScore?: number): Promise<any> {
   const params = minScore ? `?min_score=${minScore}` : ''
-  return apiRequest(`/api/v1/threat-intelligence/reports/high-risk${params}`)
+  return apiRequest(`/threat-intelligence/reports/high-risk${params}`)
 }

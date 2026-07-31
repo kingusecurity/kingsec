@@ -48,8 +48,8 @@ export function QueuePage() {
       )}
 
       <div className="flex gap-2 border-b border-border pb-2">
-        <Button variant={tab === 'queue' ? 'default' : 'ghost'} size="sm" onClick={() => setTab('queue')}>Queue</Button>
-        <Button variant={tab === 'dead-letter' ? 'default' : 'ghost'} size="sm" onClick={() => setTab('dead-letter')}>
+        <Button variant={tab === 'queue' ? 'primary' : 'ghost'} size="sm" onClick={() => setTab('queue')}>Queue</Button>
+        <Button variant={tab === 'dead-letter' ? 'primary' : 'ghost'} size="sm" onClick={() => setTab('dead-letter')}>
           Dead Letter {deadLetterData?.total ? `(${deadLetterData.total})` : ''}
         </Button>
       </div>
@@ -58,7 +58,7 @@ export function QueuePage() {
         <div className="space-y-4">
           <div className="flex gap-2">
             {['', 'queued', 'assigned', 'running', 'completed', 'failed', 'retrying'].map(s => (
-              <Button key={s} variant={stateFilter === s ? 'default' : 'outline'} size="sm" onClick={() => setStateFilter(s)}>
+              <Button key={s} variant={stateFilter === s ? 'primary' : 'outline'} size="sm" onClick={() => setStateFilter(s)}>
                 {s || 'All'}
               </Button>
             ))}

@@ -259,6 +259,12 @@ def _register_adapters(
     # Performance, Caching & Metrics (Phase 28).
     _register_performance_services(container)
 
+    # Production service & its outbound port dependencies.
+    _register_production_services(container, session_factory)
+
+    # Deployment diagnostics, upgrade, release-audit & telemetry (Phase 32).
+    _register_deployment_services(container, settings)
+
     # MFA (TOTP) infrastructure.
     register_mfa(container, session_factory)
 
@@ -293,6 +299,12 @@ def _register_adapters(
         return PluginInstaller(base_dir=str(settings.storage.data_dir / "plugins"))
 
     container.register_factory(PluginInstallerPort, _make_installer)
+
+    # --- Queue, Plugin, Agent, Pipeline services (Phase 34) ---
+    _register_queue_services(container, session_factory)
+    _register_plugin_services(container)
+    _register_agent_services(container)
+    _register_pipeline_services(container, session_factory)
 
     # Dashboard repository + analytics service.
     from kingsec.application.analytics_service import AnalyticsService
@@ -435,6 +447,12 @@ def _register_ai_services(container: Container) -> None:
 
     container.register_factory(Redactor, lambda c: Redactor())
     container.register_factory(PromptCache, lambda c: PromptCache())
+    # AIProviderAdapter is the concrete class; register it by resolving AIPort
+    # (which register_ai binds to the same instance).
+    container.register_factory(
+        AIProviderAdapter,
+        lambda c: c.resolve(AIPort),
+    )
     container.register_factory(
         AIQueryPort,
         lambda c: ExtendedAIAdapter(c.resolve(AIProviderAdapter), c.resolve(AuditPublisher)),
@@ -1345,6 +1363,128 @@ def _register_plugin_sdk_services(container: Container, session_factory: Any) ->
     container.register_factory(PluginMarketplace, _make_marketplace)
 
 
+def _register_queue_services(container: Container, session_factory: Any) -> None:
+    """Register queue service and its dependencies."""
+    from kingsec.application.ports.outbound import QueueRepositoryPort, SchedulerPolicyPort
+    from kingsec.application.ports.queue_service import QueueServicePort
+    from kingsec.application.queue_service import QueueService
+    from kingsec.infrastructure.queue import DefaultSchedulingPolicy, InMemoryQueueRepository
+
+    container.register_factory(
+        QueueRepositoryPort,
+        lambda c: InMemoryQueueRepository(),
+    )
+    container.register_factory(SchedulerPolicyPort, lambda c: DefaultSchedulingPolicy())
+    container.register_factory(
+        QueueServicePort,
+        lambda c: QueueService(
+            repo=c.resolve(QueueRepositoryPort),
+            policy=c.resolve(SchedulerPolicyPort),
+        ),
+    )
+
+
+def _register_plugin_services(container: Container) -> None:
+    """Register plugin service and its dependencies."""
+    from kingsec.application.ports.outbound import PluginRepositoryPort, PluginValidatorPort
+    from kingsec.application.ports.plugin_service import PluginServicePort
+    from kingsec.application.plugin_service import PluginService
+    from kingsec.infrastructure.plugin import InMemoryPluginRepository, PluginValidator
+
+    container.register_factory(PluginRepositoryPort, lambda c: InMemoryPluginRepository())
+    container.register_factory(PluginValidatorPort, lambda c: PluginValidator())
+    container.register_factory(
+        PluginServicePort,
+        lambda c: PluginService(
+            repo=c.resolve(PluginRepositoryPort),
+            installer=c.resolve(PluginInstallerPort),
+            validator=c.resolve(PluginValidatorPort),
+        ),
+    )
+
+
+def _register_agent_services(container: Container) -> None:
+    """Register agent service and its dependencies."""
+    from kingsec.application.ports.outbound import AgentDispatcherPort, AgentRepositoryPort
+    from kingsec.application.ports.agent_service import AgentServicePort
+    from kingsec.application.agent_service import AgentService
+    from kingsec.infrastructure.agent import InMemoryAgentDispatcher, InMemoryAgentRepository
+
+    container.register_factory(AgentRepositoryPort, lambda c: InMemoryAgentRepository())
+    container.register_factory(AgentDispatcherPort, lambda c: InMemoryAgentDispatcher())
+    container.register_factory(
+        AgentServicePort,
+        lambda c: AgentService(
+            repo=c.resolve(AgentRepositoryPort),
+            dispatcher=c.resolve(AgentDispatcherPort),
+        ),
+    )
+
+
+def _register_pipeline_services(container: Container, session_factory: Any) -> None:
+    """Register pipeline service and its dependencies."""
+    from kingsec.application.ports.outbound import (
+        AgentDispatcherPort,
+        PipelineOrchestratorPort,
+        PipelineRepositoryPort,
+    )
+    from kingsec.application.ports.pipeline_service import PipelineServicePort
+    from kingsec.application.ports.notification_service import NotificationServicePort
+    from kingsec.application.ports.queue_service import QueueServicePort as QueueInboundPort
+    from kingsec.application.ports.report_service import ReportGenerationResult, ReportServicePort
+    from kingsec.application.pipeline_service import PipelineService
+    from kingsec.infrastructure.pipeline import InMemoryPipelineRepository, PipelineOrchestrator
+
+    container.register_factory(PipelineRepositoryPort, lambda c: InMemoryPipelineRepository())
+
+    class _StubReportService(ReportServicePort):
+        def generate_report(self, scan_id: str) -> ReportGenerationResult:
+            from datetime import UTC, datetime
+            return ReportGenerationResult(
+                report_id=str(__import__("uuid").uuid4()),
+                status="completed",
+                generated_at=datetime.now(UTC),
+                finding_count=0,
+            )
+
+        def get_report(self, report_id: str) -> dict[str, Any]:
+            return {"report_id": report_id, "status": "completed", "findings": []}
+
+        def get_summary(self, report_id: str) -> dict[str, Any]:
+            return {"report_id": report_id, "risk_summary": {}, "executive_summary": ""}
+
+        def get_formats(self, report_id: str) -> list[str]:
+            return ["pdf", "json"]
+
+        def render_report(self, report_id: str, format_name: str) -> Any:
+            from kingsec.application.dto import RenderedReport
+            return RenderedReport(
+                content=b"",
+                media_type="application/octet-stream",
+                filename=f"{report_id}.{format_name}",
+            )
+
+    def _make_orchestrator(c: Any) -> PipelineOrchestratorPort:
+        return PipelineOrchestrator(
+            job_service=c.resolve(JobServicePort),
+            queue_service=c.resolve(QueueInboundPort),
+            agent_dispatcher=c.resolve(AgentDispatcherPort),
+            report_service=_StubReportService(),
+            notification_service=c.resolve(NotificationServicePort),
+            audit=c.resolve(AuditPublisher),
+        )
+
+    container.register_factory(PipelineOrchestratorPort, _make_orchestrator)
+    container.register_factory(
+        PipelineServicePort,
+        lambda c: PipelineService(
+            repo=c.resolve(PipelineRepositoryPort),
+            orchestrator=c.resolve(PipelineOrchestratorPort),
+            audit=c.resolve(AuditPublisher),
+        ),
+    )
+
+
 def _register_distributed_worker_services(container: Container, session_factory: Any) -> None:
     from kingsec.application.distributed.job_dispatcher import JobDispatcher, JobLeaseManager
     from kingsec.application.distributed.ports import (
@@ -1558,3 +1698,99 @@ def _register_performance_services(container: Container) -> None:
         PerformanceMetrics,
         lambda c: PerformanceMetrics(),
     )
+
+
+def _register_production_services(container: Container, session_factory: Any) -> None:
+    """Register ProductionService and all outbound port dependencies it needs."""
+    from kingsec.application.ports.outbound.audit_publisher import AuditPublisher
+    from kingsec.application.ports.outbound.health_repository import HealthRepositoryPort
+    from kingsec.application.ports.outbound.lifecycle_manager import LifecycleManagerPort
+    from kingsec.application.ports.outbound.logging_port import LoggingPort
+    from kingsec.application.ports.outbound.metrics_collector import MetricsCollectorPort
+    from kingsec.application.ports.outbound.system_monitor import SystemMonitorPort
+    from kingsec.application.ports.production_service import ProductionServicePort
+    from kingsec.application.production_service import ProductionService
+    from kingsec.infrastructure.production.health_checks import DatabaseHealthCheck
+    from kingsec.infrastructure.production.in_memory_health_repo import InMemoryHealthRepository
+    from kingsec.infrastructure.production.lifecycle import LifecycleManager
+    from kingsec.infrastructure.production.logging_service import StructuredLogger
+    from kingsec.infrastructure.production.metrics_collector import ProcessMetricsCollector
+    from kingsec.infrastructure.production.monitor import SystemHealthMonitor
+
+    if not container.has(SystemMonitorPort):
+        db_check = DatabaseHealthCheck(session_factory=session_factory)
+        container.register_factory(
+            SystemMonitorPort,
+            lambda c, _db=db_check: SystemHealthMonitor(db_check=_db),
+        )
+
+    if not container.has(MetricsCollectorPort):
+        container.register_factory(
+            MetricsCollectorPort,
+            lambda c: ProcessMetricsCollector(),
+        )
+
+    if not container.has(HealthRepositoryPort):
+        container.register_factory(
+            HealthRepositoryPort,
+            lambda c: InMemoryHealthRepository(),
+        )
+
+    if not container.has(LifecycleManagerPort):
+        container.register_factory(
+            LifecycleManagerPort,
+            lambda c: LifecycleManager(),
+        )
+
+    if not container.has(LoggingPort):
+        container.register_factory(
+            LoggingPort,
+            lambda c: StructuredLogger(),
+        )
+
+    if not container.has(ProductionService):
+        _svc = ProductionService(
+            monitor=container.resolve(SystemMonitorPort),
+            collector=container.resolve(MetricsCollectorPort),
+            repo=container.resolve(HealthRepositoryPort),
+            lifecycle=container.resolve(LifecycleManagerPort),
+            logger=container.resolve(LoggingPort),
+            audit=container.resolve(AuditPublisher),
+        )
+        container.register_instance(ProductionService, _svc)
+        container.register_instance(ProductionServicePort, _svc)
+
+
+def _register_deployment_services(container: Container, settings: Any) -> None:
+    """Register diagnostics, upgrade, release-audit and telemetry infrastructure."""
+    from kingsec.infrastructure.audit.release_audit import ReleaseAuditService
+    from kingsec.infrastructure.monitoring.diagnostics import DiagnosticsCollector
+    from kingsec.infrastructure.telemetry.product_telemetry import ProductTelemetry
+    from kingsec.infrastructure.upgrade.upgrade_service import UpgradeService
+
+    data_dir = settings.storage.data_dir
+    app_version = settings.app.version
+
+    if not container.has(DiagnosticsCollector):
+        container.register_factory(
+            DiagnosticsCollector,
+            lambda c: DiagnosticsCollector(data_dir=data_dir, app_version=app_version),
+        )
+
+    if not container.has(UpgradeService):
+        container.register_factory(
+            UpgradeService,
+            lambda c: UpgradeService(data_dir=data_dir, current_version=app_version),
+        )
+
+    if not container.has(ReleaseAuditService):
+        container.register_factory(
+            ReleaseAuditService,
+            lambda c: ReleaseAuditService(data_dir=data_dir),
+        )
+
+    if not container.has(ProductTelemetry):
+        container.register_factory(
+            ProductTelemetry,
+            lambda c: ProductTelemetry(data_dir=data_dir),
+        )

@@ -9,6 +9,7 @@ from kingsec.domain import Role
 from kingsec.domain.system_health import (
     DependencyHealth,
     HealthCheck,
+    HealthStatus,
     LivenessReport,
     ReadinessReport,
     StartupCheck,
@@ -31,11 +32,17 @@ def _get_service(request: Request) -> ProductionServicePort:
 
 @router.get("/healthz/live", response_model=LivenessReport)
 def liveness(request: Request) -> LivenessReport:
+    app: Application = get_application(request)
+    if not app.container.has(ProductionServicePort):
+        return LivenessReport(alive=True, status=HealthStatus.HEALTHY, uptime_seconds=0)
     return _get_service(request).get_liveness()
 
 
 @router.get("/healthz/ready", response_model=ReadinessReport)
 def readiness(request: Request) -> ReadinessReport:
+    app: Application = get_application(request)
+    if not app.container.has(ProductionServicePort):
+        return ReadinessReport(ready=True, overall_status=HealthStatus.HEALTHY)
     return _get_service(request).get_readiness()
 
 

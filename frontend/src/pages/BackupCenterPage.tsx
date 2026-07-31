@@ -13,8 +13,6 @@ import {
   useDeleteRecoveryPlan,
   useTestRecovery,
   useBackupHealth,
-  useSnapshots,
-  useCreateSnapshot,
 } from '@/hooks/use-backup'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -26,7 +24,6 @@ export function BackupCenterPage() {
   const { data: schedules } = useSchedules()
   const { data: plans } = useRecoveryPlans()
   const { data: health } = useBackupHealth()
-  const { data: snapshots } = useSnapshots()
   const createBackup = useCreateBackup()
   const deleteBackup = useDeleteBackup()
   const cleanup = useCleanupExpired()
@@ -35,7 +32,6 @@ export function BackupCenterPage() {
   const createPlan = useCreateRecoveryPlan()
   const deletePlan = useDeleteRecoveryPlan()
   const testRecovery = useTestRecovery()
-  const createSnapshot = useCreateSnapshot()
   const navigate = useNavigate()
   const [tab, setTab] = useState<'backups' | 'schedules' | 'recovery' | 'health'>('backups')
   const [showCreate, setShowCreate] = useState(false)

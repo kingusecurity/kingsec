@@ -26,6 +26,7 @@ from .backup_routes import router as v1_backup_router
 from .compliance_routes import router as v1_compliance_router
 from .copilot_routes import router as v1_copilot_router
 from .dashboard_routes import router as v1_dashboard_router
+from .deployment_routes import router as v1_deployment_router
 from .distributed_routes import router as v1_distributed_queue_router
 from .execution_routes import router as v1_execution_router
 from .health_routes import router as v1_health_router
@@ -41,8 +42,10 @@ from .pipeline_routes import router as v1_pipeline_router
 from .playbook_routes import router as v1_playbook_router
 from .plugin_routes import router as v1_plugin_router
 from .plugin_sdk_routes import router as v1_plugin_sdk_router
+from .profiles_routes import router as v1_profiles_router
 from .queue_routes import router as v1_queue_router
 from .routes import router as v1_router
+from .scanner_discovery_routes import router as v1_scanner_discovery_router
 from .schedule_routes import router as v1_schedule_router
 from .secret_routes import router as v1_secret_router
 from .session_routes import router as v1_sessions_router
@@ -72,6 +75,8 @@ def register_versioned_routes(app: FastAPI) -> None:
     app.include_router(v1_agent_router)
     app.include_router(v1_queue_router)
     app.include_router(v1_pipeline_router)
+    app.include_router(v1_profiles_router)
+    app.include_router(v1_scanner_discovery_router)
     app.include_router(v1_backup_router)
     app.include_router(v1_ai_router)
     app.include_router(v1_asset_router)
@@ -90,6 +95,7 @@ def register_versioned_routes(app: FastAPI) -> None:
     app.include_router(v1_identity_router)
     app.include_router(v1_metrics_router)
     app.include_router(v1_worker_router)
+    app.include_router(v1_deployment_router)
 
     # Future example:
     # from .routes_v2 import router as v2_router

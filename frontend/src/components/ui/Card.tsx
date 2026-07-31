@@ -13,6 +13,7 @@ interface CardProps {
   variant?: keyof typeof variants
   className?: string
   children: React.ReactNode
+  onClick?: () => void
 }
 
 interface CardHeaderProps {
@@ -40,9 +41,9 @@ interface CardActionsProps {
   children: React.ReactNode
 }
 
-export function Card({ variant = 'default', className, children }: CardProps) {
+export function Card({ variant = 'default', className, children, onClick }: CardProps) {
   return (
-    <div className={cn('rounded-xl border', variants[variant], className)}>
+    <div className={cn('rounded-xl border', variants[variant], className)} onClick={onClick}>
       {children}
     </div>
   )

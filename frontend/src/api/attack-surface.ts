@@ -95,16 +95,16 @@ export interface TrendPoint {
 
 export const attackSurfaceApi = {
   getSummary: () =>
-    apiRequest<AttackSurfaceSummary>('/api/v1/attack-surface/summary'),
+    apiRequest<AttackSurfaceSummary>('/attack-surface/summary'),
 
   getRisk: () =>
-    apiRequest<ExposureRisk>('/api/v1/attack-surface/risk'),
+    apiRequest<ExposureRisk>('/attack-surface/risk'),
 
   getTrend: (days = 30) =>
-    apiRequest<TrendPoint[]>(`/api/v1/attack-surface/trend?days=${days}`),
+    apiRequest<TrendPoint[]>(`/attack-surface/trend?days=${days}`),
 
   getAssetsWithExposures: () =>
-    apiRequest<string[]>('/api/v1/attack-surface/assets'),
+    apiRequest<string[]>('/attack-surface/assets'),
 
   list: (params: {
     asset_id?: string
@@ -119,41 +119,41 @@ export const attackSurfaceApi = {
     offset?: number
   } = {}) =>
     apiRequest<{ items: ExposureListItem[]; total: number; limit: number; offset: number }>(
-      '/api/v1/attack-surface/exposures', { params },
+      '/attack-surface/exposures', { params },
     ),
 
   search: (q: string, limit = 20) =>
-    apiRequest<ExposureListItem[]>(`/api/v1/attack-surface/exposures/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+    apiRequest<ExposureListItem[]>(`/attack-surface/exposures/search?q=${encodeURIComponent(q)}&limit=${limit}`),
 
   get: (id: string) =>
-    apiRequest<ExposureDetail>(`/api/v1/attack-surface/exposures/${id}`),
+    apiRequest<ExposureDetail>(`/attack-surface/exposures/${id}`),
 
   create: (data: Record<string, unknown>) =>
-    apiRequest<ExposureDetail>('/api/v1/attack-surface/exposures', { method: 'POST', body: data }),
+    apiRequest<ExposureDetail>('/attack-surface/exposures', { method: 'POST', body: data }),
 
   update: (id: string, data: Record<string, unknown>) =>
-    apiRequest<ExposureDetail>(`/api/v1/attack-surface/exposures/${id}`, { method: 'PUT', body: data }),
+    apiRequest<ExposureDetail>(`/attack-surface/exposures/${id}`, { method: 'PUT', body: data }),
 
   delete: (id: string) =>
-    apiRequest<{ status: string }>(`/api/v1/attack-surface/exposures/${id}`, { method: 'DELETE' }),
+    apiRequest<{ status: string }>(`/attack-surface/exposures/${id}`, { method: 'DELETE' }),
 
   getAssetExposures: (assetId: string, limit = 50, offset = 0) =>
     apiRequest<{ items: ExposureListItem[]; total: number; limit: number; offset: number }>(
-      `/api/v1/attack-surface/assets/${assetId}/exposures?limit=${limit}&offset=${offset}`,
+      `/attack-surface/assets/${assetId}/exposures?limit=${limit}&offset=${offset}`,
     ),
 
   mitigate: (id: string) =>
-    apiRequest<ExposureDetail>(`/api/v1/attack-surface/exposures/${id}/mitigate`, { method: 'POST' }),
+    apiRequest<ExposureDetail>(`/attack-surface/exposures/${id}/mitigate`, { method: 'POST' }),
 
   updateRemediation: (id: string, remediation: string) =>
-    apiRequest<ExposureDetail>(`/api/v1/attack-surface/exposures/${id}/remediation`, {
+    apiRequest<ExposureDetail>(`/attack-surface/exposures/${id}/remediation`, {
       method: 'PUT',
       body: { remediation },
     }),
 
   getHistory: (id: string, limit = 50) =>
-    apiRequest<ExposureHistoryEntry[]>(`/api/v1/attack-surface/exposures/${id}/history?limit=${limit}`),
+    apiRequest<ExposureHistoryEntry[]>(`/attack-surface/exposures/${id}/history?limit=${limit}`),
 
   getHighRisk: (minScore = 50) =>
-    apiRequest<ExposureListItem[]>(`/api/v1/attack-surface/high-risk?min_score=${minScore}`),
+    apiRequest<ExposureListItem[]>(`/attack-surface/high-risk?min_score=${minScore}`),
 }

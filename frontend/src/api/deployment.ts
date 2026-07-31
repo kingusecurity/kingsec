@@ -21,23 +21,17 @@ export interface ConfigSummary {
 }
 
 export interface DiskUsage {
-  total_gb: number
-  used_gb: number
-  free_gb: number
-  percent_used: number
+  total_gb?: number
+  used_gb?: number
+  free_gb?: number
+  percent_used?: number
+  error?: string
 }
 
 export interface StartupCheck {
   name: string
   passed: boolean
   message: string
-  severity: string
-  duration_ms: number
-}
-
-export interface StartupReport {
-  checks: StartupCheck[]
-  passed: boolean
   timestamp: string
 }
 
@@ -79,30 +73,30 @@ export interface DiagnosticsBundle {
 
 export const deploymentApi = {
   getSystemInfo: () =>
-    apiRequest<SystemInfo>('/api/v1/deployment/system-info'),
+    apiRequest<SystemInfo>('/deployment/system-info'),
 
   getConfigSummary: () =>
-    apiRequest<ConfigSummary>('/api/v1/deployment/config'),
+    apiRequest<ConfigSummary>('/deployment/config'),
 
   getStartupReport: () =>
-    apiRequest<StartupReport>('/api/v1/healthz/startup'),
+    apiRequest<StartupCheck[]>('/healthz/startup'),
 
   getHealth: () =>
-    apiRequest<HealthStatus>('/api/v1/healthz/health'),
+    apiRequest<HealthStatus>('/healthz/live'),
 
   getDiagnostics: () =>
-    apiRequest<DiagnosticsBundle>('/api/v1/deployment/diagnostics'),
+    apiRequest<DiagnosticsBundle>('/deployment/diagnostics'),
 
   downloadDiagnostics: () =>
-    apiRequest<Blob>('/api/v1/deployment/diagnostics/bundle', {
+    apiRequest<Blob>('/deployment/diagnostics/bundle', {
       headers: { Accept: 'application/octet-stream' },
     }),
 
   getUpgradePlan: (targetVersion: string) =>
-    apiRequest<UpgradePlan>(`/api/v1/deployment/upgrade/plan?target=${targetVersion}`),
+    apiRequest<UpgradePlan>(`/deployment/upgrade/plan?target=${targetVersion}`),
 
   runUpgrade: (targetVersion: string) =>
-    apiRequest<{ status: string; message: string }>(`/api/v1/deployment/upgrade/run`, {
+    apiRequest<{ status: string; message: string }>('/deployment/upgrade/run', {
       method: 'POST',
       body: JSON.stringify({ target_version: targetVersion }),
     }),

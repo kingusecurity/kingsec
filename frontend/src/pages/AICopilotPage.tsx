@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { PageContainer, PageHeader } from '@/components/layout/PageContainer'
-import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
 import { Button } from '@/components/ui/Button'
@@ -18,6 +17,8 @@ import {
   useDeleteNote,
 } from '@/hooks/use-copilot'
 import type { CopilotMessage, AskResult } from '@/api/copilot'
+
+const API_BASE = '/api/v1'
 
 // Simple Markdown renderer with copy buttons
 function MarkdownBlock({ content }: { content: string }) {
@@ -37,7 +38,7 @@ function MarkdownBlock({ content }: { content: string }) {
         const codeMatch = part.match(/```(\w*)\n([\s\S]*?)```/)
         if (codeMatch) {
           const lang = codeMatch[1] || 'text'
-          const code = codeMatch[2]
+          const code = codeMatch[2] ?? ''
           return (
             <div key={i} className="group relative my-2 rounded-lg bg-bg-secondary">
               <div className="flex items-center justify-between rounded-t-lg border-b border-border-primary px-3 py-1.5 text-xs text-text-muted">
@@ -156,10 +157,7 @@ export function AICopilotPage() {
   useEffect(() => { scrollToBottom() }, [messages, scrollToBottom])
 
   const handleNewConversation = () => {
-    const result = createConv.mutate({ title: 'New Investigation' })
-    if (result) {
-      // optimistic - conversation will be created
-    }
+    createConv.mutate({ title: 'New Investigation' })
   }
 
   const handleSend = () => {
@@ -205,12 +203,12 @@ export function AICopilotPage() {
 
   const handleExportMarkdown = () => {
     if (!activeConvId) return
-    window.open(`/api/v1/copilot/export/${encodeURIComponent(activeConvId)}/markdown`, '_blank')
+    window.open(`${API_BASE}/copilot/export/${encodeURIComponent(activeConvId)}/markdown`, '_blank')
   }
 
   const handleExportJson = () => {
     if (!activeConvId) return
-    fetch(`/api/v1/copilot/export/${encodeURIComponent(activeConvId)}/json`)
+    fetch(`${API_BASE}/copilot/export/${encodeURIComponent(activeConvId)}/json`)
       .then((r) => r.json())
       .then((data) => {
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })

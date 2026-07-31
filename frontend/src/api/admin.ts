@@ -1,4 +1,6 @@
 import { apiRequest, getAccessToken } from './client'
+
+const API_BASE = '/api/v1'
 import type { DashboardSummary } from './dashboard'
 import type {
   ListUsersResponse,
@@ -76,7 +78,7 @@ export const adminApi = {
     apiRequest<ReportListEntry>(`/reports/${assessmentId}`),
   downloadReport: async (assessmentId: string) => {
     const token = getAccessToken()
-    const res = await fetch(`/api/v1/reports/${assessmentId}/download`, {
+    const res = await fetch(`${API_BASE}/reports/${assessmentId}/download`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
     if (!res.ok) throw new Error('Download failed')

@@ -57,7 +57,7 @@ def upgrade() -> None:
     op.create_table(
         "asset_tags",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("asset_id", sa.String(), nullable=False, index=True),
+        sa.Column("asset_id", sa.String(), nullable=False),
         sa.Column("key", sa.String(), nullable=False),
         sa.Column("value", sa.String(), nullable=False),
         sa.ForeignKeyConstraint(["asset_id"], ["assets.id"], ondelete="CASCADE"),
@@ -68,7 +68,7 @@ def upgrade() -> None:
     op.create_table(
         "asset_technologies",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("asset_id", sa.String(), nullable=False, index=True),
+        sa.Column("asset_id", sa.String(), nullable=False),
         sa.Column("technology_type", sa.String(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("version", sa.String(), nullable=True),
@@ -82,8 +82,8 @@ def upgrade() -> None:
     op.create_table(
         "asset_relationships",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("source_asset_id", sa.String(), nullable=False, index=True),
-        sa.Column("target_asset_id", sa.String(), nullable=False, index=True),
+        sa.Column("source_asset_id", sa.String(), nullable=False),
+        sa.Column("target_asset_id", sa.String(), nullable=False),
         sa.Column("relationship_type", sa.String(), nullable=False),
         sa.Column("metadata_json", sa.String(), nullable=True),
         sa.ForeignKeyConstraint(["source_asset_id"], ["assets.id"], ondelete="CASCADE"),
@@ -96,7 +96,7 @@ def upgrade() -> None:
     op.create_table(
         "asset_history",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("asset_id", sa.String(), nullable=False, index=True),
+        sa.Column("asset_id", sa.String(), nullable=False),
         sa.Column("event_type", sa.String(), nullable=False),
         sa.Column("description", sa.String(), nullable=False),
         sa.Column("timestamp", sa.String(), nullable=False),

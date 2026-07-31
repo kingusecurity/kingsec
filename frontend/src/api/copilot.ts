@@ -68,7 +68,7 @@ export function createConversation(body: {
   alert_id?: string
   exposure_id?: string
 }): Promise<CopilotConversation> {
-  return apiRequest('/api/v1/copilot/conversations', { method: 'POST', body })
+  return apiRequest('/copilot/conversations', { method: 'POST', body })
 }
 
 export function listConversations(params?: {
@@ -84,21 +84,21 @@ export function listConversations(params?: {
       if (v !== undefined && v !== null) searchParams.set(k, String(v))
     })
   }
-  return apiRequest(`/api/v1/copilot/conversations?${searchParams.toString()}`)
+  return apiRequest(`/copilot/conversations?${searchParams.toString()}`)
 }
 
 export function searchConversations(q: string, limit?: number): Promise<CopilotConversation[]> {
   const params = new URLSearchParams({ q })
   if (limit) params.set('limit', String(limit))
-  return apiRequest(`/api/v1/copilot/conversations/search?${params.toString()}`)
+  return apiRequest(`/copilot/conversations/search?${params.toString()}`)
 }
 
 export function getConversation(id: string): Promise<CopilotConversation> {
-  return apiRequest(`/api/v1/copilot/conversations/${encodeURIComponent(id)}`)
+  return apiRequest(`/copilot/conversations/${encodeURIComponent(id)}`)
 }
 
 export function deleteConversation(id: string): Promise<{ status: string }> {
-  return apiRequest(`/api/v1/copilot/conversations/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  return apiRequest(`/copilot/conversations/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
 // --- Ask ---
@@ -108,13 +108,13 @@ export function askCopilot(body: {
   question: string
   template_id?: string
 }): Promise<AskResult> {
-  return apiRequest('/api/v1/copilot/ask', { method: 'POST', body })
+  return apiRequest('/copilot/ask', { method: 'POST', body })
 }
 
 // --- Templates ---
 
 export function listPromptTemplates(): Promise<PromptTemplate[]> {
-  return apiRequest('/api/v1/copilot/templates')
+  return apiRequest('/copilot/templates')
 }
 
 // --- Notes ---
@@ -125,7 +125,7 @@ export function createNote(body: {
   assessment_id?: string
   finding_id?: string
 }): Promise<InvestigationNote> {
-  return apiRequest('/api/v1/copilot/notes', { method: 'POST', body })
+  return apiRequest('/copilot/notes', { method: 'POST', body })
 }
 
 export function listNotes(params?: {
@@ -141,35 +141,35 @@ export function listNotes(params?: {
       if (v !== undefined && v !== null) searchParams.set(k, String(v))
     })
   }
-  return apiRequest(`/api/v1/copilot/notes?${searchParams.toString()}`)
+  return apiRequest(`/copilot/notes?${searchParams.toString()}`)
 }
 
 export function getNote(id: string): Promise<InvestigationNote> {
-  return apiRequest(`/api/v1/copilot/notes/${encodeURIComponent(id)}`)
+  return apiRequest(`/copilot/notes/${encodeURIComponent(id)}`)
 }
 
 export function updateNote(id: string, content: string): Promise<InvestigationNote> {
-  return apiRequest(`/api/v1/copilot/notes/${encodeURIComponent(id)}`, { method: 'PUT', body: { content } })
+  return apiRequest(`/copilot/notes/${encodeURIComponent(id)}`, { method: 'PUT', body: { content } })
 }
 
 export function pinNote(id: string): Promise<InvestigationNote> {
-  return apiRequest(`/api/v1/copilot/notes/${encodeURIComponent(id)}/pin`, { method: 'POST' })
+  return apiRequest(`/copilot/notes/${encodeURIComponent(id)}/pin`, { method: 'POST' })
 }
 
 export function unpinNote(id: string): Promise<InvestigationNote> {
-  return apiRequest(`/api/v1/copilot/notes/${encodeURIComponent(id)}/unpin`, { method: 'POST' })
+  return apiRequest(`/copilot/notes/${encodeURIComponent(id)}/unpin`, { method: 'POST' })
 }
 
 export function deleteNote(id: string): Promise<{ status: string }> {
-  return apiRequest(`/api/v1/copilot/notes/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  return apiRequest(`/copilot/notes/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
 // --- Export ---
 
 export function exportMarkdown(conversationId: string): Promise<{ markdown: string }> {
-  return apiRequest(`/api/v1/copilot/export/${encodeURIComponent(conversationId)}/markdown`)
+  return apiRequest(`/copilot/export/${encodeURIComponent(conversationId)}/markdown`)
 }
 
 export function exportJson(conversationId: string): Promise<Record<string, unknown>> {
-  return apiRequest(`/api/v1/copilot/export/${encodeURIComponent(conversationId)}/json`)
+  return apiRequest(`/copilot/export/${encodeURIComponent(conversationId)}/json`)
 }

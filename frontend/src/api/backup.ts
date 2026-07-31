@@ -55,7 +55,9 @@ export interface RecoveryPlan {
   name: string
   description: string
   estimated_downtime_minutes: number
-  checklist: { item_id: string; description: string; completed: boolean }[]
+  // list endpoint returns checklist_count; the detail endpoint returns the full checklist
+  checklist?: { item_id: string; description: string; completed: boolean }[]
+  checklist_count?: number
   last_tested_at: string
   status: string
   created_at: string

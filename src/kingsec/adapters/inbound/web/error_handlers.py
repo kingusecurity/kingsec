@@ -32,6 +32,9 @@ from kingsec.application.errors import (
     InputValidationError,
     ReportNotFoundError,
 )
+from kingsec.application.use_cases.login import AuthenticationError
+from kingsec.application.use_cases.refresh_token import TokenRefreshError
+from kingsec.application.use_cases.register_user import RegistrationError
 from kingsec.domain.errors import (
     DomainError,
     IllegalStateTransition,
@@ -112,6 +115,18 @@ async def handle_password_validation_error(_request: Request, exc: PasswordValid
     return _error_response(400, ErrorCode.VALIDATION, str(exc))
 
 
+async def handle_authentication_error(_request: Request, exc: AuthenticationError) -> JSONResponse:
+    return _error_response(401, ErrorCode.AUTHORIZATION, str(exc))
+
+
+async def handle_registration_error(_request: Request, exc: RegistrationError) -> JSONResponse:
+    return _error_response(409, ErrorCode.VALIDATION, str(exc))
+
+
+async def handle_token_refresh_error(_request: Request, exc: TokenRefreshError) -> JSONResponse:
+    return _error_response(401, ErrorCode.AUTHORIZATION, str(exc))
+
+
 async def handle_domain_error(_request: Request, exc: DomainError) -> JSONResponse:
     return _error_response(
         409,
@@ -178,6 +193,9 @@ def register_error_handlers(app: object) -> None:
     app.exception_handler(IllegalStateTransition)(handle_illegal_state_transition)
     app.exception_handler(InvariantViolation)(handle_invariant_violation)
     app.exception_handler(PasswordValidationError)(handle_password_validation_error)
+    app.exception_handler(AuthenticationError)(handle_authentication_error)
+    app.exception_handler(RegistrationError)(handle_registration_error)
+    app.exception_handler(TokenRefreshError)(handle_token_refresh_error)
     app.exception_handler(DomainError)(handle_domain_error)
 
     # Shared error kernel.

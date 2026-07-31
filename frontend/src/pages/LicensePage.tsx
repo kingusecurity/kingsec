@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { licensingApi, LicenseInfo } from '@/api/licensing'
+import { licensingApi } from '@/api/licensing'
+import type { LicenseInfo } from '@/api/licensing'
 
 function LicenseInfoCard({ license }: { license: LicenseInfo }) {
   const queryClient = useQueryClient()
@@ -21,12 +22,12 @@ function LicenseInfoCard({ license }: { license: LicenseInfo }) {
     ENTERPRISE: 'bg-purple-600',
   }
 
-  const statusColors: Record<string, string> = {
+  const statusColors: Record<string, 'success' | 'warning' | 'danger' | 'neutral'> = {
     ACTIVE: 'success',
     GRACE_PERIOD: 'warning',
     EXPIRED: 'danger',
     REVOKED: 'danger',
-    INACTIVE: 'gray',
+    INACTIVE: 'neutral',
   }
 
   return (
@@ -35,7 +36,7 @@ function LicenseInfoCard({ license }: { license: LicenseInfo }) {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <h3 className="text-lg font-semibold">{license.company || 'KingSec'}</h3>
-            <Badge variant={statusColors[license.status] || 'gray'}>
+            <Badge variant={statusColors[license.status] || 'neutral'}>
               {license.status}
             </Badge>
           </div>
@@ -74,7 +75,7 @@ function LicenseInfoCard({ license }: { license: LicenseInfo }) {
           <div className="text-xs text-gray-500 mb-2">Enabled Features</div>
           <div className="flex flex-wrap gap-1.5">
             {license.features.map((f) => (
-              <Badge key={f} variant="outline" className="text-xs">
+              <Badge key={f} variant="info" className="text-xs">
                 {f}
               </Badge>
             ))}

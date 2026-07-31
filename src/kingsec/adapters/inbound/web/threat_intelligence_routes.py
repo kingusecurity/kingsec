@@ -11,18 +11,19 @@ from kingsec.application.threat_intelligence.service import ThreatIntelligenceSe
 from kingsec.domain.identifiers import CveId
 
 from .auth import CurrentUser, get_current_user
+from .dependencies import get_application
 
 router = APIRouter(prefix="/api/v1", tags=["Threat Intelligence"])
 
 
 def _get_ti_service(request: Request, _: CurrentUser = Depends(get_current_user)) -> ThreatIntelligenceService:
-    service: ThreatIntelligenceService = request.app.state.container.threat_intelligence_service
-    return service
+    app = get_application(request)
+    return app.resolve(ThreatIntelligenceService)
 
 
 def _get_report_generator(request: Request, _: CurrentUser = Depends(get_current_user)) -> ThreatReportGenerator:
-    gen: ThreatReportGenerator = request.app.state.container.threat_report_generator
-    return gen
+    app = get_application(request)
+    return app.resolve(ThreatReportGenerator)
 
 
 @router.get("/threat-intelligence/summary")

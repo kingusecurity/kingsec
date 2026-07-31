@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { PageContainer, PageHeader } from '@/components/layout/PageContainer'
-import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
 import { useTITimeline } from '@/hooks/use-threat-intelligence'
@@ -11,17 +10,21 @@ export function ThreatTimelinePage() {
 
   return (
     <PageContainer>
-      <PageHeader title="Threat Timeline" description="Chronological view of CVE activity and threat events">
-        <select
-          value={days}
-          onChange={(e) => setDays(Number(e.target.value))}
-          className="rounded border border-border-primary bg-bg-secondary px-2 py-1 text-xs text-text-primary"
-        >
-          <option value={7}>7 days</option>
-          <option value={30}>30 days</option>
-          <option value={90}>90 days</option>
-        </select>
-      </PageHeader>
+      <PageHeader
+        title="Threat Timeline"
+        description="Chronological view of CVE activity and threat events"
+        actions={
+          <select
+            value={days}
+            onChange={(e) => setDays(Number(e.target.value))}
+            className="rounded border border-border-primary bg-bg-secondary px-2 py-1 text-xs text-text-primary"
+          >
+            <option value={7}>7 days</option>
+            <option value={30}>30 days</option>
+            <option value={90}>90 days</option>
+          </select>
+        }
+      />
 
       {isLoading ? (
         <div className="flex justify-center py-8"><Spinner /></div>

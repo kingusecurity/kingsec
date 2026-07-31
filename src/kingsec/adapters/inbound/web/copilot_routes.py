@@ -10,23 +10,24 @@ from kingsec.application.ai_copilot.notes_service import InvestigationNotesServi
 from kingsec.application.errors import CopilotConversationNotFoundError, InvestigationNoteNotFoundError
 
 from .auth import CurrentUser, get_current_user
+from .dependencies import get_application
 
 router = APIRouter(prefix="/api/v1", tags=["AI Copilot"])
 
 
 def _get_copilot(request: Request, _: CurrentUser = Depends(get_current_user)) -> CopilotService:
-    svc: CopilotService = request.app.state.container.copilot_service
-    return svc
+    app = get_application(request)
+    return app.resolve(CopilotService)
 
 
 def _get_notes(request: Request, _: CurrentUser = Depends(get_current_user)) -> InvestigationNotesService:
-    svc: InvestigationNotesService = request.app.state.container.investigation_notes_service
-    return svc
+    app = get_application(request)
+    return app.resolve(InvestigationNotesService)
 
 
 def _get_export(request: Request, _: CurrentUser = Depends(get_current_user)) -> CopilotExportService:
-    svc: CopilotExportService = request.app.state.container.copilot_export_service
-    return svc
+    app = get_application(request)
+    return app.resolve(CopilotExportService)
 
 
 # --- Conversations ---

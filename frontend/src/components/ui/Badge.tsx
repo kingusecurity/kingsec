@@ -2,6 +2,7 @@ import { cn } from '@/lib/utils'
 
 const variants = {
   critical: 'bg-red-900/50 text-red-400 border-red-800',
+  danger: 'bg-red-900/50 text-red-400 border-red-800',
   high: 'bg-orange-900/50 text-orange-400 border-orange-800',
   medium: 'bg-yellow-900/50 text-yellow-400 border-yellow-800',
   low: 'bg-blue-900/50 text-blue-400 border-blue-800',

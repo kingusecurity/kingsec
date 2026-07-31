@@ -25,22 +25,22 @@ export interface LicenseStatus {
 
 export const licensingApi = {
   getLicense: () =>
-    apiRequest<LicenseInfo>('/api/v1/license'),
+    apiRequest<LicenseInfo>('/license'),
 
   getFeatures: () =>
-    apiRequest<LicenseInfo>('/api/v1/license/features'),
+    apiRequest<LicenseInfo>('/license/features'),
 
   getStatus: () =>
-    apiRequest<LicenseStatus>('/api/v1/license/status'),
+    apiRequest<LicenseStatus>('/license/status'),
 
   activate: (licenseKey: string) =>
-    apiRequest<{ id: string; edition: string; status: string }>('/api/v1/license/activate', {
+    apiRequest<{ id: string; edition: string; status: string }>('/license/activate', {
       method: 'POST',
       body: JSON.stringify({ license_key: licenseKey }),
     }),
 
   deactivate: (licenseId: string) =>
-    apiRequest<{ status: string }>('/api/v1/license/deactivate', {
+    apiRequest<{ status: string }>('/license/deactivate', {
       method: 'POST',
       body: JSON.stringify({ license_id: licenseId }),
     }),

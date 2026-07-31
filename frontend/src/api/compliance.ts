@@ -81,25 +81,25 @@ export interface GapRemediationReport {
 
 export const complianceApi = {
   listFrameworks: () =>
-    apiRequest<Framework[]>('/api/v1/compliance/frameworks'),
+    apiRequest<Framework[]>('/compliance/frameworks'),
 
   getFrameworkControls: (frameworkId: string) =>
-    apiRequest<FrameworkControl[]>(`/api/v1/compliance/frameworks/${frameworkId}/controls`),
+    apiRequest<FrameworkControl[]>(`/compliance/frameworks/${frameworkId}/controls`),
 
   mapFindings: (findings: Array<{ id: string; title: string; description: string; severity: string }>) =>
-    apiRequest<{ mappings: FindingMapping[]; total_mappings: number }>('/api/v1/compliance/map', {
+    apiRequest<{ mappings: FindingMapping[]; total_mappings: number }>('/compliance/map', {
       method: 'POST',
       body: { findings },
     }),
 
   calculateCoverage: (params: { mappings: FindingMapping[]; frameworks?: string[] }) =>
-    apiRequest<FrameworkCoverage[]>('/api/v1/compliance/coverage', {
+    apiRequest<FrameworkCoverage[]>('/compliance/coverage', {
       method: 'POST',
       body: params,
     }),
 
   analyzeGaps: (params: { framework: string; mappings: FindingMapping[] }) =>
-    apiRequest<{ framework: string; total_gaps: number; gaps: GapItem[] }>('/api/v1/compliance/gaps', {
+    apiRequest<{ framework: string; total_gaps: number; gaps: GapItem[] }>('/compliance/gaps', {
       method: 'POST',
       body: params,
     }),
@@ -111,7 +111,7 @@ export const complianceApi = {
     frameworks?: string[]
     type: 'executive' | 'technical' | 'gap_remediation'
   }) =>
-    apiRequest<ExecutiveReport | TechnicalReport | GapRemediationReport>('/api/v1/compliance/report', {
+    apiRequest<ExecutiveReport | TechnicalReport | GapRemediationReport>('/compliance/report', {
       method: 'POST',
       body: params,
     }),

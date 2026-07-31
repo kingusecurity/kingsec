@@ -325,7 +325,7 @@ function ScannerDetailPanel({
           variant="ghost"
           size="xs"
           onClick={() => {
-            const exportUrl = `/api/v1/scanners/${scannerId}/diagnostics?fmt=markdown`
+            const exportUrl = `/scanners/${scannerId}/diagnostics?fmt=markdown`
             window.open(exportUrl, '_blank')
           }}
           iconLeft={<FileText className="h-3 w-3" />}
@@ -336,7 +336,7 @@ function ScannerDetailPanel({
           variant="ghost"
           size="xs"
           onClick={() => {
-            const exportUrl = `/api/v1/scanners/${scannerId}/diagnostics?fmt=text`
+            const exportUrl = `/scanners/${scannerId}/diagnostics?fmt=text`
             window.open(exportUrl, '_blank')
           }}
           iconLeft={<FileText className="h-3 w-3" />}

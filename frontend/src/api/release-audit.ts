@@ -32,7 +32,7 @@ export interface TelemetrySummary {
 
 export const releaseAuditApi = {
   getReport: () =>
-    apiRequest<ReleaseAuditReport>('/api/v1/deployment/release-audit'),
+    apiRequest<ReleaseAuditReport>('/deployment/release-audit'),
 
   recordRelease: (data: {
     version: string
@@ -41,13 +41,13 @@ export const releaseAuditApi = {
     breaking_changes?: string[]
     notes?: string
   }) =>
-    apiRequest<ReleaseEntry>('/api/v1/deployment/release-audit/record', {
+    apiRequest<ReleaseEntry>('/deployment/release-audit/record', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
   getTelemetrySummary: (days?: number) =>
     apiRequest<TelemetrySummary>(
-      `/api/v1/deployment/telemetry/summary${days ? `?days=${days}` : ''}`
+      `/deployment/telemetry/summary${days ? `?days=${days}` : ''}`
     ),
 }

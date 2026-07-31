@@ -84,16 +84,16 @@ export interface MonitoringTrends {
 
 export const monitoringApi = {
   getSummary: () =>
-    apiRequest<MonitoringSummary>('/api/v1/monitoring/summary'),
+    apiRequest<MonitoringSummary>('/monitoring/summary'),
 
   getStats: () =>
-    apiRequest<MonitoringStats>('/api/v1/monitoring/stats'),
+    apiRequest<MonitoringStats>('/monitoring/stats'),
 
   getHealth: () =>
-    apiRequest<{ status: string }>('/api/v1/monitoring/health'),
+    apiRequest<{ status: string }>('/monitoring/health'),
 
   getTrends: (days = 30) =>
-    apiRequest<MonitoringTrends>(`/api/v1/monitoring/trends?days=${days}`),
+    apiRequest<MonitoringTrends>(`/monitoring/trends?days=${days}`),
 
   listEvents: (params: {
     event_type?: string
@@ -105,11 +105,11 @@ export const monitoringApi = {
     offset?: number
   } = {}) =>
     apiRequest<{ items: MonitorEventItem[]; total: number; limit: number; offset: number }>(
-      '/api/v1/monitoring/events', { params },
+      '/monitoring/events', { params },
     ),
 
   getEvent: (id: string) =>
-    apiRequest<MonitorEventItem>(`/api/v1/monitoring/events/${id}`),
+    apiRequest<MonitorEventItem>(`/monitoring/events/${id}`),
 
   listAlerts: (params: {
     rule_id?: string
@@ -121,20 +121,20 @@ export const monitoringApi = {
     offset?: number
   } = {}) =>
     apiRequest<{ items: AlertItem[]; total: number; limit: number; offset: number }>(
-      '/api/v1/monitoring/alerts', { params },
+      '/monitoring/alerts', { params },
     ),
 
   getAlert: (id: string) =>
-    apiRequest<AlertItem>(`/api/v1/monitoring/alerts/${id}`),
+    apiRequest<AlertItem>(`/monitoring/alerts/${id}`),
 
   acknowledgeAlert: (id: string) =>
-    apiRequest<AlertItem>(`/api/v1/monitoring/alerts/${id}/acknowledge`, { method: 'POST' }),
+    apiRequest<AlertItem>(`/monitoring/alerts/${id}/acknowledge`, { method: 'POST' }),
 
   resolveAlert: (id: string) =>
-    apiRequest<AlertItem>(`/api/v1/monitoring/alerts/${id}/resolve`, { method: 'POST' }),
+    apiRequest<AlertItem>(`/monitoring/alerts/${id}/resolve`, { method: 'POST' }),
 
   dismissAlert: (id: string) =>
-    apiRequest<AlertItem>(`/api/v1/monitoring/alerts/${id}/dismiss`, { method: 'POST' }),
+    apiRequest<AlertItem>(`/monitoring/alerts/${id}/dismiss`, { method: 'POST' }),
 
   listRules: (params: {
     enabled?: boolean
@@ -144,27 +144,27 @@ export const monitoringApi = {
     offset?: number
   } = {}) =>
     apiRequest<{ items: RuleItem[]; total: number; limit: number; offset: number }>(
-      '/api/v1/monitoring/rules', { params },
+      '/monitoring/rules', { params },
     ),
 
   getRule: (id: string) =>
-    apiRequest<RuleItem>(`/api/v1/monitoring/rules/${id}`),
+    apiRequest<RuleItem>(`/monitoring/rules/${id}`),
 
   createRule: (data: Record<string, unknown>) =>
-    apiRequest<RuleItem>('/api/v1/monitoring/rules', { method: 'POST', body: data }),
+    apiRequest<RuleItem>('/monitoring/rules', { method: 'POST', body: data }),
 
   updateRule: (id: string, data: Record<string, unknown>) =>
-    apiRequest<RuleItem>(`/api/v1/monitoring/rules/${id}`, { method: 'PUT', body: data }),
+    apiRequest<RuleItem>(`/monitoring/rules/${id}`, { method: 'PUT', body: data }),
 
   deleteRule: (id: string) =>
-    apiRequest<{ status: string }>(`/api/v1/monitoring/rules/${id}`, { method: 'DELETE' }),
+    apiRequest<{ status: string }>(`/monitoring/rules/${id}`, { method: 'DELETE' }),
 
   enableRule: (id: string) =>
-    apiRequest<RuleItem>(`/api/v1/monitoring/rules/${id}/enable`, { method: 'POST' }),
+    apiRequest<RuleItem>(`/monitoring/rules/${id}/enable`, { method: 'POST' }),
 
   disableRule: (id: string) =>
-    apiRequest<RuleItem>(`/api/v1/monitoring/rules/${id}/disable`, { method: 'POST' }),
+    apiRequest<RuleItem>(`/monitoring/rules/${id}/disable`, { method: 'POST' }),
 
   seedRules: () =>
-    apiRequest<RuleItem[]>('/api/v1/monitoring/rules/seed', { method: 'POST' }),
+    apiRequest<RuleItem[]>('/monitoring/rules/seed', { method: 'POST' }),
 }

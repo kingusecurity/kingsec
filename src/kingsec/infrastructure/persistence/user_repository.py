@@ -125,7 +125,7 @@ def _to_domain(orm: UserORM) -> User:
         username=orm.username,
         email=orm.email,
         password_hash=orm.password_hash,
-        role=Role[orm.role],
+        role=Role[orm.role.upper()],
         is_active=orm.is_active,
         created_at=datetime.fromisoformat(orm.created_at) if orm.created_at else datetime.now(UTC),
         last_login_at=datetime.fromisoformat(orm.last_login_at) if orm.last_login_at else None,

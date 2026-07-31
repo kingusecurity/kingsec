@@ -69,7 +69,7 @@ export interface AssetHistoryEntry {
 
 export const assetsApi = {
   getSummary: () =>
-    apiRequest<AssetSummary>('/api/v1/assets/summary'),
+    apiRequest<AssetSummary>('/assets/summary'),
 
   list: (params: {
     asset_type?: string
@@ -83,50 +83,50 @@ export const assetsApi = {
     limit?: number
     offset?: number
   } = {}) =>
-    apiRequest<{ items: AssetListItem[]; total: number; limit: number; offset: number }>('/api/v1/assets', { params }),
+    apiRequest<{ items: AssetListItem[]; total: number; limit: number; offset: number }>('/assets', { params }),
 
   search: (q: string, limit = 20) =>
-    apiRequest<AssetListItem[]>(`/api/v1/assets/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+    apiRequest<AssetListItem[]>(`/assets/search?q=${encodeURIComponent(q)}&limit=${limit}`),
 
   get: (id: string) =>
-    apiRequest<AssetDetail>(`/api/v1/assets/${id}`),
+    apiRequest<AssetDetail>(`/assets/${id}`),
 
   create: (data: Record<string, unknown>) =>
-    apiRequest<AssetDetail>('/api/v1/assets', { method: 'POST', body: data }),
+    apiRequest<AssetDetail>('/assets', { method: 'POST', body: data }),
 
   update: (id: string, data: Record<string, unknown>) =>
-    apiRequest<AssetDetail>(`/api/v1/assets/${id}`, { method: 'PUT', body: data }),
+    apiRequest<AssetDetail>(`/assets/${id}`, { method: 'PUT', body: data }),
 
   delete: (id: string) =>
-    apiRequest<{ status: string }>(`/api/v1/assets/${id}`, { method: 'DELETE' }),
+    apiRequest<{ status: string }>(`/assets/${id}`, { method: 'DELETE' }),
 
   addTag: (id: string, key: string, value: string) =>
-    apiRequest<AssetDetail>(`/api/v1/assets/${id}/tags`, { method: 'POST', body: { key, value } }),
+    apiRequest<AssetDetail>(`/assets/${id}/tags`, { method: 'POST', body: { key, value } }),
 
   removeTag: (id: string, key: string) =>
-    apiRequest<AssetDetail>(`/api/v1/assets/${id}/tags/${key}`, { method: 'DELETE' }),
+    apiRequest<AssetDetail>(`/assets/${id}/tags/${key}`, { method: 'DELETE' }),
 
   getRelationships: (id: string) =>
-    apiRequest<AssetRelationship[]>(`/api/v1/assets/${id}/relationships`),
+    apiRequest<AssetRelationship[]>(`/assets/${id}/relationships`),
 
   addRelationship: (sourceId: string, targetId: string, relType: string, metadata?: Record<string, unknown>) =>
-    apiRequest<AssetRelationship>(`/api/v1/assets/${sourceId}/relationships`, {
+    apiRequest<AssetRelationship>(`/assets/${sourceId}/relationships`, {
       method: 'POST',
       body: { target_asset_id: targetId, relationship_type: relType, metadata },
     }),
 
   recalculateRisk: (id: string, criticalFindings = 0, highFindings = 0, openFindings = 0) =>
-    apiRequest<{ risk_score: number }>(`/api/v1/assets/${id}/recalculate-risk`, {
+    apiRequest<{ risk_score: number }>(`/assets/${id}/recalculate-risk`, {
       method: 'POST',
       body: { critical_findings: criticalFindings, high_findings: highFindings, open_findings: openFindings },
     }),
 
   updateCriticality: (id: string, criticality: string) =>
-    apiRequest<AssetDetail>(`/api/v1/assets/${id}/criticality`, {
+    apiRequest<AssetDetail>(`/assets/${id}/criticality`, {
       method: 'PUT',
       body: { criticality },
     }),
 
   getHistory: (id: string, limit = 50) =>
-    apiRequest<AssetHistoryEntry[]>(`/api/v1/assets/${id}/history?limit=${limit}`),
+    apiRequest<AssetHistoryEntry[]>(`/assets/${id}/history?limit=${limit}`),
 }

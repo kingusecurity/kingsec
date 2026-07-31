@@ -56,6 +56,44 @@ def create_playbook(
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+@router.get("/playbooks/history")
+def list_executions(
+    status: str | None = Query(None),
+    trigger_type: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    service: PlaybookService = Depends(_get_service),
+) -> dict[str, Any]:
+    items = service.list_executions(status, trigger_type, limit, offset)
+    return {
+        "items": [_execution_to_dict(e) for e in items],
+        "total": len(items),
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@router.get("/playbooks/history/{execution_id}")
+def get_execution(
+    execution_id: str,
+    service: PlaybookService = Depends(_get_service),
+) -> dict[str, Any]:
+    result = service.get_execution(execution_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    return _execution_to_dict(result)
+
+
+@router.get("/playbooks/stats")
+def playbook_stats(
+    service: PlaybookService = Depends(_get_service),
+) -> dict[str, Any]:
+    return {
+        "playbook_count": service.get_playbook_count(),
+        **service.get_history_stats(),
+    }
+
+
 @router.get("/playbooks/{playbook_id}")
 def get_playbook(
     playbook_id: str,
@@ -138,44 +176,6 @@ def disable_playbook(
         return _playbook_to_dict(pb)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
-
-
-@router.get("/playbooks/history")
-def list_executions(
-    status: str | None = Query(None),
-    trigger_type: str | None = Query(None),
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
-    service: PlaybookService = Depends(_get_service),
-) -> dict[str, Any]:
-    items = service.list_executions(status, trigger_type, limit, offset)
-    return {
-        "items": [_execution_to_dict(e) for e in items],
-        "total": len(items),
-        "limit": limit,
-        "offset": offset,
-    }
-
-
-@router.get("/playbooks/history/{execution_id}")
-def get_execution(
-    execution_id: str,
-    service: PlaybookService = Depends(_get_service),
-) -> dict[str, Any]:
-    result = service.get_execution(execution_id)
-    if not result:
-        raise HTTPException(status_code=404, detail="Execution not found")
-    return _execution_to_dict(result)
-
-
-@router.get("/playbooks/stats")
-def playbook_stats(
-    service: PlaybookService = Depends(_get_service),
-) -> dict[str, Any]:
-    return {
-        "playbook_count": service.get_playbook_count(),
-        **service.get_history_stats(),
-    }
 
 
 def _playbook_to_dict(pb: Any) -> dict[str, Any]:
