@@ -48,7 +48,6 @@ frontend/.vite
 docs
 *.md
 !README.md
-LICENSE
 
 # Docker
 docker-compose*.yml
