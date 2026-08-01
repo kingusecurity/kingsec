@@ -85,10 +85,10 @@ def session_factory(engine):
 
 
 @pytest.fixture
-def assessment_repo(session_factory) -> SqlAlchemyAssessmentRepository:
-    return SqlAlchemyAssessmentRepository(session_factory)
+def assessment_repo(session_factory) -> SQLAlchemyAssessmentRepository:
+    return SQLAlchemyAssessmentRepository(session_factory)
 
 
 @pytest.fixture
-def report_repo(session_factory) -> SqlAlchemyReportRepository:
-    return SqlAlchemyReportRepository(session_factory)
+def report_repo(session_factory) -> SQLAlchemyReportRepository:
+    return SQLAlchemyReportRepository(session_factory)

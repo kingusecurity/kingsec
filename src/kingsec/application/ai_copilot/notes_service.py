@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
 from kingsec.application.errors import InvestigationNoteNotFoundError
@@ -8,10 +9,25 @@ from kingsec.domain.copilot import InvestigationNote
 
 from .ports import AuditPublisherPort, InvestigationNoteRepositoryPort
 
+logger = logging.getLogger(__name__)
+
+# Fire-and-forget audit tasks: kept alive here because asyncio only holds a
+# weak reference to scheduled tasks, so an unreferenced task can be garbage
+# collected before it runs.
+_pending_audit_tasks: set[asyncio.Task[None]] = set()
+
 
 def _fire_audit(audit: AuditPublisherPort | None, action: str, entity_type: str, entity_id: str, metadata: dict[str, Any] | None = None) -> None:
     if audit:
-        asyncio.ensure_future(audit.publish(action, entity_type, entity_id, metadata))
+        task = asyncio.ensure_future(audit.publish(action, entity_type, entity_id, metadata))
+        _pending_audit_tasks.add(task)
+        task.add_done_callback(_on_audit_task_done)
+
+
+def _on_audit_task_done(task: asyncio.Task[None]) -> None:
+    _pending_audit_tasks.discard(task)
+    if not task.cancelled() and task.exception() is not None:
+        logger.exception("Audit publish failed", exc_info=task.exception())
 
 
 class InvestigationNotesService:

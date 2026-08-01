@@ -1339,12 +1339,13 @@ def _register_playbook_services(container: Container, session_factory: Any) -> N
 def _register_plugin_sdk_services(container: Container, session_factory: Any) -> None:
     from kingsec.application.plugin_sdk.loader import PluginLoader
     from kingsec.application.plugin_sdk.registry import PluginMarketplace, PluginRegistry
+    from kingsec.infrastructure.config.settings import Settings
 
-    settings = container.resolve("kingsec.infrastructure.config.settings.Settings") if container.has("kingsec.infrastructure.config.settings.Settings") else None
+    settings = container.resolve(Settings) if container.has(Settings) else None
 
     def _make_loader(_c: Any) -> PluginLoader:
         from pathlib import Path
-        plugins_dir = Path(settings.storage.data_dir / "plugins") if settings else Path("./plugins")
+        plugins_dir = Path(settings.storage.data_dir) / "plugins" if settings else Path("./plugins")
         return PluginLoader(plugins_dir)
 
     def _make_registry(c: Any) -> PluginRegistry:
