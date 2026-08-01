@@ -171,20 +171,19 @@ class RestoreBackup:
             data = self._storage.read(backup_id)
             if data is None:
                 raise ValueError(f"Backup data for '{backup_id}' not found in storage")
+            expected = backup.checksum
+            if expected:
+                # Verify against the stored artifact's own bytes, not a
+                # freshly re-encrypted copy: encryption (Fernet) uses a
+                # random IV/nonce, so re-encrypting identical plaintext
+                # never reproduces the original ciphertext bytes.
+                actual = hashlib.sha256(data).hexdigest()
+                if actual != expected:
+                    raise ValueError("Backup checksum mismatch")
             if backup.encrypted:
                 data = self._encryption.decrypt(data)
             if backup.compressed:
                 data = self._compression.decompress(data)
-            expected = backup.checksum
-            if expected:
-                re_encoded = data
-                if backup.compressed:
-                    re_encoded = self._compression.compress(re_encoded)
-                if backup.encrypted:
-                    re_encoded = self._encryption.encrypt(re_encoded)
-                actual = hashlib.sha256(re_encoded).hexdigest()
-                if actual != expected:
-                    raise ValueError("Backup checksum mismatch")
             now = datetime.now(UTC).isoformat()
             completed_op = RestoreOperation(
                 restore_id=rid,
@@ -275,9 +274,9 @@ class ValidateBackup:
             if data is None:
                 return False
             if backup.encrypted:
-                self._encryption.decrypt(data)
+                data = self._encryption.decrypt(data)
             if backup.compressed:
-                self._compression.decompress(data)
+                data = self._compression.decompress(data)
             return True
         except Exception:
             return False
@@ -450,20 +449,19 @@ class RestoreWithScope:
             data = self._storage.read(backup_id)
             if data is None:
                 raise ValueError(f"Backup data for '{backup_id}' not found in storage")
+            expected = backup.checksum
+            if expected:
+                # Verify against the stored artifact's own bytes, not a
+                # freshly re-encrypted copy: encryption (Fernet) uses a
+                # random IV/nonce, so re-encrypting identical plaintext
+                # never reproduces the original ciphertext bytes.
+                actual = hashlib.sha256(data).hexdigest()
+                if actual != expected:
+                    raise ValueError("Backup checksum mismatch")
             if backup.encrypted:
                 data = self._encryption.decrypt(data)
             if backup.compressed:
                 data = self._compression.decompress(data)
-            expected = backup.checksum
-            if expected:
-                re_encoded = data
-                if backup.compressed:
-                    re_encoded = self._compression.compress(re_encoded)
-                if backup.encrypted:
-                    re_encoded = self._encryption.encrypt(re_encoded)
-                actual = hashlib.sha256(re_encoded).hexdigest()
-                if actual != expected:
-                    raise ValueError("Backup checksum mismatch")
             now = datetime.now(UTC).isoformat()
             completed_op = RestoreOperation(
                 restore_id=rid,

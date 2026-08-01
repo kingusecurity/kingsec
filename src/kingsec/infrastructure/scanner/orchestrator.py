@@ -77,8 +77,9 @@ class ScannerOrchestrator(ScannerPort, ScannerExecutor):
         """Execute all compatible plugins for a target.
 
         Iterates over plugins resolved by the registry. Per-plugin errors
-        are caught and re-raised as ``ScannerPluginError`` — but execution
-        continues with the remaining plugins.
+        (including an unavailable/missing tool) are logged and that plugin
+        is skipped — execution continues with the remaining plugins, the
+        same graceful-degradation contract already used by ``shutdown()``.
         """
         plugins = self._registry.resolve(target)
         results: list[ScannerResult] = []
@@ -90,10 +91,12 @@ class ScannerOrchestrator(ScannerPort, ScannerExecutor):
             try:
                 result = self.execute(plugin, target, config)
                 results.append(result)
-            except ScannerPluginError:
-                raise
             except Exception as exc:
-                raise ScannerPluginError(f"unexpected error in plugin {plugin_id.value!r}: {exc}") from exc
+                _logger.warning(
+                    "scanner plugin failed, skipping",
+                    plugin_id=str(plugin_id),
+                    error=str(exc),
+                )
 
         return tuple(results)
 

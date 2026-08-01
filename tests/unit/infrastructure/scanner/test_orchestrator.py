@@ -258,8 +258,9 @@ class TestExecuteAll:
     ) -> None:
         registry.register(_StubPlugin(plugin_id="good"))
         registry.register(_StubPlugin(plugin_id="bad", raise_on_health=ScannerPluginError("broken")))
-        with pytest.raises(ScannerPluginError, match="broken"):
-            orchestrator.execute_all(fake_ip)
+        results = orchestrator.execute_all(fake_ip)
+        assert len(results) == 1
+        assert results[0].scanner_id == ScannerId("good")
 
     def test_configs_passed_correctly(
         self, registry: InMemoryPluginRegistry, orchestrator: ScannerOrchestrator, fake_ip: Target

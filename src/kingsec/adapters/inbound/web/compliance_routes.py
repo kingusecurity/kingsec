@@ -63,11 +63,22 @@ def _resolve(request: Request, cls: type) -> Any:
 
 
 def _record_audit(request: Request, action: Any, **kwargs: Any) -> None:
+    """Record an audit entry, best-effort.
+
+    Matches the non-fatal audit-publish pattern used everywhere else in the
+    application layer: a failure here must never take down an otherwise
+    successful request.
+    """
     from kingsec.application.ports.outbound import AuditPublisher
     from kingsec.domain.audit import AuditEntry
 
-    audit = _resolve(request, AuditPublisher)
-    audit.record(AuditEntry(action=action, **kwargs))
+    try:
+        audit = _resolve(request, AuditPublisher)
+        audit.record(AuditEntry(action=action, **kwargs))
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).warning("audit publish failed (best-effort)", exc_info=True)
 
 
 @router.get("/compliance/frameworks")
@@ -256,9 +267,11 @@ async def generate_compliance_report(
     else:
         result = generator.generate_executive(report)
 
+    from kingsec.domain.audit import AuditAction
+
     _record_audit(
         request,
-        action="compliance_report_generated",
+        action=AuditAction.REPORT_GENERATED,
         resource_type="compliance_report",
         resource_id=report.id,
         user_id=user.user_id,
@@ -275,9 +288,11 @@ async def export_compliance_report(
     request: Request = None,  # type: ignore[assignment]
     user: CurrentUser = Depends(require_analyst),
 ) -> dict[str, Any]:
+    from kingsec.domain.audit import AuditAction
+
     _record_audit(
         request,
-        action="compliance_exported",
+        action=AuditAction.REPORT_GENERATED,
         resource_type="compliance_report",
         resource_id=report_id,
         user_id=user.user_id,

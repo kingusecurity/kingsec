@@ -295,16 +295,19 @@ def create_rule(
     request: Request,
     _user: CurrentUser = Depends(require_analyst),
 ) -> dict[str, Any]:
-    rule = _get_service(request).create_rule(
-        name=body["name"],
-        event_type_str=body.get("event_type"),
-        conditions=body.get("conditions"),
-        alert_severity=body.get("alert_severity", "medium"),
-        alert_title_template=body.get("alert_title_template", ""),
-        alert_description_template=body.get("alert_description_template", ""),
-        cooldown_minutes=body.get("cooldown_minutes", 60),
-        notify_channels=body.get("notify_channels"),
-    )
+    try:
+        rule = _get_service(request).create_rule(
+            name=body["name"],
+            event_type_str=body.get("event_type"),
+            conditions=body.get("conditions"),
+            alert_severity=body.get("alert_severity", "medium"),
+            alert_title_template=body.get("alert_title_template", ""),
+            alert_description_template=body.get("alert_description_template", ""),
+            cooldown_minutes=body.get("cooldown_minutes", 60),
+            notify_channels=body.get("notify_channels"),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return _rule_to_dict(rule)
 
 
@@ -320,6 +323,8 @@ def update_rule(
         return _rule_to_dict(rule)
     except RuleNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.delete("/monitoring/rules/{rule_id}")

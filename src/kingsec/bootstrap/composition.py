@@ -335,7 +335,7 @@ def _register_adapters(
     from kingsec.infrastructure.notifications.templates import JinjaTemplateRenderer
 
     def _make_notification_repo(_c: Any) -> NotificationRepositoryPort:
-        return SQLAlchemyNotificationRepository(session_factory())
+        return SQLAlchemyNotificationRepository(session_factory)
 
     container.register_factory(NotificationRepositoryPort, _make_notification_repo)
 
@@ -1641,7 +1641,7 @@ def _register_backup_services(container: Container, session_factory: Any) -> Non
         ZipCompressionService,
         ensure_backup_tables,
     )
-    from kingsec.infrastructure.config.models import AppSettings
+    from kingsec.infrastructure.config.settings import Settings
 
     ensure_backup_tables(session_factory)
 
@@ -1649,7 +1649,7 @@ def _register_backup_services(container: Container, session_factory: Any) -> Non
         return SQLAlchemyBackupRepository(session_factory)
 
     def _make_backup_storage(_c: Any) -> BackupStoragePort:
-        settings = _c.resolve(AppSettings) if _c.has(AppSettings) else None
+        settings = _c.resolve(Settings) if _c.has(Settings) else None
         base = str(settings.storage.data_dir / "backups") if settings else "backups"
         return FilesystemBackupStorage(base)
 
