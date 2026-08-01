@@ -285,6 +285,8 @@ class TestVerifyRestore:
 
 class TestCleanupExpiredBackups:
     def test_cleanup_removes_excess_full(self, repo, storage, audit) -> None:
+        # find_all_backups() returns newest-first in production (ORDER BY
+        # created_at DESC), so bkp-0 is the newest and bkp-4 is the oldest.
         backups = [
             BackupMetadata(
                 backup_id=BackupId(value=f"bkp-{i}"), backup_type=BackupType.FULL, status=BackupStatus.COMPLETED
@@ -296,6 +298,10 @@ class TestCleanupExpiredBackups:
         uc = CleanupExpiredBackups(repo, storage, audit, policy)
         deleted = uc.execute()
         assert deleted == 3
+        # The two newest backups (bkp-0, bkp-1) must survive; only the
+        # three oldest (bkp-2, bkp-3, bkp-4) may be deleted.
+        deleted_ids = {call.args[0] for call in repo.delete_backup.call_args_list}
+        assert deleted_ids == {"bkp-2", "bkp-3", "bkp-4"}
 
     def test_cleanup_removes_excess_incremental(self, repo, storage, audit) -> None:
         backups = [
@@ -309,6 +315,8 @@ class TestCleanupExpiredBackups:
         uc = CleanupExpiredBackups(repo, storage, audit, policy)
         deleted = uc.execute()
         assert deleted == 3
+        deleted_ids = {call.args[0] for call in repo.delete_backup.call_args_list}
+        assert deleted_ids == {"bkp-2", "bkp-3", "bkp-4"}
 
     def test_cleanup_no_excess(self, repo, storage, audit) -> None:
         backups = [

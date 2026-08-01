@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import uuid
 from datetime import UTC, datetime
 
 from kingsec.application.ports.outbound import (
@@ -45,7 +46,6 @@ class CreateBackup:
         self._encryption = encryption
         self._compression = compression
         self._audit = audit
-        self._counter = 0
 
     def execute(
         self,
@@ -55,8 +55,7 @@ class CreateBackup:
         encrypt: bool = True,
         compress: bool = True,
     ) -> BackupMetadata:
-        self._counter += 1
-        bid = BackupId(value=f"bkp-{self._counter}")
+        bid = BackupId(value=f"bkp-{uuid.uuid4().hex}")
         btype = BackupType.FULL
         for t in BackupType:
             if t.value == backup_type.lower():
@@ -150,7 +149,6 @@ class RestoreBackup:
         self._encryption = encryption
         self._compression = compression
         self._audit = audit
-        self._counter = 0
 
     def execute(self, backup_id: str, target_path: str = "") -> RestoreOperation:
         backup = self._repo.find_backup_by_id(backup_id)
@@ -158,8 +156,7 @@ class RestoreBackup:
             from kingsec.application.errors import BackupNotFoundError
 
             raise BackupNotFoundError(f"Backup '{backup_id}' not found")
-        self._counter += 1
-        rid = BackupId(value=f"rest-{self._counter}")
+        rid = BackupId(value=f"rest-{uuid.uuid4().hex}")
         operation = RestoreOperation(
             restore_id=rid,
             backup_id=backup_id,
@@ -286,11 +283,9 @@ class CreateSnapshot:
     def __init__(self, repo: BackupRepositoryPort, audit: AuditPublisher) -> None:
         self._repo = repo
         self._audit = audit
-        self._counter = 0
 
     def execute(self, label: str = "", backup_ids: list[str] | None = None) -> BackupSnapshot:
-        self._counter += 1
-        sid = BackupId(value=f"snap-{self._counter}")
+        sid = BackupId(value=f"snap-{uuid.uuid4().hex}")
         snapshot = BackupSnapshot(
             snapshot_id=sid,
             backup_ids=tuple(backup_ids or []),
@@ -371,12 +366,17 @@ class CleanupExpiredBackups:
 
     def execute(self) -> int:
         datetime.now(UTC)
+        # find_all_backups() returns newest-first (ORDER BY created_at DESC),
+        # so the excess beyond the retention count is the *tail* of the list
+        # (the oldest ones), not the head.
         backups = self._repo.find_all_backups()
         full_backups = [b for b in backups if b.backup_type == BackupType.FULL]
         inc_backups = [b for b in backups if b.backup_type == BackupType.INCREMENTAL]
         deleted = 0
         for b in (
-            full_backups[: -self._policy.max_full_backups] if len(full_backups) > self._policy.max_full_backups else []
+            full_backups[self._policy.max_full_backups :]
+            if len(full_backups) > self._policy.max_full_backups
+            else []
         ):
             self._repo.delete_backup(b.backup_id.value)
             self._storage.delete(b.backup_id.value)
@@ -391,7 +391,7 @@ class CleanupExpiredBackups:
             )
             deleted += 1
         for b in (
-            inc_backups[: -self._policy.max_incremental_backups]
+            inc_backups[self._policy.max_incremental_backups :]
             if len(inc_backups) > self._policy.max_incremental_backups
             else []
         ):
@@ -428,15 +428,13 @@ class RestoreWithScope:
         self._encryption = encryption
         self._compression = compression
         self._audit = audit
-        self._counter = 0
 
     def execute(self, backup_id: str, scope: str = "complete", dry_run: bool = False) -> RestoreOperation:
         backup = self._repo.find_backup_by_id(backup_id)
         if not backup:
             from kingsec.application.errors import BackupNotFoundError
             raise BackupNotFoundError(f"Backup '{backup_id}' not found")
-        self._counter += 1
-        rid = BackupId(value=f"rest-{self._counter}")
+        rid = BackupId(value=f"rest-{uuid.uuid4().hex}")
         operation = RestoreOperation(
             restore_id=rid,
             backup_id=backup_id,
@@ -518,15 +516,13 @@ class VerifyBackup:
         self._encryption = encryption
         self._compression = compression
         self._audit = audit
-        self._counter = 0
 
     def execute(self, backup_id: str, verified_by: str = "") -> BackupVerification:
         backup = self._repo.find_backup_by_id(backup_id)
         if not backup:
             from kingsec.application.errors import BackupNotFoundError
             raise BackupNotFoundError(f"Backup '{backup_id}' not found")
-        self._counter += 1
-        vid = BackupId(value=f"ver-{self._counter}")
+        vid = BackupId(value=f"ver-{uuid.uuid4().hex}")
         start = datetime.now(UTC)
         checksum_valid = False
         archive_integrity = False
@@ -589,11 +585,9 @@ class CreateSchedule:
     def __init__(self, repo: BackupRepositoryPort, audit: AuditPublisher) -> None:
         self._repo = repo
         self._audit = audit
-        self._counter = 0
 
     def execute(self, schedule: BackupSchedule) -> BackupSchedule:
-        self._counter += 1
-        sid = BackupId(value=f"sched-{self._counter}")
+        sid = BackupId(value=f"sched-{uuid.uuid4().hex}")
         created = BackupSchedule(
             schedule_id=sid,
             name=schedule.name,
@@ -705,11 +699,9 @@ class CreateRecoveryPlan:
     def __init__(self, repo: BackupRepositoryPort, audit: AuditPublisher) -> None:
         self._repo = repo
         self._audit = audit
-        self._counter = 0
 
     def execute(self, plan: DisasterRecoveryPlan) -> DisasterRecoveryPlan:
-        self._counter += 1
-        pid = BackupId(value=f"dr-{self._counter}")
+        pid = BackupId(value=f"dr-{uuid.uuid4().hex}")
         created = DisasterRecoveryPlan(
             plan_id=pid,
             name=plan.name,
@@ -809,15 +801,13 @@ class RunRecoveryTest:
     def __init__(self, repo: BackupRepositoryPort, audit: AuditPublisher) -> None:
         self._repo = repo
         self._audit = audit
-        self._counter = 0
 
     def execute(self, plan_id: str, executed_by: str = "") -> RecoveryTest:
         plan = self._repo.find_recovery_plan_by_id(plan_id)
         if not plan:
             from kingsec.application.errors import RecoveryPlanNotFoundError
             raise RecoveryPlanNotFoundError(f"Recovery plan '{plan_id}' not found")
-        self._counter += 1
-        tid = BackupId(value=f"rt-{self._counter}")
+        tid = BackupId(value=f"rt-{uuid.uuid4().hex}")
         now = datetime.now(UTC).isoformat()
         results = tuple(
             RecoveryChecklistItem(
