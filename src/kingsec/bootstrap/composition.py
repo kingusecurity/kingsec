@@ -505,6 +505,8 @@ def _register_use_cases(container: Container) -> None:
     no manual wiring. The UseCaseServiceAPI facade is also registered here,
     wiring the use cases into the ServiceAPI port.
     """
+    from kingsec.application.assessment_execution import AssessmentExecutionEngine
+
     container.register_factory(
         CreateAssessment,
         lambda c: CreateAssessment(
@@ -532,6 +534,7 @@ def _register_use_cases(container: Container) -> None:
             c.resolve(AIPort),
             c.resolve(EventPublisher),
             c.resolve(AuditPublisher),
+            c.resolve(AssessmentExecutionEngine),
         ),
     )
     container.register_factory(

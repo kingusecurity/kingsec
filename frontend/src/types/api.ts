@@ -96,7 +96,6 @@ export interface CreateAssessmentBody {
   target_type: string
   authorized_by: string
   scope: string
-  profile_id?: string
 }
 
 export interface CreateAssessmentResponse {

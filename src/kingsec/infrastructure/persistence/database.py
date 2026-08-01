@@ -23,14 +23,21 @@ _DATABASE_FILENAME = "kingsec.db"
 
 
 def _enable_sqlite_foreign_keys(dbapi_connection: Any, _connection_record: Any) -> None:
-    """Enable foreign-key enforcement for a new SQLite connection.
+    """Configure per-connection SQLite pragmas.
 
-    SQLite does NOT enforce foreign keys by default, which would silently allow
-    orphaned findings/evidence. We turn it on for every connection so our
-    ON DELETE CASCADE relationships are actually honoured.
+    * ``foreign_keys=ON`` — SQLite does NOT enforce foreign keys by default,
+      which would silently allow orphaned findings/evidence.
+    * ``journal_mode=WAL`` — lets readers proceed without blocking on a writer
+      (the default rollback-journal mode serializes all access).
+    * ``busy_timeout=10000`` — SQLite's default busy timeout is 0ms, so any
+      remaining writer-writer contention (e.g. a background scan job saving
+      an assessment while a foreground request updates a user) fails
+      instantly with "database is locked" instead of waiting briefly.
     """
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA busy_timeout=10000")
     cursor.close()
 
 

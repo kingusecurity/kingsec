@@ -24,6 +24,7 @@ from kingsec.domain import AssessmentId, Finding
 from kingsec.domain.audit import AuditAction, AuditEntry
 
 from ._support import to_assessment_id
+from .assessment_execution import AssessmentExecutionEngine, ExecutionPhase
 from .dto import SubmitAssessmentRequest, SubmitAssessmentResponse
 from .events import (
     EVENT_ASSESSMENT_COMPLETED,
@@ -52,6 +53,7 @@ class SubmitAssessment:
         ai: AIPort | None = None,
         events: EventPublisher | None = None,
         audit: AuditPublisher | None = None,
+        execution_engine: AssessmentExecutionEngine | None = None,
     ) -> None:
         self._assessments = assessments
         self._scanner = scanner
@@ -59,6 +61,7 @@ class SubmitAssessment:
         self._ai = ai
         self._events = events
         self._audit = audit
+        self._execution_engine = execution_engine
 
     def execute(self, request: SubmitAssessmentRequest) -> SubmitAssessmentResponse:
         assessment_id = to_assessment_id(request.assessment_id)
@@ -95,6 +98,7 @@ class SubmitAssessment:
             scanner=self._scanner,
             ai=self._ai,
             events=self._events,
+            execution_engine=self._execution_engine,
         )
         self._job_runner.submit(job_id, background_fn)
 
@@ -130,6 +134,7 @@ class SubmitAssessment:
         scanner: ScannerPort,
         ai: AIPort | None,
         events: EventPublisher | None,
+        execution_engine: AssessmentExecutionEngine | None,
     ) -> Callable[[], None]:
         """Build a closure that runs the scan in the background."""
 
@@ -140,6 +145,7 @@ class SubmitAssessment:
                 scanner=scanner,
                 ai=ai,
                 events=events,
+                execution_engine=execution_engine,
             )
 
         return _run_scan
@@ -152,6 +158,7 @@ def _execute_scan(
     scanner: ScannerPort,
     ai: AIPort | None,
     events: EventPublisher | None = None,
+    execution_engine: AssessmentExecutionEngine | None = None,
 ) -> None:
     """Run the scan and complete the assessment. Called from a background thread.
 
@@ -159,14 +166,26 @@ def _execute_scan(
     no shared mutable state between threads.
     """
     assessment = assessments.get(assessment_id)
+    tracking_id = str(assessment_id)
+
+    if execution_engine is not None:
+        execution_engine.start_execution(tracking_id, {})
+        execution_engine.transition_phase(tracking_id, ExecutionPhase.RUNNING_SCANNERS)
 
     try:
         for finding in scanner.scan(assessment.target):
             _enrich(finding, ai)
             assessment.record_finding(finding)
 
+        if execution_engine is not None:
+            execution_engine.transition_phase(tracking_id, ExecutionPhase.CORRELATING)
+            execution_engine.transition_phase(tracking_id, ExecutionPhase.REPORTING)
+
         assessment.complete()
         assessments.save(assessment)
+
+        if execution_engine is not None:
+            execution_engine.transition_phase(tracking_id, ExecutionPhase.COMPLETED)
 
         _publish_event(
             events,
@@ -180,6 +199,8 @@ def _execute_scan(
         )
 
     except Exception as exc:
+        if execution_engine is not None:
+            execution_engine.fail_execution(tracking_id, str(exc))
         try:
             assessment.fail(str(exc))
             assessments.save(assessment)
