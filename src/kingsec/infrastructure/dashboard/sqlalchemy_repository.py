@@ -87,7 +87,7 @@ class SQLAlchemyDashboardRepository(DashboardRepositoryPort):
             high=counts.get("HIGH", 0),
             medium=counts.get("MEDIUM", 0),
             low=counts.get("LOW", 0),
-            info=counts.get("INFO", 0),
+            info=counts.get("INFORMATIONAL", 0),
         )
 
     def get_trend_data(self, period: str = "weekly", limit: int = 12) -> list[TrendPoint]:
