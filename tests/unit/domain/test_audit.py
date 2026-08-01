@@ -93,6 +93,12 @@ class TestAuditAction:
             "edition_changed",
             "compliance_report_generated",
             "compliance_exported",
+            "copilot_ask",
+            "copilot_conversation_deleted",
+            "note_created",
+            "note_pinned",
+            "note_unpinned",
+            "note_deleted",
         }
         actual = {a.value for a in AuditAction}
         assert actual == expected

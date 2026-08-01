@@ -86,7 +86,7 @@ def _executive_summary(report: Report) -> str:
         '<section id="executive-summary">'
         "<h2>Executive Summary</h2>"
         f"<p>{escape(verdict.headline)}</p>"
-        f"<p>Total findings: <strong>{report.total_findings}</strong> &middot; "
+        f"<p>Total findings: <strong>{report.total_findings}</strong> | "
         f"Highest severity: <strong>{escape(highest)}</strong></p>"
         f"{action}"
         "</section>"

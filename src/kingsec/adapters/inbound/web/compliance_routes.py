@@ -271,7 +271,7 @@ async def generate_compliance_report(
 
     _record_audit(
         request,
-        action=AuditAction.REPORT_GENERATED,
+        action=AuditAction.COMPLIANCE_REPORT_GENERATED,
         resource_type="compliance_report",
         resource_id=report.id,
         user_id=user.user_id,
@@ -292,7 +292,7 @@ async def export_compliance_report(
 
     _record_audit(
         request,
-        action=AuditAction.REPORT_GENERATED,
+        action=AuditAction.COMPLIANCE_EXPORTED,
         resource_type="compliance_report",
         resource_id=report_id,
         user_id=user.user_id,

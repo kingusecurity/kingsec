@@ -137,6 +137,14 @@ class AuditAction(StrEnum):
     COMPLIANCE_REPORT_GENERATED = "compliance_report_generated"
     COMPLIANCE_EXPORTED = "compliance_exported"
 
+    # AI Copilot
+    COPILOT_ASK = "copilot_ask"
+    COPILOT_CONVERSATION_DELETED = "copilot_conversation_deleted"
+    NOTE_CREATED = "note_created"
+    NOTE_PINNED = "note_pinned"
+    NOTE_UNPINNED = "note_unpinned"
+    NOTE_DELETED = "note_deleted"
+
     HEALTH_CHECK = "health_check"
     LIVENESS_CHECK = "liveness_check"
     READINESS_CHECK = "readiness_check"

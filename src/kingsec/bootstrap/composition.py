@@ -1232,8 +1232,10 @@ def _register_copilot_services(container: Container, session_factory: Any) -> No
     )
     from kingsec.application.monitoring.ports import AlertRepositoryPort as MonitoringAlertRepositoryPort
     from kingsec.application.ports.attack_surface import AttackSurfaceRepositoryPort
+    from kingsec.application.ports.outbound import AuditPublisher
     from kingsec.application.ports.repositories import Asset
     from kingsec.application.threat_intelligence.ports import CveRepositoryPort as TICveRepositoryPort
+    from kingsec.infrastructure.audit.copilot_audit_adapter import CopilotAuditAdapter
     from kingsec.infrastructure.persistence.repositories.copilot import (
         SQLAlchemyCopilotConversationRepository,
         SQLAlchemyInvestigationNoteRepository,
@@ -1247,6 +1249,10 @@ def _register_copilot_services(container: Container, session_factory: Any) -> No
 
     container.register_factory(CopilotConversationRepositoryPort, _make_conv_repo)
     container.register_factory(InvestigationNoteRepositoryPort, _make_note_repo)
+    container.register_factory(
+        CopilotAuditPublisherPort,
+        lambda c: CopilotAuditAdapter(c.resolve(AuditPublisher)),
+    )
 
     container.register_factory(
         CopilotContextBuilder,
@@ -1390,9 +1396,9 @@ def _register_queue_services(container: Container, session_factory: Any) -> None
 
 def _register_plugin_services(container: Container) -> None:
     """Register plugin service and its dependencies."""
+    from kingsec.application.plugin_service import PluginService
     from kingsec.application.ports.outbound import PluginRepositoryPort, PluginValidatorPort
     from kingsec.application.ports.plugin_service import PluginServicePort
-    from kingsec.application.plugin_service import PluginService
     from kingsec.infrastructure.plugin import InMemoryPluginRepository, PluginValidator
 
     container.register_factory(PluginRepositoryPort, lambda c: InMemoryPluginRepository())
@@ -1409,9 +1415,9 @@ def _register_plugin_services(container: Container) -> None:
 
 def _register_agent_services(container: Container) -> None:
     """Register agent service and its dependencies."""
-    from kingsec.application.ports.outbound import AgentDispatcherPort, AgentRepositoryPort
-    from kingsec.application.ports.agent_service import AgentServicePort
     from kingsec.application.agent_service import AgentService
+    from kingsec.application.ports.agent_service import AgentServicePort
+    from kingsec.application.ports.outbound import AgentDispatcherPort, AgentRepositoryPort
     from kingsec.infrastructure.agent import InMemoryAgentDispatcher, InMemoryAgentRepository
 
     container.register_factory(AgentRepositoryPort, lambda c: InMemoryAgentRepository())
@@ -1427,16 +1433,16 @@ def _register_agent_services(container: Container) -> None:
 
 def _register_pipeline_services(container: Container, session_factory: Any) -> None:
     """Register pipeline service and its dependencies."""
+    from kingsec.application.pipeline_service import PipelineService
+    from kingsec.application.ports.notification_service import NotificationServicePort
     from kingsec.application.ports.outbound import (
         AgentDispatcherPort,
         PipelineOrchestratorPort,
         PipelineRepositoryPort,
     )
     from kingsec.application.ports.pipeline_service import PipelineServicePort
-    from kingsec.application.ports.notification_service import NotificationServicePort
     from kingsec.application.ports.queue_service import QueueServicePort as QueueInboundPort
     from kingsec.application.ports.report_service import ReportGenerationResult, ReportServicePort
-    from kingsec.application.pipeline_service import PipelineService
     from kingsec.infrastructure.pipeline import InMemoryPipelineRepository, PipelineOrchestrator
 
     container.register_factory(PipelineRepositoryPort, lambda c: InMemoryPipelineRepository())

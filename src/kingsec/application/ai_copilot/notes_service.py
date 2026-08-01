@@ -18,10 +18,24 @@ _pending_audit_tasks: set[asyncio.Task[None]] = set()
 
 
 def _fire_audit(audit: AuditPublisherPort | None, action: str, entity_type: str, entity_id: str, metadata: dict[str, Any] | None = None) -> None:
-    if audit:
-        task = asyncio.ensure_future(audit.publish(action, entity_type, entity_id, metadata))
-        _pending_audit_tasks.add(task)
-        task.add_done_callback(_on_audit_task_done)
+    if audit is None:
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    try:
+        if loop is not None:
+            task = loop.create_task(audit.publish(action, entity_type, entity_id, metadata))
+            _pending_audit_tasks.add(task)
+            task.add_done_callback(_on_audit_task_done)
+        else:
+            # Called from a synchronous route handler running in a worker
+            # thread — there is no event loop to schedule a background task
+            # onto, so publish inline instead.
+            asyncio.run(audit.publish(action, entity_type, entity_id, metadata))
+    except Exception:
+        logger.warning("audit publish failed (best-effort)", exc_info=True)
 
 
 def _on_audit_task_done(task: asyncio.Task[None]) -> None:
