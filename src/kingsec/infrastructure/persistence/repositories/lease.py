@@ -20,7 +20,7 @@ class SQLAlchemyJobLeaseRepository(JobLeaseRepositoryPort):
     def create(self, lease: JobLease) -> JobLease:
         orm = job_lease_to_orm(lease)
         self._session.add(orm)
-        self._session.flush()
+        self._session.commit()
         return lease
 
     def get(self, lease_id: str) -> JobLease | None:
@@ -50,11 +50,11 @@ class SQLAlchemyJobLeaseRepository(JobLeaseRepositoryPort):
     def update(self, lease: JobLease) -> None:
         orm = job_lease_to_orm(lease)
         self._session.merge(orm)
-        self._session.flush()
+        self._session.commit()
 
     def delete(self, lease_id: str) -> None:
         stmt = select(JobLeaseModel).where(JobLeaseModel.lease_id == lease_id)
         orm = self._session.execute(stmt).scalar_one_or_none()
         if orm:
             self._session.delete(orm)
-            self._session.flush()
+            self._session.commit()

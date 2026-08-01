@@ -31,7 +31,7 @@ class SQLAlchemyIdentityProviderRepository(IdentityProviderRepositoryPort):
     def save(self, provider: IdentityProvider) -> IdentityProvider:
         orm = identity_provider_to_orm(provider)
         self._session.merge(orm)
-        self._session.flush()
+        self._session.commit()
         return provider
 
     def get(self, provider_id: str) -> IdentityProvider | None:
@@ -62,7 +62,7 @@ class SQLAlchemyIdentityProviderRepository(IdentityProviderRepositoryPort):
     def delete(self, provider_id: str) -> None:
         stmt = delete(IdentityProviderModel).where(IdentityProviderModel.id == provider_id)
         self._session.execute(stmt)
-        self._session.flush()
+        self._session.commit()
 
 
 class SQLAlchemySSOSessionRepository(SSOSessionRepositoryPort):
@@ -72,7 +72,7 @@ class SQLAlchemySSOSessionRepository(SSOSessionRepositoryPort):
     def save(self, session: SSOSession) -> SSOSession:
         orm = sso_session_to_orm(session)
         self._session.add(orm)
-        self._session.flush()
+        self._session.commit()
         return session
 
     def get(self, session_id: str) -> SSOSession | None:
@@ -101,12 +101,12 @@ class SQLAlchemySSOSessionRepository(SSOSessionRepositoryPort):
     def update(self, session: SSOSession) -> None:
         orm = sso_session_to_orm(session)
         self._session.merge(orm)
-        self._session.flush()
+        self._session.commit()
 
     def delete(self, session_id: str) -> None:
         stmt = delete(SSOSessionModel).where(SSOSessionModel.id == session_id)
         self._session.execute(stmt)
-        self._session.flush()
+        self._session.commit()
 
     def delete_expired(self) -> int:
         now = datetime.now(UTC).isoformat()
@@ -115,7 +115,7 @@ class SQLAlchemySSOSessionRepository(SSOSessionRepositoryPort):
             SSOSessionModel.expires_at != "",
         )
         self._session.execute(stmt)
-        self._session.flush()
+        self._session.commit()
         return 0
 
 
@@ -126,7 +126,7 @@ class SQLAlchemyAccountLinkRepository(AccountLinkRepositoryPort):
     def save(self, link: AccountLink) -> AccountLink:
         orm = account_link_to_orm(link)
         self._session.merge(orm)
-        self._session.flush()
+        self._session.commit()
         return link
 
     def find_by_user(self, user_id: str) -> list[AccountLink]:
@@ -150,4 +150,4 @@ class SQLAlchemyAccountLinkRepository(AccountLinkRepositoryPort):
     def delete(self, link_id: str) -> None:
         stmt = delete(AccountLinkModel).where(AccountLinkModel.id == link_id)
         self._session.execute(stmt)
-        self._session.flush()
+        self._session.commit()

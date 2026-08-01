@@ -29,7 +29,7 @@ class SQLAlchemyCopilotConversationRepository(CopilotConversationRepositoryPort)
                 setattr(model, col.name, getattr(orm, col.name))
         else:
             self._session.add(orm)
-        self._session.flush()
+        self._session.commit()
         return conversation
 
     def find_by_id(self, conversation_id: str) -> CopilotConversation | None:
@@ -69,7 +69,7 @@ class SQLAlchemyCopilotConversationRepository(CopilotConversationRepositoryPort)
         model = self._session.get(CopilotConversationModel, conversation_id)
         if model:
             self._session.delete(model)
-            self._session.flush()
+            self._session.commit()
 
 
 class SQLAlchemyInvestigationNoteRepository(InvestigationNoteRepositoryPort):
@@ -84,7 +84,7 @@ class SQLAlchemyInvestigationNoteRepository(InvestigationNoteRepositoryPort):
                 setattr(model, col.name, getattr(orm, col.name))
         else:
             self._session.add(orm)
-        self._session.flush()
+        self._session.commit()
         return note
 
     def find_by_id(self, note_id: str) -> InvestigationNote | None:
@@ -121,4 +121,4 @@ class SQLAlchemyInvestigationNoteRepository(InvestigationNoteRepositoryPort):
         model = self._session.get(InvestigationNoteModel, note_id)
         if model:
             self._session.delete(model)
-            self._session.flush()
+            self._session.commit()

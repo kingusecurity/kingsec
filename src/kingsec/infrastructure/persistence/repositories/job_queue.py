@@ -20,7 +20,7 @@ class SQLAlchemyJobQueueRepository(JobQueueRepositoryPort):
     def enqueue(self, entry: JobQueueEntry) -> JobQueueEntry:
         orm = job_queue_entry_to_orm(entry)
         self._session.add(orm)
-        self._session.flush()
+        self._session.commit()
         return entry
 
     def get(self, entry_id: str) -> JobQueueEntry | None:
@@ -41,14 +41,14 @@ class SQLAlchemyJobQueueRepository(JobQueueRepositoryPort):
     def update(self, entry: JobQueueEntry) -> None:
         orm = job_queue_entry_to_orm(entry)
         self._session.merge(orm)
-        self._session.flush()
+        self._session.commit()
 
     def delete(self, entry_id: str) -> None:
         stmt = select(JobQueueEntryModel).where(JobQueueEntryModel.entry_id == entry_id)
         orm = self._session.execute(stmt).scalar_one_or_none()
         if orm:
             self._session.delete(orm)
-            self._session.flush()
+            self._session.commit()
 
     def get_metrics(self) -> QueueMetrics:
         self._session.execute(select(func.count(JobQueueEntryModel.entry_id))).scalar() or 0

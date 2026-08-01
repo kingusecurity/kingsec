@@ -28,7 +28,7 @@ class SQLAlchemyAttackSurfaceRepository(AttackSurfaceRepositoryPort):
         else:
             orm = exposure_to_orm(exposure)
             self._session.add(orm)
-        self._session.flush()
+        self._session.commit()
 
     def get(self, exposure_id: str) -> Exposure:
         orm = self._session.get(ExposureModel, exposure_id)
@@ -40,6 +40,7 @@ class SQLAlchemyAttackSurfaceRepository(AttackSurfaceRepositoryPort):
         orm = self._session.get(ExposureModel, exposure_id)
         if orm:
             self._session.delete(orm)
+            self._session.commit()
 
     def fetch_all(
         self,
@@ -185,6 +186,7 @@ class SQLAlchemyAttackSurfaceRepository(AttackSurfaceRepositoryPort):
             actor=entry.actor,
         )
         self._session.add(orm)
+        self._session.commit()
 
     def get_history(self, exposure_id: str, *, limit: int = 50) -> list[ExposureHistoryEntry]:
         stmt = (
@@ -238,6 +240,7 @@ class SQLAlchemyAttackSurfaceRepository(AttackSurfaceRepositoryPort):
         orm = self._session.get(ExposureModel, exposure_id)
         if orm:
             orm.status = "mitigated"
+            self._session.commit()
 
     def get_assets_with_exposures(self) -> list[str]:
         stmt = select(func.distinct(ExposureModel.asset_id)).where(ExposureModel.status == "active")

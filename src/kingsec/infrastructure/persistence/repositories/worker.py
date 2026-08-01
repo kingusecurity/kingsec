@@ -18,7 +18,7 @@ class SQLAlchemyWorkerRepository(WorkerRepositoryPort):
     def register(self, worker: WorkerNode) -> WorkerNode:
         orm = worker_to_orm(worker)
         self._session.add(orm)
-        self._session.flush()
+        self._session.commit()
         return worker
 
     def get(self, worker_id: str) -> WorkerNode | None:
@@ -44,11 +44,11 @@ class SQLAlchemyWorkerRepository(WorkerRepositoryPort):
     def update(self, worker: WorkerNode) -> None:
         orm = worker_to_orm(worker)
         self._session.merge(orm)
-        self._session.flush()
+        self._session.commit()
 
     def delete(self, worker_id: str) -> None:
         stmt = select(WorkerModel).where(WorkerModel.worker_id == worker_id)
         orm = self._session.execute(stmt).scalar_one_or_none()
         if orm:
             self._session.delete(orm)
-            self._session.flush()
+            self._session.commit()

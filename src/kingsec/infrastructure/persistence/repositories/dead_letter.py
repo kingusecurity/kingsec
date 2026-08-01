@@ -18,7 +18,7 @@ class SQLAlchemyDeadLetterRepository(DeadLetterRepositoryPort):
     def push(self, entry: DeadLetterEntry) -> DeadLetterEntry:
         orm = dead_letter_to_orm(entry)
         self._session.add(orm)
-        self._session.flush()
+        self._session.commit()
         return entry
 
     def get(self, entry_id: str) -> DeadLetterEntry | None:
@@ -36,7 +36,7 @@ class SQLAlchemyDeadLetterRepository(DeadLetterRepositoryPort):
         orm = self._session.execute(stmt).scalar_one_or_none()
         if orm:
             self._session.delete(orm)
-            self._session.flush()
+            self._session.commit()
 
     def count(self) -> int:
         return self._session.execute(func.count(DeadLetterEntryModel.entry_id)).scalar() or 0

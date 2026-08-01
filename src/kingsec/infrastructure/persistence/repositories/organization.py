@@ -47,6 +47,7 @@ class SQLAlchemyOrganizationRepository(OrganizationRepository):
                 created_at=org.created_at,
                 updated_at=org.updated_at,
             ))
+        self._session.commit()
 
     def find_by_id(self, org_id: str) -> Organization | None:
         orm = self._session.get(OrganizationORM, org_id)
@@ -87,6 +88,7 @@ class SQLAlchemyOrganizationRepository(OrganizationRepository):
         orm = self._session.get(OrganizationORM, org_id)
         if orm is not None:
             self._session.delete(orm)
+            self._session.commit()
 
     def count(self) -> int:
         from sqlalchemy import func
@@ -108,6 +110,7 @@ class SQLAlchemyOrganizationRepository(OrganizationRepository):
                 role=membership.role.value,
                 created_at=membership.created_at,
             ))
+        self._session.commit()
 
     def remove_member(self, org_id: str, user_id: str) -> None:
         orm = self._session.execute(
@@ -118,6 +121,7 @@ class SQLAlchemyOrganizationRepository(OrganizationRepository):
         ).scalar_one_or_none()
         if orm is not None:
             self._session.delete(orm)
+            self._session.commit()
 
     def list_members(self, org_id: str) -> list[OrganizationMembership]:
         orms = self._session.execute(
@@ -179,6 +183,7 @@ class SQLAlchemyOrganizationRepository(OrganizationRepository):
                 created_at=team.created_at,
                 updated_at=team.updated_at,
             ))
+        self._session.commit()
 
     def find_team_by_id(self, team_id: str) -> Team | None:
         orm = self._session.get(TeamORM, team_id)
@@ -207,6 +212,7 @@ class SQLAlchemyOrganizationRepository(OrganizationRepository):
         orm = self._session.get(TeamORM, team_id)
         if orm is not None:
             self._session.delete(orm)
+            self._session.commit()
 
     def add_team_member(self, membership: TeamMembership) -> None:
         existing = self._session.execute(
@@ -221,6 +227,7 @@ class SQLAlchemyOrganizationRepository(OrganizationRepository):
                 team_id=membership.team_id,
                 created_at=membership.created_at,
             ))
+        self._session.commit()
 
     def remove_team_member(self, team_id: str, user_id: str) -> None:
         orm = self._session.execute(
@@ -231,6 +238,7 @@ class SQLAlchemyOrganizationRepository(OrganizationRepository):
         ).scalar_one_or_none()
         if orm is not None:
             self._session.delete(orm)
+            self._session.commit()
 
     def list_team_members(self, team_id: str) -> list[TeamMembership]:
         orms = self._session.execute(
@@ -253,6 +261,7 @@ class SQLAlchemyOrganizationRepository(OrganizationRepository):
             metadata_json=json.dumps({k: str(v) for k, v in event.metadata.items()}),
             timestamp=event.timestamp,
         ))
+        self._session.commit()
 
     def list_activity(self, org_id: str, limit: int = 50) -> list[OrgActivityEvent]:
         orms = self._session.execute(

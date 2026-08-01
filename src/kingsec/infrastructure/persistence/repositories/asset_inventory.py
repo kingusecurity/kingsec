@@ -42,6 +42,7 @@ class SQLAlchemyAssetInventoryRepository(AssetInventoryRepositoryPort):
         self._session.flush()
         _sync_tags(self._session, orm, asset)
         _sync_technologies(self._session, orm, asset)
+        self._session.commit()
 
     def get(self, asset_id: str) -> Asset:
         orm = self._session.get(AssetModel, asset_id)
@@ -53,6 +54,7 @@ class SQLAlchemyAssetInventoryRepository(AssetInventoryRepositoryPort):
         orm = self._session.get(AssetModel, asset_id)
         if orm:
             self._session.delete(orm)
+            self._session.commit()
 
     def fetch_all(
         self,
@@ -169,6 +171,7 @@ class SQLAlchemyAssetInventoryRepository(AssetInventoryRepositoryPort):
                 metadata_json=json.dumps(rel.metadata) if rel.metadata else None,
             )
             self._session.add(orm)
+        self._session.commit()
 
     def get_relationships(self, asset_id: str) -> list[AssetRelationship]:
         stmt = select(AssetRelationshipModel).where(
@@ -197,13 +200,16 @@ class SQLAlchemyAssetInventoryRepository(AssetInventoryRepositoryPort):
         return result
 
     def delete_relationship(self, source_id: str, target_id: str, rel_type: str) -> None:
-        self._session.execute(
+        orm = self._session.execute(
             select(AssetRelationshipModel).where(
                 AssetRelationshipModel.source_asset_id == source_id,
                 AssetRelationshipModel.target_asset_id == target_id,
                 AssetRelationshipModel.relationship_type == rel_type,
             )
-        ).scalar()
+        ).scalar_one_or_none()
+        if orm:
+            self._session.delete(orm)
+            self._session.commit()
 
     def save_history(self, entry: AssetHistoryEntry) -> None:
         orm = AssetHistoryModel(
@@ -217,6 +223,7 @@ class SQLAlchemyAssetInventoryRepository(AssetInventoryRepositoryPort):
             metadata_json=json.dumps(entry.metadata) if entry.metadata else None,
         )
         self._session.add(orm)
+        self._session.commit()
 
     def get_history(self, asset_id: str, *, limit: int = 50) -> list[AssetHistoryEntry]:
         stmt = (
@@ -271,6 +278,7 @@ class SQLAlchemyAssetInventoryRepository(AssetInventoryRepositoryPort):
         finding = self._session.execute(stmt).scalar_one_or_none()
         if finding:
             finding.asset_id = asset_id
+            self._session.commit()
 
     def get_finding_ids(self, asset_id: str) -> list[str]:
         stmt = select(FindingModel.id).where(FindingModel.asset_id == asset_id)

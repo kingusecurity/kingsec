@@ -38,7 +38,7 @@ class SQLAlchemyCveRepository(CveRepositoryPort):
                 setattr(model, col.name, getattr(orm, col.name))
         else:
             self._session.add(orm)
-        self._session.flush()
+        self._session.commit()
         return entry
 
     def find_by_id(self, cve_id: CveId) -> CveEntry | None:
@@ -206,7 +206,7 @@ class SQLAlchemyCveRepository(CveRepositoryPort):
         model = self._session.get(CveEntryModel, str(cve_id))
         if model:
             self._session.delete(model)
-            self._session.flush()
+            self._session.commit()
 
     def count(self) -> int:
         return self._session.query(CveEntryModel).count()
@@ -230,7 +230,7 @@ class SQLAlchemyThreatFeedRepository(ThreatFeedRepositoryPort):
                 setattr(model, col.name, getattr(orm, col.name))
         else:
             self._session.add(orm)
-        self._session.flush()
+        self._session.commit()
         return feed
 
     def find_by_id(self, feed_id: ThreatFeedId) -> ThreatFeedEntry | None:
@@ -251,7 +251,7 @@ class SQLAlchemyThreatFeedRepository(ThreatFeedRepositoryPort):
         model = self._session.get(ThreatFeedModel, str(feed_id))
         if model:
             model.last_synced = timestamp
-            self._session.flush()
+            self._session.commit()
             return threat_feed_to_domain(model)
         raise ValueError(f"Feed {feed_id} not found")
 
@@ -259,4 +259,4 @@ class SQLAlchemyThreatFeedRepository(ThreatFeedRepositoryPort):
         model = self._session.get(ThreatFeedModel, str(feed_id))
         if model:
             self._session.delete(model)
-            self._session.flush()
+            self._session.commit()

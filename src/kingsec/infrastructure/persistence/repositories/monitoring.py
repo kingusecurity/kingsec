@@ -50,7 +50,7 @@ class SQLAlchemyMonitoringEventRepository(MonitoringEventRepositoryPort):
     def save_event(self, event: MonitorEvent) -> None:
         orm = monitor_event_to_orm(event)
         self._session.add(orm)
-        self._session.flush()
+        self._session.commit()
 
     def get_event(self, event_id: str) -> MonitorEvent:
         orm = self._session.get(MonitorEventModel, event_id)
@@ -110,7 +110,7 @@ class SQLAlchemyAlertRepository(AlertRepositoryPort):
         else:
             orm = alert_to_orm(alert)
             self._session.add(orm)
-        self._session.flush()
+        self._session.commit()
 
     def get_alert(self, alert_id: str) -> Alert:
         orm = self._session.get(AlertModel, alert_id)
@@ -180,7 +180,7 @@ class SQLAlchemyRuleRepository(RuleRepositoryPort):
         else:
             orm = rule_to_orm(rule)
             self._session.add(orm)
-        self._session.flush()
+        self._session.commit()
 
     def get_rule(self, rule_id: str) -> Rule:
         orm = self._session.get(RuleModel, rule_id)
@@ -192,6 +192,7 @@ class SQLAlchemyRuleRepository(RuleRepositoryPort):
         orm = self._session.get(RuleModel, rule_id)
         if orm:
             self._session.delete(orm)
+            self._session.commit()
 
     def fetch_rules(
         self,

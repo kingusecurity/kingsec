@@ -52,6 +52,7 @@ class SQLAlchemyPlaybookRepository:
             existing.updated_at = playbook.updated_at
         else:
             self._session.add(playbook_to_orm(playbook))
+        self._session.commit()
 
     def find_by_id(self, playbook_id: str) -> Playbook | None:
         stmt = select(PlaybookModel).where(PlaybookModel.id == playbook_id)
@@ -84,6 +85,7 @@ class SQLAlchemyPlaybookRepository:
         orm = self._session.get(PlaybookModel, playbook_id)
         if orm:
             self._session.delete(orm)
+            self._session.commit()
 
     def count(self) -> int:
         stmt = select(func.count(PlaybookModel.id))
@@ -114,6 +116,7 @@ class SQLAlchemyExecutionHistoryRepository:
             ])
         else:
             self._session.add(execution_history_to_orm(history))
+        self._session.commit()
 
     def find_by_id(self, execution_id: str) -> ExecutionHistory | None:
         stmt = select(ExecutionHistoryModel).where(ExecutionHistoryModel.id == execution_id)

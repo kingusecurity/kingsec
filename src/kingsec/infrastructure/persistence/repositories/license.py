@@ -69,6 +69,7 @@ class SQLAlchemyLicenseRepository(LicenseRepository):
             existing.updated_at = datetime.now(UTC).isoformat()
         else:
             self._session.add(self._to_orm(license))
+        self._session.commit()
 
     def find_active(self) -> License | None:
         stmt = (
@@ -93,6 +94,7 @@ class SQLAlchemyLicenseRepository(LicenseRepository):
         orm = self._session.get(LicenseORM, license_id)
         if orm:
             self._session.delete(orm)
+            self._session.commit()
 
     def exists(self) -> bool:
         stmt = select(LicenseORM).limit(1)
