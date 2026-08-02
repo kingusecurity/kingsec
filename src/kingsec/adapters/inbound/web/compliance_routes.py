@@ -81,6 +81,18 @@ def _record_audit(request: Request, action: Any, **kwargs: Any) -> None:
         logging.getLogger(__name__).warning("audit publish failed (best-effort)", exc_info=True)
 
 
+_FRAMEWORK_DISPLAY_NAMES: dict[ComplianceFramework, str] = {
+    ComplianceFramework.CIS_V8: "CIS Controls v8",
+    ComplianceFramework.NIST_CSF_2: "NIST CSF 2.0",
+    ComplianceFramework.OWASP_TOP_10: "OWASP Top 10",
+    ComplianceFramework.CWE: "CWE",
+    ComplianceFramework.CVE: "CVE",
+    ComplianceFramework.MITRE_ATT_CK: "MITRE ATT&CK",
+    ComplianceFramework.ISO_27001: "ISO/IEC 27001",
+    ComplianceFramework.PCI_DSS_4: "PCI DSS 4.0",
+}
+
+
 @router.get("/compliance/frameworks")
 async def list_frameworks(
     user: CurrentUser = Depends(get_current_user),
@@ -88,7 +100,7 @@ async def list_frameworks(
     return [
         {
             "id": fw.value,
-            "name": fw.name.replace("_", " ").title(),
+            "name": _FRAMEWORK_DISPLAY_NAMES.get(fw, fw.name.replace("_", " ").title()),
             "mapping_only": fw in (ComplianceFramework.ISO_27001, ComplianceFramework.PCI_DSS_4),
         }
         for fw in ComplianceFramework
