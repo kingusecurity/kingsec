@@ -2,6 +2,14 @@
 
 KingSec offers three editions: Community, Professional, and Enterprise.
 
+> **Relationship to LICENSE:** This document describes commercial *feature
+> tiers*, not a grant of rights to the software itself. All editions —
+> including Community — are distributed under the terms in
+> [LICENSE](LICENSE) ("Proprietary — All Rights Reserved"); using any
+> edition of KingSec requires the license agreement provided with your
+> download or purchase. Contact **kingusecurity@gmail.com** for licensing
+> questions.
+
 ## Editions
 
 ### Community Edition (Free)

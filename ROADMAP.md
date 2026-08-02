@@ -1,7 +1,7 @@
 # KingSec Product Roadmap
 
-**Current Version:** 1.1.0  
-**Last Updated:** 2026-07-27
+**Current Version:** 2.0.0 (General Availability)
+**Last Updated:** 2026-08-02
 
 ## Vision
 
@@ -9,9 +9,10 @@ Make professional-grade vulnerability management accessible to every organizatio
 
 ---
 
-## v1.1.x — Hardening & Polish (Current)
+## v2.0.0 — General Availability (Current, shipped 2026-07-30)
 
 Completed:
+- General Availability release consolidating 33 phases of development
 - Professional Report Center frontend
 - Auth token injection for all API calls
 - Input bounds validation on paginated endpoints
@@ -20,7 +21,10 @@ Completed:
 - Documentation suite (INSTALL, QUICK_START, USER_GUIDE, ADMIN_GUIDE, SCANNER_GUIDE, REPORTING_GUIDE, API_REFERENCE, FAQ, TROUBLESHOOTING)
 - Commercial launch assets
 
-Planned:
+See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the full list of what shipped
+in this release.
+
+Planned (next patch/minor releases):
 - Bug fix releases as issues are reported
 - Minor UX refinements based on user feedback
 - Performance optimization for large assessments
@@ -28,7 +32,7 @@ Planned:
 
 ---
 
-## v1.2 — Enterprise Foundations
+## v2.1 — Enterprise Foundations
 
 ### Scheduled Assessments
 - Cron-based recurring assessment scheduling
@@ -55,7 +59,7 @@ Planned:
 
 ---
 
-## v1.3 — Scale & Integration
+## v2.2 — Scale & Integration
 
 ### Distributed Scanning
 - Remote scanner agents for distributed networks
@@ -80,7 +84,7 @@ Planned:
 
 ---
 
-## v2.0 — Platform Maturity
+## v3.0 — Platform Maturity
 
 ### Multi-Tenant Architecture
 - Organization isolation

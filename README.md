@@ -50,7 +50,9 @@ See [QUICK_START.md](QUICK_START.md) for the complete walkthrough.
 | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Common issues and solutions |
 | [ROADMAP.md](ROADMAP.md) | Product roadmap and planned features |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
+| [RELEASE_NOTES.md](RELEASE_NOTES.md) | Current release notes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development guide and contribution process |
+| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Community standards |
 | [SECURITY.md](SECURITY.md) | Security policy and vulnerability reporting |
 
 ## Installation

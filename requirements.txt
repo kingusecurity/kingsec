@@ -1,11 +1,20 @@
+# KingSec — reference dependency snapshot (NOT used by the Docker build).
+#
+# pyproject.toml is the single source of truth for dependency ranges; the
+# Dockerfile and `pip install .` resolve against it directly. This file is a
+# `pip freeze` snapshot of a real, working installation, kept for CI
+# reproducibility / vulnerability-scanning reference only. Regenerate with:
+#   pip install . && pip freeze | grep -v '^kingsec=='
+#
+# Last regenerated: 2026-08-02, Python 3.14, from a clean venv wheel install.
 alembic==1.18.5
-annotated-doc==0.0.4
-annotated-types==0.7.0
+annotated-doc==0.0.5
+annotated-types==0.8.0
 anyio==4.14.2
 argon2-cffi==25.1.0
 argon2-cffi-bindings==25.1.0
 brotli==1.2.0
-certifi==2026.6.17
+certifi==2026.7.22
 cffi==2.1.0
 charset-normalizer==3.4.9
 click==8.4.2
@@ -13,9 +22,9 @@ colorama==0.4.6
 cryptography==49.0.0
 cssselect2==0.9.0
 defusedxml==0.7.1
-fastapi==0.139.0
-fonttools[woff]==4.63.0
-greenlet==3.5.3
+fastapi==0.141.1
+fonttools==4.63.0
+greenlet==3.5.4
 h11==0.16.0
 httpcore==1.0.9
 httptools==0.8.0
@@ -42,9 +51,9 @@ tinycss2==1.5.1
 tinyhtml5==2.1.0
 typing-extensions==4.16.0
 typing-inspection==0.4.2
-uvicorn[standard]==0.51.0
+uvicorn==0.52.1
 watchfiles==1.2.0
 weasyprint==69.0
 webencodings==0.5.1
-websockets==16.1
+websockets==17.0.1
 zopfli==0.4.3

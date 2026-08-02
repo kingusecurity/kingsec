@@ -3,6 +3,28 @@
 All notable changes to this project are documented here.
 The format follows Keep a Changelog, and the project aims to follow Semantic Versioning.
 
+## [2.0.0] - 2026-07-30
+### Added
+- General Availability release, consolidating 33 phases of development into a production-ready product (see RELEASE_NOTES.md for the full feature list: Attack Surface Management, multi-scanner Vulnerability Management, AI Copilot, Playbooks, Continuous Monitoring, Threat Intelligence, Compliance Dashboard, Asset Inventory, SSO/IdP configuration, Plugin SDK, Distributed Workers, Backup/Restore, License management)
+- Installer scripts for Windows (`scripts/install.ps1`) and Linux/macOS (`scripts/install.sh`)
+
+### Fixed (post-RC1 production-readiness audit)
+- Cross-user access control gap allowing any authenticated user to read/modify other users' assessments, findings, and reports
+- Repository-wrapper TypeError that would 500 every `GET /findings` and `GET /reports` request
+- AI Copilot context builder silently returning no context due to a DI resolution mismatch
+- Scanner Health/discovery endpoints blocking the entire asyncio event loop under concurrent load
+- 30 of 32 "not found" application errors falling through to a generic 500 instead of 404
+- Nmap hostname scans ~20x slower than IP scans due to a missing `-n` flag
+- Pipeline pause/resume silently no-op'ing while claiming success; Queue pause/resume were unimplemented stubs; pipeline advancement existed but was never exposed through any route
+- Missing pagination on Asset Inventory; undebounced search on three pages; missing confirmation dialogs on two destructive actions
+- Compliance framework display names rendering as mangled auto-generated strings (e.g. "Mitre Att Ck") instead of proper names
+
+### Documentation
+- Rewrote INSTALL.md and QUICK_START.md to match actual shipped install/run behavior (no fictional CLI subcommands or PyPI package; documented the mandatory `KINGSEC_SECRETS__ENCRYPTION_KEY`, the frontend/backend split, and Windows PDF-generation prerequisites)
+- Added CODE_OF_CONDUCT.md
+- Replaced the stale v1.1.0 RELEASE_NOTES.md with accurate v2.0.0 content
+- Corrected ROADMAP.md's version numbering and current-release marker
+
 ## [1.1.0] - 2026-07-27
 ### Added
 - Report Center: professional-grade frontend for report management, preview, download, and regeneration

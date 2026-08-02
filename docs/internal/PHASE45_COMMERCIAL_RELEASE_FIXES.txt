@@ -1,0 +1,142 @@
+KingSec v2.0.0 — Phase 45: Commercial Release Preparation — Fixes Applied
+==========================================================================
+
+Implements the fixes approved from the Phase 45 audit
+(docs/internal/PHASE45_COMMERCIAL_RELEASE_AUDIT.txt). Documentation,
+metadata, and housekeeping only — no architecture, Domain, Application,
+or API changes; no new features; no roadmap items implemented.
+
+==========================================================================
+FIXED
+==========================================================================
+
+1. CHANGELOG.md had no [2.0.0] entry
+   Fix: added a [2.0.0] - 2026-07-30 section summarizing the GA release
+   and the runtime fixes made across the production-readiness audit
+   phases of this engagement, placed above the existing [1.1.0] entry.
+
+2. RELEASE_NOTES.md was stale (still titled "v1.1.0")
+   Fix: replaced its content with the accurate v2.0.0 GA notes (which
+   previously lived only in the now-redundant RELEASE_NOTES_v2.0.0.md).
+   While consolidating, also corrected several accuracy problems found
+   in that "accurate" file during verification:
+     - Support email corrected from security@kingsec.dev to
+       kingusecurity@gmail.com (matches SECURITY.md/CONTRIBUTING.md).
+     - Copyright holder corrected from "KingSec" to "Abdul Mannan"
+       (matches LICENSE).
+     - "pip install kingsec==2.0.0" replaced with real source-install
+       steps (git clone + pip install . + mandatory encryption key) —
+       there is no PyPI package.
+     - "kingsec-migrate upgrade head" corrected to plain "kingsec-migrate"
+       — verified the real console script takes no subcommand arguments.
+     - Removed a stale "pre-existing TypeScript errors" claim in Known
+       Issues that contradicted this engagement's repeated, re-verified
+       finding that `tsc -b` is clean and the full frontend test suite
+       passes (258/258).
+   Deleted RELEASE_NOTES_v2.0.0.md (content now lives in the canonical
+   file).
+
+3. ROADMAP.md was stale and its version numbering collided with the
+   already-shipped release
+   Fix: updated "Current Version" to 2.0.0 (General Availability) and
+   "Last Updated" to 2026-08-02; renamed the "v1.1.x — Hardening & Polish
+   (Current)" section to "v2.0.0 — General Availability (Current, shipped
+   2026-07-30)" with a link to RELEASE_NOTES.md. Renumbered the
+   forward-looking milestones so they no longer collide with the shipped
+   2.0.0: "v1.2 — Enterprise Foundations" -> "v2.1", "v1.3 — Scale &
+   Integration" -> "v2.2", "v2.0 — Platform Maturity" -> "v3.0". No
+   roadmap content/features were added, removed, or implemented — only
+   version labels were corrected.
+
+4. frontend/package.json was still at version 1.0.0
+   Fix: bumped to "2.0.0" to match pyproject.toml and
+   src/kingsec/__init__.py. Verified valid JSON and a clean
+   `npm run build` afterward.
+
+5. CODE_OF_CONDUCT.md was missing entirely
+   Fix: added a standard Contributor Covenant-derived CODE_OF_CONDUCT.md,
+   with the contact point set to kingusecurity@gmail.com (matching
+   SECURITY.md's established contact). Linked it from README.md's
+   documentation table.
+
+6. CONTRIBUTING.md's open-contribution workflow was legally inconsistent
+   with LICENSE's "no license granted" language
+   Fix: added a short license note at the top of CONTRIBUTING.md
+   clarifying that submitted contributions are incorporated under the
+   existing proprietary license with no separate rights granted back to
+   the contributor, and pointing to kingusecurity@gmail.com for any
+   different arrangement (e.g. a CLA). This is a documentation
+   clarification, not a legal opinion — full legal review of the
+   contribution/licensing model is still recommended before accepting
+   external PRs at scale.
+
+7. LICENSING.md's free "Community Edition" language was in tension with
+   LICENSE's blanket "no right to use is granted"
+   Fix: added a note at the top of LICENSING.md clarifying that all
+   editions, including Community, are distributed under LICENSE's terms
+   and require the license agreement provided with download/purchase —
+   LICENSING.md describes feature tiers, not a separate grant of rights.
+
+8. requirements.txt was stale/inaccurate and undocumented
+   Fix: regenerated it via a real `pip freeze` against a clean venv
+   wheel install of the current codebase (the same venv used for prior
+   wheel-install verification in this engagement), and added a header
+   comment explaining it is a reference snapshot only, not used by the
+   Docker build (which installs from pyproject.toml directly), with
+   regeneration instructions.
+   Correction to the Phase 45 audit report: that report flagged
+   `starlette==1.3.1` as an "implausible pin." Live verification via a
+   real pip install in this environment shows that version genuinely
+   resolves and installs correctly — it was not a fabricated or
+   hand-edited value. The real issue was staleness (many other pins were
+   out of date), not fabrication; this is now corrected.
+
+9. Internal engineering/audit artifacts were sitting at the public repo
+   root next to customer-facing docs
+   Fix: moved ENGINEERING_REPORT_v2.0.0.md, GA_CHECKLIST.md,
+   PHASE_11_5_RC1_REPORT.md, PRODUCTION_RELEASE_CHECKLIST.md,
+   PHASE40_PIPELINE_QUEUE_AUDIT.txt, PHASE41_FRONTEND_WORKFLOW_AUDIT.txt,
+   PHASE42_INSTALLATION_AUDIT.txt (git mv, preserving history) and
+   PHASE43_FULL_AUDIT_REPORT.txt, PHASE44_RELEASE_AUDIT.txt,
+   PHASE45_COMMERCIAL_RELEASE_AUDIT.txt (previously untracked) into a
+   new docs/internal/ directory. Verified no other file referenced their
+   old root-level paths before moving.
+
+10. README.md's documentation table did not link to RELEASE_NOTES.md or
+    CODE_OF_CONDUCT.md
+    Fix: added both entries to the table.
+
+==========================================================================
+NOT FIXED — requires information or assets only you can provide
+==========================================================================
+
+- Broken repository URLs (pyproject.toml Homepage/Documentation/Source/
+  Issues/Changelog, SECURITY.md, CONTRIBUTING.md all point to
+  https://github.com/kingusecurity/kingsec, which returns a live 404,
+  verified this session). I will not fabricate a replacement URL. This
+  needs either the real repository stood up at that path, or the correct
+  URL supplied so every reference can be updated consistently.
+- No logo, no product screenshots. assets/logo/ remains empty;
+  docs/screenshots/ is also empty, though docs/commercial/
+  screenshot-checklist.md already lists exactly what's needed. I cannot
+  generate real product screenshots or a professional logo — these
+  require either a design asset handoff or a live capture session
+  against the running UI.
+- Full legal review of the LICENSE / CONTRIBUTING.md / LICENSING.md
+  relationship — I added clarifying language to resolve the obvious
+  self-contradictions, but a genuine commercial release should still have
+  a lawyer confirm the contributor-license and edition-tier language
+  before going public.
+
+==========================================================================
+VERIFICATION
+==========================================================================
+- frontend/package.json: validated as well-formed JSON, version reads
+  "2.0.0".
+- `npm run build`: clean production build after the version bump.
+- Grepped the repo for any remaining references to the old root-level
+  paths of the moved internal files — none found.
+- No files under src/kingsec/ were modified this round (the only
+  pre-existing uncommitted backend change, compliance_routes.py, is from
+  an earlier round and untouched here) — Domain, Application, and API
+  layers were not touched, per this round's constraints.

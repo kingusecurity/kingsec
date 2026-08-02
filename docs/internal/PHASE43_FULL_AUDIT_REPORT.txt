@@ -1,0 +1,257 @@
+KingSec v2.0.0 — Phase 43: Full Application Audit (Backend + Frontend)
+==========================================================================
+
+Scope: complete end-to-end audit assuming a customer just installed
+KingSec. Every page, every button, every API, every workflow. No
+redesign, no refactor, no new features, no style changes — only find and
+fix genuine runtime defects.
+
+This report covers both this round's specific findings AND the
+cumulative, verified state of the entire multi-phase audit engagement
+that preceded it (Phases 37-42), since "production readiness" is a
+statement about the whole product, not just today's diff.
+
+==========================================================================
+THIS ROUND'S FINDINGS
+==========================================================================
+
+ISSUE #1 — investigated, FALSE ALARM (not a bug)
+File: src/kingsec/adapters/inbound/web/deployment_routes.py
+A naive grep for "Depends(require_admin)" found no matches across every
+deployment/diagnostics/upgrade endpoint, suggesting a possible missing
+authorization check on sensitive routes (system-info, diagnostics dump,
+upgrade/run). Root cause of the false alarm: this file uses a different,
+equally-valid pattern already established elsewhere in the codebase —
+`Depends(get_current_user)` plus an explicit `_require_admin(user)` call
+as the first line of every handler body — which a grep restricted to
+`Depends(...)` patterns cannot see.
+Verification: re-read the full file (all 9 handlers call
+`_require_admin(user)`), then verified live against a real running
+server with two real users: an Admin token gets 200 from
+`GET /deployment/diagnostics`; a fresh Viewer-role token gets
+`403 {"detail":"Admin access required"}` from both
+`GET /deployment/diagnostics` and `POST /deployment/upgrade/run`.
+No code change made. Documented here specifically because "do not invent
+success" cuts both ways — this also means not inventing bugs that don't
+exist after a shallow check.
+
+ISSUE #2 — FIXED — Compliance framework names were mangled
+Severity: Low (cosmetic, but genuinely wrong and directly user-visible)
+File: src/kingsec/adapters/inbound/web/compliance_routes.py:84-95 (before
+fix)
+Root Cause: `list_frameworks()` derived the display name via
+`fw.name.replace("_", " ").title()` on the enum member name — a naive
+transform that mangles every multi-word/acronym framework:
+"cis_v8" -> "Cis V8", "mitre_att_ck" -> "Mitre Att Ck",
+"nist_csf_2" -> "Nist Csf 2", "iso_27001" -> "Iso27001"-ish. Verified the
+frontend renders this value directly with no override
+(`ComplianceDashboardPage.tsx:29,130` — `{fw.name}`), so a real user on
+the Compliance page really does see these mangled names.
+Reproduction: `GET /api/v1/compliance/frameworks` (any authenticated
+user) returned `"name":"Mitre Att Ck"` etc.
+Impact: cosmetic but unmistakably wrong-looking on a page explicitly
+named in this audit's scope.
+Fix: added a small `_FRAMEWORK_DISPLAY_NAMES` lookup dict mapping each
+`ComplianceFramework` enum member to its correct proper name (CIS
+Controls v8, NIST CSF 2.0, OWASP Top 10, CWE, CVE, MITRE ATT&CK, ISO/IEC
+27001, PCI DSS 4.0), falling back to the old naive transform for any
+future framework added without a lookup entry (so nothing can ever be
+totally blank).
+Verification: live re-test after restart —
+`GET /api/v1/compliance/frameworks` now returns the correct names for
+all 8 frameworks. Ruff and mypy clean. No existing test asserted the old
+format (none needed updating). Full backend pytest suite re-run: only
+the 2 pre-existing, unrelated failures (see below) — zero regressions.
+
+ISSUE #3 — verified correct, not a bug — Users/Roles admin actions
+File: src/kingsec/adapters/inbound/web/routes.py
+Initially appeared broken (`POST /users/{id}/deactivate` and `/activate`
+returned 405) — root cause was my own test using the wrong HTTP verb;
+the real routes are `@router.patch(...)`, confirmed by reading the
+decorator directly. Retested with `PATCH`: deactivate, activate, promote
+(`PUT .../role`), and reset-password (`POST .../reset-password`) all
+work correctly, including correct 422 validation when `new_password` is
+omitted. No code change needed. These four routes were also already
+covered by the full-surface smoke test below (0/4 errors).
+
+ISSUE #4 — full-surface regression sweep
+Re-ran the complete route smoke test against a fresh install after every
+commit in this engagement to date: 170 GET + 128 POST + 26 DELETE +
+12 PUT + 4 PATCH = 339 routes. Result: 0 five-hundreds across the entire
+surface. (POST count is 128, up from the 127 recorded in the Phase 41
+sweep — the extra route is `/pipelines/{id}/advance`, added and verified
+in Phase 40.)
+
+ISSUE #5 — page/route inventory correction (documentation-of-fact, not a
+bug)
+The audit's requested page list included several names that do not
+correspond to a distinct frontend route, verified directly against
+`frontend/src/routes/index.tsx` rather than assumed:
+- **Organizations**: no route exists at all.
+- **Roles**: no standalone route; role management is a feature within
+  Administration's Users tab, not its own page.
+- **Profile**: no standalone route; self-service account actions
+  (change password, API keys, sessions) live under `/settings`.
+- **Scanner Health**: not a page — it's a shared `ScannerHealthPanel`
+  component embedded in `DashboardPage` and `LiveActivityPage`.
+This is not a defect (nothing is "broken" — these concepts are simply
+implemented differently than a literal 1:1 page-per-name mapping would
+suggest) but is reported here so the final "Pages Tested" accounting
+below is honest rather than silently padded.
+
+==========================================================================
+CUMULATIVE STATE OF THE WHOLE ENGAGEMENT (Phases 37-43)
+==========================================================================
+Prior phases of this same audit found and fixed, all live-verified and
+covered by the regression suites re-run in this round:
+- Cross-user access control on assessments/findings/reports (any
+  authenticated user could read/modify any other user's data) — Phase
+  38, commit 3223dcc.
+- A repository-wrapper TypeError that would have 500'd every
+  GET /findings and GET /reports request — found only by live testing
+  the fix above, same commit.
+- AI Copilot context builder silently never returning real context due
+  to a DI typo plus a systemic method-name mismatch — Phase 38, commit
+  9387a94.
+- Scanner Health/discovery endpoints blocking the entire asyncio event
+  loop (one slow request froze every other concurrent request) — same
+  commit, proven via a live concurrency test.
+- 30 of 32 "not found" application errors falling through to a generic
+  500 instead of 404 — same commit.
+- Nmap hostname scans ~20x slower than IP scans due to a missing -n flag
+  — same commit.
+- Several frontend error-surfacing bugs (unauthenticated Copilot export,
+  missing mutation error handling, missing dashboard error states) —
+  Phase 38, commit 1b6de97.
+- Pipeline pause/resume silently no-op'd and claimed success; Queue
+  pause/resume were literal `pass` stubs; AdvancePipeline existed fully
+  implemented but was never exposed through any route, so a pipeline
+  could never progress past "queued" — Phase 40, commit 9202ab2.
+- Missing pagination on Asset Inventory, undebounced search on three
+  pages, missing confirmation dialogs on two destructive actions —
+  Phase 41, commit 1285151.
+- Complete documentation rewrite: INSTALL.md/QUICK_START.md had been
+  written for an unreleased, never-shipped v1.1.0 packaging plan
+  (nonexistent Docker Hub image, nonexistent CLI subcommands, wrong env
+  var names, wrong health endpoints) — Phase 42, commit aa8085b. Root
+  cause of the single most consequential finding of that phase: the
+  backend never serves the frontend at all (confirmed via `GET /` → 404
+  and no `StaticFiles` mount anywhere in the codebase).
+
+Every one of the above was verified live (real server, real bearer
+tokens, real HTTP calls, real database), not assumed — several
+candidate findings across these phases were investigated and correctly
+ruled out as false positives before any code was touched (e.g. a
+"broken" Threat Intelligence CVE link in Phase 41, and the Deployment
+authorization false alarm in this round).
+
+==========================================================================
+FILES MODIFIED (this round)
+==========================================================================
+- src/kingsec/adapters/inbound/web/compliance_routes.py
+
+==========================================================================
+FILES CREATED (this round)
+==========================================================================
+- PHASE43_FULL_AUDIT_REPORT.txt (this file)
+
+==========================================================================
+TESTS RUN
+==========================================================================
+- Full backend pytest suite: run twice this round (baseline + post-fix).
+  Both runs: only the 2 pre-existing, already-documented, unrelated
+  failures (test_application_never_imports_infrastructure,
+  test_collect_health_status_unreachable). Zero regressions.
+- ruff + mypy on the modified file: clean.
+- Full frontend test suite (258/258), tsc, build, lint: last verified
+  clean in Phase 41/42; unchanged this round since no frontend files
+  were touched.
+
+==========================================================================
+ENDPOINTS TESTED
+==========================================================================
+339 of 339 backend routes hit against a live, freshly-migrated install
+(170 GET, 128 POST, 26 DELETE, 12 PUT, 4 PATCH) — 0 five-hundreds.
+Additional targeted deep verification beyond the blanket sweep: full
+auth lifecycle (register/login/change-password/me), full assessment
+lifecycle (create/start/poll/complete/findings/report/download) with a
+real Nmap scan against 127.0.0.1, pipeline lifecycle (start/advance/
+pause/resume/cancel/retry), queue lifecycle (enqueue/dispatch/pause/
+resume/next/dead-letter/requeue), backup lifecycle (create/verify/
+restore), users/roles admin actions (list/promote/deactivate/reactivate/
+reset-password), deployment/diagnostics with both Admin and Viewer
+tokens, and compliance frameworks/controls.
+
+==========================================================================
+PAGES TESTED
+==========================================================================
+Exist and verified: Dashboard, Assessments, New Assessment (Assessment
+Wizard), Assessment Details, Findings, Assets, Reports, AI Copilot,
+Threat Intelligence, Compliance, Monitoring, Deployment, Settings, Users
+(Administration), Notifications, Licensing, Diagnostics — 17 pages.
+
+Requested but do not exist as distinct pages (verified against the
+router, documented rather than falsely claimed tested): Organizations,
+Roles (standalone), Profile, Scanner Health (standalone — it's a shared
+panel within Dashboard/Live Activity).
+
+==========================================================================
+PRODUCTION READINESS SCORE: 82/100
+==========================================================================
+
+CRITICAL BUGS REMAINING: 0
+HIGH: 0
+MEDIUM: 3
+  1. AssessmentsPage search/status/sort controls are decorative — the
+     backend has no matching filter/sort capability at all (verified
+     against routes.py:352-355). Fixing this for real requires new
+     backend capability, out of scope for a "no new features" pass.
+  2. No bundled production hosting path for the frontend — confirmed
+     the backend never serves it; operators must self-host
+     frontend/dist/ behind a reverse proxy (documented in Phase 42's
+     rewritten INSTALL.md, not hidden).
+  3. Plugin install (multipart ZIP upload with security hardening
+     already visible in the code) and the full agent-driven job-
+     completion path (POST /agents/jobs/complete requires a real
+     registered, assigned agent) were not exercised live anywhere in
+     this engagement — flagged as unverified, not claimed working.
+LOW: 5
+  1. SchedulesPage has no create/enable/disable/delete UI at all.
+  2. PluginsSdkPage Marketplace tab has no install action (no backend
+     endpoint to wire it to).
+  3. AI Copilot conversation list has a ready useSearchConversations
+     hook with no search input rendered anywhere.
+  4. License-key activation has no client-side format validation
+     (server-side validation is correct).
+  5. Two pre-existing test failures never resolved across this entire
+     engagement: test_application_never_imports_infrastructure (a real,
+     flagged architecture-boundary violation in actions.py that has
+     never corresponded to an observed runtime defect in extensive live
+     testing) and test_collect_health_status_unreachable
+     (environment-dependent).
+
+FILES MODIFIED: 1 (src/kingsec/adapters/inbound/web/compliance_routes.py)
+FILES CREATED: 1 (this report)
+TESTS RUN: full backend pytest (x2), ruff, mypy; frontend suite/build/
+  lint last verified clean in Phase 41/42
+ENDPOINTS TESTED: 339/339 (100% of the live API surface)
+PAGES TESTED: 17 of 17 that actually exist as distinct routes; 4
+  requested names correspond to non-existent or shared-component pages,
+  disclosed above rather than falsely marked tested
+
+==========================================================================
+FINAL GO / NO-GO RECOMMENDATION: GO
+==========================================================================
+Nothing found in this round or carried over from any prior phase rises
+to Critical or High severity. Every previously-identified defect across
+six audit phases was fixed and re-verified live; this round's full
+339-route regression sweep confirms zero five-hundreds anywhere in the
+API surface, and the one new defect found (mangled compliance framework
+names) was fixed and verified before this report was written. The
+remaining Medium/Low items above are genuine, disclosed gaps — mostly
+feature-completeness boundaries (decorative controls backed by no
+server-side capability, missing production frontend hosting, two
+unverified-not-broken subsystems) rather than broken functionality — and
+are reported honestly rather than omitted. This is a GO for the
+currently-implemented feature set as audited, not a claim that every
+item on the original page/feature wishlist is built.

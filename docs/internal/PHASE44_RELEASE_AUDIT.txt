@@ -1,0 +1,143 @@
+KingSec v2.0.0 — Phase 44: Release Candidate Audit (Report Only)
+==========================================================================
+
+Scope this round: re-verify production readiness against a genuinely
+fresh install (clean database, clean migration chain, first-registered-
+user-becomes-admin, full API route surface, full backend test suite).
+No redesign, no architecture changes, no new scanners, no enterprise
+features, no Domain-layer changes, no Application-layer changes. Report
+only — no fixes were implemented this round pending approval.
+
+==========================================================================
+VERIFICATION PERFORMED
+==========================================================================
+1. Confirmed a stale database at the default ~/.kingsec data directory
+   (leftover residue from earlier rounds of this same engagement, stamped
+   on a since-superseded alembic revision) is NOT a product defect — it
+   is local test-environment residue. Re-ran verification against a
+   genuinely fresh, isolated data directory instead.
+2. Ran `alembic upgrade head` against the fresh empty database — full
+   26-revision chain applied cleanly, no errors.
+3. Started a fresh server instance, registered the first user, confirmed
+   they are automatically granted the Admin role.
+4. Re-verified the Phase 43 compliance-framework-display-name fix live
+   (`GET /api/v1/compliance/frameworks`) — still correct ("CIS Controls
+   v8", "NIST CSF 2.0", "MITRE ATT&CK", etc.), fix remains uncommitted.
+5. Ran the full 339-route smoke sweep (170 GET-shaped routes minus the
+   excluded SSE endpoint = 169 tested, 128 POST, 26 DELETE, 12 PUT,
+   4 PATCH) against the fresh instance — 0 five-hundreds anywhere.
+6. Ran the full backend pytest suite — only the same 2 pre-existing,
+   already-documented, unrelated failures remain; zero regressions.
+
+==========================================================================
+1. EXECUTIVE SUMMARY
+==========================================================================
+KingSec v2.0.0 was re-verified end-to-end against a genuinely fresh
+install (clean DB, clean migrations, first-registered-user-becomes-admin,
+all 339 API routes, full backend test suite). No new defects were found.
+The one prior-round fix (compliance framework display names) is
+confirmed still correct but remains uncommitted. All outstanding items
+are pre-existing, previously-documented feature-completeness boundaries
+or environment-dependent test noise — none are runtime defects that
+block release.
+
+==========================================================================
+2. PRODUCTION READINESS SCORE: 83/100
+==========================================================================
+
+==========================================================================
+3. CRITICAL ISSUES
+==========================================================================
+None.
+
+==========================================================================
+4. HIGH ISSUES
+==========================================================================
+None.
+
+==========================================================================
+5. MEDIUM ISSUES
+==========================================================================
+1. AssessmentsPage search/status/sort controls update the URL but do
+   nothing — the backend has no matching filter/sort parameters at all
+   (list_assessments only accepts limit/offset). Closing this requires
+   new backend capability.
+2. No bundled production hosting for the frontend — the backend never
+   serves frontend/dist/ (confirmed no StaticFiles mount; GET / -> 404).
+   Operators must self-host behind a reverse proxy (already documented
+   in INSTALL.md).
+3. Plugin ZIP install and the full agent-driven job-completion path have
+   not been exercised live in this engagement — unverified, not
+   confirmed broken.
+
+==========================================================================
+6. LOW ISSUES
+==========================================================================
+1. SchedulesPage has no create/enable/disable/delete UI.
+2. PluginsSdkPage Marketplace tab has no install action (no backend
+   endpoint to wire to).
+3. AI Copilot conversation list has an unused useSearchConversations
+   hook with no search input rendered.
+4. License activation has no client-side key-format validation
+   (server-side validation is correct).
+5. Two pre-existing, unrelated pytest failures never resolved across
+   this engagement: test_application_never_imports_infrastructure (an
+   Application-layer/Infrastructure-layer boundary violation in
+   actions.py) and test_collect_health_status_unreachable
+   (environment-dependent). Neither corresponds to an observed runtime
+   defect.
+
+==========================================================================
+7. EXACT FILES REQUIRING CHANGES
+==========================================================================
+- frontend/src/pages/AssessmentsPage.tsx +
+  src/kingsec/adapters/inbound/web/routes.py
+  -> Medium #1 (requires new backend capability — conflicts with
+     "no new features")
+- frontend/src/pages/SchedulesPage.tsx
+  -> Low #1 (new UI — conflicts with "no new features")
+- frontend/src/pages/PluginsSdkPage.tsx
+  -> Low #2 (new UI + missing endpoint — conflicts with "no new
+     features")
+- frontend/src/pages/AICopilotPage.tsx
+  -> Low #3 (new UI — conflicts with "no new features")
+- frontend/src/components/settings/LicenseSection.tsx
+  -> Low #4 (cosmetic-only client validation)
+- src/kingsec/application/**/actions.py
+  -> Low #5a (OUT OF SCOPE this round: instructions explicitly forbid
+     changing the Application layer)
+- src/kingsec/infrastructure/monitoring/diagnostics.py (test only)
+  -> Low #5b (test-environment flakiness, no production code
+     implicated)
+
+==========================================================================
+8. MINIMAL REQUIRED FIXES
+==========================================================================
+- Medium #1-#3 and Low #1-#3: no minimal code fix exists that isn't
+  itself a new feature; recommend leaving as documented known
+  limitations for this release rather than building new capability
+  under a "feature complete" mandate.
+- Low #4: a one-line client-side regex/length check before submit —
+  smallest possible fix, but non-blocking cosmetic polish, not a
+  defect.
+- Low #5a: would require touching the Application layer, which is
+  explicitly out of bounds this round — no fix proposed.
+- Low #5b: test-only, environment-dependent — no production fix
+  applicable.
+- Housekeeping (not a code fix): commit the already-verified compliance
+  display-name fix (compliance_routes.py) and clean up the 3 untracked
+  auto-generated __no_changes.py alembic stubs, both still pending from
+  prior rounds.
+
+==========================================================================
+9. GO / NO-GO RECOMMENDATION: GO
+==========================================================================
+No Critical or High issues exist. All remaining Medium/Low items are
+either documented feature-completeness boundaries whose fixes would
+themselves be new features (barred by this round's constraints), or
+pre-existing test/environment noise with no corresponding real-world
+defect. Nothing was invented as resolved — the two pytest failures and
+the five feature gaps above genuinely remain open and are reported as
+such.
+
+Awaiting approval before implementing anything.

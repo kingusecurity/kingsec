@@ -2,6 +2,14 @@
 
 Thank you for your interest in contributing to KingSec. This document outlines the guidelines for contributing to the project.
 
+> **License note:** KingSec is proprietary software (see [LICENSE](LICENSE)).
+> Submitting a contribution (pull request, patch, or suggestion) means you
+> agree it may be incorporated into KingSec under the project's existing
+> license terms, without any separate compensation or grant of rights back
+> to you beyond what LICENSE already provides. If you need a different
+> arrangement (e.g. a CLA for a larger contribution), contact
+> **kingusecurity@gmail.com** before submitting.
+
 ## Code of Conduct
 
 This project is committed to providing a welcoming, inclusive, and harassment-free experience for everyone. Be respectful, constructive, and professional in all interactions.
