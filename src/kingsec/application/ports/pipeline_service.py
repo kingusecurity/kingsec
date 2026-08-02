@@ -28,3 +28,6 @@ class PipelineServicePort(ABC):
 
     @abstractmethod
     def pause_pipeline(self, pipeline_id: str) -> PipelineExecution: ...
+
+    @abstractmethod
+    def advance_pipeline(self, pipeline_id: str) -> PipelineExecution: ...

@@ -187,7 +187,10 @@ class TestRetryPipeline:
 
 
 class TestPausePipeline:
-    def test_pause(self, repo, orchestrator, audit) -> None:
+    def test_pause_not_supported(self, repo, orchestrator, audit) -> None:
+        """Pausing has no real backing state (no PAUSED value in PipelineState,
+        no code path checks one) — it must raise rather than silently no-op
+        and claim success."""
         pid = PipelineId(value="pl-1")
         stages = (PipelineStage(name="queued", status="completed"),)
         existing = PipelineExecution(
@@ -197,15 +200,18 @@ class TestPausePipeline:
             stages=stages,
         )
         repo.find_by_id.return_value = existing
-        orchestrator.pause.return_value = existing
         uc = PausePipeline(repo, orchestrator, audit)
-        result = uc.execute("pl-1")
-        assert result.state == PipelineState.RUNNING
-        audit.record.assert_called_once()
+        with pytest.raises(PipelineStateConflictError):
+            uc.execute("pl-1")
+        repo.save.assert_not_called()
+        audit.record.assert_not_called()
 
 
 class TestResumePipeline:
-    def test_resume(self, repo, orchestrator, audit) -> None:
+    def test_resume_not_supported(self, repo, orchestrator, audit) -> None:
+        """Resuming has no real backing state (no PAUSED value in
+        PipelineState, no code path checks one) — it must raise rather than
+        silently no-op and claim success."""
         pid = PipelineId(value="pl-1")
         stages = (PipelineStage(name="queued", status="completed"),)
         existing = PipelineExecution(
@@ -215,8 +221,8 @@ class TestResumePipeline:
             stages=stages,
         )
         repo.find_by_id.return_value = existing
-        orchestrator.resume.return_value = existing
         uc = ResumePipeline(repo, orchestrator, audit)
-        result = uc.execute("pl-1")
-        assert result.state == PipelineState.RUNNING
-        audit.record.assert_called_once()
+        with pytest.raises(PipelineStateConflictError):
+            uc.execute("pl-1")
+        repo.save.assert_not_called()
+        audit.record.assert_not_called()

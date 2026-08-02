@@ -155,17 +155,14 @@ class ResumePipeline:
             from kingsec.application.errors import PipelineNotFoundError
 
             raise PipelineNotFoundError(f"Pipeline '{pipeline_id}' not found")
-        result = self._orchestrator.resume(execution)
-        self._repo.save(result)
-        self._audit.record(
-            AuditEntry(
-                action=AuditAction.PIPELINE_RESUMED,
-                resource_type="pipeline",
-                resource_id=pipeline_id,
-                success=True,
-            )
-        )
-        return result
+
+        # There is no PAUSED state in PipelineState and no code path anywhere
+        # checks for one, unlike schedule/queue pause which are fully wired.
+        # Resuming was never actually implemented; raise clearly instead of
+        # silently returning the pipeline unchanged and claiming success.
+        from kingsec.application.errors import PipelineStateConflictError
+
+        raise PipelineStateConflictError(f"Pipeline '{pipeline_id}' does not support resume")
 
 
 class PausePipeline:
@@ -182,17 +179,14 @@ class PausePipeline:
             from kingsec.application.errors import PipelineNotFoundError
 
             raise PipelineNotFoundError(f"Pipeline '{pipeline_id}' not found")
-        result = self._orchestrator.pause(execution)
-        self._repo.save(result)
-        self._audit.record(
-            AuditEntry(
-                action=AuditAction.PIPELINE_PAUSED,
-                resource_type="pipeline",
-                resource_id=pipeline_id,
-                success=True,
-            )
-        )
-        return result
+
+        # There is no PAUSED state in PipelineState and no code path anywhere
+        # checks for one, unlike schedule/queue pause which are fully wired.
+        # Pausing was never actually implemented; raise clearly instead of
+        # silently returning the pipeline unchanged and claiming success.
+        from kingsec.application.errors import PipelineStateConflictError
+
+        raise PipelineStateConflictError(f"Pipeline '{pipeline_id}' does not support pause")
 
 
 class AdvancePipeline:

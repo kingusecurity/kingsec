@@ -35,3 +35,9 @@ class QueueRepositoryPort(ABC):
 
     @abstractmethod
     def statistics(self) -> QueueStatistics: ...
+
+    @abstractmethod
+    def pause(self) -> None: ...
+
+    @abstractmethod
+    def resume(self) -> None: ...

@@ -137,6 +137,19 @@ class TestPipelineRoutes:
         assert resp.status_code == 200
         assert "resumed" in resp.json()["message"]
 
+    def test_advance_pipeline(self, app: TestClient, mock_service: MagicMock) -> None:
+        mock_service.advance_pipeline.return_value = _make_execution()
+        resp = app.post("/api/v1/pipelines/pl-1/advance", json={})
+        assert resp.status_code == 200
+        assert "advanced" in resp.json()["message"]
+
+    def test_advance_pipeline_not_found(self, app: TestClient, mock_service: MagicMock) -> None:
+        from kingsec.application.errors import PipelineNotFoundError
+
+        mock_service.advance_pipeline.side_effect = PipelineNotFoundError("pl-1 not found")
+        resp = app.post("/api/v1/pipelines/pl-1/advance", json={})
+        assert resp.status_code == 404
+
     def test_unauthorized_without_admin(self, app: TestClient, mock_service: MagicMock) -> None:
         from kingsec.adapters.inbound.web.auth import get_current_user
 

@@ -106,7 +106,7 @@ class PauseQueue:
         self._repo = repo
 
     def execute(self) -> None:
-        pass
+        self._repo.pause()
 
 
 class ResumeQueue:
@@ -114,7 +114,7 @@ class ResumeQueue:
         self._repo = repo
 
     def execute(self) -> None:
-        pass
+        self._repo.resume()
 
 
 class ListQueue:

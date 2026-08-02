@@ -45,6 +45,12 @@ class InMemoryQueueRepository(QueueRepositoryPort):
     def update(self, entry: QueueEntry) -> None:
         self._entries[entry.entry_id] = entry
 
+    def pause(self) -> None:
+        self._paused = True
+
+    def resume(self) -> None:
+        self._paused = False
+
     def statistics(self) -> QueueStatistics:
         all_e = list(self._entries.values())
         waiting = sum(1 for e in all_e if e.state == QueueState.WAITING)
@@ -88,6 +94,13 @@ class InMemoryQueueRepository(QueueRepositoryPort):
 class SQLAlchemyQueueRepository(QueueRepositoryPort):
     def __init__(self, session_factory: Any) -> None:
         self._session_factory = session_factory
+        self._paused: bool = False
+
+    def pause(self) -> None:
+        self._paused = True
+
+    def resume(self) -> None:
+        self._paused = False
 
     def enqueue(self, entry: QueueEntry) -> None:
         from sqlalchemy import text
@@ -223,6 +236,7 @@ class SQLAlchemyQueueRepository(QueueRepositoryPort):
             average_wait_time_seconds=avg_wait,
             longest_wait_time_seconds=longest,
             oldest_entry_age_seconds=longest,
+            paused=self._paused,
         )
 
     def _find_by_state(self, state: str) -> list[QueueEntry]:

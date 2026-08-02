@@ -1,0 +1,160 @@
+KingSec v2.0.0 — Phase 40: Pipeline/Queue Workflow Audit
+==========================================================
+
+Continuation of the ongoing production-readiness audit. This round focused
+on workflows not yet deeply exercised: Pipeline lifecycle (start/pause/
+resume/cancel/retry/advance), Queue pause/resume, Backup/Restore, License,
+Notifications, SSE events, and Worker registration/heartbeat.
+
+All fixes below were verified live against a running server with real
+bearer tokens, then confirmed against the full backend pytest suite
+(zero regressions beyond the two pre-existing, already-documented,
+unrelated failures: test_application_never_imports_infrastructure and
+test_collect_health_status_unreachable).
+
+============================================================
+ISSUE #1 — HIGH — Pipeline pause/resume silently no-op
+============================================================
+File: src/kingsec/infrastructure/pipeline/orchestrator.py:296-300
+      (called from src/kingsec/application/use_cases/pipeline.py, then
+      lines ~152-168 / ~171-187 before the fix)
+
+Root Cause:
+PipelineOrchestrator.pause() and .resume() were literal `return execution`
+stubs — no state mutation at all. There is no PAUSED value in the
+PipelineState enum (src/kingsec/domain/pipeline.py:10-19) and no code path
+anywhere checks for one, unlike the sibling Schedule/Queue pause features,
+which are fully implemented end to end.
+
+Reproduction:
+  POST /api/v1/pipelines/start
+  POST /api/v1/pipelines/{id}/pause
+    -> 200 {"message":"Pipeline 'pl-1' paused"}
+  GET /api/v1/pipelines/{id}
+    -> still "state":"queued" — the call did nothing but claimed success.
+
+Impact:
+Silent no-op masquerading as success. A caller has no way to know
+pause/resume never happened. Hidden integration failure.
+
+Minimal Fix:
+PausePipeline.execute()/ResumePipeline.execute() now raise
+PipelineStateConflictError — the same error class already used by the
+sibling `retry` endpoint for "not a valid operation right now" — instead
+of silently returning the pipeline unchanged. pipeline_routes.py's
+pause/resume handlers gained the `except PipelineStateConflictError -> 409`
+catch already present on cancel/retry.
+
+Verification:
+Live: POST .../pause and .../resume now return
+409 {"detail":"Pipeline 'pl-1' does not support pause/resume"}.
+Pipeline state confirmed unchanged afterward. Sibling `cancel` re-tested
+and still works (200, state -> cancelled).
+tests/unit/application/test_pipeline_use_cases.py updated (2 tests
+rewritten to assert the new, correct behavior) and passing.
+Full pytest suite: only the 2 pre-existing unrelated failures.
+
+============================================================
+ISSUE #2 — HIGH — Queue pause/resume silently no-op
+============================================================
+File: src/kingsec/application/use_cases/queue.py:104-117
+
+Root Cause:
+PauseQueue.execute() and ResumeQueue.execute() were literal `pass` stubs,
+despite QueueRepositoryPort's concrete implementations already fully
+supporting a `_paused` flag on the read side (find_ready()/find_waiting()/
+statistics() in src/kingsec/infrastructure/queue/repository.py) — only the
+write path to actually set that flag was missing.
+
+Reproduction:
+  POST /api/v1/queue/pause -> 200 {"message":"Queue paused"}
+  GET /api/v1/queue/statistics -> still "paused": false
+
+Impact:
+Same class as Issue #1. An admin pausing the scan queue (e.g. during an
+incident) would believe it worked while jobs kept dispatching normally.
+
+Minimal Fix:
+Added pause()/resume() to QueueRepositoryPort and both its
+implementations (InMemoryQueueRepository, SQLAlchemyQueueRepository — the
+latter unused in the live app but must satisfy the same ABC contract),
+then wired PauseQueue/ResumeQueue to call them.
+
+Verification:
+Live: `paused` flag now correctly flips false -> true -> false. Enqueued
+a second entry while paused and confirmed GET /queue/next returns
+"No job available" — dispatch is genuinely suspended, not just a cosmetic
+flag flip. New tests/unit/application/test_queue_use_cases.py (2 tests)
+passing. Full pytest suite clean.
+
+============================================================
+ISSUE #3 — HIGH — Pipeline lifecycle cannot progress past "queued"
+============================================================
+File: src/kingsec/application/ports/pipeline_service.py (missing method)
+      src/kingsec/adapters/inbound/web/pipeline_routes.py:179-193 (new route)
+
+Root Cause:
+AdvancePipeline / PipelineOrchestrator.advance() (orchestrator.py:51) is a
+complete, real implementation — it enqueues to the queue service, submits
+scan jobs, and transitions stages correctly — but it was never exposed
+through PipelineServicePort's abstract interface, and no route, scheduler,
+or worker callback anywhere in the codebase ever calls it. A pipeline
+created via the live API is permanently stuck at "queued" with no way to
+progress it through any live code path.
+
+Reproduction:
+  POST /api/v1/pipelines/start -> pipeline sits at "state":"queued"
+  forever; no existing endpoint can move it forward.
+
+Impact:
+The entire Pipeline feature's core lifecycle was non-functional via the
+live API — a fully-built capability with zero way to trigger it. This is
+a broken workflow, not just an unwired UI button (no frontend page for
+Pipelines exists yet either, so this was only reachable via direct API
+use, but the API itself was non-functional end to end).
+
+Minimal Fix:
+Added advance_pipeline() to PipelineServicePort (the concrete
+PipelineService already implemented it) and a new
+POST /pipelines/{pipeline_id}/advance route, mirroring the exact existing
+pattern of pause/resume/cancel/retry in the same file (same auth
+dependency, same try/except shape, same response envelope).
+
+Verification:
+Live: advanced a real pipeline queued -> assigned -> running, correctly
+enqueuing a real queue entry at the assigned transition. Advancing further
+correctly refused with 409 once it hit a stage gated on real job
+completion ("Job ... has status PENDING, not COMPLETED") — confirmed this
+is legitimate business-rule enforcement (no worker exists in this test
+environment to complete the job), not a bug. New route tests added
+(test_advance_pipeline, test_advance_pipeline_not_found); full
+test_pipeline_routes.py suite (15 tests) passing. Full pytest suite clean.
+
+============================================================
+ALSO VERIFIED THIS ROUND (no defects found)
+============================================================
+- Backup lifecycle: create -> verify -> restore, real file I/O, real
+  checksum, all correct end to end.
+- License status: both /license and /license/status endpoints correct.
+- Notifications list: correct.
+- SSE /api/v1/events: heartbeat stream confirmed live.
+- Worker register -> heartbeat -> list: correct.
+
+============================================================
+NOT YET EXERCISED (flagged, not claimed verified)
+============================================================
+- Plugin install (expects a real multipart ZIP upload with security
+  hardening already visible in the code — magic-number check, zip-bomb
+  compression-ratio check, extension allowlist); not exercised live this
+  round given the setup complexity of constructing a valid signed plugin
+  package.
+- The full agent-driven job-completion path (POST /agents/jobs/complete
+  requires a real registered, assigned agent) — not exercised live this
+  round; the pipeline "advance" fix was verified up through the stage that
+  legitimately requires it.
+
+============================================================
+COMMIT STATUS
+============================================================
+Nothing in this round has been committed, per the standing rule (commit
+only on explicit instruction).

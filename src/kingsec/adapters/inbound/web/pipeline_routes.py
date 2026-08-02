@@ -154,6 +154,8 @@ async def resume_pipeline(
         execution = service.resume_pipeline(pipeline_id)
     except PipelineNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except PipelineStateConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return {"message": f"Pipeline '{pipeline_id}' resumed", "pipeline": _to_response(execution)}
 
 
@@ -169,4 +171,23 @@ async def pause_pipeline(
         execution = service.pause_pipeline(pipeline_id)
     except PipelineNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except PipelineStateConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return {"message": f"Pipeline '{pipeline_id}' paused", "pipeline": _to_response(execution)}
+
+
+@router.post("/{pipeline_id}/advance")
+async def advance_pipeline(
+    pipeline_id: str,
+    request: Request,
+    user: CurrentUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    _require_admin(user)
+    service = _get_service(request)
+    try:
+        execution = service.advance_pipeline(pipeline_id)
+    except PipelineNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except PipelineStateConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return {"message": f"Pipeline '{pipeline_id}' advanced", "pipeline": _to_response(execution)}
