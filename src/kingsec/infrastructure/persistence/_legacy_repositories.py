@@ -129,6 +129,8 @@ class SqlAlchemyAssessmentRepository(AssessmentRepository):
         order_dir: str = "desc",
         limit: int = 50,
         offset: int = 0,
+        requesting_user: str = "",
+        is_admin: bool = False,
     ) -> tuple[builtins.list[FindingProjection], int]:
         with self._session_factory() as session:
             from kingsec.infrastructure.persistence.repositories.assessment import SQLAlchemyAssessmentRepository
@@ -142,6 +144,8 @@ class SqlAlchemyAssessmentRepository(AssessmentRepository):
                 order_dir=order_dir,
                 limit=limit,
                 offset=offset,
+                requesting_user=requesting_user,
+                is_admin=is_admin,
             )
 
 
@@ -201,6 +205,8 @@ class SqlAlchemyReportRepository(ReportRepository):
         search: str | None = None,
         severity: str | None = None,
         target: str | None = None,
+        requesting_user: str = "",
+        is_admin: bool = False,
     ) -> tuple[builtins.list[ReportProjection], int]:
         with self._session_factory() as session:
             from kingsec.infrastructure.persistence.repositories.report import SQLAlchemyReportRepository
@@ -213,6 +219,8 @@ class SqlAlchemyReportRepository(ReportRepository):
                 search=search,
                 severity=severity,
                 target=target,
+                requesting_user=requesting_user,
+                is_admin=is_admin,
             )
 
     def count(self) -> int:

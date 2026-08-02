@@ -78,7 +78,7 @@ class TestEndToEndSlice:
             assert started.highest_severity == Severity.CRITICAL.label
 
             # Findings from the real scanner process are durably persisted.
-            view = GetAssessment(assessments).execute(GetAssessmentRequest(created.assessment_id))
+            view = GetAssessment(assessments).execute(GetAssessmentRequest(created.assessment_id, is_admin=True))
             titles = {f.title for f in view.findings}
             assert "Critical RCE" in titles
         finally:

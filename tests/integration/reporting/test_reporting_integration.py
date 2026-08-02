@@ -117,7 +117,7 @@ class TestFullSlice:
             )
             StartAssessment(assessments, _StubScanner()).execute(StartAssessmentRequest(created.assessment_id))
             response = GenerateReport(assessments, reports, generator).execute(
-                GenerateReportRequest(created.assessment_id)
+                GenerateReportRequest(created.assessment_id, is_admin=True)
             )
 
             # The use case rendered a real PDF deliverable through this adapter.

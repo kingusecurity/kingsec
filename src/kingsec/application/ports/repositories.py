@@ -93,8 +93,13 @@ class AssessmentRepository(ABC):
         order_dir: str = "desc",
         limit: int = 50,
         offset: int = 0,
+        requesting_user: str = "",
+        is_admin: bool = False,
     ) -> tuple[builtins.list[FindingProjection], int]:
         """Search findings across assessments with filters and pagination.
+
+        Unless ``is_admin`` is True, results are restricted to findings
+        whose assessment is owned by ``requesting_user``.
 
         Returns a tuple of (projections, total_count).
         """
@@ -148,8 +153,13 @@ class ReportRepository(ABC):
         search: str | None = None,
         severity: str | None = None,
         target: str | None = None,
+        requesting_user: str = "",
+        is_admin: bool = False,
     ) -> tuple[list[ReportProjection], int]:
         """Return paginated report projections with total count.
+
+        Unless ``is_admin`` is True, results are restricted to reports
+        whose assessment is owned by ``requesting_user``.
 
         Args:
             limit: Maximum number of results.

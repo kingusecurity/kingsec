@@ -14,6 +14,8 @@ class ListReportsRequest:
     search: str | None = None
     severity: str | None = None
     target: str | None = None
+    requesting_user: str = ""
+    is_admin: bool = False
 
 
 @dataclass(frozen=True)
@@ -56,6 +58,8 @@ class ListReports:
             search=request.search,
             severity=request.severity,
             target=request.target,
+            requesting_user=request.requesting_user,
+            is_admin=request.is_admin,
         )
         items = tuple(
             ReportListItem(

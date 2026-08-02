@@ -129,10 +129,10 @@ class TestDependencyGraph:
             assert started.status == "completed"
             assert started.findings_count == 1
 
-            view = app.resolve(GetAssessment).execute(GetAssessmentRequest(created.assessment_id))
+            view = app.resolve(GetAssessment).execute(GetAssessmentRequest(created.assessment_id, is_admin=True))
             assert view.status == "completed"
 
-            report = app.resolve(GenerateReport).execute(GenerateReportRequest(created.assessment_id))
+            report = app.resolve(GenerateReport).execute(GenerateReportRequest(created.assessment_id, is_admin=True))
             assert report.artifact_media_type == "application/pdf"
             assert report.artifact_bytes > 1000
 

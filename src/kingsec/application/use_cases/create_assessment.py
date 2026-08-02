@@ -40,6 +40,8 @@ class CreateAssessment:
         target = build_target(request.target_value, request.target_type)
 
         assessment = Assessment.create(target)
+        if request.owner_id:
+            assessment.set_ownership(request.owner_id)
         authorization = Authorization.grant(request.authorized_by, request.scope)
         assessment.authorize(authorization)
 

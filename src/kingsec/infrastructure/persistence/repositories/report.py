@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import builtins
+from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from kingsec.application import ReportNotFoundError, ReportRepository
 from kingsec.application.ports.repositories import ReportProjection
 from kingsec.domain import AssessmentId, Report
 from kingsec.infrastructure.persistence.mappers import report_to_domain, report_to_orm
-from kingsec.infrastructure.persistence.models import ReportORM
+from kingsec.infrastructure.persistence.models import AssessmentORM, ReportORM
 
 _SEVERITY_ORDER: dict[str, int] = {
     "CRITICAL": 4,
@@ -52,6 +53,8 @@ class SQLAlchemyReportRepository(ReportRepository):
         search: str | None = None,
         severity: str | None = None,
         target: str | None = None,
+        requesting_user: str = "",
+        is_admin: bool = False,
     ) -> tuple[builtins.list[ReportProjection], int]:
         stmt = select(ReportORM)
         count_stmt = select(func.count()).select_from(ReportORM)
@@ -66,6 +69,20 @@ class SQLAlchemyReportRepository(ReportRepository):
         if target:
             stmt = stmt.where(ReportORM.target == target)
             count_stmt = count_stmt.where(ReportORM.target == target)
+        if not is_admin:
+            # Fail closed: only reports whose assessment is owned by the
+            # caller are visible, mirroring check_assessment_access exactly.
+            owned = (
+                select(AssessmentORM.id).where(
+                    and_(
+                        AssessmentORM.owner_id.isnot(None),
+                        AssessmentORM.owner_id != "",
+                        AssessmentORM.owner_id == requesting_user,
+                    )
+                )
+            )
+            stmt = stmt.where(ReportORM.assessment_id.in_(owned))
+            count_stmt = count_stmt.where(ReportORM.assessment_id.in_(owned))
 
         col = order_by if order_by in _ALLOWED_ORDER_COLS else "generated_at"
         order_col = getattr(ReportORM, col, ReportORM.generated_at)
@@ -115,7 +132,7 @@ class SQLAlchemyReportRepository(ReportRepository):
         return self._session.execute(select(func.count()).select_from(ReportORM)).scalar() or 0
 
     @staticmethod
-    def _parse_severity_counts(severity_counts: list) -> dict[str, int]:
+    def _parse_severity_counts(severity_counts: builtins.list[Any]) -> dict[str, int]:
         result: dict[str, int] = {}
         if not severity_counts:
             return result

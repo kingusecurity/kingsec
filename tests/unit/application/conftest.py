@@ -77,6 +77,8 @@ class InMemoryAssessmentRepository(AssessmentRepository):
         order_dir: str = "desc",
         limit: int = 50,
         offset: int = 0,
+        requesting_user: str = "",
+        is_admin: bool = False,
     ) -> tuple[list[FindingProjection], int]:
         return [], 0
 
@@ -101,6 +103,8 @@ class InMemoryReportRepository(ReportRepository):
         offset: int = 0,
         order_by: str = "generated_at",
         order_dir: str = "desc",
+        requesting_user: str = "",
+        is_admin: bool = False,
     ) -> tuple[list[ReportProjection], int]:
         return [], 0
 

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import builtins
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from kingsec.application import AssessmentNotFoundError, AssessmentRepository
@@ -75,6 +75,8 @@ class SQLAlchemyAssessmentRepository(AssessmentRepository):
         order_dir: str = "desc",
         limit: int = 50,
         offset: int = 0,
+        requesting_user: str = "",
+        is_admin: bool = False,
     ) -> tuple[builtins.list[FindingProjection], int]:
         base = select(FindingORM, AssessmentORM.target_value).join(
             AssessmentORM, FindingORM.assessment_id == AssessmentORM.id
@@ -94,6 +96,19 @@ class SQLAlchemyAssessmentRepository(AssessmentRepository):
         if search:
             like = f"%{search}%"
             filters.append(or_(FindingORM.title.ilike(like), FindingORM.description.ilike(like)))
+        if not is_admin:
+            # Fail closed: only findings whose assessment is owned by the
+            # caller are visible (legacy assessments with no owner recorded
+            # are excluded too, matching get_assessment's fail-closed rule) —
+            # mirrors check_assessment_access's "owner_id truthy and equal"
+            # condition exactly.
+            filters.append(
+                and_(
+                    AssessmentORM.owner_id.isnot(None),
+                    AssessmentORM.owner_id != "",
+                    AssessmentORM.owner_id == requesting_user,
+                )
+            )
         if filters:
             base = base.where(*filters)
             count_base = count_base.where(*filters)

@@ -86,13 +86,13 @@ class TestEndToEndSlice:
         assert started.findings_count == 1
 
         # 3. Get (loads persisted state)
-        view = GetAssessment(assessments).execute(GetAssessmentRequest(created.assessment_id))
+        view = GetAssessment(assessments).execute(GetAssessmentRequest(created.assessment_id, is_admin=True))
         assert view.status == "completed"
         assert len(view.findings) == 1
 
         # 4. Generate report (persists snapshot, renders)
         report = GenerateReport(assessments, reports, _StubReportGenerator()).execute(
-            GenerateReportRequest(created.assessment_id)
+            GenerateReportRequest(created.assessment_id, is_admin=True)
         )
         assert report.highest_severity == Severity.CRITICAL.label
         assert report.artifact_media_type == "application/pdf"

@@ -95,6 +95,8 @@ class _SessionBoundAssessmentRepository(AssessmentRepository):
         order_dir: str = "desc",
         limit: int = 50,
         offset: int = 0,
+        requesting_user: str = "",
+        is_admin: bool = False,
     ) -> tuple[builtins.list[FindingProjection], int]:
         repo = SQLAlchemyAssessmentRepository(self._session)
         return repo.search_findings(
@@ -106,6 +108,8 @@ class _SessionBoundAssessmentRepository(AssessmentRepository):
             order_dir=order_dir,
             limit=limit,
             offset=offset,
+            requesting_user=requesting_user,
+            is_admin=is_admin,
         )
 
 
@@ -137,6 +141,8 @@ class _SessionBoundReportRepository(ReportRepository):
         search: str | None = None,
         severity: str | None = None,
         target: str | None = None,
+        requesting_user: str = "",
+        is_admin: bool = False,
     ) -> tuple[builtins.list[ReportProjection], int]:
         repo = SQLAlchemyReportRepository(self._session)
         return repo.list(
@@ -147,6 +153,8 @@ class _SessionBoundReportRepository(ReportRepository):
             search=search,
             severity=severity,
             target=target,
+            requesting_user=requesting_user,
+            is_admin=is_admin,
         )
 
     def count(self) -> int:

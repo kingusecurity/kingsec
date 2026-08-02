@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 
-from kingsec.application._support import to_assessment_id
+from kingsec.application._support import check_assessment_access, to_assessment_id
 from kingsec.application.dto import GenerateReportRequest, GenerateReportResponse, SeverityCount
 from kingsec.application.events import EVENT_REPORT_READY, AssessmentEvent
 from kingsec.application.ports import (
@@ -43,6 +43,7 @@ class GenerateReport:
 
     def execute(self, request: GenerateReportRequest) -> GenerateReportResponse:
         assessment = self._assessments.get(to_assessment_id(request.assessment_id))
+        check_assessment_access(assessment, request.requesting_user, request.is_admin)
 
         # Report.from_assessment raises IllegalStateTransition if the assessment
         # is not COMPLETED — a domain rule we let propagate.

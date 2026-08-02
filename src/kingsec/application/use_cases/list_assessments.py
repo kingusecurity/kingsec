@@ -31,6 +31,10 @@ class ListAssessments:
         offset = max(request.offset, 0)
 
         assessments = self._assessments.list(limit=limit, offset=offset)
+        if not request.is_admin:
+            assessments = [
+                a for a in assessments if a.owner_id and a.owner_id == request.requesting_user
+            ]
 
         items = tuple(AssessmentSummary.from_domain(a) for a in assessments)
 

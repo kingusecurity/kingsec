@@ -235,6 +235,7 @@ class CreateAssessmentRequest:
     target_type: str
     authorized_by: str
     scope: str
+    owner_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -252,6 +253,8 @@ class ListAssessmentsRequest:
 
     limit: int = 50
     offset: int = 0
+    requesting_user: str = ""
+    is_admin: bool = False
 
 
 @dataclass(frozen=True)
@@ -301,6 +304,8 @@ class GetAssessmentRequest:
     """Request to fetch a single assessment's full details."""
 
     assessment_id: str
+    requesting_user: str = ""
+    is_admin: bool = False
 
 
 @dataclass(frozen=True)
@@ -373,6 +378,8 @@ class SubmitAssessmentRequest:
     """Request to submit an assessment for background execution."""
 
     assessment_id: str
+    requesting_user: str = ""
+    is_admin: bool = False
 
 
 @dataclass(frozen=True)
@@ -389,6 +396,8 @@ class CancelAssessmentRequest:
     """Request to cancel a running or authorized assessment."""
 
     assessment_id: str
+    requesting_user: str = ""
+    is_admin: bool = False
 
 
 @dataclass(frozen=True)
@@ -404,6 +413,8 @@ class DeleteAssessmentRequest:
     """Request to permanently delete an assessment."""
 
     assessment_id: str
+    requesting_user: str = ""
+    is_admin: bool = False
 
 
 @dataclass(frozen=True)
@@ -430,6 +441,8 @@ class GenerateReportRequest:
     """Request to generate a report for an assessment."""
 
     assessment_id: str
+    requesting_user: str = ""
+    is_admin: bool = False
 
 
 @dataclass(frozen=True)

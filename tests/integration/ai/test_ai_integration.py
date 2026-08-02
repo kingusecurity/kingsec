@@ -93,7 +93,7 @@ class TestFullSlice:
                 StartAssessmentRequest(created.assessment_id)
             )
 
-            view = GetAssessment(assessments).execute(GetAssessmentRequest(created.assessment_id))
+            view = GetAssessment(assessments).execute(GetAssessmentRequest(created.assessment_id, is_admin=True))
             # The finding was enriched with an AI recommendation and persisted.
             assert view.findings[0].recommendation_count == 1
         finally:
@@ -114,7 +114,7 @@ class TestFullSlice:
 
             assert started.status == "completed"
             assert started.findings_count == 1
-            view = GetAssessment(assessments).execute(GetAssessmentRequest(created.assessment_id))
+            view = GetAssessment(assessments).execute(GetAssessmentRequest(created.assessment_id, is_admin=True))
             # Finding recorded unchanged — just without an AI recommendation.
             assert view.findings[0].recommendation_count == 0
         finally:

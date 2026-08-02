@@ -15,6 +15,8 @@ class ListFindingsRequest:
     search: str | None = None
     order_by: str = "discovered_at"
     order_dir: str = "desc"
+    requesting_user: str = ""
+    is_admin: bool = False
 
 
 @dataclass(frozen=True)
@@ -53,6 +55,8 @@ class ListFindings:
             order_dir=request.order_dir,
             limit=request.limit,
             offset=request.offset,
+            requesting_user=request.requesting_user,
+            is_admin=request.is_admin,
         )
         items = tuple(
             FindingListItem(

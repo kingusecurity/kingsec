@@ -42,7 +42,7 @@ class TestDeleteExistingAssessment:
         assessments.save(assessment)
 
         use_case = DeleteAssessment(assessments)
-        response = use_case.execute(DeleteAssessmentRequest(str(assessment.id)))
+        response = use_case.execute(DeleteAssessmentRequest(str(assessment.id), is_admin=True))
 
         assert isinstance(response, DeleteAssessmentResponse)
         assert response.assessment_id == str(assessment.id)
@@ -56,7 +56,7 @@ class TestDeleteExistingAssessment:
         assessments.save(assessment)
 
         use_case = DeleteAssessment(assessments)
-        response = use_case.execute(DeleteAssessmentRequest(str(assessment.id)))
+        response = use_case.execute(DeleteAssessmentRequest(str(assessment.id), is_admin=True))
 
         assert response.assessment_id == str(assessment.id)
 
@@ -71,7 +71,7 @@ class TestDeleteExistingAssessment:
         assessments.save(assessment2)
 
         use_case = DeleteAssessment(assessments)
-        use_case.execute(DeleteAssessmentRequest(str(assessment1.id)))
+        use_case.execute(DeleteAssessmentRequest(str(assessment1.id), is_admin=True))
 
         # assessment1 is gone, assessment2 still exists
         with pytest.raises(AssessmentNotFoundError):
@@ -86,18 +86,18 @@ class TestDeleteMissingAssessment:
         use_case = DeleteAssessment(assessments)
 
         with pytest.raises(AssessmentNotFoundError):
-            use_case.execute(DeleteAssessmentRequest("asmt-does-not-exist"))
+            use_case.execute(DeleteAssessmentRequest("asmt-does-not-exist", is_admin=True))
 
     def test_double_delete_raises(self, assessments: InMemoryAssessmentRepository) -> None:
         assessment = _make_assessment()
         assessments.save(assessment)
 
         use_case = DeleteAssessment(assessments)
-        use_case.execute(DeleteAssessmentRequest(str(assessment.id)))
+        use_case.execute(DeleteAssessmentRequest(str(assessment.id), is_admin=True))
 
         # Second delete should raise not found
         with pytest.raises(AssessmentNotFoundError):
-            use_case.execute(DeleteAssessmentRequest(str(assessment.id)))
+            use_case.execute(DeleteAssessmentRequest(str(assessment.id), is_admin=True))
 
 
 class TestDeleteRepositoryBehavior:
@@ -108,7 +108,7 @@ class TestDeleteRepositoryBehavior:
         assessments.save(assessment2)
 
         use_case = DeleteAssessment(assessments)
-        use_case.execute(DeleteAssessmentRequest(str(assessment1.id)))
+        use_case.execute(DeleteAssessmentRequest(str(assessment1.id), is_admin=True))
 
         remaining = assessments.list()
         assert len(remaining) == 1
@@ -119,7 +119,37 @@ class TestDeleteRepositoryBehavior:
         assessments.save(assessment)
 
         use_case = DeleteAssessment(assessments)
-        use_case.execute(DeleteAssessmentRequest(str(assessment.id)))
+        use_case.execute(DeleteAssessmentRequest(str(assessment.id), is_admin=True))
 
         remaining = assessments.list()
         assert remaining == []
+
+
+class TestDeleteAccessControl:
+    def test_non_owner_gets_not_found(self, assessments: InMemoryAssessmentRepository) -> None:
+        assessment = _make_assessment()
+        assessment.set_ownership("alice")
+        assessments.save(assessment)
+
+        use_case = DeleteAssessment(assessments)
+        with pytest.raises(AssessmentNotFoundError):
+            use_case.execute(
+                DeleteAssessmentRequest(str(assessment.id), requesting_user="bob", is_admin=False)
+            )
+
+        # Not actually deleted
+        assert assessments.get(assessment.id) is not None
+
+    def test_owner_can_delete(self, assessments: InMemoryAssessmentRepository) -> None:
+        assessment = _make_assessment()
+        assessment.set_ownership("alice")
+        assessments.save(assessment)
+
+        use_case = DeleteAssessment(assessments)
+        response = use_case.execute(
+            DeleteAssessmentRequest(str(assessment.id), requesting_user="alice", is_admin=False)
+        )
+
+        assert response.assessment_id == str(assessment.id)
+        with pytest.raises(AssessmentNotFoundError):
+            assessments.get(assessment.id)

@@ -9,13 +9,14 @@ callers a consistent, application-level error for bad input.
 from __future__ import annotations
 
 from kingsec.domain import (
+    Assessment,
     AssessmentId,
     InvariantViolation,
     Target,
     TargetType,
 )
 
-from .errors import InputValidationError
+from .errors import AssessmentNotFoundError, InputValidationError
 
 
 def to_assessment_id(raw: str) -> AssessmentId:
@@ -24,6 +25,19 @@ def to_assessment_id(raw: str) -> AssessmentId:
         return AssessmentId(raw)
     except InvariantViolation as exc:
         raise InputValidationError(f"invalid assessment id: {exc}") from exc
+
+
+def check_assessment_access(assessment: Assessment, requesting_user: str, is_admin: bool) -> None:
+    """Raise AssessmentNotFoundError unless the caller owns this assessment or is Admin.
+
+    Fails closed: an assessment with no recorded owner (created before
+    ownership was tracked) is Admin-only, not open to everyone.
+    """
+    if is_admin:
+        return
+    if assessment.owner_id and assessment.owner_id == requesting_user:
+        return
+    raise AssessmentNotFoundError(str(assessment.id))
 
 
 def _parse_target_type(raw: str) -> TargetType:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from kingsec.application._support import to_assessment_id
+from kingsec.application._support import check_assessment_access, to_assessment_id
 from kingsec.application.dto import AssessmentView, GetAssessmentRequest
 from kingsec.application.ports import AssessmentRepository
 
@@ -16,4 +16,5 @@ class GetAssessment:
     def execute(self, request: GetAssessmentRequest) -> AssessmentView:
         # repo.get raises AssessmentNotFoundError if the id is unknown.
         assessment = self._assessments.get(to_assessment_id(request.assessment_id))
+        check_assessment_access(assessment, request.requesting_user, request.is_admin)
         return AssessmentView.from_domain(assessment)

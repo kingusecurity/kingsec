@@ -64,7 +64,7 @@ class TestCancelDraftAssessment:
         assessment = _draft(assessments)
         use_case = CancelAssessment(assessments)
 
-        response = use_case.execute(CancelAssessmentRequest(str(assessment.id)))
+        response = use_case.execute(CancelAssessmentRequest(str(assessment.id), is_admin=True))
 
         assert response.assessment_id == str(assessment.id)
         assert response.status == AssessmentStatus.CANCELLED.value
@@ -78,7 +78,7 @@ class TestCancelAuthorizedAssessment:
         assessment = _authorized(assessments)
         use_case = CancelAssessment(assessments)
 
-        response = use_case.execute(CancelAssessmentRequest(str(assessment.id)))
+        response = use_case.execute(CancelAssessmentRequest(str(assessment.id), is_admin=True))
 
         assert response.status == AssessmentStatus.CANCELLED.value
 
@@ -91,7 +91,7 @@ class TestCancelRunningAssessment:
         assessment = _running(assessments)
         use_case = CancelAssessment(assessments)
 
-        response = use_case.execute(CancelAssessmentRequest(str(assessment.id)))
+        response = use_case.execute(CancelAssessmentRequest(str(assessment.id), is_admin=True))
 
         assert response.status == AssessmentStatus.CANCELLED.value
 
@@ -105,25 +105,25 @@ class TestCancelTerminalAssessments:
         use_case = CancelAssessment(assessments)
 
         with pytest.raises(IllegalStateTransition):
-            use_case.execute(CancelAssessmentRequest(str(assessment.id)))
+            use_case.execute(CancelAssessmentRequest(str(assessment.id), is_admin=True))
 
     def test_cannot_cancel_failed_assessment(self, assessments: InMemoryAssessmentRepository) -> None:
         assessment = _failed(assessments)
         use_case = CancelAssessment(assessments)
 
         with pytest.raises(IllegalStateTransition):
-            use_case.execute(CancelAssessmentRequest(str(assessment.id)))
+            use_case.execute(CancelAssessmentRequest(str(assessment.id), is_admin=True))
 
     def test_cannot_cancel_already_cancelled_assessment(self, assessments: InMemoryAssessmentRepository) -> None:
         assessment = _draft(assessments)
         use_case = CancelAssessment(assessments)
 
         # First cancel succeeds
-        use_case.execute(CancelAssessmentRequest(str(assessment.id)))
+        use_case.execute(CancelAssessmentRequest(str(assessment.id), is_admin=True))
 
         # Second cancel fails
         with pytest.raises(IllegalStateTransition):
-            use_case.execute(CancelAssessmentRequest(str(assessment.id)))
+            use_case.execute(CancelAssessmentRequest(str(assessment.id), is_admin=True))
 
 
 class TestCancelNotFound:
@@ -131,4 +131,29 @@ class TestCancelNotFound:
         use_case = CancelAssessment(assessments)
 
         with pytest.raises(AssessmentNotFoundError):
-            use_case.execute(CancelAssessmentRequest("asmt-does-not-exist"))
+            use_case.execute(CancelAssessmentRequest("asmt-does-not-exist", is_admin=True))
+
+
+class TestCancelAccessControl:
+    def test_non_owner_gets_not_found(self, assessments: InMemoryAssessmentRepository) -> None:
+        assessment = _draft(assessments)
+        assessment.set_ownership("alice")
+        assessments.save(assessment)
+        use_case = CancelAssessment(assessments)
+
+        with pytest.raises(AssessmentNotFoundError):
+            use_case.execute(
+                CancelAssessmentRequest(str(assessment.id), requesting_user="bob", is_admin=False)
+            )
+
+    def test_owner_can_cancel(self, assessments: InMemoryAssessmentRepository) -> None:
+        assessment = _draft(assessments)
+        assessment.set_ownership("alice")
+        assessments.save(assessment)
+        use_case = CancelAssessment(assessments)
+
+        response = use_case.execute(
+            CancelAssessmentRequest(str(assessment.id), requesting_user="alice", is_admin=False)
+        )
+
+        assert response.status == AssessmentStatus.CANCELLED.value

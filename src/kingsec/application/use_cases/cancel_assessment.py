@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 
-from kingsec.application._support import to_assessment_id
+from kingsec.application._support import check_assessment_access, to_assessment_id
 from kingsec.application.dto import CancelAssessmentRequest, CancelAssessmentResponse
 from kingsec.application.events import EVENT_ASSESSMENT_CANCELLED, AssessmentEvent
 from kingsec.application.ports import AssessmentRepository, AuditPublisher, EventPublisher
@@ -36,6 +36,7 @@ class CancelAssessment:
 
     def execute(self, request: CancelAssessmentRequest) -> CancelAssessmentResponse:
         assessment = self._assessments.get(to_assessment_id(request.assessment_id))
+        check_assessment_access(assessment, request.requesting_user, request.is_admin)
 
         # The domain FSM enforces the cancellation gate:
         # - DRAFT -> CANCELLED

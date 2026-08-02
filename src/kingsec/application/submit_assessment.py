@@ -23,7 +23,7 @@ from collections.abc import Callable
 from kingsec.domain import AssessmentId, Finding
 from kingsec.domain.audit import AuditAction, AuditEntry
 
-from ._support import to_assessment_id
+from ._support import check_assessment_access, to_assessment_id
 from .assessment_execution import AssessmentExecutionEngine, ExecutionPhase
 from .dto import SubmitAssessmentRequest, SubmitAssessmentResponse
 from .events import (
@@ -66,6 +66,7 @@ class SubmitAssessment:
     def execute(self, request: SubmitAssessmentRequest) -> SubmitAssessmentResponse:
         assessment_id = to_assessment_id(request.assessment_id)
         assessment = self._assessments.get(assessment_id)
+        check_assessment_access(assessment, request.requesting_user, request.is_admin)
 
         # The authorization gate: AUTHORIZED -> RUNNING.
         # Raises IllegalStateTransition if not authorized.

@@ -48,7 +48,7 @@ def _completed(assessments: InMemoryAssessmentRepository) -> Assessment:
 class TestGetAssessment:
     def test_returns_mapped_view(self, assessments: InMemoryAssessmentRepository) -> None:
         assessment = _completed(assessments)
-        view = GetAssessment(assessments).execute(GetAssessmentRequest(str(assessment.id)))
+        view = GetAssessment(assessments).execute(GetAssessmentRequest(str(assessment.id), is_admin=True))
 
         assert view.assessment_id == str(assessment.id)
         assert view.status == "completed"
@@ -60,7 +60,7 @@ class TestGetAssessment:
 
     def test_unknown_raises_not_found(self, assessments: InMemoryAssessmentRepository) -> None:
         with pytest.raises(AssessmentNotFoundError):
-            GetAssessment(assessments).execute(GetAssessmentRequest("asmt-missing"))
+            GetAssessment(assessments).execute(GetAssessmentRequest("asmt-missing", is_admin=True))
 
 
 class TestGenerateReport:
@@ -71,7 +71,7 @@ class TestGenerateReport:
         generator: StubReportGenerator,
     ) -> None:
         assessment = _completed(assessments)
-        response = GenerateReport(assessments, reports, generator).execute(GenerateReportRequest(str(assessment.id)))
+        response = GenerateReport(assessments, reports, generator).execute(GenerateReportRequest(str(assessment.id), is_admin=True))
 
         # Conclusions-first summary.
         assert response.highest_severity == Severity.CRITICAL.label
@@ -95,7 +95,30 @@ class TestGenerateReport:
         assessments.save(assessment)
 
         with pytest.raises(IllegalStateTransition):
-            GenerateReport(assessments, reports, generator).execute(GenerateReportRequest(str(assessment.id)))
+            GenerateReport(assessments, reports, generator).execute(GenerateReportRequest(str(assessment.id), is_admin=True))
+
+
+class TestGetAssessmentAccessControl:
+    def test_non_owner_gets_not_found(self, assessments: InMemoryAssessmentRepository) -> None:
+        assessment = _completed(assessments)
+        assessment.set_ownership("alice")
+        assessments.save(assessment)
+
+        with pytest.raises(AssessmentNotFoundError):
+            GetAssessment(assessments).execute(
+                GetAssessmentRequest(str(assessment.id), requesting_user="bob", is_admin=False)
+            )
+
+    def test_owner_can_get(self, assessments: InMemoryAssessmentRepository) -> None:
+        assessment = _completed(assessments)
+        assessment.set_ownership("alice")
+        assessments.save(assessment)
+
+        view = GetAssessment(assessments).execute(
+            GetAssessmentRequest(str(assessment.id), requesting_user="alice", is_admin=False)
+        )
+
+        assert view.assessment_id == str(assessment.id)
 
 
 class TestPortsAreAbstract:

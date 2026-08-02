@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("kingsec.adapters.inbound.web.routes")
 from kingsec.application.auth import Permission
-from kingsec.domain import RateLimitGroup
+from kingsec.domain import RateLimitGroup, Role
 
 from .auth import (
     CurrentApiKey,
@@ -52,6 +52,10 @@ from .dependencies import get_service
 from .rate_limit_deps import require_rate_limit
 
 router = APIRouter(prefix="/api/v1")
+
+
+def _is_admin(user: CurrentUser) -> bool:
+    return user.role == Role.ADMIN
 
 # ── Health ───────────────────────────────────────────────────────────────────
 
@@ -348,12 +352,18 @@ async def change_own_password(
 async def list_assessments(
     limit: int = 50,
     offset: int = 0,
+    current_user: CurrentUser = Depends(require_viewer),
     service: ServiceAPI = Depends(get_service),
 ) -> schemas.ListAssessmentsResponse:
     from kingsec.application.dto import ListAssessmentsRequest
 
     limit = max(1, min(limit, 200))
-    request = ListAssessmentsRequest(limit=limit, offset=offset)
+    request = ListAssessmentsRequest(
+        limit=limit,
+        offset=offset,
+        requesting_user=current_user.user_id,
+        is_admin=_is_admin(current_user),
+    )
     result = service.list_assessments(request)
     return schemas.ListAssessmentsResponse(
         items=[
@@ -393,6 +403,7 @@ async def list_assessments(
 )
 async def create_assessment(
     body: schemas.CreateAssessmentBody,
+    current_user: CurrentUser = Depends(require_analyst),
     service: ServiceAPI = Depends(get_service),
 ) -> schemas.CreateAssessmentResponse:
     from kingsec.application.dto import CreateAssessmentRequest
@@ -402,6 +413,7 @@ async def create_assessment(
         target_type=body.target_type,
         authorized_by=body.authorized_by,
         scope=body.scope,
+        owner_id=current_user.user_id,
     )
     result = service.create_assessment(request)
     return schemas.CreateAssessmentResponse(
@@ -432,11 +444,16 @@ async def create_assessment(
 async def start_assessment(
     assessment_id: str,
     _body: schemas.StartAssessmentBody | None = None,
+    current_user: CurrentUser = Depends(require_analyst),
     service: ServiceAPI = Depends(get_service),
 ) -> schemas.StartAssessmentResponse:
     from kingsec.application.dto import SubmitAssessmentRequest
 
-    request = SubmitAssessmentRequest(assessment_id=assessment_id)
+    request = SubmitAssessmentRequest(
+        assessment_id=assessment_id,
+        requesting_user=current_user.user_id,
+        is_admin=_is_admin(current_user),
+    )
     result = service.submit_assessment(request)
     return schemas.StartAssessmentResponse(
         assessment_id=result.assessment_id,
@@ -463,11 +480,16 @@ async def start_assessment(
 )
 async def get_assessment(
     assessment_id: str,
+    current_user: CurrentUser = Depends(require_viewer),
     service: ServiceAPI = Depends(get_service),
 ) -> schemas.AssessmentResponse:
     from kingsec.application.dto import GetAssessmentRequest
 
-    request = GetAssessmentRequest(assessment_id=assessment_id)
+    request = GetAssessmentRequest(
+        assessment_id=assessment_id,
+        requesting_user=current_user.user_id,
+        is_admin=_is_admin(current_user),
+    )
     result = service.get_assessment(request)
     return schemas.AssessmentResponse(
         assessment_id=result.assessment_id,
@@ -509,11 +531,16 @@ async def get_assessment(
 async def generate_report(
     assessment_id: str,
     _body: schemas.GenerateReportBody | None = None,
+    current_user: CurrentUser = Depends(require_analyst),
     service: ServiceAPI = Depends(get_service),
 ) -> schemas.GenerateReportResponse:
     from kingsec.application.dto import GenerateReportRequest
 
-    request = GenerateReportRequest(assessment_id=assessment_id)
+    request = GenerateReportRequest(
+        assessment_id=assessment_id,
+        requesting_user=current_user.user_id,
+        is_admin=_is_admin(current_user),
+    )
     result = service.generate_report(request)
     return schemas.GenerateReportResponse(
         assessment_id=result.assessment_id,
@@ -551,11 +578,16 @@ async def generate_report(
 async def cancel_assessment(
     assessment_id: str,
     _body: schemas.CancelAssessmentBody | None = None,
+    current_user: CurrentUser = Depends(require_analyst),
     service: ServiceAPI = Depends(get_service),
 ) -> schemas.CancelAssessmentResponse:
     from kingsec.application.dto import CancelAssessmentRequest
 
-    request = CancelAssessmentRequest(assessment_id=assessment_id)
+    request = CancelAssessmentRequest(
+        assessment_id=assessment_id,
+        requesting_user=current_user.user_id,
+        is_admin=_is_admin(current_user),
+    )
     result = service.cancel_assessment(request)
     return schemas.CancelAssessmentResponse(
         assessment_id=result.assessment_id,
@@ -582,11 +614,16 @@ async def cancel_assessment(
 )
 async def delete_assessment(
     assessment_id: str,
+    current_user: CurrentUser = Depends(require_analyst),
     service: ServiceAPI = Depends(get_service),
 ) -> None:
     from kingsec.application.dto import DeleteAssessmentRequest
 
-    request = DeleteAssessmentRequest(assessment_id=assessment_id)
+    request = DeleteAssessmentRequest(
+        assessment_id=assessment_id,
+        requesting_user=current_user.user_id,
+        is_admin=_is_admin(current_user),
+    )
     service.delete_assessment(request)
 
 
@@ -912,6 +949,7 @@ async def list_findings(
     search: str | None = None,
     order_by: str = "discovered_at",
     order_dir: str = "desc",
+    current_user: CurrentUser = Depends(require_viewer),
     list_uc: Any = Depends(_get_list_findings_uc),
 ) -> schemas.ListFindingsResponse:
     from kingsec.application.use_cases.list_findings import ListFindingsRequest
@@ -926,6 +964,8 @@ async def list_findings(
         search=search,
         order_by=order_by,
         order_dir=order_dir,
+        requesting_user=current_user.user_id,
+        is_admin=_is_admin(current_user),
     )
     result = list_uc.execute(request)
     return schemas.ListFindingsResponse(
@@ -976,6 +1016,7 @@ async def list_reports(
     search: str | None = None,
     severity: str | None = None,
     target: str | None = None,
+    current_user: CurrentUser = Depends(require_viewer),
     list_uc: Any = Depends(_get_list_reports_uc),
 ) -> schemas.ListReportsResponse:
     from kingsec.application.use_cases.list_reports import ListReportsRequest
@@ -989,6 +1030,8 @@ async def list_reports(
         search=search,
         severity=severity,
         target=target,
+        requesting_user=current_user.user_id,
+        is_admin=_is_admin(current_user),
     )
     result = list_uc.execute(request)
     return schemas.ListReportsResponse(
@@ -1027,11 +1070,18 @@ async def list_reports(
 )
 async def get_report(
     assessment_id: str,
+    current_user: CurrentUser = Depends(require_viewer),
     request: Request = None,  # type: ignore[assignment]
 ) -> schemas.ReportDetailResponse:
     app: Application = request.app.state.kingsec_app
-    from kingsec.application.ports import ReportRepository
+    from kingsec.application._support import check_assessment_access
+    from kingsec.application.ports import AssessmentRepository, ReportRepository
     from kingsec.domain import AssessmentId, Severity
+
+    assessments: AssessmentRepository = app.resolve(AssessmentRepository)
+    check_assessment_access(
+        assessments.get(AssessmentId(assessment_id)), current_user.user_id, _is_admin(current_user)
+    )
 
     repo: ReportRepository = app.resolve(ReportRepository)
     report = repo.get(AssessmentId(assessment_id))
@@ -1066,11 +1116,18 @@ async def get_report(
 )
 async def download_report(
     assessment_id: str,
+    current_user: CurrentUser = Depends(require_viewer),
     request: Request = None,  # type: ignore[assignment]
 ) -> Any:
     app: Application = request.app.state.kingsec_app
-    from kingsec.application.ports import ReportGeneratorPort, ReportRepository
+    from kingsec.application._support import check_assessment_access
+    from kingsec.application.ports import AssessmentRepository, ReportGeneratorPort, ReportRepository
     from kingsec.domain import AssessmentId
+
+    assessments: AssessmentRepository = app.resolve(AssessmentRepository)
+    check_assessment_access(
+        assessments.get(AssessmentId(assessment_id)), current_user.user_id, _is_admin(current_user)
+    )
 
     repo: ReportRepository = app.resolve(ReportRepository)
     generator: ReportGeneratorPort = app.resolve(ReportGeneratorPort)

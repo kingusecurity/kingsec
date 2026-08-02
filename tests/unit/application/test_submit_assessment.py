@@ -142,7 +142,7 @@ class TestSubmitAssessmentHappyPath:
             ai=ai,
         )
 
-        request = SubmitAssessmentRequest(assessment_id="asmt-test-001")
+        request = SubmitAssessmentRequest(assessment_id="asmt-test-001", is_admin=True)
         response = use_case.execute(request)
 
         assert isinstance(response, SubmitAssessmentResponse)
@@ -163,7 +163,7 @@ class TestSubmitAssessmentHappyPath:
             job_runner=job_runner,
         )
 
-        use_case.execute(SubmitAssessmentRequest(assessment_id="asmt-test-001"))
+        use_case.execute(SubmitAssessmentRequest(assessment_id="asmt-test-001", is_admin=True))
 
         # Save called twice: once for start transition, once for complete.
         # With run_inline=True, the scan completes synchronously.
@@ -185,7 +185,7 @@ class TestSubmitAssessmentAuthorizationGate:
         )
 
         with pytest.raises(IllegalStateTransition):
-            use_case.execute(SubmitAssessmentRequest(assessment_id="asmt-test-001"))
+            use_case.execute(SubmitAssessmentRequest(assessment_id="asmt-test-001", is_admin=True))
 
         # Job should not have been submitted
         assert "asmt-test-001" not in job_runner._jobs
@@ -211,7 +211,7 @@ class TestSubmitAssessmentWithAI:
             ai=ai,
         )
 
-        use_case.execute(SubmitAssessmentRequest(assessment_id="asmt-test-001"))
+        use_case.execute(SubmitAssessmentRequest(assessment_id="asmt-test-001", is_admin=True))
 
         # The saved assessment (after scan) should have enriched findings
         completed = repo.saved[-1]
@@ -238,7 +238,7 @@ class TestSubmitAssessmentScanFailure:
             job_runner=job_runner,
         )
 
-        use_case.execute(SubmitAssessmentRequest(assessment_id="asmt-test-001"))
+        use_case.execute(SubmitAssessmentRequest(assessment_id="asmt-test-001", is_admin=True))
 
         # Assessment should be FAILED after scanner error
         failed = repo.saved[-1]
@@ -257,7 +257,48 @@ class TestSubmitAssessmentNotFound:
         )
 
         with pytest.raises(AssessmentNotFoundError):
-            use_case.execute(SubmitAssessmentRequest(assessment_id="asmt-nonexistent"))
+            use_case.execute(SubmitAssessmentRequest(assessment_id="asmt-nonexistent", is_admin=True))
+
+
+class TestSubmitAssessmentAccessControl:
+    def test_non_owner_gets_not_found(self) -> None:
+        assessment = _make_assessment()
+        assessment.set_ownership("alice")
+        repo = FakeAssessmentRepository({str(assessment.id): assessment})
+        job_runner = RecordingJobRunner()
+
+        use_case = SubmitAssessment(
+            assessments=repo,
+            scanner=FakeScanner(),
+            job_runner=job_runner,
+        )
+
+        with pytest.raises(AssessmentNotFoundError):
+            use_case.execute(
+                SubmitAssessmentRequest(
+                    assessment_id="asmt-test-001", requesting_user="bob", is_admin=False
+                )
+            )
+        assert "asmt-test-001" not in job_runner._jobs
+
+    def test_owner_can_submit(self) -> None:
+        assessment = _make_assessment()
+        assessment.set_ownership("alice")
+        repo = FakeAssessmentRepository({str(assessment.id): assessment})
+        job_runner = RecordingJobRunner(run_inline=True)
+
+        use_case = SubmitAssessment(
+            assessments=repo,
+            scanner=FakeScanner(),
+            job_runner=job_runner,
+        )
+
+        response = use_case.execute(
+            SubmitAssessmentRequest(
+                assessment_id="asmt-test-001", requesting_user="alice", is_admin=False
+            )
+        )
+        assert response.status == "completed"
 
 
 class TestSubmitAssessmentBackgroundExecution:
@@ -300,7 +341,7 @@ class TestSubmitAssessmentBackgroundExecution:
         )
 
         main_thread_id = threading.current_thread().ident or 0
-        use_case.execute(SubmitAssessmentRequest(assessment_id="asmt-test-001"))
+        use_case.execute(SubmitAssessmentRequest(assessment_id="asmt-test-001", is_admin=True))
 
         # Wait for background job to complete
         job_runner._event.wait(timeout=2.0)

@@ -11,7 +11,9 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from .auth import require_analyst, require_viewer
+from kingsec.domain import Role
+
+from .auth import CurrentUser, require_analyst, require_viewer
 
 if TYPE_CHECKING:
     from kingsec.application.assessment_execution import AssessmentExecutionEngine
@@ -20,11 +22,32 @@ if TYPE_CHECKING:
 router = APIRouter(prefix="/api/v1/assessments", tags=["execution"])
 
 
+def _is_admin(user: CurrentUser) -> bool:
+    return user.role == Role.ADMIN
+
+
 def _get_engine(request: Request) -> Any:
     app: Application = request.app.state.kingsec_app
     from kingsec.application.assessment_execution import AssessmentExecutionEngine
 
     return app.resolve(AssessmentExecutionEngine)
+
+
+def _check_owns_assessment(request: Request, assessment_id: str, current_user: CurrentUser) -> None:
+    """Raise AssessmentNotFoundError (-> 404) unless the caller owns this
+    assessment or is Admin — matches the check used by the assessment
+    CRUD routes in routes.py, so execution status/events cannot be used to
+    probe another user's assessments.
+    """
+    from kingsec.application._support import check_assessment_access
+    from kingsec.application.ports import AssessmentRepository
+    from kingsec.domain import AssessmentId
+
+    app: Application = request.app.state.kingsec_app
+    assessments: AssessmentRepository = app.resolve(AssessmentRepository)
+    check_assessment_access(
+        assessments.get(AssessmentId(assessment_id)), current_user.user_id, _is_admin(current_user)
+    )
 
 
 def _scanner_progress_to_dict(sp: Any) -> dict[str, Any]:
@@ -68,7 +91,9 @@ def _event_to_dict(ev: Any) -> dict[str, Any]:
 async def get_execution_status(
     assessment_id: str,
     request: Request,
+    current_user: CurrentUser = Depends(require_viewer),
 ) -> dict[str, Any]:
+    _check_owns_assessment(request, assessment_id, current_user)
     engine: AssessmentExecutionEngine = _get_engine(request)
     state = engine.get_state(assessment_id)
     if state is None:
@@ -103,7 +128,9 @@ async def get_execution_status(
 async def get_execution_events(
     assessment_id: str,
     request: Request,
+    current_user: CurrentUser = Depends(require_viewer),
 ) -> dict[str, Any]:
+    _check_owns_assessment(request, assessment_id, current_user)
     engine: AssessmentExecutionEngine = _get_engine(request)
     if engine.get_state(assessment_id) is None:
         raise HTTPException(
@@ -133,7 +160,9 @@ async def get_execution_events(
 async def get_execution_progress(
     assessment_id: str,
     request: Request,
+    current_user: CurrentUser = Depends(require_viewer),
 ) -> dict[str, Any]:
+    _check_owns_assessment(request, assessment_id, current_user)
     engine: AssessmentExecutionEngine = _get_engine(request)
     progress = engine.get_progress(assessment_id)
     if progress is None:
@@ -165,7 +194,9 @@ async def get_execution_progress(
 async def cancel_execution(
     assessment_id: str,
     request: Request,
+    current_user: CurrentUser = Depends(require_analyst),
 ) -> dict[str, Any]:
+    _check_owns_assessment(request, assessment_id, current_user)
     engine: AssessmentExecutionEngine = _get_engine(request)
     cancelled = engine.cancel_execution(assessment_id)
     if not cancelled:

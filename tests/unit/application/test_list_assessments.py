@@ -37,7 +37,7 @@ def _make_assessment(
 class TestHappyPath:
     def test_returns_empty_list_when_no_assessments(self, assessments: InMemoryAssessmentRepository) -> None:
         use_case = ListAssessments(assessments)
-        response = use_case.execute(ListAssessmentsRequest())
+        response = use_case.execute(ListAssessmentsRequest(is_admin=True))
 
         assert isinstance(response, ListAssessmentsResponse)
         assert response.items == ()
@@ -52,7 +52,7 @@ class TestHappyPath:
         assessments.save(mid)
 
         use_case = ListAssessments(assessments)
-        response = use_case.execute(ListAssessmentsRequest())
+        response = use_case.execute(ListAssessmentsRequest(is_admin=True))
 
         assert len(response.items) == 3
         assert response.items[0].target == "10.0.0.2 (ip_address)"
@@ -64,7 +64,7 @@ class TestHappyPath:
         assessments.save(assessment)
 
         use_case = ListAssessments(assessments)
-        response = use_case.execute(ListAssessmentsRequest())
+        response = use_case.execute(ListAssessmentsRequest(is_admin=True))
 
         assert len(response.items) == 1
         summary = response.items[0]
@@ -81,7 +81,7 @@ class TestPagination:
             assessments.save(_make_assessment(target_value=f"10.0.0.{i}", day=i + 1))
 
         use_case = ListAssessments(assessments)
-        response = use_case.execute(ListAssessmentsRequest(limit=2, offset=0))
+        response = use_case.execute(ListAssessmentsRequest(limit=2, offset=0, is_admin=True))
 
         assert len(response.items) == 2
         assert response.limit == 2
@@ -92,19 +92,19 @@ class TestPagination:
             assessments.save(_make_assessment(target_value=f"10.0.0.{i}", day=i + 1))
 
         use_case = ListAssessments(assessments)
-        response = use_case.execute(ListAssessmentsRequest(limit=2, offset=2))
+        response = use_case.execute(ListAssessmentsRequest(limit=2, offset=2, is_admin=True))
 
         assert len(response.items) == 2
 
     def test_limit_clamped_to_max_200(self, assessments: InMemoryAssessmentRepository) -> None:
         use_case = ListAssessments(assessments)
-        response = use_case.execute(ListAssessmentsRequest(limit=999))
+        response = use_case.execute(ListAssessmentsRequest(limit=999, is_admin=True))
 
         assert response.limit == 200
 
     def test_limit_clamped_to_min_1(self, assessments: InMemoryAssessmentRepository) -> None:
         use_case = ListAssessments(assessments)
-        response = use_case.execute(ListAssessmentsRequest(limit=0))
+        response = use_case.execute(ListAssessmentsRequest(limit=0, is_admin=True))
 
         assert response.limit == 1
 
@@ -112,7 +112,7 @@ class TestPagination:
         assessments.save(_make_assessment(target_value="10.0.0.1", day=1))
 
         use_case = ListAssessments(assessments)
-        response = use_case.execute(ListAssessmentsRequest(offset=-5))
+        response = use_case.execute(ListAssessmentsRequest(offset=-5, is_admin=True))
 
         assert response.offset == 0
         assert len(response.items) == 1
@@ -121,10 +121,50 @@ class TestPagination:
         assessments.save(_make_assessment(target_value="10.0.0.1", day=1))
 
         use_case = ListAssessments(assessments)
-        response = use_case.execute(ListAssessmentsRequest(offset=100))
+        response = use_case.execute(ListAssessmentsRequest(offset=100, is_admin=True))
 
         assert response.items == ()
         assert response.total == 0
+
+
+class TestOwnershipFiltering:
+    def test_non_admin_only_sees_own_assessments(self, assessments: InMemoryAssessmentRepository) -> None:
+        mine = _make_assessment(target_value="10.0.0.1", day=1)
+        mine.set_ownership("alice")
+        assessments.save(mine)
+        theirs = _make_assessment(target_value="10.0.0.2", day=2)
+        theirs.set_ownership("bob")
+        assessments.save(theirs)
+
+        use_case = ListAssessments(assessments)
+        response = use_case.execute(ListAssessmentsRequest(requesting_user="alice", is_admin=False))
+
+        assert len(response.items) == 1
+        assert response.items[0].assessment_id == str(mine.id)
+
+    def test_non_admin_does_not_see_unowned_assessments(self, assessments: InMemoryAssessmentRepository) -> None:
+        unowned = _make_assessment(target_value="10.0.0.1", day=1)
+        assessments.save(unowned)
+
+        use_case = ListAssessments(assessments)
+        response = use_case.execute(ListAssessmentsRequest(requesting_user="alice", is_admin=False))
+
+        assert response.items == ()
+
+    def test_admin_sees_all_assessments_regardless_of_owner(
+        self, assessments: InMemoryAssessmentRepository
+    ) -> None:
+        mine = _make_assessment(target_value="10.0.0.1", day=1)
+        mine.set_ownership("alice")
+        assessments.save(mine)
+        theirs = _make_assessment(target_value="10.0.0.2", day=2)
+        theirs.set_ownership("bob")
+        assessments.save(theirs)
+
+        use_case = ListAssessments(assessments)
+        response = use_case.execute(ListAssessmentsRequest(requesting_user="alice", is_admin=True))
+
+        assert len(response.items) == 2
 
 
 class TestAssessmentSummary:

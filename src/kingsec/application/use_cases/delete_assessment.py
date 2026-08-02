@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 
-from kingsec.application._support import to_assessment_id
+from kingsec.application._support import check_assessment_access, to_assessment_id
 from kingsec.application.dto import DeleteAssessmentRequest, DeleteAssessmentResponse
 from kingsec.application.events import EVENT_ASSESSMENT_DELETED, AssessmentEvent
 from kingsec.application.ports import AssessmentRepository, AuditPublisher, EventPublisher
@@ -36,7 +36,8 @@ class DeleteAssessment:
         assessment_id = to_assessment_id(request.assessment_id)
 
         # Verify existence before delete (raises AssessmentNotFoundError if missing).
-        self._assessments.get(assessment_id)
+        assessment = self._assessments.get(assessment_id)
+        check_assessment_access(assessment, request.requesting_user, request.is_admin)
 
         # Delete the assessment and all children via cascade.
         self._assessments.delete(assessment_id)
