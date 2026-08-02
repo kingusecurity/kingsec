@@ -76,8 +76,11 @@ async def start_pipeline(
             scanner_ids=body.get("scanner_ids"),
             priority=body.get("priority", "normal"),
         )
-    except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except (KeyError, TypeError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="target is required, and scanner_ids (if provided) must be a list of strings",
+        ) from exc
     return {"message": "Pipeline started", "pipeline": _to_response(execution)}
 
 

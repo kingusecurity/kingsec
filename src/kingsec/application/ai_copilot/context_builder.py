@@ -8,11 +8,11 @@ class FindingRepositoryPort(Protocol):
 
 
 class AssessmentRepositoryPort(Protocol):
-    def find_by_id(self, assessment_id: str) -> Any | None: ...
+    def get(self, assessment_id: Any) -> Any: ...
 
 
 class AssetRepositoryPort(Protocol):
-    def find_by_id(self, asset_id: str) -> Any | None: ...
+    def get(self, asset_id: str) -> Any: ...
 
 
 class CveRepositoryPort(Protocol):
@@ -20,11 +20,11 @@ class CveRepositoryPort(Protocol):
 
 
 class AlertRepositoryPort(Protocol):
-    def find_by_id(self, alert_id: str) -> Any | None: ...
+    def get_alert(self, alert_id: str) -> Any: ...
 
 
 class ExposureRepositoryPort(Protocol):
-    def find_by_id(self, exposure_id: str) -> Any | None: ...
+    def get(self, exposure_id: str) -> Any: ...
 
 
 class CopilotContextBuilder:
@@ -122,7 +122,9 @@ class CopilotContextBuilder:
         if not self._assessment_repo:
             return None
         try:
-            assessment = self._assessment_repo.find_by_id(assessment_id)
+            from kingsec.domain import AssessmentId
+
+            assessment = self._assessment_repo.get(AssessmentId(assessment_id))
             if assessment is None:
                 return None
             return {
@@ -138,7 +140,7 @@ class CopilotContextBuilder:
         if not self._asset_repo:
             return None
         try:
-            asset = self._asset_repo.find_by_id(asset_id)
+            asset = self._asset_repo.get(asset_id)
             if asset is None:
                 return None
             return {
@@ -173,7 +175,7 @@ class CopilotContextBuilder:
         if not self._alert_repo:
             return None
         try:
-            alert = self._alert_repo.find_by_id(alert_id)
+            alert = self._alert_repo.get_alert(alert_id)
             if alert is None:
                 return None
             return {
@@ -192,7 +194,7 @@ class CopilotContextBuilder:
         if not self._exposure_repo:
             return None
         try:
-            exposure = self._exposure_repo.find_by_id(exposure_id)
+            exposure = self._exposure_repo.get(exposure_id)
             if exposure is None:
                 return None
             return {

@@ -21,9 +21,9 @@ class PauseSchedule:
     def execute(self, request: PauseScheduleRequest) -> PauseScheduleResponse:
         existing = self._repository.find_by_id(request.schedule_id)
         if existing is None:
-            from kingsec.application.errors import ApplicationError
+            from kingsec.application.errors import ScheduleNotFoundError
 
-            raise ApplicationError(f"schedule '{request.schedule_id}' not found")
+            raise ScheduleNotFoundError(f"schedule '{request.schedule_id}' not found")
 
         paused = existing.with_status(ScheduleStatus.PAUSED)
         updated = ScanSchedule(

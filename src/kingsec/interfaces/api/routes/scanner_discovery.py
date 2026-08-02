@@ -7,6 +7,7 @@ anything on the system.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from typing import Annotated, Any
 
@@ -38,7 +39,7 @@ def create_scanner_discovery_router(
         _user: Any = Depends(get_current_user),
     ) -> list[dict[str, Any]]:
         """Return discovery status for every known scanner."""
-        statuses = _discovery.get_all_statuses()
+        statuses = await asyncio.to_thread(_discovery.get_all_statuses)
         return [_status_to_dict(s) for s in statuses]
 
     # ── GET /scanners/health ──────────────────────────────────────────────
@@ -48,7 +49,7 @@ def create_scanner_discovery_router(
         _user: Any = Depends(get_current_user),
     ) -> dict[str, Any]:
         """Return an aggregate health report across all scanners."""
-        report = _discovery.get_health_report()
+        report = await asyncio.to_thread(_discovery.get_health_report)
         return {
             "total": report.total,
             "installed": report.installed,
@@ -73,7 +74,7 @@ def create_scanner_discovery_router(
         _user: Any = Depends(get_current_user),
     ) -> dict[str, Any]:
         """Return discovery status for a single scanner."""
-        s = _discovery.get_scanner_status(scanner_id)
+        s = await asyncio.to_thread(_discovery.get_scanner_status, scanner_id)
         if not s.installed and s.availability_reason and "Unknown" in s.availability_reason:
             raise HTTPException(
                 status_code=404,
@@ -96,7 +97,7 @@ def create_scanner_discovery_router(
         _user: Any = Depends(get_current_user),
     ) -> Any:
         """Return detailed diagnostics for a single scanner."""
-        s = _discovery.get_scanner_status(scanner_id)
+        s = await asyncio.to_thread(_discovery.get_scanner_status, scanner_id)
         if not s.installed and s.availability_reason and "Unknown" in s.availability_reason:
             raise HTTPException(
                 status_code=404,

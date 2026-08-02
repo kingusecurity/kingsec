@@ -11,6 +11,7 @@ Boundary policy
     │ InputValidationError            │ 400 Bad Request                    │
     │ AssessmentNotFoundError         │ 404 Not Found                      │
     │ ReportNotFoundError             │ 404 Not Found                      │
+    │ *NotFoundError (every other one)│ 404 Not Found                      │
     │ IllegalStateTransition          │ 409 Conflict                       │
     │ InvariantViolation              │ 422 Unprocessable Entity           │
     │ DomainError (other)             │ 409 Conflict                       │
@@ -28,13 +29,48 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 
 from kingsec.application.errors import (
+    AccountLinkNotFoundError,
+    AgentNotFoundError,
+    AlertNotFoundError,
     AssessmentNotFoundError,
+    AssetNotFoundError,
+    BackupNotFoundError,
+    CopilotConversationNotFoundError,
+    CveNotFoundError,
+    DeadLetterEntryNotFoundError,
+    ExecutionHistoryNotFoundError,
+    ExposureNotFoundError,
+    IdentityProviderNotFoundError,
     InputValidationError,
+    InvestigationNoteNotFoundError,
+    JobLeaseNotFoundError,
+    JobNotFoundError,
+    JobQueueEntryNotFoundError,
+    MonitorEventNotFoundError,
+    NotificationNotFoundError,
+    PipelineNotFoundError,
+    PlaybookNotFoundError,
+    PluginNotFoundError,
+    QueueEntryNotFoundError,
+    RecoveryPlanNotFoundError,
+    RecoveryTestNotFoundError,
     ReportNotFoundError,
+    RestoreNotFoundError,
+    RuleNotFoundError,
+    ScheduleNotFoundError,
+    SnapshotNotFoundError,
+    SSOSessionNotFoundError,
+    ThreatFeedNotFoundError,
+    VerificationNotFoundError,
+    WorkerNotFoundError,
 )
 from kingsec.application.use_cases.login import AuthenticationError
 from kingsec.application.use_cases.refresh_token import TokenRefreshError
 from kingsec.application.use_cases.register_user import RegistrationError
+from kingsec.application.use_cases.revoke_api_key import (
+    ApiKeyNotFoundError,
+    ApiKeyUnauthorizedError,
+)
 from kingsec.domain.errors import (
     DomainError,
     IllegalStateTransition,
@@ -70,6 +106,17 @@ async def handle_assessment_not_found(_request: Request, exc: AssessmentNotFound
 
 
 async def handle_report_not_found(_request: Request, exc: ReportNotFoundError) -> JSONResponse:
+    return _error_response(404, ErrorCode.NOT_FOUND, str(exc))
+
+
+async def handle_not_found_error(_request: Request, exc: Exception) -> JSONResponse:
+    """Shared 404 handler for every other "resource not found" application error.
+
+    All of these are trivial marker exceptions (no extra fields beyond the
+    message), identical in shape to AssessmentNotFoundError/ReportNotFoundError
+    above — this generalizes that same handler instead of duplicating it once
+    per resource type.
+    """
     return _error_response(404, ErrorCode.NOT_FOUND, str(exc))
 
 
@@ -126,6 +173,14 @@ async def handle_registration_error(_request: Request, exc: RegistrationError) -
 
 async def handle_token_refresh_error(_request: Request, exc: TokenRefreshError) -> JSONResponse:
     return _error_response(401, ErrorCode.AUTHORIZATION, str(exc))
+
+
+async def handle_api_key_not_found(_request: Request, exc: ApiKeyNotFoundError) -> JSONResponse:
+    return _error_response(404, ErrorCode.NOT_FOUND, str(exc))
+
+
+async def handle_api_key_unauthorized(_request: Request, exc: ApiKeyUnauthorizedError) -> JSONResponse:
+    return _error_response(403, ErrorCode.AUTHORIZATION, str(exc))
 
 
 async def handle_domain_error(_request: Request, exc: DomainError) -> JSONResponse:
@@ -188,6 +243,43 @@ def register_error_handlers(app: object) -> None:
     app.exception_handler(AssessmentNotFoundError)(handle_assessment_not_found)
     app.exception_handler(ReportNotFoundError)(handle_report_not_found)
 
+    # Every other "resource not found" application error — same 404 contract,
+    # previously unregistered and falling through to the generic 500 handler.
+    for _not_found_cls in (
+        JobNotFoundError,
+        NotificationNotFoundError,
+        PluginNotFoundError,
+        AgentNotFoundError,
+        QueueEntryNotFoundError,
+        PipelineNotFoundError,
+        BackupNotFoundError,
+        SnapshotNotFoundError,
+        RestoreNotFoundError,
+        AssetNotFoundError,
+        ExposureNotFoundError,
+        MonitorEventNotFoundError,
+        AlertNotFoundError,
+        RuleNotFoundError,
+        CveNotFoundError,
+        ThreatFeedNotFoundError,
+        CopilotConversationNotFoundError,
+        InvestigationNoteNotFoundError,
+        PlaybookNotFoundError,
+        ExecutionHistoryNotFoundError,
+        WorkerNotFoundError,
+        JobQueueEntryNotFoundError,
+        JobLeaseNotFoundError,
+        DeadLetterEntryNotFoundError,
+        IdentityProviderNotFoundError,
+        SSOSessionNotFoundError,
+        AccountLinkNotFoundError,
+        ScheduleNotFoundError,
+        VerificationNotFoundError,
+        RecoveryPlanNotFoundError,
+        RecoveryTestNotFoundError,
+    ):
+        app.exception_handler(_not_found_cls)(handle_not_found_error)
+
     # Rate limiting.
     app.exception_handler(RateLimitExceeded)(handle_rate_limit_exceeded)
 
@@ -198,6 +290,8 @@ def register_error_handlers(app: object) -> None:
     app.exception_handler(AuthenticationError)(handle_authentication_error)
     app.exception_handler(RegistrationError)(handle_registration_error)
     app.exception_handler(TokenRefreshError)(handle_token_refresh_error)
+    app.exception_handler(ApiKeyNotFoundError)(handle_api_key_not_found)
+    app.exception_handler(ApiKeyUnauthorizedError)(handle_api_key_unauthorized)
     app.exception_handler(DomainError)(handle_domain_error)
 
     # Shared error kernel.

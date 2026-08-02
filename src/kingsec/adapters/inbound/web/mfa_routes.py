@@ -93,13 +93,18 @@ async def verify_mfa(
     app = _get_app(request)
     use_case: VerifyMfaCode = app.resolve(VerifyMfaCode)
     try:
-        result = use_case.execute(
-            VerifyMfaCodeRequest(
-                username=body["username"],
-                password=body["password"],
-                totp_code=body["totp_code"],
-            )
+        request_body = VerifyMfaCodeRequest(
+            username=body["username"],
+            password=body["password"],
+            totp_code=body["totp_code"],
         )
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="username, password, and totp_code are required",
+        ) from exc
+    try:
+        result = use_case.execute(request_body)
     except ApplicationError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
 
@@ -180,13 +185,18 @@ async def use_recovery_code(
     app = _get_app(request)
     use_case: UseRecoveryCode = app.resolve(UseRecoveryCode)
     try:
-        result = use_case.execute(
-            UseRecoveryCodeRequest(
-                username=body["username"],
-                password=body["password"],
-                recovery_code=body["recovery_code"],
-            )
+        request_body = UseRecoveryCodeRequest(
+            username=body["username"],
+            password=body["password"],
+            recovery_code=body["recovery_code"],
         )
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="username, password, and recovery_code are required",
+        ) from exc
+    try:
+        result = use_case.execute(request_body)
     except ApplicationError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
 

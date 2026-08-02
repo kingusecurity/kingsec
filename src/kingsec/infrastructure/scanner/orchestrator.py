@@ -82,6 +82,12 @@ class ScannerOrchestrator(ScannerPort, ScannerExecutor):
         same graceful-degradation contract already used by ``shutdown()``.
         """
         plugins = self._registry.resolve(target)
+        if not plugins:
+            _logger.warning(
+                "no scanner plugin is compatible with this target type; "
+                "scan will produce zero findings",
+                target_type=str(target.type),
+            )
         results: list[ScannerResult] = []
 
         for plugin in plugins:

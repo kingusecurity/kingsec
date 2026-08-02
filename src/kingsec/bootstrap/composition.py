@@ -1234,9 +1234,9 @@ def _register_copilot_services(container: Container, session_factory: Any) -> No
         InvestigationNoteRepositoryPort,
     )
     from kingsec.application.monitoring.ports import AlertRepositoryPort as MonitoringAlertRepositoryPort
+    from kingsec.application.ports.asset_inventory import AssetInventoryRepositoryPort
     from kingsec.application.ports.attack_surface import AttackSurfaceRepositoryPort
     from kingsec.application.ports.outbound import AuditPublisher
-    from kingsec.application.ports.repositories import Asset
     from kingsec.application.threat_intelligence.ports import CveRepositoryPort as TICveRepositoryPort
     from kingsec.infrastructure.audit.copilot_audit_adapter import CopilotAuditAdapter
     from kingsec.infrastructure.persistence.repositories.copilot import (
@@ -1262,7 +1262,7 @@ def _register_copilot_services(container: Container, session_factory: Any) -> No
         lambda c: CopilotContextBuilder(
             finding_repo=None,
             assessment_repo=c.resolve(AssessmentRepository) if c.has(AssessmentRepository) else None,
-            asset_repo=c.resolve(Asset) if c.has(Asset) else None,
+            asset_repo=c.resolve(AssetInventoryRepositoryPort) if c.has(AssetInventoryRepositoryPort) else None,
             cve_repo=c.resolve(TICveRepositoryPort) if c.has(TICveRepositoryPort) else None,
             alert_repo=c.resolve(MonitoringAlertRepositoryPort) if c.has(MonitoringAlertRepositoryPort) else None,
             exposure_repo=c.resolve(AttackSurfaceRepositoryPort) if c.has(AttackSurfaceRepositoryPort) else None,

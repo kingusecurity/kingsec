@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from .ports import AuditPublisherPort, CveRepositoryPort, ThreatFeedRepositoryPort
+from .ports import AuditPublisherPort, CveFilter, CveRepositoryPort, KevFilter, ThreatFeedRepositoryPort
 
 
 class ThreatReportGenerator:
@@ -21,9 +21,7 @@ class ThreatReportGenerator:
         summary = self._cve_repo.get_summary()
         trend_points = self._cve_repo.get_trend_points(days)
         critical = self._cve_repo.find_critical(20)
-        kev_entries = self._cve_repo.find_kev_entries(
-            type("KevFilter", (), {"page": 1, "page_size": 50})()
-        )
+        kev_entries = self._cve_repo.find_kev_entries(KevFilter(page=1, page_size=50))
         now = datetime.now(UTC).isoformat()
 
         report = {
@@ -108,9 +106,7 @@ class ThreatReportGenerator:
         return report
 
     async def generate_kev_report(self) -> dict[str, Any]:
-        kev_items, total = self._cve_repo.find_kev_entries(
-            type("KevFilter", (), {"page": 1, "page_size": 200})()
-        )
+        kev_items, total = self._cve_repo.find_kev_entries(KevFilter(page=1, page_size=200))
         now = datetime.now(UTC).isoformat()
 
         report = {
@@ -137,12 +133,7 @@ class ThreatReportGenerator:
 
     async def generate_high_risk_cve_report(self, min_score: float = 50.0) -> dict[str, Any]:
         cves, total = self._cve_repo.find_all(
-            type("CveFilter", (), {
-                "page": 1,
-                "page_size": 100,
-                "min_score": min_score,
-                "sort_by": "-threat_score",
-            })()
+            CveFilter(page=1, page_size=100, min_score=min_score, sort_by="-threat_score")
         )
         now = datetime.now(UTC).isoformat()
 

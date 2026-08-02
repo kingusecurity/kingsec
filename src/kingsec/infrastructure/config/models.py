@@ -268,8 +268,11 @@ class NmapSettings(BaseModel):
     binary_path: str = "nmap"
     timeout_seconds: float = Field(default=600.0, gt=0)
     # Scan arguments. The adapter appends the target automatically.
-    # Default: service version detection (-sV), XML output to stdout (-oX -).
-    scan_args: tuple[str, ...] = ("-sV",)
+    # Default: service version detection (-sV), no reverse-DNS lookups (-n —
+    # without this, nmap does a PTR lookup per discovered host/port, which on
+    # an unresponsive or slow resolver can add minutes to a hostname scan
+    # that an equivalent IP-address scan never pays), XML output to stdout.
+    scan_args: tuple[str, ...] = ("-sV", "-n")
 
     @field_validator("binary_path")
     @classmethod

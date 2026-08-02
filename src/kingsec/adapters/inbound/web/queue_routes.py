@@ -46,8 +46,11 @@ async def enqueue(
             owner_user_id=body.get("owner_user_id", user.user_id),
             estimated_duration_seconds=body.get("estimated_duration_seconds", 300),
         )
-    except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except (KeyError, TypeError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="payload and target are required fields",
+        ) from exc
     return {
         "message": "Job enqueued",
         "entry": {
