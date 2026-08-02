@@ -19,9 +19,19 @@ Local-first, AI-augmented **Attack Surface Management (ASM)** and **Vulnerabilit
 ```bash
 # Docker (recommended) — zero to first assessment in 5 minutes
 docker build -t kingsec:2.0.0 .
-docker run -d --name kingsec -p 8765:8765 -v kingsec-data:/home/kingsec/.kingsec kingsec:2.0.0
-# Open http://127.0.0.1:8765 and register the first admin account
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"  # copy the output
+docker run -d --name kingsec -p 8765:8765 \
+  -e KINGSEC_SECRETS__ENCRYPTION_KEY="<paste-the-generated-key>" \
+  -v kingsec-data:/home/kingsec/.kingsec kingsec:2.0.0
+# The API + Swagger UI are now at http://127.0.0.1:8765/docs
 ```
+
+> **The web UI is a separate app.** This container serves the REST API
+> only — there is no built-in frontend hosting yet. To use the browser UI,
+> run the frontend separately: `cd frontend && npm install && npm run dev`,
+> then open http://localhost:5173 (it proxies API calls to port 8765).
+> `KINGSEC_SECRETS__ENCRYPTION_KEY` is mandatory — the server refuses to
+> start without it, in every environment.
 
 See [QUICK_START.md](QUICK_START.md) for the complete walkthrough.
 
@@ -49,18 +59,26 @@ See [QUICK_START.md](QUICK_START.md) for the complete walkthrough.
 ```bash
 docker build -t kingsec:2.0.0 .
 cp .env.example .env
+# Edit .env and uncomment/set KINGSEC_SECRETS__ENCRYPTION_KEY (required —
+# the server refuses to start without it) plus the other ⚠️ REQUIRED values.
 docker run -d --name kingsec --env-file .env -p 8765:8765 -v kingsec-data:/home/kingsec/.kingsec kingsec:2.0.0
 ```
 
 ### Docker Compose
 ```bash
 cp .env.example .env
+# Edit .env as above before starting.
 docker compose up -d
 ```
 
-### Direct pip
+### From source (pip)
+KingSec is not (yet) published on PyPI — install from a repository checkout:
 ```bash
-pip install kingsec
+git clone https://github.com/kingusecurity/kingsec.git
+cd kingsec
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\Activate.ps1
+pip install .
+export KINGSEC_SECRETS__ENCRYPTION_KEY="$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
 kingsec-migrate
 kingsec
 ```
@@ -70,8 +88,9 @@ See [INSTALL.md](INSTALL.md) for complete instructions including Windows, macOS,
 ## Quick links
 
 - **API:** http://127.0.0.1:8765/api/v1
-- **Frontend:** http://127.0.0.1:8765
-- **Health check:** http://127.0.0.1:8765/api/v1/settings/healthz
+- **Swagger UI:** http://127.0.0.1:8765/docs
+- **Frontend (dev server, run separately — see above):** http://localhost:5173
+- **Health check:** http://127.0.0.1:8765/api/v1/health
 
 ## Assessment Profiles
 
@@ -233,12 +252,13 @@ The health score is computed as:
 
 ### Direct installation
 ```bash
-# 1. Install via pip (once published)
-pip install kingsec
+# 1. Install from a repository checkout (not yet published on PyPI)
+git clone https://github.com/kingusecurity/kingsec.git && cd kingsec
+pip install .
 
 # 2. Set required environment variables
 export KINGSEC_JWT__SECRET_KEY="your-production-secret"
-export KINGSEC_SECRETS__ENCRYPTION_KEY="your-base64-32byte-key"
+export KINGSEC_SECRETS__ENCRYPTION_KEY="your-base64-32byte-key"   # mandatory — see .env.example
 
 # 3. Run database migrations
 kingsec-migrate
@@ -246,13 +266,16 @@ kingsec-migrate
 # 4. Start the server
 kingsec
 
-# The API is now available at http://127.0.0.1:8765
+# The REST API + Swagger UI are now available at http://127.0.0.1:8765/docs
 ```
 
-On Windows:
-```batch
-pip install kingsec
-set KINGSEC_JWT__SECRET_KEY=your-production-secret
+On Windows (PowerShell):
+```powershell
+git clone https://github.com/kingusecurity/kingsec.git
+cd kingsec
+pip install .
+$env:KINGSEC_JWT__SECRET_KEY = "your-production-secret"
+$env:KINGSEC_SECRETS__ENCRYPTION_KEY = "your-base64-32byte-key"   # mandatory
 kingsec-migrate
 kingsec
 ```
@@ -326,4 +349,4 @@ Proprietary. All rights reserved. See [`LICENSE`](LICENSE).
 
 ---
 
-*KingSec v1.1.0 — [GitHub](https://github.com/kingusecurity/kingsec)*
+*KingSec v2.0.0 — [GitHub](https://github.com/kingusecurity/kingsec)*

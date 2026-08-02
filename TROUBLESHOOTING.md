@@ -47,7 +47,22 @@ Rate limit exceeded. Wait for the rate limit window to reset (see X-RateLimit-Re
 ### Report generation fails
 1. Ensure the assessment has completed (status is "completed")
 2. Check disk space — report generation requires free disk space
-3. For PDF reports, verify WeasyPrint dependencies are installed
+3. For PDF reports, verify WeasyPrint's native dependencies are installed
+   (this is the most common cause — WeasyPrint is a Python package, but PDF
+   rendering also needs system-level GTK libraries that `pip install` does
+   not provide):
+   - **Windows:** install the GTK3 runtime from
+     https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases
+     (download and run the latest `.exe`), then restart your terminal (and
+     KingSec) so the updated `PATH` takes effect.
+   - **Linux (Debian/Ubuntu):** `sudo apt install libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf-2.0-0`
+   - **macOS:** `brew install pango`
+   - If the server log shows "WeasyPrint could not import some external
+     libraries", the above has not yet taken effect — this confirms the
+     diagnosis. See https://doc.courtbouillon.org/weasyprint/stable/first_steps.html#installation
+     for the authoritative, OS-specific instructions.
+   - The Docker image already includes these libraries — this issue only
+     affects direct (non-Docker) installs.
 
 ### Frontend shows blank page
 1. Check browser console for JavaScript errors (F12)

@@ -2,7 +2,7 @@
 
 Professional cybersecurity assessment platform frontend — Attack Surface Management & Vulnerability Management.
 
-Version **1.0.0** — Release Candidate 1 (RC1)
+Version **2.0.0** — General Availability
 
 ---
 
@@ -130,14 +130,17 @@ Configure a Custom Error Response for 404 → `/index.html` with 200 status code
 
 ### Environment Variables
 
-The frontend uses `VITE_*` environment variables at build time. These are embedded into the JavaScript bundle during `npm run build`.
+There are currently none. The API base path (`/api/v1`, in `src/api/client.ts`)
+and the dev-server proxy target (`http://127.0.0.1:8765`, in `vite.config.ts`)
+are both hardcoded in source, not read from any `VITE_*` environment
+variable or `.env` file — changing either requires editing that file
+directly and rebuilding.
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `VITE_API_BASE_URL` | `/api/v1` | Base path for API requests |
-| `VITE_BACKEND_URL` | `http://127.0.0.1:8000` | Backend URL (used only for reference at build time) |
-
-**Important:** The API base URL is a path-prefix (`/api/v1`), not a full URL. In production, the API is typically served from the same origin as the frontend (behind a reverse proxy). For development, the Vite dev server proxies `/api` to the backend.
+**Important:** The API base path is a path-prefix (`/api/v1`), not a full
+URL. In production, the API must be reachable at that path from the same
+origin the frontend is served from (e.g. behind a reverse proxy that
+routes `/api/*` to the backend) — this repository does not yet include
+such a reverse-proxy configuration out of the box.
 
 ### Docker Deployment Example
 
