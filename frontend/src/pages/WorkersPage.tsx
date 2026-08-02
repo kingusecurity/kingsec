@@ -15,9 +15,13 @@ export function WorkersPage() {
   const [form, setForm] = useState({ worker_id: '', hostname: '', os: '', cpu: '', ram_mb: 0 })
 
   const handleRegister = async () => {
-    await registerWorker.mutateAsync(form)
-    setShowRegister(false)
-    setForm({ worker_id: '', hostname: '', os: '', cpu: '', ram_mb: 0 })
+    try {
+      await registerWorker.mutateAsync(form)
+      setShowRegister(false)
+      setForm({ worker_id: '', hostname: '', os: '', cpu: '', ram_mb: 0 })
+    } catch {
+      // Error is surfaced below via registerWorker.error.
+    }
   }
 
   const statusColor = (status: string) => {
@@ -54,6 +58,11 @@ export function WorkersPage() {
             <input className="input" placeholder="CPU" value={form.cpu} onChange={e => setForm({ ...form, cpu: e.target.value })} />
             <input className="input" placeholder="RAM (MB)" type="number" value={form.ram_mb} onChange={e => setForm({ ...form, ram_mb: parseInt(e.target.value) || 0 })} />
           </div>
+          {registerWorker.isError && (
+            <p className="text-sm text-red-500">
+              {(registerWorker.error as Error)?.message ?? 'Failed to register worker'}
+            </p>
+          )}
           <Button onClick={handleRegister} disabled={!form.worker_id}>Register</Button>
         </Card>
       )}

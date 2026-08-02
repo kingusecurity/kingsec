@@ -265,7 +265,11 @@ function AssessmentReportSection({
           variant="outline"
           size="xs"
           className="flex-1"
-          onClick={() => adminApi.downloadReport(assessmentId)}
+          onClick={() => {
+            adminApi.downloadReport(assessmentId).catch((err) => {
+              console.error('Failed to download report', err)
+            })
+          }}
           iconLeft={<Download className="h-3.5 w-3.5" />}
         >
           Download

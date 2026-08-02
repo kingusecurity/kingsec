@@ -17,6 +17,7 @@ import {
   useDeleteNote,
 } from '@/hooks/use-copilot'
 import type { CopilotMessage, AskResult } from '@/api/copilot'
+import { getAccessToken } from '@/api/client'
 
 const API_BASE = '/api/v1'
 
@@ -203,21 +204,52 @@ export function AICopilotPage() {
 
   const handleExportMarkdown = () => {
     if (!activeConvId) return
-    window.open(`${API_BASE}/copilot/export/${encodeURIComponent(activeConvId)}/markdown`, '_blank')
+    const token = getAccessToken()
+    fetch(`${API_BASE}/copilot/export/${encodeURIComponent(activeConvId)}/markdown`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error('Export failed')
+        return r.blob()
+      })
+      .then((blob) => {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `investigation-${activeConvId}.md`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+      })
+      .catch(() => {
+        // Best-effort export; the button remains usable if the user retries.
+      })
   }
 
   const handleExportJson = () => {
     if (!activeConvId) return
-    fetch(`${API_BASE}/copilot/export/${encodeURIComponent(activeConvId)}/json`)
-      .then((r) => r.json())
+    const token = getAccessToken()
+    fetch(`${API_BASE}/copilot/export/${encodeURIComponent(activeConvId)}/json`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error('Export failed')
+        return r.json()
+      })
       .then((data) => {
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
         a.download = `investigation-${activeConvId}.json`
+        document.body.appendChild(a)
         a.click()
+        document.body.removeChild(a)
         URL.revokeObjectURL(url)
+      })
+      .catch(() => {
+        // Best-effort export; the button remains usable if the user retries.
       })
   }
 

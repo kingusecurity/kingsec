@@ -3,6 +3,7 @@ import { PageContainer, PageHeader } from '@/components/layout/PageContainer'
 import { Card } from '@/components/ui/Card'
 import { Spinner } from '@/components/ui/Spinner'
 import { Badge } from '@/components/ui/Badge'
+import { ErrorState } from '@/components/ui/ErrorState'
 import {
   useTISummary,
   useTrendingThreats,
@@ -11,11 +12,21 @@ import {
 } from '@/hooks/use-threat-intelligence'
 
 export function ThreatIntelligenceDashboard() {
-  const { data: summary, isLoading } = useTISummary()
+  const { data: summary, isLoading, isError, error, refetch } = useTISummary()
   const { data: trending } = useTrendingThreats(5)
   const { data: critical } = useCriticalCves(5)
   const { data: trends } = useTITrends(30)
   const [days] = useState(30)
+
+  if (isError) {
+    return (
+      <ErrorState
+        title="Failed to load threat intelligence"
+        message={(error as Error)?.message}
+        onRetry={() => refetch()}
+      />
+    )
+  }
 
   if (isLoading) {
     return <div className="flex justify-center py-16"><Spinner /></div>

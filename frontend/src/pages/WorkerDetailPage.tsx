@@ -17,8 +17,12 @@ export function WorkerDetailPage() {
   const w = data.worker
 
   const handleDelete = async () => {
-    await deleteWorker.mutateAsync(w.worker_id)
-    navigate('/workers')
+    try {
+      await deleteWorker.mutateAsync(w.worker_id)
+      navigate('/workers')
+    } catch {
+      // Error is surfaced below via deleteWorker.error.
+    }
   }
 
   return (
@@ -33,6 +37,12 @@ export function WorkerDetailPage() {
           <Button variant="danger" onClick={handleDelete}>Remove Worker</Button>
         </div>
       </div>
+
+      {deleteWorker.isError && (
+        <p className="text-sm text-red-500">
+          {(deleteWorker.error as Error)?.message ?? 'Failed to remove worker'}
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <Card className="p-4 space-y-3">

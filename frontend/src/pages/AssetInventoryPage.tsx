@@ -4,6 +4,7 @@ import { PageContainer, PageHeader } from '@/components/layout/PageContainer'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
+import { ErrorState } from '@/components/ui/ErrorState'
 import { Input } from '@/components/ui/Input'
 import { useAssetSummary, useAssets } from '@/hooks/use-assets'
 import type { AssetListItem } from '@/api/assets'
@@ -71,7 +72,7 @@ export function AssetInventoryPage() {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [critFilter, setCritFilter] = useState('')
-  const { data: summary, isLoading: summaryLoading } = useAssetSummary()
+  const { data: summary, isLoading: summaryLoading, isError, error, refetch } = useAssetSummary()
   const { data: listData, isLoading: listLoading } = useAssets({ search: search || undefined, asset_type: typeFilter || undefined, criticality: critFilter || undefined })
 
   const assets = listData?.items ?? []
@@ -84,7 +85,13 @@ export function AssetInventoryPage() {
         description="Discover, track, and manage all assets across your infrastructure"
       />
 
-      {summaryLoading ? (
+      {isError ? (
+        <ErrorState
+          title="Failed to load asset inventory"
+          message={(error as Error)?.message}
+          onRetry={() => refetch()}
+        />
+      ) : summaryLoading ? (
         <div className="flex justify-center py-12">
           <Spinner size="lg" />
         </div>

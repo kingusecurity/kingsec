@@ -32,6 +32,7 @@ export type CreateAssessmentFormData = z.infer<typeof createSchema>
 interface CreateAssessmentFormProps {
   onSubmit: (data: CreateAssessmentFormData) => void
   isPending?: boolean
+  error?: string | null
 }
 
 const targetTypeLabels: Record<string, string> = {
@@ -170,7 +171,7 @@ function PlanSummary({ plan }: { plan: ExecutionPlan }) {
   )
 }
 
-export function CreateAssessmentForm({ onSubmit, isPending }: CreateAssessmentFormProps) {
+export function CreateAssessmentForm({ onSubmit, isPending, error }: CreateAssessmentFormProps) {
   const [step, setStep] = useState(0)
   const { data: profiles, isLoading: profilesLoading } = useProfiles()
   const planMutation = usePlan()
@@ -359,6 +360,10 @@ export function CreateAssessmentForm({ onSubmit, isPending }: CreateAssessmentFo
             </div>
           )}
         </div>
+
+        {error && step === steps.length - 1 && (
+          <p className="px-4 pt-2 text-xs text-red-400">{error}</p>
+        )}
 
         <CardFooter>
           {step > 0 && (

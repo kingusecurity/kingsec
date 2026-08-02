@@ -3,6 +3,7 @@ import { PageContainer, PageHeader } from '@/components/layout/PageContainer'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
+import { ErrorState } from '@/components/ui/ErrorState'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs'
 import { useFrameworks, useFrameworkControls } from '@/hooks/use-compliance'
 
@@ -41,7 +42,7 @@ function CoverageCharts({ frameworks }: { frameworks: { id: string; name: string
 export function ComplianceDashboardPage() {
   const [activeTab, setActiveTab] = useState('overview')
   const [selectedFramework, setSelectedFramework] = useState<string>('')
-  const { data: frameworks, isLoading: frameworksLoading } = useFrameworks()
+  const { data: frameworks, isLoading: frameworksLoading, isError, error, refetch } = useFrameworks()
   const { data: controls, isLoading: controlsLoading } = useFrameworkControls(selectedFramework || null)
 
   return (
@@ -51,7 +52,13 @@ export function ComplianceDashboardPage() {
         description="Map findings to security frameworks and track compliance coverage"
       />
 
-      {frameworksLoading ? (
+      {isError ? (
+        <ErrorState
+          title="Failed to load compliance frameworks"
+          message={(error as Error)?.message}
+          onRetry={() => refetch()}
+        />
+      ) : frameworksLoading ? (
         <div className="flex justify-center py-12">
           <Spinner size="lg" />
         </div>

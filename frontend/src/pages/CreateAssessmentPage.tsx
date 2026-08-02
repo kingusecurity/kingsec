@@ -38,7 +38,11 @@ export function CreateAssessmentPage() {
       />
 
       <div className="max-w-2xl">
-        <CreateAssessmentForm onSubmit={handleSubmit} isPending={createAssessment.isPending} />
+        <CreateAssessmentForm
+          onSubmit={handleSubmit}
+          isPending={createAssessment.isPending}
+          error={createAssessment.isError ? (createAssessment.error as Error)?.message : null}
+        />
       </div>
     </PageContainer>
   )
