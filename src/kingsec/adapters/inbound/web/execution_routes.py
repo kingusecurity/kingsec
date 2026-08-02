@@ -105,6 +105,11 @@ async def get_execution_events(
     request: Request,
 ) -> dict[str, Any]:
     engine: AssessmentExecutionEngine = _get_engine(request)
+    if engine.get_state(assessment_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Execution not found for this assessment",
+        )
     events = engine.get_events(assessment_id)
     return {
         "assessment_id": assessment_id,

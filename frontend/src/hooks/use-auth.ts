@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/api/auth'
+import { settingsApi } from '@/api/settings'
 import { setTokens, clearTokens, setLogoutHandler } from '@/api/client'
 import { useAuthStore } from '@/store/auth'
 import type { LoginBody, RegisterUserBody } from '@/types/api'
@@ -52,6 +53,9 @@ export function useLogout() {
   const queryClient = useQueryClient()
 
   return () => {
+    // Best-effort: revoke the session server-side too, but never let a failed
+    // (e.g. already-expired) revocation call block the local sign-out.
+    settingsApi.deleteCurrentSession().catch(() => undefined)
     clearTokens()
     clearUser()
     queryClient.clear()

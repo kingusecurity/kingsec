@@ -42,6 +42,7 @@ from kingsec.domain.errors import (
 )
 from kingsec.domain.rate_limit import RateLimitExceeded
 from kingsec.domain.user import PasswordValidationError
+from kingsec.infrastructure.reporting.errors import ReportGenerationError
 from kingsec.shared.errors import ErrorCode, KingSecError
 
 
@@ -147,6 +148,7 @@ _KINGSEC_STATUS_MAP: dict[str, int] = {
     ErrorCode.SCANNER: 502,
     ErrorCode.PERSISTENCE: 500,
     ErrorCode.CONFIGURATION: 500,
+    ReportGenerationError.code: 500,
 }
 
 

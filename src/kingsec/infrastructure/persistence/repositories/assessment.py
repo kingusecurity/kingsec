@@ -24,6 +24,13 @@ from kingsec.infrastructure.persistence.mappers import (
 )
 from kingsec.infrastructure.persistence.models import AssessmentORM, FindingORM
 
+_ALLOWED_FINDING_ORDER_COLS = frozenset({
+    "discovered_at",
+    "severity",
+    "status",
+    "title",
+})
+
 
 class SQLAlchemyAssessmentRepository(AssessmentRepository):
     """Implements :class:`AssessmentRepository` on a caller-owned session.
@@ -81,7 +88,7 @@ class SQLAlchemyAssessmentRepository(AssessmentRepository):
         if severity:
             filters.append(FindingORM.severity == severity.upper())
         if status:
-            filters.append(FindingORM.status == status)
+            filters.append(FindingORM.status == status.lower())
         if assessment_id:
             filters.append(FindingORM.assessment_id == assessment_id)
         if search:
@@ -91,7 +98,8 @@ class SQLAlchemyAssessmentRepository(AssessmentRepository):
             base = base.where(*filters)
             count_base = count_base.where(*filters)
 
-        order_col = getattr(FindingORM, order_by, FindingORM.discovered_at)
+        order_col_name = order_by if order_by in _ALLOWED_FINDING_ORDER_COLS else "discovered_at"
+        order_col = getattr(FindingORM, order_col_name, FindingORM.discovered_at)
         order_fn = order_col.desc if order_dir == "desc" else order_col.asc
         base = base.order_by(order_fn()).offset(offset).limit(limit)
 

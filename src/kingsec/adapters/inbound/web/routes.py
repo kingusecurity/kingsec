@@ -296,6 +296,40 @@ async def get_current_user_info(
     )
 
 
+@router.post(
+    "/auth/change-password",
+    tags=["auth"],
+    summary="Change own password",
+    description="Change the authenticated user's own password.",
+    responses={
+        200: {"description": "Password changed"},
+        400: {"description": "Current password incorrect or new password invalid"},
+        401: {"description": "Missing or invalid token"},
+    },
+)
+async def change_own_password(
+    body: schemas.ChangePasswordBody,
+    current_user: CurrentUser = Depends(require_viewer),
+    request: Request = None,  # type: ignore[assignment]
+) -> dict[str, str]:
+    app: Application = request.app.state.kingsec_app
+    from kingsec.application.dto import ChangePasswordRequest
+    from kingsec.application.use_cases.change_password import ChangePassword, PasswordChangeError
+
+    change_uc = app.resolve(ChangePassword)
+    try:
+        change_uc.execute(
+            ChangePasswordRequest(
+                user_id=current_user.user_id,
+                current_password=body.current_password,
+                new_password=body.new_password,
+            )
+        )
+    except PasswordChangeError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return {"message": "Password changed successfully"}
+
+
 # ── List Assessments ─────────────────────────────────────────────────────────
 
 

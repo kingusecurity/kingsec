@@ -461,6 +461,15 @@ class AdminResetPasswordBody(BaseModel):
     new_password: str
 
 
+class ChangePasswordBody(BaseModel):
+    """POST /api/v1/auth/change-password request body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    current_password: str
+    new_password: str
+
+
 class RolePermissionResponse(BaseModel):
     """A single role with its permissions."""
 

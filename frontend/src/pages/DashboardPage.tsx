@@ -5,6 +5,7 @@ import { PageContainer, PageHeader, StatGrid } from '@/components/layout/PageCon
 import { StatCard } from '@/components/features/dashboard/StatCard'
 import { RecentAssessmentsTable } from '@/components/features/dashboard/RecentAssessmentsTable'
 import { QuickActions } from '@/components/features/dashboard/QuickActions'
+import { ScannerHealthPanel } from '@/components/features/monitoring/ScannerHealthPanel'
 import { DashboardSkeleton, Skeleton } from '@/components/ui/Skeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { useDashboardSummary, useDashboardJobs } from '@/hooks/use-dashboard'
@@ -63,6 +64,8 @@ export function DashboardPage() {
           </div>
         </div>
       </div>
+
+      <ScannerHealthPanel />
 
       <RecentReportsSection />
     </PageContainer>

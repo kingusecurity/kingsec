@@ -35,14 +35,20 @@ async def register_worker(
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = _get_registration_service(request)
-    worker = service.register(
-        worker_id=body["worker_id"],
-        hostname=body.get("hostname", ""),
-        os=body.get("os", ""),
-        cpu=body.get("cpu", ""),
-        ram_mb=body.get("ram_mb", 0),
-        capabilities=body.get("capabilities"),
-    )
+    try:
+        worker = service.register(
+            worker_id=body["worker_id"],
+            hostname=body.get("hostname", ""),
+            os=body.get("os", ""),
+            cpu=body.get("cpu", ""),
+            ram_mb=body.get("ram_mb", 0),
+            capabilities=body.get("capabilities"),
+        )
+    except (KeyError, TypeError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="worker_id is required, and each capability must be an object with a scanner_id",
+        ) from exc
     return {
         "message": "Worker registered",
         "worker": {

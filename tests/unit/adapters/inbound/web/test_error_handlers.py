@@ -26,6 +26,7 @@ from kingsec.domain.errors import (
     IllegalStateTransition,
     InvariantViolation,
 )
+from kingsec.infrastructure.reporting.errors import ReportGenerationError
 from kingsec.shared.errors import (
     ErrorCode,
     ExternalServiceError,
@@ -173,6 +174,7 @@ class TestStatusMap:
             ErrorCode.SCANNER,
             ErrorCode.PERSISTENCE,
             ErrorCode.CONFIGURATION,
+            ReportGenerationError.code,
         }
         assert expected_codes == set(_KINGSEC_STATUS_MAP.keys())
 
