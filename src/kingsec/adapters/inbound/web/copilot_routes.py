@@ -8,11 +8,16 @@ from kingsec.application.ai_copilot.copilot_service import CopilotService
 from kingsec.application.ai_copilot.export_service import CopilotExportService
 from kingsec.application.ai_copilot.notes_service import InvestigationNotesService
 from kingsec.application.errors import CopilotConversationNotFoundError, InvestigationNoteNotFoundError
+from kingsec.domain import Role
 
 from .auth import CurrentUser, get_current_user
 from .dependencies import get_application
 
 router = APIRouter(prefix="/api/v1", tags=["AI Copilot"])
+
+
+def _is_admin(user: CurrentUser) -> bool:
+    return user.role == Role.ADMIN
 
 
 def _get_copilot(request: Request, _: CurrentUser = Depends(get_current_user)) -> CopilotService:
@@ -36,10 +41,12 @@ def _get_export(request: Request, _: CurrentUser = Depends(get_current_user)) ->
 @router.post("/copilot/conversations")
 def create_conversation(
     body: dict[str, Any],
+    user: CurrentUser = Depends(get_current_user),
     copilot: CopilotService = Depends(_get_copilot),
 ) -> dict[str, Any]:
     conv = copilot.create_conversation(
         title=body.get("title", "New Investigation"),
+        owner=user.username,
         assessment_id=body.get("assessment_id"),
         finding_id=body.get("finding_id"),
         asset_id=body.get("asset_id"),
@@ -57,6 +64,7 @@ def list_conversations(
     asset_id: str | None = Query(None),
     cve_id: str | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
+    user: CurrentUser = Depends(get_current_user),
     copilot: CopilotService = Depends(_get_copilot),
 ) -> list[dict[str, Any]]:
     convs = copilot.list_conversations(
@@ -65,6 +73,8 @@ def list_conversations(
         asset_id=asset_id,
         cve_id=cve_id,
         limit=limit,
+        requesting_user=user.username,
+        is_admin=_is_admin(user),
     )
     return [_conv_to_dict(c) for c in convs]
 
@@ -73,19 +83,21 @@ def list_conversations(
 def search_conversations(
     q: str = Query(..., min_length=1),
     limit: int = Query(20, ge=1, le=100),
+    user: CurrentUser = Depends(get_current_user),
     copilot: CopilotService = Depends(_get_copilot),
 ) -> list[dict[str, Any]]:
-    convs = copilot.search_conversations(q, limit)
+    convs = copilot.search_conversations(q, limit, requesting_user=user.username, is_admin=_is_admin(user))
     return [_conv_to_dict(c) for c in convs]
 
 
 @router.get("/copilot/conversations/{conversation_id}")
 def get_conversation(
     conversation_id: str,
+    user: CurrentUser = Depends(get_current_user),
     copilot: CopilotService = Depends(_get_copilot),
 ) -> dict[str, Any]:
     try:
-        conv = copilot.get_conversation(conversation_id)
+        conv = copilot.get_conversation(conversation_id, user.username, _is_admin(user))
         return _conv_to_dict(conv)
     except CopilotConversationNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -94,10 +106,11 @@ def get_conversation(
 @router.delete("/copilot/conversations/{conversation_id}")
 def delete_conversation(
     conversation_id: str,
+    user: CurrentUser = Depends(get_current_user),
     copilot: CopilotService = Depends(_get_copilot),
 ) -> dict[str, str]:
     try:
-        copilot.delete_conversation(conversation_id)
+        copilot.delete_conversation(conversation_id, user.username, _is_admin(user))
         return {"status": "deleted"}
     except CopilotConversationNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -109,6 +122,7 @@ def delete_conversation(
 @router.post("/copilot/ask")
 def ask_copilot(
     body: dict[str, Any],
+    user: CurrentUser = Depends(get_current_user),
     copilot: CopilotService = Depends(_get_copilot),
 ) -> dict[str, Any]:
     conversation_id = body.get("conversation_id", "")
@@ -119,7 +133,7 @@ def ask_copilot(
     if not question:
         raise HTTPException(status_code=400, detail="question is required")
     try:
-        return copilot.ask(conversation_id, question, template_id)
+        return copilot.ask(conversation_id, question, template_id, user.username, _is_admin(user))
     except CopilotConversationNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -160,6 +174,7 @@ def list_notes(
     finding_id: str | None = Query(None),
     pinned_only: bool = Query(False),
     limit: int = Query(50, ge=1, le=200),
+    user: CurrentUser = Depends(get_current_user),
     notes_svc: InvestigationNotesService = Depends(_get_notes),
 ) -> list[dict[str, Any]]:
     notes = notes_svc.list_notes(
@@ -168,6 +183,8 @@ def list_notes(
         finding_id=finding_id,
         pinned_only=pinned_only,
         limit=limit,
+        requesting_user=user.username,
+        is_admin=_is_admin(user),
     )
     return [_note_to_dict(n) for n in notes]
 
@@ -175,10 +192,11 @@ def list_notes(
 @router.get("/copilot/notes/{note_id}")
 def get_note(
     note_id: str,
+    user: CurrentUser = Depends(get_current_user),
     notes_svc: InvestigationNotesService = Depends(_get_notes),
 ) -> dict[str, Any]:
     try:
-        note = notes_svc.get_note(note_id)
+        note = notes_svc.get_note(note_id, user.username, _is_admin(user))
         return _note_to_dict(note)
     except InvestigationNoteNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -188,10 +206,11 @@ def get_note(
 def update_note(
     note_id: str,
     body: dict[str, Any],
+    user: CurrentUser = Depends(get_current_user),
     notes_svc: InvestigationNotesService = Depends(_get_notes),
 ) -> dict[str, Any]:
     try:
-        note = notes_svc.update_note(note_id, body.get("content", ""))
+        note = notes_svc.update_note(note_id, body.get("content", ""), user.username, _is_admin(user))
         return _note_to_dict(note)
     except InvestigationNoteNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -200,10 +219,11 @@ def update_note(
 @router.post("/copilot/notes/{note_id}/pin")
 def pin_note(
     note_id: str,
+    user: CurrentUser = Depends(get_current_user),
     notes_svc: InvestigationNotesService = Depends(_get_notes),
 ) -> dict[str, Any]:
     try:
-        note = notes_svc.pin_note(note_id)
+        note = notes_svc.pin_note(note_id, user.username, _is_admin(user))
         return _note_to_dict(note)
     except InvestigationNoteNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -212,10 +232,11 @@ def pin_note(
 @router.post("/copilot/notes/{note_id}/unpin")
 def unpin_note(
     note_id: str,
+    user: CurrentUser = Depends(get_current_user),
     notes_svc: InvestigationNotesService = Depends(_get_notes),
 ) -> dict[str, Any]:
     try:
-        note = notes_svc.unpin_note(note_id)
+        note = notes_svc.unpin_note(note_id, user.username, _is_admin(user))
         return _note_to_dict(note)
     except InvestigationNoteNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -224,10 +245,11 @@ def unpin_note(
 @router.delete("/copilot/notes/{note_id}")
 def delete_note(
     note_id: str,
+    user: CurrentUser = Depends(get_current_user),
     notes_svc: InvestigationNotesService = Depends(_get_notes),
 ) -> dict[str, str]:
     try:
-        notes_svc.delete_note(note_id)
+        notes_svc.delete_note(note_id, user.username, _is_admin(user))
         return {"status": "deleted"}
     except InvestigationNoteNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -239,18 +261,20 @@ def delete_note(
 @router.get("/copilot/export/{conversation_id}/markdown")
 def export_markdown(
     conversation_id: str,
+    user: CurrentUser = Depends(get_current_user),
     export_svc: CopilotExportService = Depends(_get_export),
 ) -> dict[str, str]:
-    md = export_svc.export_markdown(conversation_id)
+    md = export_svc.export_markdown(conversation_id, user.username, _is_admin(user))
     return {"markdown": md}
 
 
 @router.get("/copilot/export/{conversation_id}/json")
 def export_json(
     conversation_id: str,
+    user: CurrentUser = Depends(get_current_user),
     export_svc: CopilotExportService = Depends(_get_export),
 ) -> dict[str, Any]:
-    return export_svc.export_json(conversation_id)
+    return export_svc.export_json(conversation_id, user.username, _is_admin(user))
 
 
 # --- Helpers ---

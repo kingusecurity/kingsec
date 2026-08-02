@@ -16,6 +16,7 @@ class CopilotMessage:
 class CopilotConversation:
     id: str
     title: str = ""
+    owner: str = ""
     assessment_id: str | None = None
     finding_id: str | None = None
     asset_id: str | None = None
@@ -31,6 +32,7 @@ class CopilotConversation:
     def create(
         cls,
         title: str = "New Investigation",
+        owner: str = "",
         assessment_id: str | None = None,
         finding_id: str | None = None,
         asset_id: str | None = None,
@@ -43,6 +45,7 @@ class CopilotConversation:
         return cls(
             id=uuid4().hex,
             title=title,
+            owner=owner,
             assessment_id=assessment_id,
             finding_id=finding_id,
             asset_id=asset_id,
@@ -58,6 +61,7 @@ class CopilotConversation:
         return CopilotConversation(
             id=self.id,
             title=self.title,
+            owner=self.owner,
             assessment_id=self.assessment_id,
             finding_id=self.finding_id,
             asset_id=self.asset_id,

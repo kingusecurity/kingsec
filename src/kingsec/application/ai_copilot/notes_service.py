@@ -44,6 +44,13 @@ def _on_audit_task_done(task: asyncio.Task[None]) -> None:
         logger.exception("Audit publish failed", exc_info=task.exception())
 
 
+def _can_access(author: str, requesting_user: str, is_admin: bool) -> bool:
+    """Access rule for a note: its author, or an admin, may access it."""
+    if is_admin:
+        return True
+    return bool(author) and author == requesting_user
+
+
 class InvestigationNotesService:
     def __init__(
         self,
@@ -75,9 +82,11 @@ class InvestigationNotesService:
         })
         return saved
 
-    def update_note(self, note_id: str, content: str) -> InvestigationNote:
+    def update_note(
+        self, note_id: str, content: str, requesting_user: str = "", is_admin: bool = False
+    ) -> InvestigationNote:
         note = self._note_repo.find_by_id(note_id)
-        if not note:
+        if not note or not _can_access(note.author, requesting_user, is_admin):
             raise InvestigationNoteNotFoundError(f"Note {note_id} not found")
         updated = InvestigationNote(
             id=note.id,
@@ -93,9 +102,9 @@ class InvestigationNotesService:
         )
         return self._note_repo.save(updated)
 
-    def get_note(self, note_id: str) -> InvestigationNote:
+    def get_note(self, note_id: str, requesting_user: str = "", is_admin: bool = False) -> InvestigationNote:
         note = self._note_repo.find_by_id(note_id)
-        if not note:
+        if not note or not _can_access(note.author, requesting_user, is_admin):
             raise InvestigationNoteNotFoundError(f"Note {note_id} not found")
         return note
 
@@ -106,38 +115,44 @@ class InvestigationNotesService:
         finding_id: str | None = None,
         pinned_only: bool = False,
         limit: int = 50,
+        requesting_user: str = "",
+        is_admin: bool = False,
     ) -> list[InvestigationNote]:
         if pinned_only:
-            return self._note_repo.find_pinned(limit)
-        if conversation_id:
-            return self._note_repo.find_by_conversation(conversation_id)
-        return self._note_repo.find_all(
-            assessment_id=assessment_id,
-            finding_id=finding_id,
-            limit=limit,
-        )
+            notes = self._note_repo.find_pinned(limit)
+        elif conversation_id:
+            notes = self._note_repo.find_by_conversation(conversation_id)
+        else:
+            notes = self._note_repo.find_all(
+                assessment_id=assessment_id,
+                finding_id=finding_id,
+                limit=limit,
+            )
+        if is_admin:
+            return notes
+        return [n for n in notes if _can_access(n.author, requesting_user, is_admin)]
 
-    def pin_note(self, note_id: str) -> InvestigationNote:
+    def pin_note(self, note_id: str, requesting_user: str = "", is_admin: bool = False) -> InvestigationNote:
         note = self._note_repo.find_by_id(note_id)
-        if not note:
+        if not note or not _can_access(note.author, requesting_user, is_admin):
             raise InvestigationNoteNotFoundError(f"Note {note_id} not found")
         pinned = note.pin()
         saved = self._note_repo.save(pinned)
         _fire_audit(self._audit, "note_pinned", "investigation_note", note_id, {})
         return saved
 
-    def unpin_note(self, note_id: str) -> InvestigationNote:
+    def unpin_note(self, note_id: str, requesting_user: str = "", is_admin: bool = False) -> InvestigationNote:
         note = self._note_repo.find_by_id(note_id)
-        if not note:
+        if not note or not _can_access(note.author, requesting_user, is_admin):
             raise InvestigationNoteNotFoundError(f"Note {note_id} not found")
         unpinned = note.unpin()
         saved = self._note_repo.save(unpinned)
         _fire_audit(self._audit, "note_unpinned", "investigation_note", note_id, {})
         return saved
 
-    def delete_note(self, note_id: str) -> None:
+    def delete_note(self, note_id: str, requesting_user: str = "", is_admin: bool = False) -> None:
         note = self._note_repo.find_by_id(note_id)
-        if not note:
+        if not note or not _can_access(note.author, requesting_user, is_admin):
             raise InvestigationNoteNotFoundError(f"Note {note_id} not found")
         self._note_repo.delete(note_id)
         _fire_audit(self._audit, "note_deleted", "investigation_note", note_id, {})

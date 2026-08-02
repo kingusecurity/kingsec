@@ -46,6 +46,18 @@ def _on_audit_task_done(task: asyncio.Task[None]) -> None:
     if not task.cancelled() and task.exception() is not None:
         logger.exception("Audit publish failed", exc_info=task.exception())
 
+
+def _can_access(owner: str, requesting_user: str, is_admin: bool) -> bool:
+    """Access rule for a conversation: its owner, or an admin, may access it.
+
+    A conversation with no recorded owner (created before this field
+    existed) is admin-only — fail closed rather than open.
+    """
+    if is_admin:
+        return True
+    return bool(owner) and owner == requesting_user
+
+
 SYSTEM_PROMPT = """You are an AI Security Copilot for KingSec, a security platform.
 You help security analysts investigate findings, understand vulnerabilities, and plan remediations.
 You answer questions clearly and concisely.
@@ -139,6 +151,7 @@ class CopilotService:
     def create_conversation(
         self,
         title: str = "New Investigation",
+        owner: str = "",
         assessment_id: str | None = None,
         finding_id: str | None = None,
         asset_id: str | None = None,
@@ -148,6 +161,7 @@ class CopilotService:
     ) -> CopilotConversation:
         conversation = CopilotConversation.create(
             title=title,
+            owner=owner,
             assessment_id=assessment_id,
             finding_id=finding_id,
             asset_id=asset_id,
@@ -157,9 +171,11 @@ class CopilotService:
         )
         return self._conversation_repo.save(conversation)
 
-    def get_conversation(self, conversation_id: str) -> CopilotConversation:
+    def get_conversation(
+        self, conversation_id: str, requesting_user: str = "", is_admin: bool = False
+    ) -> CopilotConversation:
         conv = self._conversation_repo.find_by_id(conversation_id)
-        if not conv:
+        if not conv or not _can_access(conv.owner, requesting_user, is_admin):
             raise CopilotConversationNotFoundError(f"Conversation {conversation_id} not found")
         return conv
 
@@ -170,25 +186,37 @@ class CopilotService:
         asset_id: str | None = None,
         cve_id: str | None = None,
         limit: int = 50,
+        requesting_user: str = "",
+        is_admin: bool = False,
     ) -> list[CopilotConversation]:
-        return self._conversation_repo.find_all(
+        convs = self._conversation_repo.find_all(
             assessment_id=assessment_id,
             finding_id=finding_id,
             asset_id=asset_id,
             cve_id=cve_id,
             limit=limit,
         )
+        if is_admin:
+            return convs
+        return [c for c in convs if _can_access(c.owner, requesting_user, is_admin)]
 
-    def search_conversations(self, query: str, limit: int = 20) -> list[CopilotConversation]:
-        return self._conversation_repo.search(query, limit)
+    def search_conversations(
+        self, query: str, limit: int = 20, requesting_user: str = "", is_admin: bool = False
+    ) -> list[CopilotConversation]:
+        convs = self._conversation_repo.search(query, limit)
+        if is_admin:
+            return convs
+        return [c for c in convs if _can_access(c.owner, requesting_user, is_admin)]
 
     def ask(
         self,
         conversation_id: str,
         question: str,
         template_id: str | None = None,
+        requesting_user: str = "",
+        is_admin: bool = False,
     ) -> dict[str, Any]:
-        conv = self.get_conversation(conversation_id)
+        conv = self.get_conversation(conversation_id, requesting_user, is_admin)
         investigation_type = self._detect_investigation_type(conv)
         entity_id = self._get_entity_id(conv, investigation_type)
 
@@ -241,9 +269,11 @@ class CopilotService:
             },
         }
 
-    def delete_conversation(self, conversation_id: str) -> None:
+    def delete_conversation(
+        self, conversation_id: str, requesting_user: str = "", is_admin: bool = False
+    ) -> None:
         conv = self._conversation_repo.find_by_id(conversation_id)
-        if not conv:
+        if not conv or not _can_access(conv.owner, requesting_user, is_admin):
             raise CopilotConversationNotFoundError(f"Conversation {conversation_id} not found")
         self._conversation_repo.delete(conversation_id)
         _fire_audit(self._audit, "copilot_delete", "copilot_conversation", conversation_id, {})

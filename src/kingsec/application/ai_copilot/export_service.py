@@ -9,6 +9,13 @@ from .context_builder import CopilotContextBuilder
 from .ports import AuditPublisherPort, CopilotConversationRepositoryPort, InvestigationNoteRepositoryPort
 
 
+def _can_access(owner: str, requesting_user: str, is_admin: bool) -> bool:
+    """Access rule for a conversation: its owner, or an admin, may access it."""
+    if is_admin:
+        return True
+    return bool(owner) and owner == requesting_user
+
+
 class CopilotExportService:
     def __init__(
         self,
@@ -22,16 +29,16 @@ class CopilotExportService:
         self._context_builder = context_builder
         self._audit = audit
 
-    def export_markdown(self, conversation_id: str) -> str:
+    def export_markdown(self, conversation_id: str, requesting_user: str = "", is_admin: bool = False) -> str:
         conv = self._conversation_repo.find_by_id(conversation_id)
-        if not conv:
+        if not conv or not _can_access(conv.owner, requesting_user, is_admin):
             return "# Investigation Not Found\n\nNo conversation found with that ID."
         notes = self._note_repo.find_by_conversation(conversation_id)
         return self._to_markdown(conv, notes)
 
-    def export_json(self, conversation_id: str) -> dict[str, Any]:
+    def export_json(self, conversation_id: str, requesting_user: str = "", is_admin: bool = False) -> dict[str, Any]:
         conv = self._conversation_repo.find_by_id(conversation_id)
-        if not conv:
+        if not conv or not _can_access(conv.owner, requesting_user, is_admin):
             return {"error": "Conversation not found"}
         notes = self._note_repo.find_by_conversation(conversation_id)
         return self._to_json(conv, notes)

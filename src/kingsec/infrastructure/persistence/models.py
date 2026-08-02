@@ -767,6 +767,7 @@ class CopilotConversationModel(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     title: Mapped[str] = mapped_column(String, nullable=False, default="New Investigation")
+    owner: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     assessment_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     finding_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     asset_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)

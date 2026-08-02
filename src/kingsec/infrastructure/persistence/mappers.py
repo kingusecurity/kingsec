@@ -1040,6 +1040,7 @@ def copilot_conversation_to_orm(conv: DomainCopilotConversation) -> CopilotConve
     return CopilotConversationModel(
         id=conv.id,
         title=conv.title,
+        owner=conv.owner,
         assessment_id=conv.assessment_id,
         finding_id=conv.finding_id,
         asset_id=conv.asset_id,
@@ -1070,6 +1071,7 @@ def copilot_conversation_to_domain(orm: CopilotConversationModel) -> DomainCopil
     return DomainCopilotConversation(
         id=orm.id,
         title=orm.title,
+        owner=orm.owner or "",
         assessment_id=orm.assessment_id,
         finding_id=orm.finding_id,
         asset_id=orm.asset_id,
