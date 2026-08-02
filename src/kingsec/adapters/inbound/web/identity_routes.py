@@ -59,25 +59,32 @@ async def create_provider(
     body: dict[str, Any],
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
+    if not body.get("name"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="name is required")
+    if not body.get("protocol"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="protocol is required")
     service = _get_idp_service(request)
-    provider = service.create(
-        name=body["name"],
-        protocol=body["protocol"],
-        issuer=body.get("issuer", ""),
-        domain_hint=body.get("domain_hint", ""),
-        role_mappings=body.get("role_mappings"),
-        group_mappings=body.get("group_mappings"),
-        jit_provisioning=body.get("jit_provisioning", False),
-        auto_link_users=body.get("auto_link_users", False),
-        enforce_sso=body.get("enforce_sso", False),
-        saml_config=body.get("saml_config"),
-        oidc_config=body.get("oidc_config"),
-        ldap_config=body.get("ldap_config"),
-        oauth2_config=body.get("oauth2_config"),
-        organization_id=body.get("organization_id", ""),
-        created_by=user.user_id,
-        metadata_xml=body.get("metadata_xml", ""),
-    )
+    try:
+        provider = service.create(
+            name=body["name"],
+            protocol=body["protocol"],
+            issuer=body.get("issuer", ""),
+            domain_hint=body.get("domain_hint", ""),
+            role_mappings=body.get("role_mappings"),
+            group_mappings=body.get("group_mappings"),
+            jit_provisioning=body.get("jit_provisioning", False),
+            auto_link_users=body.get("auto_link_users", False),
+            enforce_sso=body.get("enforce_sso", False),
+            saml_config=body.get("saml_config"),
+            oidc_config=body.get("oidc_config"),
+            ldap_config=body.get("ldap_config"),
+            oauth2_config=body.get("oauth2_config"),
+            organization_id=body.get("organization_id", ""),
+            created_by=user.user_id,
+            metadata_xml=body.get("metadata_xml", ""),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return {
         "message": "Identity provider created",
         "provider": {
@@ -185,6 +192,8 @@ async def update_provider(
         provider = service.update(provider_id, **body)
     except IdentityProviderNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return {
         "message": "Identity provider updated",
         "provider": {

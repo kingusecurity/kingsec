@@ -58,12 +58,12 @@ describe('Sidebar', () => {
     expect(screen.getByLabelText('Sign out')).toBeInTheDocument()
   })
 
-  it('hides analyst-only items for viewer', () => {
+  it('hides admin-only items for viewer', () => {
     useAuthStore.setState({
       user: { user_id: '1', username: 'viewer1', role: 'viewer', email: '', is_active: true, created_at: '', last_login_at: null },
       isAuthenticated: true,
     })
     renderSidebar()
-    expect(screen.queryByText('Reports')).not.toBeInTheDocument()
+    expect(screen.queryByText('Administration')).not.toBeInTheDocument()
   })
 })

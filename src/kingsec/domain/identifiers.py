@@ -243,7 +243,7 @@ class AttackSurfaceId:
 
     @classmethod
     def generate(cls) -> AttackSurfaceId:
-        return cls(f"asmt-{uuid.uuid4().hex}")
+        return cls(f"expo-{uuid.uuid4().hex}")
 
     def __str__(self) -> str:
         return self.value

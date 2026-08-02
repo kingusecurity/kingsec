@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -18,29 +19,32 @@ from kingsec.infrastructure.persistence.models import ExposureHistoryModel, Expo
 
 
 class SQLAlchemyAttackSurfaceRepository(AttackSurfaceRepositoryPort):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+    def __init__(self, session_factory: Callable[[], Session]) -> None:
+        self._session_factory = session_factory
 
     def save(self, exposure: Exposure) -> None:
-        orm = self._session.get(ExposureModel, str(exposure.id))
-        if orm:
-            _update_exposure_orm(orm, exposure)
-        else:
-            orm = exposure_to_orm(exposure)
-            self._session.add(orm)
-        self._session.commit()
+        with self._session_factory() as session:
+            orm = session.get(ExposureModel, str(exposure.id))
+            if orm:
+                _update_exposure_orm(orm, exposure)
+            else:
+                orm = exposure_to_orm(exposure)
+                session.add(orm)
+            session.commit()
 
     def get(self, exposure_id: str) -> Exposure:
-        orm = self._session.get(ExposureModel, exposure_id)
-        if orm is None:
-            raise ExposureNotFoundError(f"Exposure not found: {exposure_id}")
-        return exposure_to_domain(orm)
+        with self._session_factory() as session:
+            orm = session.get(ExposureModel, exposure_id)
+            if orm is None:
+                raise ExposureNotFoundError(f"Exposure not found: {exposure_id}")
+            return exposure_to_domain(orm)
 
     def delete(self, exposure_id: str) -> None:
-        orm = self._session.get(ExposureModel, exposure_id)
-        if orm:
-            self._session.delete(orm)
-            self._session.commit()
+        with self._session_factory() as session:
+            orm = session.get(ExposureModel, exposure_id)
+            if orm:
+                session.delete(orm)
+                session.commit()
 
     def fetch_all(
         self,
@@ -52,79 +56,82 @@ class SQLAlchemyAttackSurfaceRepository(AttackSurfaceRepositoryPort):
         query = select(ExposureModel)
         query = _apply_exposure_filter(query, filter_)
         query = query.order_by(ExposureModel.risk_score.desc()).offset(offset).limit(limit)
-        orms = self._session.execute(query).scalars().all()
-        return [exposure_to_domain(o) for o in orms]
+        with self._session_factory() as session:
+            orms = session.execute(query).scalars().all()
+            return [exposure_to_domain(o) for o in orms]
 
     def count(self, filter_: ExposureFilter | None = None) -> int:
         query = select(func.count(ExposureModel.id))
         query = _apply_exposure_filter(query, filter_)
-        result = self._session.execute(query).scalar()
-        return result or 0
+        with self._session_factory() as session:
+            result = session.execute(query).scalar()
+            return result or 0
 
     def summary(self) -> AttackSurfaceSummary:
-        total = self._session.execute(select(func.count(ExposureModel.id))).scalar() or 0
+        with self._session_factory() as session:
+            total = session.execute(select(func.count(ExposureModel.id))).scalar() or 0
 
-        severity_rows = self._session.execute(
-            select(ExposureModel.severity, func.count(ExposureModel.id))
-            .group_by(ExposureModel.severity)
-        ).all()
-        by_severity = {row[0]: row[1] for row in severity_rows}
+            severity_rows = session.execute(
+                select(ExposureModel.severity, func.count(ExposureModel.id))
+                .group_by(ExposureModel.severity)
+            ).all()
+            by_severity = {row[0]: row[1] for row in severity_rows}
 
-        type_rows = self._session.execute(
-            select(ExposureModel.exposure_type, func.count(ExposureModel.id))
-            .group_by(ExposureModel.exposure_type)
-        ).all()
-        by_type = {row[0]: row[1] for row in type_rows}
+            type_rows = session.execute(
+                select(ExposureModel.exposure_type, func.count(ExposureModel.id))
+                .group_by(ExposureModel.exposure_type)
+            ).all()
+            by_type = {row[0]: row[1] for row in type_rows}
 
-        status_rows = self._session.execute(
-            select(ExposureModel.status, func.count(ExposureModel.id))
-            .group_by(ExposureModel.status)
-        ).all()
-        by_status = {row[0]: row[1] for row in status_rows}
+            status_rows = session.execute(
+                select(ExposureModel.status, func.count(ExposureModel.id))
+                .group_by(ExposureModel.status)
+            ).all()
+            by_status = {row[0]: row[1] for row in status_rows}
 
-        source_rows = self._session.execute(
-            select(ExposureModel.source, func.count(ExposureModel.id))
-            .group_by(ExposureModel.source)
-        ).all()
-        by_source = {row[0]: row[1] for row in source_rows}
+            source_rows = session.execute(
+                select(ExposureModel.source, func.count(ExposureModel.id))
+                .group_by(ExposureModel.source)
+            ).all()
+            by_source = {row[0]: row[1] for row in source_rows}
 
-        avg_risk = self._session.execute(select(func.avg(ExposureModel.risk_score))).scalar() or 0.0
+            avg_risk = session.execute(select(func.avg(ExposureModel.risk_score))).scalar() or 0.0
 
-        asset_count = self._session.execute(
-            select(func.count(func.distinct(ExposureModel.asset_id)))
-        ).scalar() or 0
+            asset_count = session.execute(
+                select(func.count(func.distinct(ExposureModel.asset_id)))
+            ).scalar() or 0
 
-        top_rows = (
-            self._session.execute(
-                select(ExposureModel)
-                .where(ExposureModel.status == "active")
-                .order_by(ExposureModel.risk_score.desc())
-                .limit(10)
+            top_rows = (
+                session.execute(
+                    select(ExposureModel)
+                    .where(ExposureModel.status == "active")
+                    .order_by(ExposureModel.risk_score.desc())
+                    .limit(10)
+                )
+                .scalars()
+                .all()
             )
-            .scalars()
-            .all()
-        )
-        top_risk = [
-            {"id": r.id, "title": r.title, "type": r.exposure_type, "severity": r.severity, "risk_score": r.risk_score}
-            for r in top_rows
-        ]
+            top_risk = [
+                {"id": r.id, "title": r.title, "type": r.exposure_type, "severity": r.severity, "risk_score": r.risk_score}
+                for r in top_rows
+            ]
 
-        return AttackSurfaceSummary(
-            total_exposures=total,
-            by_severity=by_severity,
-            by_type=by_type,
-            by_status=by_status,
-            by_source=by_source,
-            critical_count=by_severity.get("critical", 0),
-            high_count=by_severity.get("high", 0),
-            medium_count=by_severity.get("medium", 0),
-            low_count=by_severity.get("low", 0),
-            info_count=by_severity.get("info", 0),
-            mitigated_count=by_status.get("mitigated", 0),
-            average_risk_score=round(float(avg_risk), 2),
-            total_assets_affected=asset_count,
-            top_risk_items=top_risk,
-        )
+            return AttackSurfaceSummary(
+                total_exposures=total,
+                by_severity=by_severity,
+                by_type=by_type,
+                by_status=by_status,
+                by_source=by_source,
+                critical_count=by_severity.get("critical", 0),
+                high_count=by_severity.get("high", 0),
+                medium_count=by_severity.get("medium", 0),
+                low_count=by_severity.get("low", 0),
+                info_count=by_severity.get("info", 0),
+                mitigated_count=by_status.get("mitigated", 0),
+                average_risk_score=round(float(avg_risk), 2),
+                total_assets_affected=asset_count,
+                top_risk_items=top_risk,
+            )
 
     def get_by_asset(self, asset_id: str, *, limit: int = 50, offset: int = 0) -> list[Exposure]:
         stmt = (
@@ -134,18 +141,21 @@ class SQLAlchemyAttackSurfaceRepository(AttackSurfaceRepositoryPort):
             .offset(offset)
             .limit(limit)
         )
-        orms = self._session.execute(stmt).scalars().all()
-        return [exposure_to_domain(o) for o in orms]
+        with self._session_factory() as session:
+            orms = session.execute(stmt).scalars().all()
+            return [exposure_to_domain(o) for o in orms]
 
     def count_by_asset(self, asset_id: str) -> int:
         stmt = select(func.count(ExposureModel.id)).where(ExposureModel.asset_id == asset_id)
-        result = self._session.execute(stmt).scalar()
-        return result or 0
+        with self._session_factory() as session:
+            result = session.execute(stmt).scalar()
+            return result or 0
 
     def get_by_type(self, exposure_type: ExposureType) -> list[Exposure]:
         stmt = select(ExposureModel).where(ExposureModel.exposure_type == exposure_type.value)
-        orms = self._session.execute(stmt).scalars().all()
-        return [exposure_to_domain(o) for o in orms]
+        with self._session_factory() as session:
+            orms = session.execute(stmt).scalars().all()
+            return [exposure_to_domain(o) for o in orms]
 
     def get_high_risk(self, min_score: float = 50.0) -> list[Exposure]:
         stmt = (
@@ -153,8 +163,9 @@ class SQLAlchemyAttackSurfaceRepository(AttackSurfaceRepositoryPort):
             .where(ExposureModel.risk_score >= min_score, ExposureModel.status == "active")
             .order_by(ExposureModel.risk_score.desc())
         )
-        orms = self._session.execute(stmt).scalars().all()
-        return [exposure_to_domain(o) for o in orms]
+        with self._session_factory() as session:
+            orms = session.execute(stmt).scalars().all()
+            return [exposure_to_domain(o) for o in orms]
 
     def search(self, query: str, *, limit: int = 20) -> list[Exposure]:
         pattern = f"%{query}%"
@@ -172,8 +183,9 @@ class SQLAlchemyAttackSurfaceRepository(AttackSurfaceRepositoryPort):
             )
             .limit(limit)
         )
-        orms = self._session.execute(stmt).scalars().all()
-        return [exposure_to_domain(o) for o in orms]
+        with self._session_factory() as session:
+            orms = session.execute(stmt).scalars().all()
+            return [exposure_to_domain(o) for o in orms]
 
     def save_history(self, entry: ExposureHistoryEntry) -> None:
         orm = ExposureHistoryModel(
@@ -185,8 +197,9 @@ class SQLAlchemyAttackSurfaceRepository(AttackSurfaceRepositoryPort):
             new_value=entry.new_value,
             actor=entry.actor,
         )
-        self._session.add(orm)
-        self._session.commit()
+        with self._session_factory() as session:
+            session.add(orm)
+            session.commit()
 
     def get_history(self, exposure_id: str, *, limit: int = 50) -> list[ExposureHistoryEntry]:
         stmt = (
@@ -195,19 +208,20 @@ class SQLAlchemyAttackSurfaceRepository(AttackSurfaceRepositoryPort):
             .order_by(ExposureHistoryModel.timestamp.desc())
             .limit(limit)
         )
-        orms = self._session.execute(stmt).scalars().all()
-        return [
-            ExposureHistoryEntry(
-                exposure_id=o.exposure_id,
-                event_type=o.event_type,
-                description=o.description,
-                timestamp=o.timestamp,
-                previous_value=o.previous_value,
-                new_value=o.new_value,
-                actor=o.actor,
-            )
-            for o in orms
-        ]
+        with self._session_factory() as session:
+            orms = session.execute(stmt).scalars().all()
+            return [
+                ExposureHistoryEntry(
+                    exposure_id=o.exposure_id,
+                    event_type=o.event_type,
+                    description=o.description,
+                    timestamp=o.timestamp,
+                    previous_value=o.previous_value,
+                    new_value=o.new_value,
+                    actor=o.actor,
+                )
+                for o in orms
+            ]
 
     def get_trend_data(self, days: int = 30) -> list[dict[str, Any]]:
         cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
@@ -216,7 +230,8 @@ class SQLAlchemyAttackSurfaceRepository(AttackSurfaceRepositoryPort):
             .where(ExposureModel.created_at >= cutoff)
             .order_by(ExposureModel.created_at)
         )
-        rows = self._session.execute(stmt).all()
+        with self._session_factory() as session:
+            rows = session.execute(stmt).all()
         daily: dict[str, dict[str, int]] = {}
         for severity, created_at in rows:
             day = created_at[:10]
@@ -237,15 +252,17 @@ class SQLAlchemyAttackSurfaceRepository(AttackSurfaceRepositoryPort):
         ]
 
     def mark_mitigated(self, exposure_id: str) -> None:
-        orm = self._session.get(ExposureModel, exposure_id)
-        if orm:
-            orm.status = "mitigated"
-            self._session.commit()
+        with self._session_factory() as session:
+            orm = session.get(ExposureModel, exposure_id)
+            if orm:
+                orm.status = "mitigated"
+                session.commit()
 
     def get_assets_with_exposures(self) -> list[str]:
         stmt = select(func.distinct(ExposureModel.asset_id)).where(ExposureModel.status == "active")
-        rows = self._session.execute(stmt).scalars().all()
-        return list(rows)
+        with self._session_factory() as session:
+            rows = session.execute(stmt).scalars().all()
+            return list(rows)
 
 
 def _update_exposure_orm(orm: ExposureModel, exposure: Exposure) -> None:

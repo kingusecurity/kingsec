@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
+from uuid import uuid4
 
 from kingsec.application.errors import IdentityProviderNotFoundError
 from kingsec.application.idp.ports import IdentityProviderRepositoryPort
@@ -44,7 +45,7 @@ class IdentityProviderService:
         metadata_xml: str = "",
     ) -> IdentityProvider:
         provider = IdentityProvider(
-            id="",
+            id=str(uuid4()),
             name=name,
             protocol=ProtocolType(protocol),
             status=IdentityProviderStatus.ACTIVE,

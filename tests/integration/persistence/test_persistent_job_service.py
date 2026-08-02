@@ -41,7 +41,7 @@ def uow(session) -> SQLAlchemyUnitOfWork:
 
 @pytest.fixture
 def service(uow: SQLAlchemyUnitOfWork) -> PersistentJobService:
-    return PersistentJobService(uow)
+    return PersistentJobService(lambda: uow)
 
 
 @pytest.fixture
@@ -265,13 +265,13 @@ class TestPersistenceAcrossSessions:
         job_id = None
         with Session(engine) as s1:
             uow1 = SQLAlchemyUnitOfWork(s1)
-            svc1 = PersistentJobService(uow1)
+            svc1 = PersistentJobService(lambda: uow1)
             job = svc1.submit_scan("cross-session.com")
             job_id = str(job.id)
 
         with Session(engine) as s2:
             uow2 = SQLAlchemyUnitOfWork(s2)
-            svc2 = PersistentJobService(uow2)
+            svc2 = PersistentJobService(lambda: uow2)
             fetched = svc2.get_job(job_id)
             assert fetched.target == "cross-session.com"
             assert fetched.status == JobStatus.PENDING
@@ -281,12 +281,12 @@ class TestPersistenceAcrossSessions:
         create_schema(engine)
         ids = []
         with Session(engine) as s1:
-            svc = PersistentJobService(SQLAlchemyUnitOfWork(s1))
+            svc = PersistentJobService(lambda: SQLAlchemyUnitOfWork(s1))
             ids.append(str(svc.submit_scan("a.com").id))
             ids.append(str(svc.submit_scan("b.com").id))
 
         with Session(engine) as s2:
-            svc = PersistentJobService(SQLAlchemyUnitOfWork(s2))
+            svc = PersistentJobService(lambda: SQLAlchemyUnitOfWork(s2))
             jobs = svc.list_jobs()
             assert len(jobs) == 2
             retrieved = {j.target for j in jobs}
@@ -304,13 +304,13 @@ class TestRollback:
         create_schema(engine)
         with Session(engine) as s:
             uow = SQLAlchemyUnitOfWork(s)
-            svc = PersistentJobService(uow)
+            svc = PersistentJobService(lambda: uow)
             job = svc.submit_scan("rollback-test.com")
             job_id = str(job.id)
 
         with Session(engine) as s2:
             # The first session's work was committed, so it should exist
-            svc2 = PersistentJobService(SQLAlchemyUnitOfWork(s2))
+            svc2 = PersistentJobService(lambda: SQLAlchemyUnitOfWork(s2))
             fetched = svc2.get_job(job_id)
             assert fetched.target == "rollback-test.com"
 
@@ -382,7 +382,7 @@ class TestApiIntegration:
 
         session, _ = api_env
         uow = SQLAlchemyUnitOfWork(session)
-        svc = PersistentJobService(uow)
+        svc = PersistentJobService(lambda: uow)
         app = create_app(job_service=svc, get_current_user=fake_get_current_user)
         client = TestClient(app)
 
@@ -399,7 +399,7 @@ class TestApiIntegration:
 
         session, _ = api_env
         uow = SQLAlchemyUnitOfWork(session)
-        svc = PersistentJobService(uow)
+        svc = PersistentJobService(lambda: uow)
         app = create_app(job_service=svc, get_current_user=fake_get_current_user)
         client = TestClient(app)
 
@@ -416,7 +416,7 @@ class TestApiIntegration:
 
         session, _ = api_env
         uow = SQLAlchemyUnitOfWork(session)
-        svc = PersistentJobService(uow)
+        svc = PersistentJobService(lambda: uow)
         job = svc.submit_scan("api-get.com")
 
         app = create_app(job_service=svc, get_current_user=fake_get_current_user)
@@ -433,7 +433,7 @@ class TestApiIntegration:
 
         session, _ = api_env
         uow = SQLAlchemyUnitOfWork(session)
-        svc = PersistentJobService(uow)
+        svc = PersistentJobService(lambda: uow)
         job = svc.submit_scan("api-cancel.com")
 
         app = create_app(job_service=svc, get_current_user=fake_get_current_user)

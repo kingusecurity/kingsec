@@ -377,7 +377,7 @@ def create_production_application(
     uow = SQLAlchemyUnitOfWork(session)
 
     # --- Job service ---
-    job_service = PersistentJobService(uow)
+    job_service = PersistentJobService(lambda: SQLAlchemyUnitOfWork(session_factory()))
 
     # --- Scanner ---
     runner = _build_runner()

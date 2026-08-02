@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -29,32 +30,35 @@ from kingsec.infrastructure.persistence.models import (
 
 
 class SQLAlchemyAssetInventoryRepository(AssetInventoryRepositoryPort):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+    def __init__(self, session_factory: Callable[[], Session]) -> None:
+        self._session_factory = session_factory
 
     def save(self, asset: Asset) -> None:
-        orm = self._session.get(AssetModel, str(asset.id))
-        if orm:
-            _update_orm_from_domain(orm, asset)
-        else:
-            orm = inventory_asset_to_orm(asset)
-            self._session.add(orm)
-        self._session.flush()
-        _sync_tags(self._session, orm, asset)
-        _sync_technologies(self._session, orm, asset)
-        self._session.commit()
+        with self._session_factory() as session:
+            orm = session.get(AssetModel, str(asset.id))
+            if orm:
+                _update_orm_from_domain(orm, asset)
+            else:
+                orm = inventory_asset_to_orm(asset)
+                session.add(orm)
+            session.flush()
+            _sync_tags(session, orm, asset)
+            _sync_technologies(session, orm, asset)
+            session.commit()
 
     def get(self, asset_id: str) -> Asset:
-        orm = self._session.get(AssetModel, asset_id)
-        if orm is None:
-            raise AssetNotFoundError(f"Asset not found: {asset_id}")
-        return inventory_asset_to_domain(orm)
+        with self._session_factory() as session:
+            orm = session.get(AssetModel, asset_id)
+            if orm is None:
+                raise AssetNotFoundError(f"Asset not found: {asset_id}")
+            return inventory_asset_to_domain(orm)
 
     def delete(self, asset_id: str) -> None:
-        orm = self._session.get(AssetModel, asset_id)
-        if orm:
-            self._session.delete(orm)
-            self._session.commit()
+        with self._session_factory() as session:
+            orm = session.get(AssetModel, asset_id)
+            if orm:
+                session.delete(orm)
+                session.commit()
 
     def fetch_all(
         self,
@@ -66,72 +70,75 @@ class SQLAlchemyAssetInventoryRepository(AssetInventoryRepositoryPort):
         query = select(AssetModel)
         query = _apply_filter(query, filter_)
         query = query.order_by(AssetModel.updated_at.desc()).offset(offset).limit(limit)
-        orms = self._session.execute(query).scalars().all()
-        return [inventory_asset_to_domain(o) for o in orms]
+        with self._session_factory() as session:
+            orms = session.execute(query).scalars().all()
+            return [inventory_asset_to_domain(o) for o in orms]
 
     def count(self, filter_: AssetFilter | None = None) -> int:
         query = select(func.count(AssetModel.id))
         query = _apply_filter(query, filter_)
-        result = self._session.execute(query).scalar()
-        return result or 0
+        with self._session_factory() as session:
+            result = session.execute(query).scalar()
+            return result or 0
 
     def summary(self) -> AssetSummary:
-        total = self._session.execute(select(func.count(AssetModel.id))).scalar() or 0
+        with self._session_factory() as session:
+            total = session.execute(select(func.count(AssetModel.id))).scalar() or 0
 
-        type_rows = self._session.execute(
-            select(AssetModel.asset_type, func.count(AssetModel.id))
-            .group_by(AssetModel.asset_type)
-        ).all()
-        by_type = {row[0]: row[1] for row in type_rows}
+            type_rows = session.execute(
+                select(AssetModel.asset_type, func.count(AssetModel.id))
+                .group_by(AssetModel.asset_type)
+            ).all()
+            by_type = {row[0]: row[1] for row in type_rows}
 
-        crit_rows = self._session.execute(
-            select(AssetModel.criticality, func.count(AssetModel.id))
-            .group_by(AssetModel.criticality)
-        ).all()
-        by_criticality = {row[0] or "unknown": row[1] for row in crit_rows}
+            crit_rows = session.execute(
+                select(AssetModel.criticality, func.count(AssetModel.id))
+                .group_by(AssetModel.criticality)
+            ).all()
+            by_criticality = {row[0] or "unknown": row[1] for row in crit_rows}
 
-        risk_ranges = {
-            "none": 0, "low": 0, "medium": 0, "high": 0, "critical": 0,
-        }
-        risk_rows = self._session.execute(
-            select(AssetModel.risk_score, AssetModel.id)
-        ).all()
-        for score, _ in risk_rows:
-            if score == 0:
-                risk_ranges["none"] += 1
-            elif score < 25:
-                risk_ranges["low"] += 1
-            elif score < 50:
-                risk_ranges["medium"] += 1
-            elif score < 75:
-                risk_ranges["high"] += 1
-            else:
-                risk_ranges["critical"] += 1
+            risk_ranges = {
+                "none": 0, "low": 0, "medium": 0, "high": 0, "critical": 0,
+            }
+            risk_rows = session.execute(
+                select(AssetModel.risk_score, AssetModel.id)
+            ).all()
+            for score, _ in risk_rows:
+                if score == 0:
+                    risk_ranges["none"] += 1
+                elif score < 25:
+                    risk_ranges["low"] += 1
+                elif score < 50:
+                    risk_ranges["medium"] += 1
+                elif score < 75:
+                    risk_ranges["high"] += 1
+                else:
+                    risk_ranges["critical"] += 1
 
-        total_rel = self._session.execute(
-            select(func.count(AssetRelationshipModel.id))
-        ).scalar() or 0
+            total_rel = session.execute(
+                select(func.count(AssetRelationshipModel.id))
+            ).scalar() or 0
 
-        total_findings = self._session.execute(
-            select(func.count(FindingModel.id))
-        ).scalar() or 0
-        total_crit = self._session.execute(
-            select(func.count(FindingModel.id)).where(FindingModel.severity == "critical")
-        ).scalar() or 0
-        total_high = self._session.execute(
-            select(func.count(FindingModel.id)).where(FindingModel.severity == "high")
-        ).scalar() or 0
+            total_findings = session.execute(
+                select(func.count(FindingModel.id))
+            ).scalar() or 0
+            total_crit = session.execute(
+                select(func.count(FindingModel.id)).where(FindingModel.severity == "critical")
+            ).scalar() or 0
+            total_high = session.execute(
+                select(func.count(FindingModel.id)).where(FindingModel.severity == "high")
+            ).scalar() or 0
 
-        return AssetSummary(
-            total=total,
-            by_type=by_type,
-            by_criticality=by_criticality,
-            by_risk_range=risk_ranges,
-            total_open_findings=total_findings,
-            total_critical_findings=total_crit,
-            total_high_findings=total_high,
-            total_relationships=total_rel,
-        )
+            return AssetSummary(
+                total=total,
+                by_type=by_type,
+                by_criticality=by_criticality,
+                by_risk_range=risk_ranges,
+                total_open_findings=total_findings,
+                total_critical_findings=total_crit,
+                total_high_findings=total_high,
+                total_relationships=total_rel,
+            )
 
     def search(self, query: str, *, limit: int = 20) -> list[Asset]:
         pattern = f"%{query}%"
@@ -150,28 +157,30 @@ class SQLAlchemyAssetInventoryRepository(AssetInventoryRepositoryPort):
             )
             .limit(limit)
         )
-        orms = self._session.execute(stmt).scalars().all()
-        return [inventory_asset_to_domain(o) for o in orms]
+        with self._session_factory() as session:
+            orms = session.execute(stmt).scalars().all()
+            return [inventory_asset_to_domain(o) for o in orms]
 
     def save_relationship(self, rel: AssetRelationship) -> None:
-        existing = self._session.execute(
-            select(AssetRelationshipModel).where(
-                AssetRelationshipModel.source_asset_id == rel.source_asset_id,
-                AssetRelationshipModel.target_asset_id == rel.target_asset_id,
-                AssetRelationshipModel.relationship_type == rel.relationship_type,
-            )
-        ).scalar_one_or_none()
-        if existing:
-            existing.metadata_json = json.dumps(rel.metadata) if rel.metadata else None
-        else:
-            orm = AssetRelationshipModel(
-                source_asset_id=rel.source_asset_id,
-                target_asset_id=rel.target_asset_id,
-                relationship_type=rel.relationship_type,
-                metadata_json=json.dumps(rel.metadata) if rel.metadata else None,
-            )
-            self._session.add(orm)
-        self._session.commit()
+        with self._session_factory() as session:
+            existing = session.execute(
+                select(AssetRelationshipModel).where(
+                    AssetRelationshipModel.source_asset_id == rel.source_asset_id,
+                    AssetRelationshipModel.target_asset_id == rel.target_asset_id,
+                    AssetRelationshipModel.relationship_type == rel.relationship_type,
+                )
+            ).scalar_one_or_none()
+            if existing:
+                existing.metadata_json = json.dumps(rel.metadata) if rel.metadata else None
+            else:
+                orm = AssetRelationshipModel(
+                    source_asset_id=rel.source_asset_id,
+                    target_asset_id=rel.target_asset_id,
+                    relationship_type=rel.relationship_type,
+                    metadata_json=json.dumps(rel.metadata) if rel.metadata else None,
+                )
+                session.add(orm)
+            session.commit()
 
     def get_relationships(self, asset_id: str) -> list[AssetRelationship]:
         stmt = select(AssetRelationshipModel).where(
@@ -180,36 +189,38 @@ class SQLAlchemyAssetInventoryRepository(AssetInventoryRepositoryPort):
                 AssetRelationshipModel.target_asset_id == asset_id,
             )
         )
-        orms = self._session.execute(stmt).scalars().all()
-        result: list[AssetRelationship] = []
-        for o in orms:
-            meta: dict[str, object] = {}
-            if o.metadata_json:
-                try:
-                    meta = json.loads(o.metadata_json)
-                except (json.JSONDecodeError, TypeError):
-                    pass
-            result.append(
-                AssetRelationship(
-                    source_asset_id=o.source_asset_id,
-                    target_asset_id=o.target_asset_id,
-                    relationship_type=o.relationship_type,
-                    metadata=meta,
+        with self._session_factory() as session:
+            orms = session.execute(stmt).scalars().all()
+            result: list[AssetRelationship] = []
+            for o in orms:
+                meta: dict[str, object] = {}
+                if o.metadata_json:
+                    try:
+                        meta = json.loads(o.metadata_json)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                result.append(
+                    AssetRelationship(
+                        source_asset_id=o.source_asset_id,
+                        target_asset_id=o.target_asset_id,
+                        relationship_type=o.relationship_type,
+                        metadata=meta,
+                    )
                 )
-            )
-        return result
+            return result
 
     def delete_relationship(self, source_id: str, target_id: str, rel_type: str) -> None:
-        orm = self._session.execute(
-            select(AssetRelationshipModel).where(
-                AssetRelationshipModel.source_asset_id == source_id,
-                AssetRelationshipModel.target_asset_id == target_id,
-                AssetRelationshipModel.relationship_type == rel_type,
-            )
-        ).scalar_one_or_none()
-        if orm:
-            self._session.delete(orm)
-            self._session.commit()
+        with self._session_factory() as session:
+            orm = session.execute(
+                select(AssetRelationshipModel).where(
+                    AssetRelationshipModel.source_asset_id == source_id,
+                    AssetRelationshipModel.target_asset_id == target_id,
+                    AssetRelationshipModel.relationship_type == rel_type,
+                )
+            ).scalar_one_or_none()
+            if orm:
+                session.delete(orm)
+                session.commit()
 
     def save_history(self, entry: AssetHistoryEntry) -> None:
         orm = AssetHistoryModel(
@@ -222,8 +233,9 @@ class SQLAlchemyAssetInventoryRepository(AssetInventoryRepositoryPort):
             actor=entry.actor,
             metadata_json=json.dumps(entry.metadata) if entry.metadata else None,
         )
-        self._session.add(orm)
-        self._session.commit()
+        with self._session_factory() as session:
+            session.add(orm)
+            session.commit()
 
     def get_history(self, asset_id: str, *, limit: int = 50) -> list[AssetHistoryEntry]:
         stmt = (
@@ -232,58 +244,64 @@ class SQLAlchemyAssetInventoryRepository(AssetInventoryRepositoryPort):
             .order_by(AssetHistoryModel.timestamp.desc())
             .limit(limit)
         )
-        orms = self._session.execute(stmt).scalars().all()
-        result: list[AssetHistoryEntry] = []
-        for o in orms:
-            meta: dict[str, object] = {}
-            if o.metadata_json:
-                try:
-                    meta = json.loads(o.metadata_json)
-                except (json.JSONDecodeError, TypeError):
-                    pass
-            result.append(
-                AssetHistoryEntry(
-                    asset_id=o.asset_id,
-                    event_type=o.event_type,
-                    description=o.description,
-                    timestamp=o.timestamp,
-                    previous_value=o.previous_value,
-                    new_value=o.new_value,
-                    actor=o.actor,
-                    metadata=meta,
+        with self._session_factory() as session:
+            orms = session.execute(stmt).scalars().all()
+            result: list[AssetHistoryEntry] = []
+            for o in orms:
+                meta: dict[str, object] = {}
+                if o.metadata_json:
+                    try:
+                        meta = json.loads(o.metadata_json)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                result.append(
+                    AssetHistoryEntry(
+                        asset_id=o.asset_id,
+                        event_type=o.event_type,
+                        description=o.description,
+                        timestamp=o.timestamp,
+                        previous_value=o.previous_value,
+                        new_value=o.new_value,
+                        actor=o.actor,
+                        metadata=meta,
+                    )
                 )
-            )
-        return result
+            return result
 
     def get_by_hostname(self, hostname: str) -> Asset | None:
-        orm = self._session.execute(
-            select(AssetModel).where(AssetModel.hostname == hostname)
-        ).scalar_one_or_none()
-        return inventory_asset_to_domain(orm) if orm else None
+        with self._session_factory() as session:
+            orm = session.execute(
+                select(AssetModel).where(AssetModel.hostname == hostname)
+            ).scalar_one_or_none()
+            return inventory_asset_to_domain(orm) if orm else None
 
     def get_by_ip(self, ip: str) -> Asset | None:
-        orm = self._session.execute(
-            select(AssetModel).where(AssetModel.ip_address == ip)
-        ).scalar_one_or_none()
-        return inventory_asset_to_domain(orm) if orm else None
+        with self._session_factory() as session:
+            orm = session.execute(
+                select(AssetModel).where(AssetModel.ip_address == ip)
+            ).scalar_one_or_none()
+            return inventory_asset_to_domain(orm) if orm else None
 
     def get_by_domain(self, domain: str) -> Asset | None:
-        orm = self._session.execute(
-            select(AssetModel).where(AssetModel.domain == domain)
-        ).scalar_one_or_none()
-        return inventory_asset_to_domain(orm) if orm else None
+        with self._session_factory() as session:
+            orm = session.execute(
+                select(AssetModel).where(AssetModel.domain == domain)
+            ).scalar_one_or_none()
+            return inventory_asset_to_domain(orm) if orm else None
 
     def add_finding_to_asset(self, asset_id: str, finding_id: str) -> None:
         stmt = select(FindingModel).where(FindingModel.id == finding_id)
-        finding = self._session.execute(stmt).scalar_one_or_none()
-        if finding:
-            finding.asset_id = asset_id
-            self._session.commit()
+        with self._session_factory() as session:
+            finding = session.execute(stmt).scalar_one_or_none()
+            if finding:
+                finding.asset_id = asset_id
+                session.commit()
 
     def get_finding_ids(self, asset_id: str) -> list[str]:
         stmt = select(FindingModel.id).where(FindingModel.asset_id == asset_id)
-        rows = self._session.execute(stmt).scalars().all()
-        return list(rows)
+        with self._session_factory() as session:
+            rows = session.execute(stmt).scalars().all()
+            return list(rows)
 
 
 def _update_orm_from_domain(orm: AssetModel, asset: Asset) -> None:

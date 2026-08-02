@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
@@ -14,99 +15,106 @@ from kingsec.infrastructure.persistence.models import DeadLetterEntryModel, JobQ
 
 
 class SQLAlchemyJobQueueRepository(JobQueueRepositoryPort):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+    def __init__(self, session_factory: Callable[[], Session]) -> None:
+        self._session_factory = session_factory
 
     def enqueue(self, entry: JobQueueEntry) -> JobQueueEntry:
         orm = job_queue_entry_to_orm(entry)
-        self._session.add(orm)
-        self._session.commit()
-        return entry
+        with self._session_factory() as session:
+            session.add(orm)
+            session.commit()
+            return entry
 
     def get(self, entry_id: str) -> JobQueueEntry | None:
         stmt = select(JobQueueEntryModel).where(JobQueueEntryModel.entry_id == entry_id)
-        orm = self._session.execute(stmt).scalar_one_or_none()
-        return job_queue_entry_to_domain(orm) if orm else None
+        with self._session_factory() as session:
+            orm = session.execute(stmt).scalar_one_or_none()
+            return job_queue_entry_to_domain(orm) if orm else None
 
     def find_by_state(self, state: str) -> list[JobQueueEntry]:
         stmt = select(JobQueueEntryModel).where(JobQueueEntryModel.state == state)
-        rows = self._session.execute(stmt).scalars().all()
-        return [job_queue_entry_to_domain(r) for r in rows]
+        with self._session_factory() as session:
+            rows = session.execute(stmt).scalars().all()
+            return [job_queue_entry_to_domain(r) for r in rows]
 
     def find_all(self) -> list[JobQueueEntry]:
         stmt = select(JobQueueEntryModel).order_by(JobQueueEntryModel.created_at)
-        rows = self._session.execute(stmt).scalars().all()
-        return [job_queue_entry_to_domain(r) for r in rows]
+        with self._session_factory() as session:
+            rows = session.execute(stmt).scalars().all()
+            return [job_queue_entry_to_domain(r) for r in rows]
 
     def update(self, entry: JobQueueEntry) -> None:
         orm = job_queue_entry_to_orm(entry)
-        self._session.merge(orm)
-        self._session.commit()
+        with self._session_factory() as session:
+            session.merge(orm)
+            session.commit()
 
     def delete(self, entry_id: str) -> None:
         stmt = select(JobQueueEntryModel).where(JobQueueEntryModel.entry_id == entry_id)
-        orm = self._session.execute(stmt).scalar_one_or_none()
-        if orm:
-            self._session.delete(orm)
-            self._session.commit()
+        with self._session_factory() as session:
+            orm = session.execute(stmt).scalar_one_or_none()
+            if orm:
+                session.delete(orm)
+                session.commit()
 
     def get_metrics(self) -> QueueMetrics:
-        self._session.execute(select(func.count(JobQueueEntryModel.entry_id))).scalar() or 0
-        queued = self._session.execute(
-            select(func.count(JobQueueEntryModel.entry_id)).where(JobQueueEntryModel.state == JobState.QUEUED.value)
-        ).scalar() or 0
-        assigned = self._session.execute(
-            select(func.count(JobQueueEntryModel.entry_id)).where(JobQueueEntryModel.state == JobState.ASSIGNED.value)
-        ).scalar() or 0
-        running = self._session.execute(
-            select(func.count(JobQueueEntryModel.entry_id)).where(JobQueueEntryModel.state == JobState.RUNNING.value)
-        ).scalar() or 0
-        completed = self._session.execute(
-            select(func.count(JobQueueEntryModel.entry_id)).where(JobQueueEntryModel.state == JobState.COMPLETED.value)
-        ).scalar() or 0
-        failed = self._session.execute(
-            select(func.count(JobQueueEntryModel.entry_id)).where(JobQueueEntryModel.state == JobState.FAILED.value)
-        ).scalar() or 0
-        cancelled = self._session.execute(
-            select(func.count(JobQueueEntryModel.entry_id)).where(JobQueueEntryModel.state == JobState.CANCELLED.value)
-        ).scalar() or 0
-        retrying = self._session.execute(
-            select(func.count(JobQueueEntryModel.entry_id)).where(JobQueueEntryModel.state == JobState.RETRYING.value)
-        ).scalar() or 0
-        expired = self._session.execute(
-            select(func.count(JobQueueEntryModel.entry_id)).where(JobQueueEntryModel.state == JobState.EXPIRED.value)
-        ).scalar() or 0
-        dead_letter = self._session.execute(
-            select(func.count(DeadLetterEntryModel.entry_id))
-        ).scalar() or 0
-        now = datetime.now(UTC).isoformat()
-        oldest = self._session.execute(
-            select(func.min(JobQueueEntryModel.created_at)).where(
-                JobQueueEntryModel.state.in_([JobState.QUEUED.value, JobState.ASSIGNED.value, JobState.RUNNING.value])
+        with self._session_factory() as session:
+            session.execute(select(func.count(JobQueueEntryModel.entry_id))).scalar() or 0
+            queued = session.execute(
+                select(func.count(JobQueueEntryModel.entry_id)).where(JobQueueEntryModel.state == JobState.QUEUED.value)
+            ).scalar() or 0
+            assigned = session.execute(
+                select(func.count(JobQueueEntryModel.entry_id)).where(JobQueueEntryModel.state == JobState.ASSIGNED.value)
+            ).scalar() or 0
+            running = session.execute(
+                select(func.count(JobQueueEntryModel.entry_id)).where(JobQueueEntryModel.state == JobState.RUNNING.value)
+            ).scalar() or 0
+            completed = session.execute(
+                select(func.count(JobQueueEntryModel.entry_id)).where(JobQueueEntryModel.state == JobState.COMPLETED.value)
+            ).scalar() or 0
+            failed = session.execute(
+                select(func.count(JobQueueEntryModel.entry_id)).where(JobQueueEntryModel.state == JobState.FAILED.value)
+            ).scalar() or 0
+            cancelled = session.execute(
+                select(func.count(JobQueueEntryModel.entry_id)).where(JobQueueEntryModel.state == JobState.CANCELLED.value)
+            ).scalar() or 0
+            retrying = session.execute(
+                select(func.count(JobQueueEntryModel.entry_id)).where(JobQueueEntryModel.state == JobState.RETRYING.value)
+            ).scalar() or 0
+            expired = session.execute(
+                select(func.count(JobQueueEntryModel.entry_id)).where(JobQueueEntryModel.state == JobState.EXPIRED.value)
+            ).scalar() or 0
+            dead_letter = session.execute(
+                select(func.count(DeadLetterEntryModel.entry_id))
+            ).scalar() or 0
+            now = datetime.now(UTC).isoformat()
+            oldest = session.execute(
+                select(func.min(JobQueueEntryModel.created_at)).where(
+                    JobQueueEntryModel.state.in_([JobState.QUEUED.value, JobState.ASSIGNED.value, JobState.RUNNING.value])
+                )
+            ).scalar()
+            avg_wait = 0.0
+            oldest_age = 0.0
+            if oldest:
+                try:
+                    oldest_dt = datetime.fromisoformat(oldest)
+                    now_dt = datetime.fromisoformat(now)
+                    oldest_age = (now_dt - oldest_dt).total_seconds()
+                except (ValueError, TypeError):
+                    pass
+            return QueueMetrics(
+                total_queued=queued,
+                total_assigned=assigned,
+                total_running=running,
+                total_completed=completed,
+                total_failed=failed,
+                total_cancelled=cancelled,
+                total_retrying=retrying,
+                total_expired=expired,
+                total_dead_letter=dead_letter,
+                average_wait_seconds=avg_wait,
+                oldest_job_age_seconds=oldest_age,
             )
-        ).scalar()
-        avg_wait = 0.0
-        oldest_age = 0.0
-        if oldest:
-            try:
-                oldest_dt = datetime.fromisoformat(oldest)
-                now_dt = datetime.fromisoformat(now)
-                oldest_age = (now_dt - oldest_dt).total_seconds()
-            except (ValueError, TypeError):
-                pass
-        return QueueMetrics(
-            total_queued=queued,
-            total_assigned=assigned,
-            total_running=running,
-            total_completed=completed,
-            total_failed=failed,
-            total_cancelled=cancelled,
-            total_retrying=retrying,
-            total_expired=expired,
-            total_dead_letter=dead_letter,
-            average_wait_seconds=avg_wait,
-            oldest_job_age_seconds=oldest_age,
-        )
 
     def find_queued(self) -> list[JobQueueEntry]:
         return self.find_by_state(JobState.QUEUED.value)

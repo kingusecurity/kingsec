@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -44,19 +45,21 @@ from kingsec.infrastructure.persistence.models import (
 
 
 class SQLAlchemyMonitoringEventRepository(MonitoringEventRepositoryPort):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+    def __init__(self, session_factory: Callable[[], Session]) -> None:
+        self._session_factory = session_factory
 
     def save_event(self, event: MonitorEvent) -> None:
         orm = monitor_event_to_orm(event)
-        self._session.add(orm)
-        self._session.commit()
+        with self._session_factory() as session:
+            session.add(orm)
+            session.commit()
 
     def get_event(self, event_id: str) -> MonitorEvent:
-        orm = self._session.get(MonitorEventModel, event_id)
-        if orm is None:
-            raise MonitorEventNotFoundError(f"Monitor event not found: {event_id}")
-        return monitor_event_to_domain(orm)
+        with self._session_factory() as session:
+            orm = session.get(MonitorEventModel, event_id)
+            if orm is None:
+                raise MonitorEventNotFoundError(f"Monitor event not found: {event_id}")
+            return monitor_event_to_domain(orm)
 
     def fetch_events(
         self,
@@ -68,19 +71,22 @@ class SQLAlchemyMonitoringEventRepository(MonitoringEventRepositoryPort):
         query = select(MonitorEventModel)
         query = _apply_event_filter(query, filter_)
         query = query.order_by(MonitorEventModel.timestamp.desc()).offset(offset).limit(limit)
-        orms = self._session.execute(query).scalars().all()
-        return [monitor_event_to_domain(o) for o in orms]
+        with self._session_factory() as session:
+            orms = session.execute(query).scalars().all()
+            return [monitor_event_to_domain(o) for o in orms]
 
     def count_events(self, filter_: MonitorEventFilter | None = None) -> int:
         query = select(func.count(MonitorEventModel.id))
         query = _apply_event_filter(query, filter_)
-        result = self._session.execute(query).scalar()
-        return result or 0
+        with self._session_factory() as session:
+            result = session.execute(query).scalar()
+            return result or 0
 
     def get_event_trend(self, days: int = 30) -> list[MonitoringTrendPoint]:
         cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
         stmt = select(MonitorEventModel.severity, MonitorEventModel.timestamp).where(MonitorEventModel.timestamp >= cutoff)
-        rows = self._session.execute(stmt).all()
+        with self._session_factory() as session:
+            rows = session.execute(stmt).all()
         daily: dict[str, dict[str, int]] = {}
         for severity, ts in rows:
             day = ts[:10]
@@ -100,23 +106,25 @@ class SQLAlchemyMonitoringEventRepository(MonitoringEventRepositoryPort):
 
 
 class SQLAlchemyAlertRepository(AlertRepositoryPort):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+    def __init__(self, session_factory: Callable[[], Session]) -> None:
+        self._session_factory = session_factory
 
     def save_alert(self, alert: Alert) -> None:
-        existing = self._session.get(AlertModel, str(alert.id))
-        if existing:
-            _update_alert_orm(existing, alert)
-        else:
-            orm = alert_to_orm(alert)
-            self._session.add(orm)
-        self._session.commit()
+        with self._session_factory() as session:
+            existing = session.get(AlertModel, str(alert.id))
+            if existing:
+                _update_alert_orm(existing, alert)
+            else:
+                orm = alert_to_orm(alert)
+                session.add(orm)
+            session.commit()
 
     def get_alert(self, alert_id: str) -> Alert:
-        orm = self._session.get(AlertModel, alert_id)
-        if orm is None:
-            raise AlertNotFoundError(f"Alert not found: {alert_id}")
-        return alert_to_domain(orm)
+        with self._session_factory() as session:
+            orm = session.get(AlertModel, alert_id)
+            if orm is None:
+                raise AlertNotFoundError(f"Alert not found: {alert_id}")
+            return alert_to_domain(orm)
 
     def fetch_alerts(
         self,
@@ -128,29 +136,34 @@ class SQLAlchemyAlertRepository(AlertRepositoryPort):
         query = select(AlertModel)
         query = _apply_alert_filter(query, filter_)
         query = query.order_by(AlertModel.created_at.desc()).offset(offset).limit(limit)
-        orms = self._session.execute(query).scalars().all()
-        return [alert_to_domain(o) for o in orms]
+        with self._session_factory() as session:
+            orms = session.execute(query).scalars().all()
+            return [alert_to_domain(o) for o in orms]
 
     def count_alerts(self, filter_: AlertFilter | None = None) -> int:
         query = select(func.count(AlertModel.id))
         query = _apply_alert_filter(query, filter_)
-        result = self._session.execute(query).scalar()
-        return result or 0
+        with self._session_factory() as session:
+            result = session.execute(query).scalar()
+            return result or 0
 
     def get_open_alerts_count(self) -> int:
         stmt = select(func.count(AlertModel.id)).where(AlertModel.status == "open")
-        return self._session.execute(stmt).scalar() or 0
+        with self._session_factory() as session:
+            return session.execute(stmt).scalar() or 0
 
     def get_critical_alerts_count(self) -> int:
         stmt = select(func.count(AlertModel.id)).where(
             AlertModel.severity == "critical", AlertModel.status == "open"
         )
-        return self._session.execute(stmt).scalar() or 0
+        with self._session_factory() as session:
+            return session.execute(stmt).scalar() or 0
 
     def get_alert_trend(self, days: int = 30) -> list[MonitoringTrendPoint]:
         cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
         stmt = select(AlertModel.severity, AlertModel.created_at).where(AlertModel.created_at >= cutoff)
-        rows = self._session.execute(stmt).all()
+        with self._session_factory() as session:
+            rows = session.execute(stmt).all()
         daily: dict[str, dict[str, int]] = {}
         for severity, ts in rows:
             day = ts[:10]
@@ -170,29 +183,32 @@ class SQLAlchemyAlertRepository(AlertRepositoryPort):
 
 
 class SQLAlchemyRuleRepository(RuleRepositoryPort):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+    def __init__(self, session_factory: Callable[[], Session]) -> None:
+        self._session_factory = session_factory
 
     def save_rule(self, rule: Rule) -> None:
-        existing = self._session.get(RuleModel, str(rule.id))
-        if existing:
-            _update_rule_orm(existing, rule)
-        else:
-            orm = rule_to_orm(rule)
-            self._session.add(orm)
-        self._session.commit()
+        with self._session_factory() as session:
+            existing = session.get(RuleModel, str(rule.id))
+            if existing:
+                _update_rule_orm(existing, rule)
+            else:
+                orm = rule_to_orm(rule)
+                session.add(orm)
+            session.commit()
 
     def get_rule(self, rule_id: str) -> Rule:
-        orm = self._session.get(RuleModel, rule_id)
-        if orm is None:
-            raise RuleNotFoundError(f"Rule not found: {rule_id}")
-        return rule_to_domain(orm)
+        with self._session_factory() as session:
+            orm = session.get(RuleModel, rule_id)
+            if orm is None:
+                raise RuleNotFoundError(f"Rule not found: {rule_id}")
+            return rule_to_domain(orm)
 
     def delete_rule(self, rule_id: str) -> None:
-        orm = self._session.get(RuleModel, rule_id)
-        if orm:
-            self._session.delete(orm)
-            self._session.commit()
+        with self._session_factory() as session:
+            orm = session.get(RuleModel, rule_id)
+            if orm:
+                session.delete(orm)
+                session.commit()
 
     def fetch_rules(
         self,
@@ -204,214 +220,221 @@ class SQLAlchemyRuleRepository(RuleRepositoryPort):
         query = select(RuleModel)
         query = _apply_rule_filter(query, filter_)
         query = query.order_by(RuleModel.created_at.desc()).offset(offset).limit(limit)
-        orms = self._session.execute(query).scalars().all()
-        return [rule_to_domain(o) for o in orms]
+        with self._session_factory() as session:
+            orms = session.execute(query).scalars().all()
+            return [rule_to_domain(o) for o in orms]
 
     def count_rules(self, filter_: RuleFilter | None = None) -> int:
         query = select(func.count(RuleModel.id))
         query = _apply_rule_filter(query, filter_)
-        result = self._session.execute(query).scalar()
-        return result or 0
+        with self._session_factory() as session:
+            result = session.execute(query).scalar()
+            return result or 0
 
     def get_enabled_rules(self) -> list[Rule]:
-        orms = self._session.execute(
-            select(RuleModel).where(RuleModel.enabled == True)  # noqa: E712
-        ).scalars().all()
-        return [rule_to_domain(o) for o in orms]
+        with self._session_factory() as session:
+            orms = session.execute(
+                select(RuleModel).where(RuleModel.enabled == True)  # noqa: E712
+            ).scalars().all()
+            return [rule_to_domain(o) for o in orms]
 
 
 class SQLAlchemyMonitoringDashboardRepository(MonitoringDashboardRepositoryPort):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+    def __init__(self, session_factory: Callable[[], Session]) -> None:
+        self._session_factory = session_factory
 
     def get_dashboard_summary(self) -> MonitoringDashboardSummary:
         now = datetime.now(UTC)
         cutoff_24h = (now - timedelta(hours=24)).isoformat()
         (now - timedelta(days=7)).isoformat()
 
-        events_24h = self._session.execute(
-            select(func.count(MonitorEventModel.id)).where(MonitorEventModel.timestamp >= cutoff_24h)
-        ).scalar() or 0
-
-        open_alerts = self._session.execute(
-            select(func.count(AlertModel.id)).where(AlertModel.status == "open")
-        ).scalar() or 0
-
-        critical_alerts = self._session.execute(
-            select(func.count(AlertModel.id)).where(
-                AlertModel.severity == "critical", AlertModel.status == "open"
-            )
-        ).scalar() or 0
-
-        high_alerts = self._session.execute(
-            select(func.count(AlertModel.id)).where(
-                AlertModel.severity == "high", AlertModel.status == "open"
-            )
-        ).scalar() or 0
-
-        active_rules = self._session.execute(
-            select(func.count(RuleModel.id)).where(RuleModel.enabled == True)  # noqa: E712
-        ).scalar() or 0
-
-        total_assets = self._session.execute(
-            select(func.count(AssetModel.id))
-        ).scalar() or 0
-
-        asset_health = 100.0
-        if total_assets > 0:
-            critical_assets = self._session.execute(
-                select(func.count(AssetModel.id)).where(AssetModel.risk_score >= 75)
+        with self._session_factory() as session:
+            events_24h = session.execute(
+                select(func.count(MonitorEventModel.id)).where(MonitorEventModel.timestamp >= cutoff_24h)
             ).scalar() or 0
-            asset_health = max(0.0, 100.0 - (critical_assets / total_assets * 100.0))
 
-        cert_expiring = self._session.execute(
-            select(func.count(ExposureModel.id)).where(
-                ExposureModel.exposure_type == "expired_certificate",
-                ExposureModel.status == "active",
+            open_alerts = session.execute(
+                select(func.count(AlertModel.id)).where(AlertModel.status == "open")
+            ).scalar() or 0
+
+            critical_alerts = session.execute(
+                select(func.count(AlertModel.id)).where(
+                    AlertModel.severity == "critical", AlertModel.status == "open"
+                )
+            ).scalar() or 0
+
+            high_alerts = session.execute(
+                select(func.count(AlertModel.id)).where(
+                    AlertModel.severity == "high", AlertModel.status == "open"
+                )
+            ).scalar() or 0
+
+            active_rules = session.execute(
+                select(func.count(RuleModel.id)).where(RuleModel.enabled == True)  # noqa: E712
+            ).scalar() or 0
+
+            total_assets = session.execute(
+                select(func.count(AssetModel.id))
+            ).scalar() or 0
+
+            asset_health = 100.0
+            if total_assets > 0:
+                critical_assets = session.execute(
+                    select(func.count(AssetModel.id)).where(AssetModel.risk_score >= 75)
+                ).scalar() or 0
+                asset_health = max(0.0, 100.0 - (critical_assets / total_assets * 100.0))
+
+            cert_expiring = session.execute(
+                select(func.count(ExposureModel.id)).where(
+                    ExposureModel.exposure_type == "expired_certificate",
+                    ExposureModel.status == "active",
+                )
+            ).scalar() or 0
+
+            recent_events = []
+            event_orms = session.execute(
+                select(MonitorEventModel).order_by(MonitorEventModel.timestamp.desc()).limit(5)
+            ).scalars().all()
+            for evt_orm in event_orms:
+                recent_events.append({
+                    "id": evt_orm.id,
+                    "event_type": evt_orm.event_type,
+                    "title": evt_orm.title,
+                    "timestamp": evt_orm.timestamp,
+                })
+
+            alert_orms = session.execute(
+                select(AlertModel).where(AlertModel.status == "open").order_by(AlertModel.created_at.desc()).limit(5)
+            ).scalars().all()
+            recent_alerts_list = []
+            for alrt_orm in alert_orms:
+                recent_alerts_list.append({
+                    "id": alrt_orm.id,
+                    "title": alrt_orm.title,
+                    "severity": alrt_orm.severity,
+                    "created_at": alrt_orm.created_at,
+                })
+
+            return MonitoringDashboardSummary(
+                total_events_24h=events_24h,
+                total_alerts_open=open_alerts,
+                total_alerts_critical=critical_alerts,
+                total_alerts_high=high_alerts,
+                total_rules_active=active_rules,
+                asset_health_percentage=round(asset_health, 1),
+                last_scan_time=cutoff_24h,
+                upcoming_certificate_expirations=cert_expiring,
+                assets_monitored=total_assets,
+                recent_events=recent_events,
+                recent_alerts=recent_alerts_list,
             )
-        ).scalar() or 0
-
-        recent_events = []
-        event_orms = self._session.execute(
-            select(MonitorEventModel).order_by(MonitorEventModel.timestamp.desc()).limit(5)
-        ).scalars().all()
-        for evt_orm in event_orms:
-            recent_events.append({
-                "id": evt_orm.id,
-                "event_type": evt_orm.event_type,
-                "title": evt_orm.title,
-                "timestamp": evt_orm.timestamp,
-            })
-
-        alert_orms = self._session.execute(
-            select(AlertModel).where(AlertModel.status == "open").order_by(AlertModel.created_at.desc()).limit(5)
-        ).scalars().all()
-        recent_alerts_list = []
-        for alrt_orm in alert_orms:
-            recent_alerts_list.append({
-                "id": alrt_orm.id,
-                "title": alrt_orm.title,
-                "severity": alrt_orm.severity,
-                "created_at": alrt_orm.created_at,
-            })
-
-        return MonitoringDashboardSummary(
-            total_events_24h=events_24h,
-            total_alerts_open=open_alerts,
-            total_alerts_critical=critical_alerts,
-            total_alerts_high=high_alerts,
-            total_rules_active=active_rules,
-            asset_health_percentage=round(asset_health, 1),
-            last_scan_time=cutoff_24h,
-            upcoming_certificate_expirations=cert_expiring,
-            assets_monitored=total_assets,
-            recent_events=recent_events,
-            recent_alerts=recent_alerts_list,
-        )
 
     def get_asset_health_snapshots(self) -> list[AssetHealthSnapshot]:
-        orms = self._session.execute(
-            select(AssetModel).limit(100)
-        ).scalars().all()
-        result: list[AssetHealthSnapshot] = []
-        for o in orms:
-            if o.risk_score >= 75:
-                status = MonitoringStatus.CRITICAL
-            elif o.risk_score >= 50:
-                status = MonitoringStatus.WARNING
-            else:
-                status = MonitoringStatus.HEALTHY
+        with self._session_factory() as session:
+            orms = session.execute(
+                select(AssetModel).limit(100)
+            ).scalars().all()
+            result: list[AssetHealthSnapshot] = []
+            for o in orms:
+                if o.risk_score >= 75:
+                    status = MonitoringStatus.CRITICAL
+                elif o.risk_score >= 50:
+                    status = MonitoringStatus.WARNING
+                else:
+                    status = MonitoringStatus.HEALTHY
 
-            exposure_count = self._session.execute(
-                select(func.count(ExposureModel.id)).where(
-                    ExposureModel.asset_id == o.id, ExposureModel.status == "active"
-                )
-            ).scalar() or 0
+                exposure_count = session.execute(
+                    select(func.count(ExposureModel.id)).where(
+                        ExposureModel.asset_id == o.id, ExposureModel.status == "active"
+                    )
+                ).scalar() or 0
 
-            result.append(
-                AssetHealthSnapshot(
-                    asset_id=o.id,
-                    status=status,
-                    risk_score=o.risk_score,
-                    exposure_count=exposure_count,
-                    finding_count=len(o.findings or []),
-                    last_seen=o.last_seen,
+                result.append(
+                    AssetHealthSnapshot(
+                        asset_id=o.id,
+                        status=status,
+                        risk_score=o.risk_score,
+                        exposure_count=exposure_count,
+                        finding_count=len(o.findings or []),
+                        last_seen=o.last_seen,
+                    )
                 )
-            )
-        return result
+            return result
 
     def get_summary_stats(self) -> MonitoringSummaryStats:
         now = datetime.now(UTC)
         cutoff_24h = (now - timedelta(hours=24)).isoformat()
         cutoff_7d = (now - timedelta(days=7)).isoformat()
 
-        events_24h = self._session.execute(
-            select(func.count(MonitorEventModel.id)).where(MonitorEventModel.timestamp >= cutoff_24h)
-        ).scalar() or 0
-        events_7d = self._session.execute(
-            select(func.count(MonitorEventModel.id)).where(MonitorEventModel.timestamp >= cutoff_7d)
-        ).scalar() or 0
+        with self._session_factory() as session:
+            events_24h = session.execute(
+                select(func.count(MonitorEventModel.id)).where(MonitorEventModel.timestamp >= cutoff_24h)
+            ).scalar() or 0
+            events_7d = session.execute(
+                select(func.count(MonitorEventModel.id)).where(MonitorEventModel.timestamp >= cutoff_7d)
+            ).scalar() or 0
 
-        alerts_24h = self._session.execute(
-            select(func.count(AlertModel.id)).where(AlertModel.created_at >= cutoff_24h)
-        ).scalar() or 0
+            alerts_24h = session.execute(
+                select(func.count(AlertModel.id)).where(AlertModel.created_at >= cutoff_24h)
+            ).scalar() or 0
 
-        open_alerts = self._session.execute(
-            select(func.count(AlertModel.id)).where(AlertModel.status == "open")
-        ).scalar() or 0
+            open_alerts = session.execute(
+                select(func.count(AlertModel.id)).where(AlertModel.status == "open")
+            ).scalar() or 0
 
-        critical_alerts = self._session.execute(
-            select(func.count(AlertModel.id)).where(
-                AlertModel.severity == "critical", AlertModel.status == "open"
+            critical_alerts = session.execute(
+                select(func.count(AlertModel.id)).where(
+                    AlertModel.severity == "critical", AlertModel.status == "open"
+                )
+            ).scalar() or 0
+
+            high_alerts = session.execute(
+                select(func.count(AlertModel.id)).where(
+                    AlertModel.severity == "high", AlertModel.status == "open"
+                )
+            ).scalar() or 0
+
+            active_rules = session.execute(
+                select(func.count(RuleModel.id)).where(RuleModel.enabled == True)  # noqa: E712
+            ).scalar() or 0
+            total_rules = session.execute(
+                select(func.count(RuleModel.id))
+            ).scalar() or 0
+
+            total_assets = session.execute(
+                select(func.count(AssetModel.id))
+            ).scalar() or 0
+
+            healthy = warning = ccritical = 0
+            for o in session.execute(select(AssetModel.risk_score)).all():
+                if o[0] >= 75:
+                    ccritical += 1
+                elif o[0] >= 50:
+                    warning += 1
+                else:
+                    healthy += 1
+
+            return MonitoringSummaryStats(
+                events_last_24h=events_24h,
+                events_last_7d=events_7d,
+                alerts_last_24h=alerts_24h,
+                alerts_open=open_alerts,
+                alerts_critical=critical_alerts,
+                alerts_high=high_alerts,
+                rules_active=active_rules,
+                rules_total=total_rules,
+                assets_monitored=total_assets,
+                assets_healthy=healthy,
+                assets_warning=warning,
+                assets_critical=ccritical,
+                total_changes_detected=events_24h,
             )
-        ).scalar() or 0
-
-        high_alerts = self._session.execute(
-            select(func.count(AlertModel.id)).where(
-                AlertModel.severity == "high", AlertModel.status == "open"
-            )
-        ).scalar() or 0
-
-        active_rules = self._session.execute(
-            select(func.count(RuleModel.id)).where(RuleModel.enabled == True)  # noqa: E712
-        ).scalar() or 0
-        total_rules = self._session.execute(
-            select(func.count(RuleModel.id))
-        ).scalar() or 0
-
-        total_assets = self._session.execute(
-            select(func.count(AssetModel.id))
-        ).scalar() or 0
-
-        healthy = warning = ccritical = 0
-        for o in self._session.execute(select(AssetModel.risk_score)).all():
-            if o[0] >= 75:
-                ccritical += 1
-            elif o[0] >= 50:
-                warning += 1
-            else:
-                healthy += 1
-
-        return MonitoringSummaryStats(
-            events_last_24h=events_24h,
-            events_last_7d=events_7d,
-            alerts_last_24h=alerts_24h,
-            alerts_open=open_alerts,
-            alerts_critical=critical_alerts,
-            alerts_high=high_alerts,
-            rules_active=active_rules,
-            rules_total=total_rules,
-            assets_monitored=total_assets,
-            assets_healthy=healthy,
-            assets_warning=warning,
-            assets_critical=ccritical,
-            total_changes_detected=events_24h,
-        )
 
     def get_exposure_trend(self, days: int = 30) -> list[dict[str, Any]]:
         cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
         stmt = select(ExposureModel.severity, ExposureModel.created_at).where(ExposureModel.created_at >= cutoff)
-        rows = self._session.execute(stmt).all()
+        with self._session_factory() as session:
+            rows = session.execute(stmt).all()
         daily: dict[str, dict[str, int]] = {}
         for severity, ts in rows:
             day = ts[:10]
@@ -431,7 +454,8 @@ class SQLAlchemyMonitoringDashboardRepository(MonitoringDashboardRepositoryPort)
         stmt = select(AssetModel.risk_score, AssetModel.updated_at).where(
             AssetModel.updated_at >= cutoff
         )
-        rows = self._session.execute(stmt).all()
+        with self._session_factory() as session:
+            rows = session.execute(stmt).all()
         daily: dict[str, list[float]] = {}
         for score, ts in rows:
             day = (ts or "")[:10] if ts else ""

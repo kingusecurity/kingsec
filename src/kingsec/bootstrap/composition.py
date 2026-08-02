@@ -312,7 +312,7 @@ def _register_adapters(
     from kingsec.infrastructure.dashboard.sqlalchemy_repository import SQLAlchemyDashboardRepository
 
     def _make_dashboard_repo(_c: Any) -> DashboardRepositoryPort:
-        return SQLAlchemyDashboardRepository(session_factory())
+        return SQLAlchemyDashboardRepository(session_factory)
 
     container.register_factory(DashboardRepositoryPort, _make_dashboard_repo)
 
@@ -403,7 +403,7 @@ def _register_organization_repository(container: Container, session_factory: Any
     from kingsec.infrastructure.persistence.repositories.organization import SQLAlchemyOrganizationRepository
 
     def _factory(_c: Any) -> OrganizationRepository:
-        return SQLAlchemyOrganizationRepository(session_factory())
+        return SQLAlchemyOrganizationRepository(session_factory)
 
     container.register_factory(OrganizationRepository, _factory)
 
@@ -415,7 +415,7 @@ def _register_license_infrastructure(container: Container, session_factory: Any)
     from kingsec.infrastructure.persistence.repositories.license import SQLAlchemyLicenseRepository
 
     def _repo_factory(_c: Any) -> LicenseRepository:
-        return SQLAlchemyLicenseRepository(session_factory())
+        return SQLAlchemyLicenseRepository(session_factory)
 
     container.register_factory(LicenseRepository, _repo_factory)
     container.register_factory(LicenseValidator, lambda c: LicenseValidatorImpl(c.resolve(LicenseRepository)))
@@ -488,11 +488,14 @@ def _register_job_service(container: Container, session_factory: Any) -> None:
     """
     from kingsec.application.ports.job_service import JobServicePort
     from kingsec.application.services.persistent_job_service import PersistentJobService
+    from kingsec.application.unit_of_work import UnitOfWorkPort
     from kingsec.infrastructure.persistence.unit_of_work import SQLAlchemyUnitOfWork
 
+    def _new_uow() -> UnitOfWorkPort:
+        return SQLAlchemyUnitOfWork(session_factory())
+
     def _factory(_c: Any) -> JobServicePort:
-        uow = SQLAlchemyUnitOfWork(session_factory())
-        return PersistentJobService(uow)
+        return PersistentJobService(_new_uow)
 
     container.register_factory(JobServicePort, _factory)
 
@@ -984,7 +987,7 @@ def _register_attack_surface_services(container: Container, session_factory: Any
     )
 
     def _make_repo(_c: Any) -> AttackSurfaceRepositoryPort:
-        return SQLAlchemyAttackSurfaceRepository(session_factory())
+        return SQLAlchemyAttackSurfaceRepository(session_factory)
 
     container.register_factory(AttackSurfaceRepositoryPort, _make_repo)
     container.register_factory(
@@ -1018,16 +1021,16 @@ def _register_monitoring_services(container: Container, session_factory: Any) ->
     )
 
     def _make_event_repo(_c: Any) -> MonitoringEventRepositoryPort:
-        return SQLAlchemyMonitoringEventRepository(session_factory())
+        return SQLAlchemyMonitoringEventRepository(session_factory)
 
     def _make_alert_repo(_c: Any) -> AlertRepositoryPort:
-        return SQLAlchemyAlertRepository(session_factory())
+        return SQLAlchemyAlertRepository(session_factory)
 
     def _make_rule_repo(_c: Any) -> RuleRepositoryPort:
-        return SQLAlchemyRuleRepository(session_factory())
+        return SQLAlchemyRuleRepository(session_factory)
 
     def _make_dashboard_repo(_c: Any) -> MonitoringDashboardRepositoryPort:
-        return SQLAlchemyMonitoringDashboardRepository(session_factory())
+        return SQLAlchemyMonitoringDashboardRepository(session_factory)
 
     container.register_factory(MonitoringEventRepositoryPort, _make_event_repo)
     container.register_factory(AlertRepositoryPort, _make_alert_repo)
@@ -1088,7 +1091,7 @@ def _register_asset_inventory_services(container: Container, session_factory: An
     )
 
     def _make_repo(_c: Any) -> AssetInventoryRepositoryPort:
-        return SQLAlchemyAssetInventoryRepository(session_factory())
+        return SQLAlchemyAssetInventoryRepository(session_factory)
 
     container.register_factory(AssetInventoryRepositoryPort, _make_repo)
     container.register_factory(
@@ -1134,10 +1137,10 @@ def _register_threat_intelligence_services(container: Container, session_factory
     )
 
     def _make_cve_repo(_c: Any) -> CveRepositoryPort:
-        return SQLAlchemyCveRepository(session_factory())
+        return SQLAlchemyCveRepository(session_factory)
 
     def _make_feed_repo(_c: Any) -> ThreatFeedRepositoryPort:
-        return SQLAlchemyThreatFeedRepository(session_factory())
+        return SQLAlchemyThreatFeedRepository(session_factory)
 
     container.register_factory(CveRepositoryPort, _make_cve_repo)
     container.register_factory(ThreatFeedRepositoryPort, _make_feed_repo)
@@ -1242,10 +1245,10 @@ def _register_copilot_services(container: Container, session_factory: Any) -> No
     )
 
     def _make_conv_repo(_c: Any) -> CopilotConversationRepositoryPort:
-        return SQLAlchemyCopilotConversationRepository(session_factory())
+        return SQLAlchemyCopilotConversationRepository(session_factory)
 
     def _make_note_repo(_c: Any) -> InvestigationNoteRepositoryPort:
-        return SQLAlchemyInvestigationNoteRepository(session_factory())
+        return SQLAlchemyInvestigationNoteRepository(session_factory)
 
     container.register_factory(CopilotConversationRepositoryPort, _make_conv_repo)
     container.register_factory(InvestigationNoteRepositoryPort, _make_note_repo)
@@ -1306,17 +1309,16 @@ def _register_playbook_services(container: Container, session_factory: Any) -> N
         PlaybookRepositoryPort,
     )
     from kingsec.application.playbooks.service import PlaybookService
-    from kingsec.application.ports.outbound import AuditPublisher
     from kingsec.infrastructure.persistence.repositories.playbook import (
         SQLAlchemyExecutionHistoryRepository,
         SQLAlchemyPlaybookRepository,
     )
 
     def _make_pb_repo(_c: Any) -> PlaybookRepositoryPort:
-        return SQLAlchemyPlaybookRepository(session_factory())
+        return SQLAlchemyPlaybookRepository(session_factory)
 
     def _make_hist_repo(_c: Any) -> ExecutionHistoryRepositoryPort:
-        return SQLAlchemyExecutionHistoryRepository(session_factory())
+        return SQLAlchemyExecutionHistoryRepository(session_factory)
 
     def _make_action_executor(_c: Any) -> ActionExecutor:
         return ActionExecutor()
@@ -1340,7 +1342,7 @@ def _register_playbook_services(container: Container, session_factory: Any) -> N
             playbook_repo=c.resolve(PlaybookRepositoryPort),
             engine=c.resolve(PlaybookEngine),
             history_repo=c.resolve(ExecutionHistoryRepositoryPort),
-            audit=c.resolve(PlaybookAuditPort) if c.has(PlaybookAuditPort) else c.resolve(AuditPublisher) if c.has(AuditPublisher) else None,
+            audit=c.resolve(PlaybookAuditPort) if c.has(PlaybookAuditPort) else None,
         ),
     )
 
@@ -1512,16 +1514,16 @@ def _register_distributed_worker_services(container: Container, session_factory:
     from kingsec.infrastructure.persistence.repositories.worker import SQLAlchemyWorkerRepository
 
     def _make_worker_repo(_c: Any) -> WorkerRepositoryPort:
-        return SQLAlchemyWorkerRepository(session_factory())
+        return SQLAlchemyWorkerRepository(session_factory)
 
     def _make_queue_repo(_c: Any) -> JobQueueRepositoryPort:
-        return SQLAlchemyJobQueueRepository(session_factory())
+        return SQLAlchemyJobQueueRepository(session_factory)
 
     def _make_lease_repo(_c: Any) -> JobLeaseRepositoryPort:
-        return SQLAlchemyJobLeaseRepository(session_factory())
+        return SQLAlchemyJobLeaseRepository(session_factory)
 
     def _make_dead_letter_repo(_c: Any) -> DeadLetterRepositoryPort:
-        return SQLAlchemyDeadLetterRepository(session_factory())
+        return SQLAlchemyDeadLetterRepository(session_factory)
 
     container.register_factory(WorkerRepositoryPort, _make_worker_repo)
     container.register_factory(JobQueueRepositoryPort, _make_queue_repo)
@@ -1599,13 +1601,13 @@ def _register_idp_services(container: Container, session_factory: Any) -> None:
     )
 
     def _make_idp_repo(_c: Any) -> IdentityProviderRepositoryPort:
-        return SQLAlchemyIdentityProviderRepository(session_factory())
+        return SQLAlchemyIdentityProviderRepository(session_factory)
 
     def _make_sso_session_repo(_c: Any) -> SSOSessionRepositoryPort:
-        return SQLAlchemySSOSessionRepository(session_factory())
+        return SQLAlchemySSOSessionRepository(session_factory)
 
     def _make_account_link_repo(_c: Any) -> AccountLinkRepositoryPort:
-        return SQLAlchemyAccountLinkRepository(session_factory())
+        return SQLAlchemyAccountLinkRepository(session_factory)
 
     container.register_factory(IdentityProviderRepositoryPort, _make_idp_repo)
     container.register_factory(SSOSessionRepositoryPort, _make_sso_session_repo)
