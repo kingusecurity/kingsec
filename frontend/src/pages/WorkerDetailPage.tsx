@@ -1,15 +1,18 @@
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useWorker, useDeleteWorker } from '@/hooks/use-workers'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 export function WorkerDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { data, isLoading } = useWorker(id!)
   const deleteWorker = useDeleteWorker()
   const navigate = useNavigate()
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   if (isLoading) return <div className="flex justify-center py-12"><Spinner size="lg" /></div>
   if (!data?.worker) return <div className="text-center py-12 text-text-muted">Worker not found</div>
@@ -22,6 +25,8 @@ export function WorkerDetailPage() {
       navigate('/workers')
     } catch {
       // Error is surfaced below via deleteWorker.error.
+    } finally {
+      setConfirmDelete(false)
     }
   }
 
@@ -34,7 +39,7 @@ export function WorkerDetailPage() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => navigate('/workers')}>Back</Button>
-          <Button variant="danger" onClick={handleDelete}>Remove Worker</Button>
+          <Button variant="danger" onClick={() => setConfirmDelete(true)}>Remove Worker</Button>
         </div>
       </div>
 
@@ -81,6 +86,17 @@ export function WorkerDetailPage() {
           </div>
         )}
       </Card>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={handleDelete}
+        title="Remove Worker"
+        message="Are you sure you want to remove this worker? This action cannot be undone."
+        confirmLabel="Remove Worker"
+        variant="danger"
+        loading={deleteWorker.isPending}
+      />
     </div>
   )
 }

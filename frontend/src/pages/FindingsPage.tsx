@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertTriangle, TrendingUp, ShieldAlert, Search } from 'lucide-react'
 import { PageContainer, PageHeader, StatGrid } from '@/components/layout/PageContainer'
 import { StatCard } from '@/components/features/dashboard/StatCard'
@@ -6,6 +6,15 @@ import { Card } from '@/components/ui/Card'
 import { Spinner } from '@/components/ui/Spinner'
 import { useFindingsSummary, useFindingsSeverity, useFindingsTrends, useFindings } from '@/hooks/use-findings'
 import { useAssessments } from '@/hooks/use-assessments'
+
+function useDebouncedValue(value: string, delay: number): string {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(timer)
+  }, [value, delay])
+  return debounced
+}
 
 const SEVERITY_COLORS: Record<string, string> = {
   CRITICAL: 'text-red-400 bg-red-500/10',
@@ -56,8 +65,11 @@ function FindingsList() {
   const [status, setStatus] = useState('')
   const [offset, setOffset] = useState(0)
   const limit = 25
+  const debouncedSearch = useDebouncedValue(search, 300)
 
-  const { data, isLoading } = useFindings({ limit, offset, search: search || undefined, severity: severity || undefined, status: status || undefined })
+  useEffect(() => { setOffset(0) }, [debouncedSearch])
+
+  const { data, isLoading } = useFindings({ limit, offset, search: debouncedSearch || undefined, severity: severity || undefined, status: status || undefined })
 
   if (isLoading) return <Spinner size="lg" />
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PageContainer, PageHeader } from '@/components/layout/PageContainer'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -6,8 +6,20 @@ import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { Input } from '@/components/ui/Input'
+import { Pagination } from '@/components/ui/Pagination'
 import { useAssetSummary, useAssets } from '@/hooks/use-assets'
 import type { AssetListItem } from '@/api/assets'
+
+const PAGE_SIZE = 24
+
+function useDebouncedValue(value: string, delay: number): string {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(timer)
+  }, [value, delay])
+  return debounced
+}
 
 const typeColors: Record<string, string> = {
   host: 'bg-blue-500',
@@ -72,11 +84,22 @@ export function AssetInventoryPage() {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [critFilter, setCritFilter] = useState('')
+  const [page, setPage] = useState(1)
+  const debouncedSearch = useDebouncedValue(search, 300)
   const { data: summary, isLoading: summaryLoading, isError, error, refetch } = useAssetSummary()
-  const { data: listData, isLoading: listLoading } = useAssets({ search: search || undefined, asset_type: typeFilter || undefined, criticality: critFilter || undefined })
+  const { data: listData, isLoading: listLoading } = useAssets({
+    search: debouncedSearch || undefined,
+    asset_type: typeFilter || undefined,
+    criticality: critFilter || undefined,
+    limit: PAGE_SIZE,
+    offset: (page - 1) * PAGE_SIZE,
+  })
+
+  useEffect(() => { setPage(1) }, [debouncedSearch, typeFilter, critFilter])
 
   const assets = listData?.items ?? []
   const total = listData?.total ?? 0
+  const totalPages = listData ? Math.ceil(listData.total / (listData.limit || PAGE_SIZE)) : 0
 
   return (
     <PageContainer>
@@ -160,9 +183,16 @@ export function AssetInventoryPage() {
               <Spinner />
             </div>
           ) : assets.length > 0 ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {assets.map((a) => <AssetCard key={a.id} asset={a} />)}
-            </div>
+            <>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {assets.map((a) => <AssetCard key={a.id} asset={a} />)}
+              </div>
+              {totalPages > 1 && (
+                <div className="flex justify-center pt-2">
+                  <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+                </div>
+              )}
+            </>
           ) : (
             <div className="py-12 text-center text-text-muted">
               <p className="text-lg font-medium">No assets found</p>

@@ -5,10 +5,12 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 export function QueuePage() {
   const [tab, setTab] = useState<'queue' | 'dead-letter'>('queue')
   const [stateFilter, setStateFilter] = useState<string>('')
+  const [cancelTarget, setCancelTarget] = useState<string | null>(null)
   const { data: queueData, isLoading: queueLoading } = useQueue(stateFilter || undefined)
   const { data: metrics } = useQueueMetrics()
   const retryJob = useRetryJob()
@@ -84,7 +86,7 @@ export function QueuePage() {
                       <Button size="sm" variant="outline" onClick={ev => { ev.stopPropagation(); retryJob.mutate(e.entry_id) }}>Retry</Button>
                     )}
                     {['queued', 'assigned', 'retrying'].includes(e.state) && (
-                      <Button size="sm" variant="ghost" className="text-red-400" onClick={ev => { ev.stopPropagation(); cancelJob.mutate(e.entry_id) }}>Cancel</Button>
+                      <Button size="sm" variant="ghost" className="text-red-400" onClick={ev => { ev.stopPropagation(); setCancelTarget(e.entry_id) }}>Cancel</Button>
                     )}
                   </div>
                 </Card>
@@ -115,6 +117,17 @@ export function QueuePage() {
           {deadLetterData?.entries.length === 0 && <p className="text-center text-text-muted py-8">No dead letter entries</p>}
         </div>
       )}
+
+      <ConfirmDialog
+        open={cancelTarget !== null}
+        onClose={() => setCancelTarget(null)}
+        onConfirm={() => { if (cancelTarget) cancelJob.mutate(cancelTarget); setCancelTarget(null) }}
+        title="Cancel Job"
+        message="Are you sure you want to cancel this job? This action cannot be undone."
+        confirmLabel="Cancel Job"
+        variant="danger"
+        loading={cancelJob.isPending}
+      />
     </div>
   )
 }

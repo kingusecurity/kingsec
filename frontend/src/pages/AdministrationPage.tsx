@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Shield, Users, Activity, HardDrive, Package, LayoutList, Server, Database, Search, RotateCw } from 'lucide-react'
 import { PageContainer, PageHeader, StatGrid } from '@/components/layout/PageContainer'
 import { StatCard } from '@/components/features/dashboard/StatCard'
@@ -116,6 +116,15 @@ function OverviewTab() {
   )
 }
 
+function useDebouncedValue(value: string, delay: number): string {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(timer)
+  }, [value, delay])
+  return debounced
+}
+
 function UsersTab() {
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
@@ -128,9 +137,10 @@ function UsersTab() {
   const [newRole, setNewRole] = useState('')
   const [actionError, setActionError] = useState('')
   const limit = 25
+  const debouncedSearch = useDebouncedValue(search, 300)
 
   const { data, isLoading, error, refetch } = useAdminUsersSearch({
-    query: search || undefined,
+    query: debouncedSearch || undefined,
     role: roleFilter || undefined,
     limit,
     offset,

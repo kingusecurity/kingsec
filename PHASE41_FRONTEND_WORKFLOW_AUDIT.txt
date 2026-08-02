@@ -1,0 +1,146 @@
+KingSec v2.0.0 — Phase 41: Final Production Workflow Validation
+==================================================================
+
+Continuation of the ongoing production-readiness audit. This round's
+scope: every button, dialog, modal, form, table action, pagination
+control, search box, filter, export button, navigation link, loading
+state, and error state across the audited page list. No redesign, no
+refactor, no optimization, no new features — only genuine defects were
+fixed.
+
+Three parallel read-only audits were run (Findings/Reports/Assets/Users;
+Assessments/Queue/Pipelines/Workers/Schedules/Plugins; ThreatIntel/
+Compliance/Monitoring/Notifications/Copilot/Settings), followed by live
+verification of every candidate finding before any fix was made — one
+candidate finding was disproven live and left untouched rather than
+"fixed" on the basis of static analysis alone.
+
+============================================================
+BUGS FIXED
+============================================================
+
+1. MEDIUM — Asset Inventory had no pagination
+File: frontend/src/pages/AssetInventoryPage.tsx:76 (before fix)
+Root cause: useAssets() was called with no limit/offset, and no
+pagination control existed anywhere on the page, despite the backend
+(assetsApi.list) fully supporting both.
+Reproduction: seed more assets than the server's default page size — the
+"X assets" count shows the true total while the grid silently truncates
+with no way to see the rest.
+Impact: users could never view any asset beyond the first server-default
+page.
+Fix: added page state, limit/offset wiring, and the existing shared
+<Pagination> component (frontend/src/components/ui/Pagination.tsx),
+mirroring the exact pattern already used on AssessmentsPage.tsx.
+
+2. LOW — Undebounced search boxes (3 pages)
+Files: frontend/src/pages/AssetInventoryPage.tsx:131,
+       frontend/src/pages/FindingsPage.tsx:73,
+       frontend/src/pages/AdministrationPage.tsx:209
+Root cause: search inputs called setSearch() directly in onChange with no
+debounce, firing a new API request on every keystroke — inconsistent with
+ReportsPage.tsx, which already has a 300ms debounce.
+Reproduction: type a 10-character search term — ~10 sequential requests
+fire instead of one.
+Impact: unnecessary request volume, potential for out-of-order responses
+to flicker stale results onto screen.
+Fix: duplicated the existing useDebouncedValue hook (already defined in
+ReportsPage.tsx) into each of the three files, matching the codebase's
+established small-helper-duplication convention.
+
+3. MEDIUM — "Cancel Job" fires with no confirmation
+File: frontend/src/pages/QueuePage.tsx:87 (before fix)
+Root cause: the Cancel button on a queued/running job called
+cancelJob.mutate(e.entry_id) directly from onClick, with no confirmation
+step — unlike the equivalent Assessment cancel/delete actions, which
+already use the shared ConfirmDialog component.
+Reproduction: a single misclick on "Cancel" immediately cancels a live
+job with no undo and no "are you sure" step.
+Impact: destructive action with no safety net, inconsistent with sibling
+pages.
+Fix: wired the existing ConfirmDialog component (frontend/src/components/
+ui/ConfirmDialog.tsx), matching the exact usage pattern already
+established in AssessmentActions.tsx.
+
+4. MEDIUM — "Remove Worker" fires with no confirmation
+File: frontend/src/pages/WorkerDetailPage.tsx:37 (before fix)
+Root cause / Impact: identical pattern to #3.
+Fix: same ConfirmDialog wiring.
+
+============================================================
+INVESTIGATED AND CONFIRMED NOT A BUG (verified live, not assumed)
+============================================================
+
+ThreatIntelligenceDashboard.tsx's "Trending Threats" panel links using
+cve_code vs. "Critical CVEs" panel links using id were flagged by static
+analysis as a mismatch that would 404. Live-tested against a real server
+with a real seeded CVE (synced CVE-2021-44228): both
+GET /api/v1/cves/CVE-2021-44228 and GET /api/v1/cves/<real-db-id> returned
+200 with correct data. threat_intelligence_routes.py:94-103 has an
+intentional id-then-code fallback (tries CveId lookup first, falls back
+to get_cve_by_code on CveNotFoundError). No fix was made — this is exactly
+why every candidate finding was verified live before touching code.
+
+============================================================
+NOT FIXED — genuinely require new backend capability or were already
+documented in earlier phases (out of scope: "no new features")
+============================================================
+
+- AssessmentsPage.tsx's search/status-filter/sort-by/sort-order controls
+  update the URL but are never passed into useAssessments() — confirmed
+  the backend's list_assessments route (routes.py:352-355) only ever
+  accepted limit/offset; no search/status/sort parameters exist
+  server-side at all. Fixing this for real requires new backend filtering
+  capability, not a frontend wiring fix.
+- CreateAssessmentPage.tsx drops the wizard's selected profile_id on
+  submit — already investigated and documented as intentional/
+  advisory-only in an earlier phase of this same audit engagement (the
+  profile-plan output was never meant to be consumed by assessment
+  creation itself).
+- SchedulesPage has no enable/disable/pause/create/delete UI at all;
+  PluginsSdkPage's Marketplace tab has no install action and no backend
+  install endpoint to wire it to — both already documented as known gaps
+  in Phase 38/39, re-confirmed still true this round.
+- AI Copilot's conversation list has a ready useSearchConversations hook
+  with no search input rendered anywhere in AICopilotPage.tsx — an unused
+  capability, not a broken wire. Building a new search input is new UI,
+  left undone per "no new features."
+- License activation (LicenseSection.tsx, LicensePage.tsx) accepts any
+  non-empty string client-side before the server correctly rejects an
+  invalid key — minor, cosmetic, non-blocking.
+
+============================================================
+RUNTIME VERIFICATION
+============================================================
+- npx tsc -b: clean.
+- npm run build: clean production build.
+- npm run test: 258/258 passing, zero regressions.
+- npm run lint: no new warnings introduced.
+- Live API verification against a running server with a real bearer
+  token: confirmed GET /assets?limit=1&offset=0 echoes limit/offset
+  correctly (validates the pagination fix's contract); confirmed both CVE
+  link styles resolve correctly (ruled out the false-positive finding
+  before making any change).
+- No backend files were modified this round (all five fixes were
+  frontend-only), so no backend pytest run was required.
+
+============================================================
+REMAINING KNOWN ISSUES
+============================================================
+- The four backend-capability gaps listed above (Assessments filters,
+  CreateAssessment profile_id, SchedulesPage CRUD, PluginsSdk install)
+  remain — all previously documented, all requiring genuine new
+  backend/feature work outside this audit's mandate.
+- License key format has no client-side validation (cosmetic only).
+- No browser-automation tool is available in this environment. This pass,
+  like all prior ones, verified via static code audit + live API calls +
+  full type-check/build/test-suite run, not literal in-browser clicking.
+
+============================================================
+PRODUCTION READINESS ASSESSMENT
+============================================================
+KingSec v2.0.0 has completed end-to-end production workflow validation
+and no additional runtime defects were identified in the audited scope,
+beyond the four items above, which are pre-existing, already-documented
+feature gaps rather than defects, and are out of scope for a "fix only,
+no new features" pass.
