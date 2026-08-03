@@ -18,7 +18,7 @@ from kingsec.application import AssessmentRepository, ReportRepository
 from kingsec.infrastructure.logging import get_logger
 
 from .database import create_database_engine, create_session_factory, validate_schema_version
-from .repositories import SqlAlchemyAssessmentRepository, SqlAlchemyReportRepository
+from .repositories import LegacyAssessmentRepository, LegacyReportRepository
 
 if TYPE_CHECKING:  # typing only
     from kingsec.infrastructure.config import Settings
@@ -76,8 +76,8 @@ def register_persistence(
         validate_schema_version(engine)
     session_factory = create_session_factory(engine)
 
-    container.register_instance(AssessmentRepository, SqlAlchemyAssessmentRepository(session_factory))
-    container.register_instance(ReportRepository, SqlAlchemyReportRepository(session_factory))
+    container.register_instance(AssessmentRepository, LegacyAssessmentRepository(session_factory))
+    container.register_instance(ReportRepository, LegacyReportRepository(session_factory))
     # Connection lifecycle: dispose the pool on shutdown (runs LIFO).
     container.add_shutdown_hook(engine.dispose)
 

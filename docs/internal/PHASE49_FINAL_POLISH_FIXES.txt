@@ -1,0 +1,108 @@
+KingSec — Final Polish Pass (Remaining Medium/Cosmetic Items)
+==========================================================================
+
+Implements three remaining Medium/cosmetic items carried over from the
+Phase 46 and Phase 49 audits (docs/internal/PHASE46_REPOSITORY_EXCELLENCE_AUDIT.txt
+and docs/internal/PHASE49_PRODUCTION_RELEASE_AUDIT.txt).
+
+==========================================================================
+1. LEGACY Sql/SQL REPOSITORY NAMING COLLISION
+==========================================================================
+
+Issue: SqlAlchemyAssessmentRepository/SqlAlchemyReportRepository (the
+session-per-call, autocommit legacy adapters in _legacy_repositories.py)
+differed from SQLAlchemyAssessmentRepository/SQLAlchemyReportRepository
+(the newer, session-bound adapters in repositories/assessment.py and
+repositories/report.py) only by the capitalization of "Sql"/"SQL" — a
+real readability hazard, both classes live and wired.
+
+Fix: Renamed the legacy pair to LegacyAssessmentRepository /
+LegacyReportRepository, matching the file's own name
+(_legacy_repositories.py). Updated the full re-export chain:
+  - src/kingsec/infrastructure/persistence/_legacy_repositories.py
+  - src/kingsec/infrastructure/persistence/repositories/__init__.py
+  - src/kingsec/infrastructure/persistence/__init__.py
+  - src/kingsec/infrastructure/persistence/provisioning.py
+  - tests/integration/ai/test_ai_integration.py
+  - tests/integration/bootstrap/test_composition.py
+  - tests/integration/persistence/test_wiring_and_slice.py
+  - tests/integration/reporting/test_reporting_integration.py
+  - tests/integration/scanner/test_nuclei_integration.py
+
+Pure rename, zero behavior change. Verified: ruff/mypy clean, 189 tests
+pass across the affected suites (plus the one pre-existing, unrelated
+baseline failure).
+
+==========================================================================
+2. RELEASE_MANIFEST.JSON'S STALE COUNTS
+==========================================================================
+
+Issue: Several hand-maintained counts no longer reflected the real
+codebase size (the repo has grown substantially across many
+engineering phases since the manifest was last updated).
+
+Fix: Verified every number against the real, current repo state via
+grep/git ls-files and corrected what was wrong:
+  - endpoints_count: 87 -> 336 (counted every @router/@app route
+    decorator across src/kingsec/adapters/inbound/web/*.py)
+  - tables_count: 58 -> 49 (counted __tablename__ occurrences in
+    infrastructure/persistence/models.py)
+  - migration_count: 22 -> 23 (tracked files in alembic/versions/)
+  - domain: 18 -> 43, application: 35 -> 252, infrastructure: 89 -> 209,
+    adapters: 42 -> 54 (tracked .py file counts per directory)
+  - python_total: 613 -> 616 (tracked .py files under src/kingsec)
+
+Left unchanged (already exactly correct): frontend_pages (52),
+frontend_hooks (35), frontend_api_clients (30), typescript_total (262).
+
+No code references this file, so no test impact. JSON validated.
+
+==========================================================================
+3. HAND-ROLLED PAGINATION IN 3 FRONTEND PAGES
+==========================================================================
+
+Issue: KevViewPage.tsx, CveExplorerPage.tsx, and ExecutionHistoryPage.tsx
+each hand-rolled their own Previous/Next pagination markup instead of
+reusing the existing shared components/ui/Pagination.tsx (already used
+by AssetInventoryPage, AssessmentsPage, and AuditTable). One of them
+(ExecutionHistoryPage) used raw, off-design-token bg-gray-100 in its
+pagination buttons specifically.
+
+Fix: All three now use the shared Pagination component.
+  - KevViewPage.tsx: direct swap (already tracked 1-indexed page state
+    in the exact shape the shared component expects).
+  - CveExplorerPage.tsx: page is nested in a filter object; wired
+    onPageChange to update filter.page. Preserved the "{total} total"
+    label the old markup showed (the shared component doesn't include
+    a total-count display) so no visible information was dropped.
+  - ExecutionHistoryPage.tsx: page state was zero-indexed
+    (offset = page * limit); converted at the boundary
+    (currentPage={page + 1}, onPageChange maps back with -1) so the
+    shared component's 1-indexed API didn't require changing the
+    page's internal offset logic. Left the page's other unrelated
+    bg-gray-100/bg-gray-50 usages untouched — those are a separate,
+    broader design-token-drift finding not in scope for this pass.
+
+Verified: tsc -b clean, oxlint clean, full vitest suite 265/265, no
+dedicated tests existed for any of the three pages. Live-verified via a
+real browser session: all three pages load with zero console errors
+after login (this also incidentally re-confirmed deep-link session
+persistence from the Phase 49 patch still works).
+
+==========================================================================
+VERIFICATION SUMMARY
+==========================================================================
+
+- Backend: ruff clean, mypy clean, full pytest — only the one
+  pre-existing, already-documented, unrelated failure
+  (test_application_never_imports_infrastructure) remains.
+- Frontend: tsc -b clean, oxlint clean, vitest 265/265, production
+  build clean.
+- No regressions from any of the three items.
+
+==========================================================================
+STATUS
+==========================================================================
+
+Nothing has been committed — that remains gated on an explicit "commit"
+instruction, per standing project rules.

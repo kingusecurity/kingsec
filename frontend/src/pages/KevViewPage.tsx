@@ -3,6 +3,7 @@ import { PageContainer, PageHeader } from '@/components/layout/PageContainer'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
+import { Pagination } from '@/components/ui/Pagination'
 import { useKevEntries } from '@/hooks/use-threat-intelligence'
 
 export function KevViewPage() {
@@ -73,13 +74,9 @@ export function KevViewPage() {
         <p className="py-8 text-center text-sm text-text-muted">No KEV entries found</p>
       )}
 
-      {totalPages > 1 && (
-        <div className="mt-4 flex items-center justify-center gap-2 text-sm">
-          <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1} className="rounded bg-bg-secondary px-3 py-1 text-text-muted disabled:opacity-50">Previous</button>
-          <span className="text-text-muted">Page {page} of {totalPages}</span>
-          <button onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page >= totalPages} className="rounded bg-bg-secondary px-3 py-1 text-text-muted disabled:opacity-50">Next</button>
-        </div>
-      )}
+      <div className="mt-4 flex justify-center">
+        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+      </div>
     </PageContainer>
   )
 }

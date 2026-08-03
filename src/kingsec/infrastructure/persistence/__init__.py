@@ -39,12 +39,12 @@ from .models import (
 )
 from .provisioning import register_persistence
 from .repositories import (
+    LegacyAssessmentRepository,
+    LegacyReportRepository,
     SQLAlchemyAssessmentRepository,
-    SqlAlchemyAssessmentRepository,
     SQLAlchemyAssetRepository,
     SQLAlchemyJobRepository,
     SQLAlchemyReportRepository,
-    SqlAlchemyReportRepository,
     SQLAlchemyScanRepository,
 )
 from .unit_of_work import (
@@ -62,6 +62,8 @@ __all__ = [
     "FindingModel",
     "FindingORM",
     "JobModel",
+    "LegacyAssessmentRepository",
+    "LegacyReportRepository",
     "RecommendationORM",
     "ReportModel",
     "ReportORM",
@@ -72,9 +74,7 @@ __all__ = [
     "SQLAlchemyScanRepository",
     "SQLAlchemyUnitOfWork",
     "ScanModel",
-    "SqlAlchemyAssessmentRepository",
     "SqlAlchemyAuditRepository",
-    "SqlAlchemyReportRepository",
     "SqlAlchemyUnitOfWorkFactory",
     "UserORM",
     "build_sqlite_url",

@@ -32,8 +32,8 @@ from kingsec.domain import (
 from kingsec.infrastructure.config.models import LoggingSettings
 from kingsec.infrastructure.logging import configure_logging
 from kingsec.infrastructure.persistence import (
-    SqlAlchemyAssessmentRepository,
-    SqlAlchemyReportRepository,
+    LegacyAssessmentRepository,
+    LegacyReportRepository,
     create_database_engine,
     create_schema,
     create_session_factory,
@@ -90,8 +90,8 @@ class TestFullSlice:
         engine = create_database_engine(url=f"sqlite:///{tmp_path / 'k.db'}")
         create_schema(engine)
         sf = create_session_factory(engine)
-        assessments = SqlAlchemyAssessmentRepository(sf)
-        reports = SqlAlchemyReportRepository(sf)
+        assessments = LegacyAssessmentRepository(sf)
+        reports = LegacyReportRepository(sf)
         generator = ReportGeneratorAdapter(output_format="pdf")
 
         try:

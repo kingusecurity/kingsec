@@ -75,15 +75,15 @@ class TestStartup:
         with wired_app as app:
             from kingsec.infrastructure.ai import AIProviderAdapter
             from kingsec.infrastructure.persistence import (
-                SqlAlchemyAssessmentRepository,
-                SqlAlchemyReportRepository,
+                LegacyAssessmentRepository,
+                LegacyReportRepository,
                 SqlAlchemyUnitOfWorkFactory,
             )
             from kingsec.infrastructure.reporting import ReportGeneratorAdapter
             from kingsec.infrastructure.scanner.orchestrator import ScannerOrchestrator
 
-            assert isinstance(app.resolve(AssessmentRepository), SqlAlchemyAssessmentRepository)
-            assert isinstance(app.resolve(ReportRepository), SqlAlchemyReportRepository)
+            assert isinstance(app.resolve(AssessmentRepository), LegacyAssessmentRepository)
+            assert isinstance(app.resolve(ReportRepository), LegacyReportRepository)
             assert isinstance(app.resolve(UnitOfWorkFactory), SqlAlchemyUnitOfWorkFactory)
             assert isinstance(app.resolve(ScannerPort), ScannerOrchestrator)
             assert isinstance(app.resolve(AIPort), AIProviderAdapter)

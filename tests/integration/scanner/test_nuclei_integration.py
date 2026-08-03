@@ -18,7 +18,7 @@ from kingsec.application import (
 from kingsec.domain import Severity, Target, TargetType
 from kingsec.infrastructure.config.models import ScannerSettings
 from kingsec.infrastructure.persistence import (
-    SqlAlchemyAssessmentRepository,
+    LegacyAssessmentRepository,
     create_database_engine,
     create_schema,
     create_session_factory,
@@ -64,7 +64,7 @@ class TestEndToEndSlice:
     def test_full_scan_and_persist(self, tmp_path: Path, make_fake_nuclei: Callable[[str], Path]) -> None:
         engine = create_database_engine(url=f"sqlite:///{tmp_path / 'k.db'}")
         create_schema(engine)
-        assessments = SqlAlchemyAssessmentRepository(create_session_factory(engine))
+        assessments = LegacyAssessmentRepository(create_session_factory(engine))
         scanner = _adapter(make_fake_nuclei("findings"))
 
         try:

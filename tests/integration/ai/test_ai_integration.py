@@ -26,7 +26,7 @@ from kingsec.infrastructure.ai import (
 from kingsec.infrastructure.ai.errors import AIError
 from kingsec.infrastructure.config.models import AISettings
 from kingsec.infrastructure.persistence import (
-    SqlAlchemyAssessmentRepository,
+    LegacyAssessmentRepository,
     create_database_engine,
     create_schema,
     create_session_factory,
@@ -76,11 +76,11 @@ class TestRealServer:
 
 
 class TestFullSlice:
-    def _repo(self, tmp_path: Path) -> SqlAlchemyAssessmentRepository:
+    def _repo(self, tmp_path: Path) -> LegacyAssessmentRepository:
         engine = create_database_engine(url=f"sqlite:///{tmp_path / 'k.db'}")
         create_schema(engine)
         self._engine = engine
-        return SqlAlchemyAssessmentRepository(create_session_factory(engine))
+        return LegacyAssessmentRepository(create_session_factory(engine))
 
     def test_scan_enrich_and_persist(self, tmp_path: Path, ai_server) -> None:
         base_url, _state = ai_server

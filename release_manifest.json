@@ -20,13 +20,13 @@
     "engine": "SQLite (SQLAlchemy 2.0)",
     "migration_tool": "Alembic",
     "schema_revision": "head",
-    "migration_count": 22,
-    "tables_count": 58
+    "migration_count": 23,
+    "tables_count": 49
   },
   "api": {
     "version": "v1",
     "base_path": "/api/v1",
-    "endpoints_count": 87,
+    "endpoints_count": 336,
     "auth_method": "JWT (HS256)",
     "password_hashing": "Argon2id"
   },
@@ -63,14 +63,14 @@
     "telemetry"
   ],
   "modules": {
-    "domain": 18,
-    "application": 35,
-    "infrastructure": 89,
-    "adapters": 42,
+    "domain": 43,
+    "application": 252,
+    "infrastructure": 209,
+    "adapters": 54,
     "frontend_pages": 52,
     "frontend_hooks": 35,
     "frontend_api_clients": 30,
-    "python_total": 613,
+    "python_total": 616,
     "typescript_total": 262
   },
   "security": {

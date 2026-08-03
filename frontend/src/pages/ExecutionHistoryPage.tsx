@@ -3,6 +3,7 @@ import { PageContainer, PageHeader } from '@/components/layout/PageContainer'
 import { Card } from '@/components/ui/Card'
 import { Spinner } from '@/components/ui/Spinner'
 import { Badge } from '@/components/ui/Badge'
+import { Pagination } from '@/components/ui/Pagination'
 import { useExecutions, usePlaybookStats } from '@/hooks/use-playbooks'
 
 const triggerLabels: Record<string, string> = {
@@ -133,22 +134,12 @@ export function ExecutionHistoryPage() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="mt-6 flex items-center justify-center gap-4">
-          <button
-            disabled={page === 0}
-            onClick={() => setPage(p => p - 1)}
-            className="rounded bg-gray-100 px-3 py-1 text-sm disabled:opacity-50"
-          >
-            Previous
-          </button>
-          <span className="text-sm text-text-muted">Page {page + 1} of {totalPages}</span>
-          <button
-            disabled={page >= totalPages - 1}
-            onClick={() => setPage(p => p + 1)}
-            className="rounded bg-gray-100 px-3 py-1 text-sm disabled:opacity-50"
-          >
-            Next
-          </button>
+        <div className="mt-6 flex justify-center">
+          <Pagination
+            currentPage={page + 1}
+            totalPages={totalPages}
+            onPageChange={(p) => setPage(p - 1)}
+          />
         </div>
       )}
     </PageContainer>

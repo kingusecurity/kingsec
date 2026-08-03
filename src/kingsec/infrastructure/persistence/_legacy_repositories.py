@@ -32,7 +32,7 @@ from . import _operations as ops
 _logger = get_logger("kingsec.infrastructure.persistence")
 
 
-class SqlAlchemyAssessmentRepository(AssessmentRepository):
+class LegacyAssessmentRepository(AssessmentRepository):
     """Persists :class:`~kingsec.domain.Assessment` aggregates in SQLite."""
 
     def __init__(self, session_factory: sessionmaker[Session]) -> None:
@@ -149,7 +149,7 @@ class SqlAlchemyAssessmentRepository(AssessmentRepository):
             )
 
 
-class SqlAlchemyReportRepository(ReportRepository):
+class LegacyReportRepository(ReportRepository):
     """Persists :class:`~kingsec.domain.Report` snapshots in SQLite."""
 
     def __init__(self, session_factory: sessionmaker[Session]) -> None:

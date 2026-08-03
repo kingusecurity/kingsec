@@ -23,8 +23,8 @@ from kingsec.bootstrap import Container
 from kingsec.domain import Finding, Report, Severity, Target
 from kingsec.infrastructure.config import Settings
 from kingsec.infrastructure.persistence import (
-    SqlAlchemyAssessmentRepository,
-    SqlAlchemyReportRepository,
+    LegacyAssessmentRepository,
+    LegacyReportRepository,
     create_database_engine,
     create_schema,
     register_persistence,
@@ -50,8 +50,8 @@ class TestContainerWiring:
         register_persistence(container, Settings(), engine=engine, validate_migrations=False)
 
         # Ports resolve to the SQLite adapters.
-        assert isinstance(container.resolve(AssessmentRepository), SqlAlchemyAssessmentRepository)
-        assert isinstance(container.resolve(ReportRepository), SqlAlchemyReportRepository)
+        assert isinstance(container.resolve(AssessmentRepository), LegacyAssessmentRepository)
+        assert isinstance(container.resolve(ReportRepository), LegacyReportRepository)
 
     def test_shutdown_hook_disposes_engine(self, tmp_path: Path) -> None:
         container = Container()

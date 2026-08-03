@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
 import { Button } from '@/components/ui/Button'
+import { Pagination } from '@/components/ui/Pagination'
 import { useCves, useSyncCve, useDeleteCve } from '@/hooks/use-threat-intelligence'
 import type { CveFilter } from '@/api/threat-intelligence'
 
@@ -135,24 +136,13 @@ export function CveExplorerPage() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="mt-4 flex items-center justify-center gap-2 text-sm">
-          <button
-            onClick={() => setFilter((f) => ({ ...f, page: Math.max(1, (f.page ?? 1) - 1) }))}
-            disabled={(filter.page ?? 1) <= 1}
-            className="rounded bg-bg-secondary px-3 py-1 text-text-muted disabled:opacity-50"
-          >
-            Previous
-          </button>
-          <span className="text-text-muted">
-            Page {filter.page ?? 1} of {totalPages} ({total} total)
-          </span>
-          <button
-            onClick={() => setFilter((f) => ({ ...f, page: Math.min(totalPages, (f.page ?? 1) + 1) }))}
-            disabled={(filter.page ?? 1) >= totalPages}
-            className="rounded bg-bg-secondary px-3 py-1 text-text-muted disabled:opacity-50"
-          >
-            Next
-          </button>
+        <div className="mt-4 flex flex-col items-center gap-2 text-sm">
+          <span className="text-text-muted">{total} total</span>
+          <Pagination
+            currentPage={filter.page ?? 1}
+            totalPages={totalPages}
+            onPageChange={(page) => setFilter((f) => ({ ...f, page }))}
+          />
         </div>
       )}
     </PageContainer>
