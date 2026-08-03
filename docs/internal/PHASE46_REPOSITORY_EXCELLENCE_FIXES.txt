@@ -1,0 +1,215 @@
+KingSec Engineering Audit — Applied Changes
+==========================================================================
+
+Companion to docs/internal/PHASE46_REPOSITORY_EXCELLENCE_AUDIT.txt. This
+file documents the fixes actually applied during the follow-up
+"make it look like an elite engineering team built this" pass, plus what
+was reconsidered or deliberately deferred.
+
+Verification: full backend pytest run shows exactly one failure,
+test_application_never_imports_infrastructure — pre-existing, unrelated
+to anything touched here (it flags a boundary violation in actions.py,
+untouched this round; already documented as a known baseline issue
+throughout this engagement). Frontend: `tsc -b && vite build` clean,
+`vitest` 258/258 passing. No regressions from any change below.
+
+==========================================================================
+APPLIED
+==========================================================================
+
+Issue: RecurringAssessmentService (dead, duplicate scheduling logic)
+Why it matters: Computes next-run/missed-run times for schedules using
+croniter — but the real, live implementation is calculate_next_run.py,
+already wired into the actual Schedule use-cases. This class had zero
+callers anywhere (source or tests) and duplicated functionality that's
+already served by the real code path.
+Files affected: src/kingsec/infrastructure/integrations/
+                scheduled_assessment_service.py (deleted)
+Proposed change: Remove.
+Risk: Low — zero references confirmed via repo-wide grep before
+deletion; croniter had no other users either (and was never even a
+declared dependency, so nothing to clean up there).
+Applied: Yes.
+
+Issue: SQLAlchemyPluginSdkManifestRepository (dead, name-colliding
+duplicate)
+Why it matters: Plugin manifest persistence is actually handled by
+application/plugin_sdk/registry.py. This class had zero callers and its
+name closely collides with the real PluginRegistry, which is confusing
+for anyone searching the codebase.
+Files affected: src/kingsec/infrastructure/persistence/repositories/
+                plugin_registry.py (deleted)
+Proposed change: Remove.
+Risk: Low — confirmed zero references anywhere, including tests.
+Applied: Yes.
+
+Issue: require_valid_session FastAPI dependency (dead)
+Why it matters: All real routes use get_current_user from auth.py
+instead; this function was defined but never wired into any endpoint.
+Files affected: src/kingsec/adapters/inbound/web/session_deps.py
+                (deleted)
+Proposed change: Remove.
+Risk: Low — confirmed zero references.
+Applied: Yes.
+
+Issue: NotificationDrawer.tsx (dead frontend component)
+Why it matters: Zero importers and, unlike its five siblings flagged in
+the same sweep, zero test coverage either — genuinely orphaned with
+nothing depending on it.
+Files affected: frontend/src/components/features/monitoring/
+                NotificationDrawer.tsx (deleted)
+Proposed change: Remove.
+Risk: Low — confirmed via grep and a clean post-deletion
+vite build/vitest run.
+Applied: Yes.
+
+Issue: Stray non-test file in the test tree
+Why it matters: application_pkg__init__.py was an old, superseded
+snapshot of application/__init__.py's docstring — wrong filename pattern
+(never collected by pytest), zero references, pure leftover.
+Files affected: tests/unit/application/application_pkg__init__.py
+                (deleted)
+Proposed change: Remove.
+Risk: Low.
+Applied: Yes.
+
+Issue: Dead fixtures in conftest.py
+Why it matters: assessment_repo/report_repo (persistence conftest) and
+fake_runner/FakeRunner (scanner conftest) were defined but never used by
+any test — misleading anyone reading the conftest as a map of what's
+actually exercised.
+Files affected: tests/integration/persistence/conftest.py,
+                tests/integration/scanner/conftest.py
+Proposed change: Remove, along with now-unused imports
+(SqlAlchemyAssessmentRepository, SqlAlchemyReportRepository,
+CommandResult, Sequence).
+Risk: Low — confirmed via grep, ruff check clean afterward, integration
+suites still pass.
+Applied: Yes.
+
+Issue: Duplicated _weasyprint_available() helper
+Why it matters: Byte-for-byte identical helper + needs_weasyprint marker
+copy-pasted in two integration test files — the textbook "merge, keep
+behavior identical" case.
+Files affected: tests/integration/bootstrap/test_composition.py,
+                tests/integration/reporting/test_reporting_integration.py
+                -> new tests/integration/conftest.py
+Proposed change: Extract to a shared conftest, import from both call
+sites (matching this repo's existing convention of importing plain
+helpers from a conftest by dotted path, e.g.
+tests.unit.application.conftest).
+Risk: Low — both integration suites re-run and pass; ruff clean.
+Applied: Yes.
+
+Issue: pyproject.toml dev-dependency drift
+Why it matters: [project.optional-dependencies].dev (used by ci.yml) and
+[dependency-groups].dev (used by Makefile:install and release.yml's
+quality gate) had silently diverged — the latter was missing PyPDF2 and
+freezegun, both genuinely imported by real tests. Following the
+documented `make install` path, or running the release pipeline's own
+gate, would hit ModuleNotFoundError.
+Files affected: pyproject.toml
+Proposed change: Add PyPDF2>=3.0 and freezegun>=1.5 to
+[dependency-groups].dev; added a comment on both blocks noting they must
+stay in sync.
+Risk: Low — pure addition, no removal.
+Applied: Yes.
+
+Issue: Dead Docker build step
+Why it matters: The builder stage hand-installed the full runtime
+dependency list into /build/wheelhouse, duplicating pyproject.toml's
+dependency list by hand — but /build/wheelhouse was never referenced
+again anywhere in the file. Dead weight plus a third hand-synced copy of
+the same list.
+Files affected: Dockerfile
+Proposed change: Remove the `uv pip install --target=/build/wheelhouse
+...` block; updated the stage-1 comment accordingly.
+Risk: Low — the wheel build and Stage 2 install path were untouched;
+they never depended on that directory.
+Applied: Yes.
+
+Issue: Release pipeline auto-publishes to public PyPI (Critical)
+Why it matters: release.yml ran pypa/gh-action-pypi-publish on every
+v*.*.* tag, directly contradicting LICENSE ("no right to... distribute...
+except under a separate written agreement") and README.md's own claim
+that KingSec "is not (yet) published on PyPI." Left alone, the next
+ordinary release tag would make proprietary source freely and
+irrevocably public.
+Files affected: .github/workflows/release.yml
+Proposed change: Removed the PyPI-publish step, dropped the now-unneeded
+id-token: write permission, updated the header comment to state plainly
+that KingSec is not published to PyPI.
+Risk: Low-risk change, high-severity issue it resolves — the
+build/quality/GitHub-release jobs are untouched, only the publish step
+is gone.
+Applied: Yes.
+
+Issue: Redundant .gitkeep
+Files affected: .github/workflows/.gitkeep
+Proposed change: Remove — the directory has held two real workflow files
+for a long time.
+Risk: Cosmetic.
+Applied: Yes.
+
+==========================================================================
+RECONSIDERED FROM THE ORIGINAL CANDIDATE LIST — NOT APPLIED (AND WHY)
+==========================================================================
+
+The rule was explicit: verify true unused-ness before deleting, and
+don't reduce test coverage. Re-checking each candidate against both
+rules changed the call on several:
+
+- EnvironmentSecretProvider — not wired into DI (only
+  EncryptedFileSecretProvider is bound), but it has a dedicated, real
+  test class (TestEnvironmentSecretProvider, 4 methods) instantiating and
+  exercising it directly. Deleting it would mean deleting real test
+  coverage. This is an alternate SecretProviderPort implementation that
+  simply isn't the selected default — not dead code. KEPT.
+
+- bootstrap/production.py — self-documented as deprecated and
+  unreachable from the real __main__.py entrypoint, but on closer check
+  it's the composition root for THREE test files, including a
+  substantial e2e integration suite
+  (tests/integration/e2e/test_persistence_pipeline.py, 800+ lines) that
+  boots a real app through it and asserts real behavior. Deleting it
+  would gut meaningful test coverage, not remove dead weight. KEPT —
+  flagged instead for a deliberate future decision (either migrate those
+  tests to the real composition root and then remove this, or keep it as
+  an intentionally-documented test fixture).
+
+- Five of the six originally-flagged frontend components (FindingCard,
+  FindingFilters, FindingsTable, NotificationBadge, LoadingOverlay) —
+  each has its own dedicated test file. Same reasoning as above: unwired
+  from the app, but not unused in the sense that matters for a safe
+  deletion. KEPT.
+
+==========================================================================
+FLAGGED, NOT APPLIED — TOO RISKY FOR AN UNSUPERVISED PASS
+==========================================================================
+
+- Broken repo URL (18 files) — can't fabricate a replacement; needs a
+  real destination supplied.
+- 3 pages hand-rolling pagination instead of the shared Pagination
+  component, 4 pages with inconsistent export style,
+  ThreatIntelligenceDashboard.tsx naming, design-token drift — all real,
+  but they're UI-behavior touches that can't be visually verified in this
+  environment beyond build/test success. Recommend a follow-up pass with
+  a browser check.
+- Legacy Sql/SQL repository naming collision — both are live and wired;
+  renaming touches DI wiring directly and deserves its own deliberate
+  pass, not a drive-by rename.
+- Root-level doc bloat (12 guides) and prototypes/ at root — genuine
+  structure issues, but moving them means updating every cross-reference
+  (README's doc table, etc.) correctly; doable, but larger in surface
+  area than the fixes above.
+- release_manifest.json's fake "commit": "HEAD" placeholder and
+  hand-maintained counts — fixing this properly means deciding how it
+  should be generated (build-time script vs. removal), which is a design
+  call, not a mechanical cleanup.
+
+==========================================================================
+STATUS
+==========================================================================
+
+Nothing has been committed — that remains gated on an explicit "commit"
+instruction, per standing project rules.

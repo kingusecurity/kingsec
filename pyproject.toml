@@ -51,6 +51,7 @@ dependencies = [
 ]
 
 # --- Dev / CI toolchain (PEP 621 optional-dependencies; consumed by pip install -e ".[dev]") ---
+# Kept in sync with [dependency-groups].dev below — see that section's comment.
 [project.optional-dependencies]
 dev = [
   "ruff>=0.6",
@@ -79,6 +80,9 @@ Issues = "https://github.com/kingusecurity/kingsec/issues"
 Changelog = "https://github.com/kingusecurity/kingsec/blob/main/CHANGELOG.md"
 
 # --- Development toolchain (PEP 735 dependency group; not shipped, not an extra) ---
+# Kept in sync with [project.optional-dependencies].dev above — both must list
+# the same packages, since `make install` (uv sync --all-groups) uses this list
+# while `pip install -e ".[dev]"` uses the one above.
 [dependency-groups]
 dev = [
   "ruff>=0.6",             # Lint + format (one fast tool)
@@ -90,6 +94,8 @@ dev = [
   "bandit>=1.7",           # Deeper Python SAST (defense-in-depth vs Ruff S)
   "pip-audit>=2.7",        # Dependency vulnerability scanning
   "pre-commit>=3.7",       # Local enforcement of the above before commit
+  "PyPDF2>=3.0",           # Test-only: PDF text extraction in report renderer tests
+  "freezegun>=1.5",        # Test-only: time-freezing in error-handling tests
 ]
 
 [tool.hatch.build.targets.wheel]

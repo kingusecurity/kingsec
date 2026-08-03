@@ -2,7 +2,9 @@
 # KingSec — Release Pipeline
 # =============================================================================
 # Triggered by pushing a tag matching v*.*.*
-# Builds the package, creates a GitHub Release, and publishes to PyPI.
+# Builds the package and creates a GitHub Release with the build artifacts
+# attached. KingSec is proprietary software (see LICENSE) and is not
+# published to the public PyPI index.
 
 name: Release
 
@@ -13,7 +15,6 @@ on:
 
 permissions:
   contents: write
-  id-token: write
 
 jobs:
   build:
@@ -103,8 +104,3 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          verbose: true

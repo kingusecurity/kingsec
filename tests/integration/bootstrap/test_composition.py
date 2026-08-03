@@ -35,27 +35,11 @@ from kingsec.infrastructure.persistence import (
     create_database_engine,
     create_schema,
 )
+from tests.integration.conftest import needs_weasyprint
 
 _SRC = pathlib.Path(__file__).resolve().parents[3] / "src" / "kingsec"
 
 _TEST_FERNET_KEY = Fernet.generate_key().decode()
-
-
-def _weasyprint_available() -> bool:
-    """Return True only if WeasyPrint can actually render PDFs."""
-    try:
-        from weasyprint import HTML
-
-        HTML(string="<p>test</p>").write_pdf()
-        return True
-    except Exception:
-        return False
-
-
-needs_weasyprint = pytest.mark.skipif(
-    not _weasyprint_available(),
-    reason="WeasyPrint native dependencies (GTK/Pango) are not available",
-)
 
 
 @pytest.fixture

@@ -1,0 +1,455 @@
+KingSec v2.0.0 — Repository Excellence Audit
+==========================================================================
+
+Read-only audit. Nothing was modified. Findings only, ranked by severity
+within each category.
+
+==========================================================================
+EXECUTIVE SUMMARY
+==========================================================================
+
+The codebase itself is in good shape — architecture boundaries are
+enforced by import-linter, dead code is sparse for a project this size
+(~613 backend files, ~262 frontend files), and documentation coverage is
+unusually thorough for a commercial product. The problems that exist are
+concentrated in release engineering and packaging metadata, not in the
+application code. The most serious finding is a live contradiction
+between the automated release pipeline and the proprietary license
+itself — that alone should block a public release until resolved. Below
+that sits a genuine but narrower packaging defect (a dependency list that
+has silently drifted into two versions, one of which is broken) and a
+long tail of hygiene items: orphaned components, dead fixtures, a broken
+repo URL scattered across 18 files, and some repo-root clutter that reads
+as unfinished rather than intentional.
+
+==========================================================================
+FINDINGS — CRITICAL
+==========================================================================
+
+Category: Packaging / Metadata
+File(s): .github/workflows/release.yml:107-110, LICENSE, LICENSING.md,
+         README.md:77,257
+Issue: The release workflow's final job runs pypa/gh-action-pypi-publish
+on every tag matching v*.*.*, automatically publishing the build to the
+public PyPI index. This directly contradicts LICENSE ("No license or
+right to use, copy, modify, merge, publish, distribute... is granted
+except under a separate written agreement") and LICENSING.md's paid-tier
+commercial model. It also contradicts README.md's own repeated claim
+that "KingSec is not (yet) published on PyPI." The next ordinary release
+tag push would make the proprietary source freely, publicly, and
+irrevocably installable via `pip install kingsec`.
+Recommendation: Remove (the PyPI-publish step), pending an explicit
+decision — or Update, if a genuinely different distribution model is
+intended, but the current LICENSE text does not support one.
+Reasoning: Once published to PyPI, a release cannot be fully un-published
+or unseen — this is the one finding in this audit that could cause
+irreversible business harm if left as-is.
+
+==========================================================================
+FINDINGS — HIGH
+==========================================================================
+
+Category: Packaging
+File(s): pyproject.toml:54-93, Makefile:11, .github/workflows/release.yml:66
+Issue: Dev dependencies are declared twice, in two different PEP
+mechanisms, and the two lists have already drifted:
+[project.optional-dependencies].dev includes PyPDF2>=3.0 and
+freezegun>=1.5; [dependency-groups].dev does not. `make install`
+(Makefile:11, `uv sync --all-groups`) and the release pipeline's own
+quality job (release.yml:66, same command) both use the incomplete list.
+Both packages are genuinely imported by real test files —
+tests/unit/application/renderers/test_pdf_renderer.py (PyPDF2) and
+tests/unit/interfaces/api/test_error_handling.py (freezegun). Only
+ci.yml, which uses `pip install -e ".[dev]"`, gets the complete set.
+Recommendation: Merge — collapse to one dependency-declaration mechanism,
+or keep both lists in lockstep.
+Reasoning: This isn't hypothetical: following the documented `make
+install` path, or the release pipeline's own gate, produces a
+ModuleNotFoundError on two specific test files. A release-blocking CI job
+that can't reliably pass is a packaging defect, not a code defect.
+
+Category: Documentation / Metadata
+File(s): 18 tracked files — pyproject.toml, README.md, INSTALL.md,
+QUICK_START.md, USER_GUIDE.md, ADMIN_GUIDE.md, SCANNER_GUIDE.md,
+SECURITY.md, CONTRIBUTING.md, docs/internal/PRODUCTION_RELEASE_CHECKLIST.md,
+and 8 docs/commercial/website-*.md files
+Issue: https://github.com/kingusecurity/kingsec returns a live 404
+(re-verified this session). Every clone instruction, issue-tracker link,
+and vulnerability-disclosure URL in the public documentation set points
+there — a far wider blast radius than previously scoped.
+Recommendation: Update once a real URL exists. Not fixable by fabricating
+a placeholder.
+Reasoning: A prospective customer or investor's very first click
+("Source" on PyPI/README, or "report a vulnerability") dead-ends.
+
+Category: Packaging
+File(s): Dockerfile:18-30
+Issue: The builder stage hand-declares the full runtime dependency list a
+third time (`uv pip install --target=/build/wheelhouse "fastapi>=0.115,<1"
+...`), duplicating pyproject.toml's [project.dependencies].
+/build/wheelhouse is never referenced again — the wheel is built
+independently via `python -m build`, and Stage 2 installs that wheel
+directly (which resolves its own deps from the wheel's packaged
+metadata). This step does nothing but burn build time and create a third
+hand-synced copy of the dependency list.
+Recommendation: Remove the `uv pip install --target=/build/wheelhouse ...`
+block entirely.
+Reasoning: Dead build step + a version list that can silently diverge
+from pyproject.toml with no test to catch it.
+
+==========================================================================
+FINDINGS — MEDIUM
+==========================================================================
+
+Category: Code
+File(s): src/kingsec/bootstrap/production.py
+Issue: Self-documented as deprecated ("Use kingsec.bootstrap.composition
+instead") — confirmed unreachable from the real entrypoint. __main__.py
+wires the app via bootstrap.composition.create_wired_application +
+adapters.inbound.web.app.create_fastapi_app; production.py's own
+create_production_application is never called from there. It survives
+only via its own re-export in bootstrap/__init__.py and two test files
+(test_production_app.py, test_bootstrap.py). Note: this does NOT mean
+src/kingsec/interfaces/api/ is dead — that tree is confirmed
+independently live via adapters/inbound/web/versioning.py ->
+profiles_routes.py/scanner_discovery_routes.py, which are wired into the
+real app.
+Recommendation: Remove (production.py and its two dedicated test files),
+or Keep if intentionally retained as a documented reference
+implementation — currently it's neither, just orphaned.
+Reasoning: 300+ lines of a second, unreachable composition root is
+exactly the kind of thing that misleads the next engineer into thinking
+there are two supported ways to start the app.
+
+Category: Code
+File(s): infrastructure/secrets/environment_secret_provider.py,
+infrastructure/integrations/scheduled_assessment_service.py,
+infrastructure/persistence/repositories/plugin_registry.py,
+adapters/inbound/web/session_deps.py
+Issue: Four modules with zero live callers: EnvironmentSecretProvider (DI
+only binds EncryptedFileSecretProvider), RecurringAssessmentService (zero
+references anywhere), SQLAlchemyPluginSdkManifestRepository (superseded
+by the actually-wired PluginRegistry in application/plugin_sdk/registry.py
+— also a confusing near-name-collision), require_valid_session (routes
+use get_current_user instead).
+Recommendation: Remove.
+Reasoning: Each looks like a real, load-bearing implementation until you
+grep for callers and find none.
+
+Category: Architecture
+File(s): infrastructure/persistence/repositories/_legacy_repositories.py
+vs. infrastructure/persistence/repositories/assessment.py
+Issue: Two live, both-wired repository implementations coexist:
+SqlAlchemyAssessmentRepository/SqlAlchemyReportRepository (legacy) vs.
+SQLAlchemyAssessmentRepository (new) — differing only in the
+capitalization of "Sql"/"SQL". Both are bound via
+infrastructure/persistence/provisioning.py:79-80.
+Recommendation: Keep as-is functionally (both are wired and presumably
+tested), but this is a real readability hazard — worth a deliberate
+consolidation pass outside this audit's scope.
+Reasoning: Same pattern the module's own docstring already flags — this
+isn't a surprise to the codebase, just unresolved debt.
+
+Category: Frontend
+File(s): components/features/findings/FindingCard.tsx, FindingFilters.tsx,
+FindingsTable.tsx, components/features/monitoring/NotificationBadge.tsx,
+NotificationDrawer.tsx, components/shared/LoadingOverlay.tsx
+Issue: Six components with no importers anywhere. FindingsPage.tsx
+reimplements its own inline table/filter UI instead of using the
+dedicated Finding* components, orphaning them.
+Recommendation: Remove — or wire them in, but that's a product decision
+outside this audit's scope.
+Reasoning: Dead UI code inflates the bundle-analysis surface and confuses
+anyone searching "where's the findings table component."
+
+Category: Frontend
+File(s): pages/ExecutionHistoryPage.tsx:135-153, pages/KevViewPage.tsx:78-80,
+pages/CveExplorerPage.tsx:139-155 vs. components/ui/Pagination.tsx
+Issue: Three pages hand-roll their own Previous/Next pagination markup
+(one using raw bg-gray-100 instead of the design-token system) instead of
+reusing the shared Pagination component already used by three other
+pages.
+Recommendation: Merge — reuse the shared component.
+Reasoning: Same UI pattern implemented four different ways in one app
+reads as unfinished, not deliberate.
+
+Category: Metadata
+File(s): release_manifest.json
+Issue: Contains "git": {"commit": "HEAD", "branch": "main", "dirty":
+false} — "HEAD" is the literal string, not a resolved commit hash,
+meaning this was either never wired to real git rev-parse output or is a
+static template. Combined with hand-maintained counts (endpoints_count:
+87, tables_count: 58, python_total: 613, etc.) that go stale the moment
+the code changes, this reads as fabricated/unverifiable metadata to a
+technical reviewer — exactly the kind of thing due diligence would flag.
+Recommendation: Update — either generate this file at build time from
+real git/AST state, or remove the misleading placeholder git block.
+Reasoning: A file whose entire purpose is "trustworthy build facts" loses
+credibility the moment one field is visibly fake.
+
+Category: Repository Structure
+File(s): Root directory (17 markdown files, 3,226 lines total)
+Issue: ADMIN_GUIDE.md, API_REFERENCE.md, FAQ.md, INSTALL.md,
+LICENSING.md, QUICK_START.md, REPORTING_GUIDE.md, ROADMAP.md,
+SCANNER_GUIDE.md, TROUBLESHOOTING.md, USER_GUIDE.md, RELEASE_NOTES.md all
+sit at repo root alongside the standard six (README, LICENSE, CHANGELOG,
+CONTRIBUTING, SECURITY, CODE_OF_CONDUCT). Mature commercial repos
+typically keep the root minimal and put deep guides under docs/.
+Recommendation: Move the twelve deep-guide files into docs/ (or
+docs/guides/).
+Reasoning: A first-time visitor's repo-root listing should look like a
+product, not a documentation dump.
+
+Category: Repository Structure
+File(s): prototypes/KingSec-UI-*.html (9 files)
+Issue: Static HTML wireframes tracked at repo root, clearly superseded by
+the shipped React frontend (confirmed via docs/ui-specs/ and docs/design/
+already documenting the same screens as finished specs).
+Recommendation: Move into docs/design/ as a historical design record, or
+Remove if no longer valuable — a judgment call for the maintainer, not
+this audit.
+Reasoning: Raw prototype HTML sitting next to the real product at root
+reads as leftover scaffolding to an outside reviewer, even though it's
+harmless in practice.
+
+Category: Repository Hygiene
+File(s): docs/internal/ (10 files: PHASE40-PHASE45 audit reports,
+ENGINEERING_REPORT_v2.0.0.md, GA_CHECKLIST.md, PHASE_11_5_RC1_REPORT.md,
+PRODUCTION_RELEASE_CHECKLIST.md)
+Issue: This is the internal QA/audit trail from this project's own
+development process, tracked in the same repository that ships to
+customers/investors.
+Recommendation: Move out of the customer-facing distribution (private
+wiki, internal-only branch, or excluded from any packaged release
+archive) — Keep in main dev history if that's the team's workflow, just
+don't ship it.
+Reasoning: Internal engineering diary entries next to README.md undercut
+the "mature commercial company" impression this audit is checking for.
+
+Category: Tests
+File(s): tests/integration/persistence/conftest.py (assessment_repo,
+report_repo), tests/integration/scanner/conftest.py
+(fake_runner/FakeRunner)
+Issue: Fixtures defined, never referenced — the tests that would use
+them define their own local `repo` fixture instead.
+Recommendation: Remove.
+Reasoning: Dead fixtures cost nothing to run but mislead anyone reading
+the conftest as documentation of what's actually exercised.
+
+Category: Tests
+File(s): tests/contract/, tests/e2e/ (top-level), tests/fixtures/;
+pyproject.toml:227-233
+Issue: All three directories contain only .gitkeep. All five declared
+pytest markers (unit, integration, contract, e2e, slow) are declared but
+never applied to a single test anywhere in the suite. Separately,
+tests/integration/e2e/test_persistence_pipeline.py exists nested inside
+integration/, creating a naming collision with the empty top-level
+tests/e2e/.
+Recommendation: Merge/Remove — either populate the empty directories and
+start using the markers, or delete both and drop the unused marker
+declarations.
+Reasoning: Scaffolding that's been empty long enough to collide in name
+with something else reads as abandoned, not "not yet started."
+
+Category: Tests
+File(s): tests/unit/application/application_pkg__init__.py
+Issue: A stray, non-test file — an old snapshot of application/__init__.py's
+docstring/exports that has since diverged completely from the real file.
+Not collected by pytest (wrong naming pattern), not imported anywhere.
+Recommendation: Remove.
+Reasoning: Pure leftover; provides no value and could confuse a git
+blame/history search.
+
+==========================================================================
+FINDINGS — LOW / COSMETIC
+==========================================================================
+
+- Documentation — docs/FOUNDATION.md still carries an unchecked checklist
+  item promising an ADR log in docs/adr/ that was never delivered
+  (confirmed empty/untracked). Recommendation: Update — mark deferred or
+  complete it.
+- Frontend naming — pages/DeploymentPage.tsx, LicensePage.tsx,
+  DiagnosticsPage.tsx, ReleaseAuditPage.tsx use `export default
+  function`, while ~44 other pages use named exports, forcing a
+  special-case in routes/index.tsx:57-60. Recommendation: Update to
+  match the dominant convention.
+- Frontend naming — pages/ThreatIntelligenceDashboard.tsx breaks the
+  otherwise universal *Page.tsx file-naming convention. Recommendation:
+  Rename.
+- Frontend consistency — AIAssistantPage.tsx and AICopilotPage.tsx use
+  two different Tailwind design-token vocabularies for equivalent UI
+  patterns; ExecutionHistoryPage.tsx uses raw bg-gray-100 instead of
+  tokens. Recommendation: Update to one token vocabulary.
+- Tests — _weasyprint_available() helper copy-pasted verbatim in
+  tests/integration/bootstrap/test_composition.py and
+  tests/integration/reporting/test_reporting_integration.py.
+  Recommendation: Merge into a shared conftest fixture.
+- Tests — tests/benchmarks/benchmark_suite.py not wired into any test run
+  or CI job, runnable only manually. Recommendation: Move to scripts/ if
+  intentional, or Remove.
+- Tests — tests/unit/application/test_attack_path_pt2.py imports directly
+  from its sibling test_attack_path.py rather than a shared fixture.
+  Recommendation: Merge the two files.
+- Repository hygiene — Untracked, empty local scaffolding directories
+  exist on disk but are invisible to `git clone` (assets/logo/,
+  assets/icon/, assets/images/, docs/screenshots/, docs/adr/, docs/api/,
+  .github/CODEOWNERS, .github/ISSUE_TEMPLATE). Recommendation: Keep
+  (harmless) but finish or delete before packaging any non-git-aware
+  distribution archive (e.g. a manual zip for investors).
+- Repository hygiene — .github/workflows/.gitkeep is now redundant; the
+  directory already holds two real workflow files. Recommendation:
+  Remove.
+- Documentation/security-adjacent — .env.example ships fully-formed
+  example secret values (commented out) rather than an obvious
+  placeholder token, though the surrounding warning instructions to
+  regenerate are clear. Recommendation: Update to an obvious
+  REPLACE_ME_... token.
+
+==========================================================================
+EXPLICITLY ACCEPTABLE — KEEP, NO ACTION
+==========================================================================
+
+- src/kingsec/interfaces/api/ — confirmed live (via versioning.py ->
+  profiles_routes.py/scanner_discovery_routes.py), not dead code.
+- adapters/inbound/web/versioning.py:100-102 and
+  infrastructure/middleware/security_headers.py:37-46 — documented
+  forward-looking notes, not disabled code.
+- alembic.ini (root) vs. src/kingsec/alembic/alembic.ini — two configs
+  for two genuinely different execution contexts (dev checkout vs.
+  packaged wheel), well-commented, not duplication.
+- docs/architecture/alembic_notes.md — accurately documents the harmless
+  *_no_changes.py migration chain and gives a sound squash procedure; no
+  action needed.
+- docs/design/, docs/requirements/, docs/architecture/ (versioned
+  "v0.1"/"v1" design docs) — legitimate historical design record, a
+  positive signal of engineering rigor, not stale drafts.
+- Backend/frontend naming conventions overall (snake_case Python,
+  PascalCase components, use-*.ts hooks) — internally consistent aside
+  from the specific exceptions noted above.
+- No TODO/FIXME/HACK comments, no debug print/console.log/pdb residue, no
+  .bak/_old/_v2 scratch files anywhere in src/ or frontend/src/ —
+  genuinely clean on this front.
+
+==========================================================================
+FILES THAT SHOULD BE DELETED
+==========================================================================
+
+- src/kingsec/infrastructure/secrets/environment_secret_provider.py
+- src/kingsec/infrastructure/integrations/scheduled_assessment_service.py
+- src/kingsec/infrastructure/persistence/repositories/plugin_registry.py
+- src/kingsec/adapters/inbound/web/session_deps.py (the unused
+  require_valid_session)
+- src/kingsec/bootstrap/production.py +
+  tests/integration/bootstrap/test_production_app.py +
+  tests/unit/test_bootstrap.py
+- frontend/src/components/features/findings/{FindingCard,FindingFilters,
+  FindingsTable}.tsx
+- frontend/src/components/features/monitoring/{NotificationBadge,
+  NotificationDrawer}.tsx
+- frontend/src/components/shared/LoadingOverlay.tsx
+- tests/unit/application/application_pkg__init__.py
+- .github/workflows/.gitkeep
+- Dead build step in Dockerfile:18-30 (the wheelhouse install)
+
+==========================================================================
+FILES THAT SHOULD BE MOVED
+==========================================================================
+
+- 12 root-level guide docs -> docs/ (ADMIN_GUIDE.md, API_REFERENCE.md,
+  FAQ.md, INSTALL.md, LICENSING.md, QUICK_START.md, REPORTING_GUIDE.md,
+  ROADMAP.md, SCANNER_GUIDE.md, TROUBLESHOOTING.md, USER_GUIDE.md,
+  RELEASE_NOTES.md)
+- prototypes/*.html -> docs/design/ (or removed)
+- docs/internal/* -> out of the customer-facing distribution entirely
+
+==========================================================================
+FILES THAT SHOULD BE RENAMED
+==========================================================================
+
+- frontend/src/pages/ThreatIntelligenceDashboard.tsx ->
+  ThreatIntelligencePage.tsx
+- (Optional, deliberate future pass) _legacy_repositories.py's
+  SqlAlchemyAssessmentRepository/SqlAlchemyReportRepository ->
+  disambiguate from SQLAlchemyAssessmentRepository
+
+==========================================================================
+DOCUMENTATION CLEANUP PLAN
+==========================================================================
+
+1. Fix or replace the repository URL across all 18 files once a real
+   destination exists.
+2. Resolve the README/LICENSE/release.yml PyPI contradiction
+   (documentation must match whatever the business decision on the
+   Critical finding turns out to be).
+3. Move the 12 deep-guide docs into docs/, update README.md's doc table
+   links accordingly.
+4. Relocate or exclude docs/internal/ from the public distribution.
+5. Close or annotate the stale ADR checklist item in docs/FOUNDATION.md.
+
+==========================================================================
+REPOSITORY CLEANUP PLAN
+==========================================================================
+
+1. Resolve the Critical PyPI-publish/license contradiction first — this
+   blocks everything else in priority.
+2. Reconcile the [project.optional-dependencies].dev /
+   [dependency-groups].dev drift in pyproject.toml.
+3. Remove the dead Dockerfile wheelhouse step.
+4. Delete the confirmed-dead backend modules, frontend components, and
+   test artifacts listed above.
+5. Move prototypes/ and root-level guides as described.
+6. Everything under Low/Cosmetic can follow at the team's own pace —
+   none of it blocks release.
+
+==========================================================================
+SCORES
+==========================================================================
+
+Repository Quality Score:        72/100
+  Root-level doc bloat, prototypes/ and docs/internal/ sitting in
+  customer-facing scope pull this down; otherwise well-organized.
+
+Architecture Consistency Score:  78/100
+  Hexagonal boundaries genuinely enforced by import-linter; docked for
+  the dead production.py composition root and the live Sql/SQL
+  legacy-repository duplication.
+
+Documentation Quality Score:     65/100
+  Unusually thorough in depth and coverage, but undermined by a repo URL
+  that's broken in 18 places and a direct self-contradiction on PyPI
+  publication status.
+
+Packaging Quality Score:         55/100
+  The lowest score in this audit — a live license/CI contradiction, a
+  drifted duplicate dependency list that breaks the documented install
+  path, and a dead, hand-duplicated Docker build step.
+
+Maintainability Score:           75/100
+  Dead code volume is genuinely low for a codebase this size; the debt
+  that exists (legacy repository pair, dead fixtures, orphaned
+  components) is narrow and easy to excise.
+
+Professionalism Score:           68/100
+  Held back almost entirely by the packaging/release-pipeline findings
+  above, not by the application code, which is clean.
+
+==========================================================================
+FINAL RECOMMENDATION: NO-GO
+==========================================================================
+
+Not because the product is unfinished — it plainly isn't — but because
+of one Critical and three High findings that are all release-
+engineering/metadata problems, not code problems:
+
+1. The release pipeline will publish proprietary source to public PyPI
+   on the next tag push. This must be resolved before any tag is
+   pushed, independent of everything else in this report.
+2. The documented dev-setup path (make install) and the release
+   pipeline's own quality gate use a dependency list missing two
+   packages that two real tests need.
+3. The repository URL is dead in 18 places, including the
+   vulnerability-disclosure link in SECURITY.md.
+
+Once those three are addressed, this becomes a GO with a Medium/Low-
+severity cleanup backlog — none of the remaining findings are
+release-blocking on their own.

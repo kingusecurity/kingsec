@@ -21,8 +21,6 @@ from kingsec.domain import (
 from kingsec.infrastructure.config.models import LoggingSettings
 from kingsec.infrastructure.logging import configure_logging
 from kingsec.infrastructure.persistence import (
-    SqlAlchemyAssessmentRepository,
-    SqlAlchemyReportRepository,
     create_database_engine,
     create_schema,
     create_session_factory,
@@ -70,13 +68,3 @@ def engine(tmp_path: Path):
 @pytest.fixture
 def session_factory(engine):
     return create_session_factory(engine)
-
-
-@pytest.fixture
-def assessment_repo(session_factory) -> SqlAlchemyAssessmentRepository:
-    return SqlAlchemyAssessmentRepository(session_factory)
-
-
-@pytest.fixture
-def report_repo(session_factory) -> SqlAlchemyReportRepository:
-    return SqlAlchemyReportRepository(session_factory)
