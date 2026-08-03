@@ -49,15 +49,17 @@ export function Header() {
 
       <div className="flex-1" />
 
-      <div className="hidden sm:block w-64">
+      <div className="hidden sm:block w-64" title="Global search is not available yet">
         <Input
-          placeholder="Search..."
+          placeholder="Search coming soon..."
           prefix={<Search className="h-4 w-4" />}
-          aria-label="Global search"
+          aria-label="Global search (coming soon)"
+          disabled
         />
       </div>
 
       <button
+        onClick={() => navigate('/notifications')}
         className="relative rounded-lg p-1.5 text-text-muted hover:bg-surface-tertiary hover:text-text-primary transition-colors"
         aria-label="Notifications"
       >

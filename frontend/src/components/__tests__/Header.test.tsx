@@ -25,7 +25,7 @@ describe('Header', () => {
 
   it('renders search input', () => {
     renderHeader()
-    expect(screen.getByLabelText('Global search')).toBeInTheDocument()
+    expect(screen.getByLabelText('Global search (coming soon)')).toBeInTheDocument()
   })
 
   it('renders notification bell', () => {

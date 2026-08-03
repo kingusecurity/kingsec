@@ -18,6 +18,14 @@ import {
 } from '@/hooks/use-copilot'
 import type { CopilotMessage, AskResult } from '@/api/copilot'
 import { getAccessToken } from '@/api/client'
+import { toast } from '@/components/ui/Toast'
+
+function askErrorMessage(error: unknown): string {
+  if (error && typeof error === 'object' && 'errorCode' in error && (error as { errorCode?: string }).errorCode === 'KS-EXT-001') {
+    return 'The AI provider is unavailable or not configured. Check the API key in Settings.'
+  }
+  return error instanceof Error ? error.message : 'The AI Copilot request failed.'
+}
 
 const API_BASE = '/api/v1'
 
@@ -176,6 +184,9 @@ export function AICopilotPage() {
           setSelectedTemplate(null)
           setShowTemplates(false)
         },
+        onError: (error) => {
+          toast.error('AI Copilot request failed', askErrorMessage(error))
+        },
       },
     )
   }
@@ -223,7 +234,7 @@ export function AICopilotPage() {
         URL.revokeObjectURL(url)
       })
       .catch(() => {
-        // Best-effort export; the button remains usable if the user retries.
+        toast.error('Export failed', 'Could not export this investigation as Markdown. Please try again.')
       })
   }
 
@@ -249,7 +260,7 @@ export function AICopilotPage() {
         URL.revokeObjectURL(url)
       })
       .catch(() => {
-        // Best-effort export; the button remains usable if the user retries.
+        toast.error('Export failed', 'Could not export this investigation as JSON. Please try again.')
       })
   }
 
@@ -437,6 +448,12 @@ export function AICopilotPage() {
                     <div className="mt-2 flex items-center gap-2 text-sm text-text-muted">
                       <Spinner />
                       <span>AI is analyzing your security context...</span>
+                    </div>
+                  )}
+
+                  {askMutation.isError && (
+                    <div className="mt-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-500">
+                      {askErrorMessage(askMutation.error)}
                     </div>
                   )}
 

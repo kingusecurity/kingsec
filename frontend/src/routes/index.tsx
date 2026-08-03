@@ -111,7 +111,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'assessments/new',
-        element: <Suspense fallback={<PageLoader />}><CreateAssessmentPage /></Suspense>,
+        element: <RoleGuard roles={['analyst', 'admin']}><Suspense fallback={<PageLoader />}><CreateAssessmentPage /></Suspense></RoleGuard>,
       },
       {
         path: 'assessments/:id',
@@ -131,7 +131,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'administration',
-        element: <Suspense fallback={<PageLoader />}><AdministrationPage /></Suspense>,
+        element: <RoleGuard roles={['admin']}><Suspense fallback={<PageLoader />}><AdministrationPage /></Suspense></RoleGuard>,
       },
       {
         path: 'monitor',
@@ -147,7 +147,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'audit',
-        element: <Suspense fallback={<PageLoader />}><AuditLogPage /></Suspense>,
+        element: <RoleGuard roles={['admin']}><Suspense fallback={<PageLoader />}><AuditLogPage /></Suspense></RoleGuard>,
       },
       {
         path: 'ai',
@@ -251,19 +251,19 @@ export const router = createBrowserRouter([
       },
       {
         path: 'identity',
-        element: <Suspense fallback={<PageLoader />}><IdentityProvidersPage /></Suspense>,
+        element: <RoleGuard roles={['admin']}><Suspense fallback={<PageLoader />}><IdentityProvidersPage /></Suspense></RoleGuard>,
       },
       {
         path: 'identity/:id',
-        element: <Suspense fallback={<PageLoader />}><IdentityProviderDetailPage /></Suspense>,
+        element: <RoleGuard roles={['admin']}><Suspense fallback={<PageLoader />}><IdentityProviderDetailPage /></Suspense></RoleGuard>,
       },
       {
         path: 'backup',
-        element: <Suspense fallback={<PageLoader />}><BackupCenterPage /></Suspense>,
+        element: <RoleGuard roles={['admin']}><Suspense fallback={<PageLoader />}><BackupCenterPage /></Suspense></RoleGuard>,
       },
       {
         path: 'backup/:id',
-        element: <Suspense fallback={<PageLoader />}><BackupDetailPage /></Suspense>,
+        element: <RoleGuard roles={['admin']}><Suspense fallback={<PageLoader />}><BackupDetailPage /></Suspense></RoleGuard>,
       },
       {
         path: 'settings',
@@ -271,19 +271,19 @@ export const router = createBrowserRouter([
       },
       {
         path: 'deployment',
-        element: <Suspense fallback={<PageLoader />}><DeploymentPage /></Suspense>,
+        element: <RoleGuard roles={['admin']}><Suspense fallback={<PageLoader />}><DeploymentPage /></Suspense></RoleGuard>,
       },
       {
         path: 'license',
-        element: <Suspense fallback={<PageLoader />}><LicensePage /></Suspense>,
+        element: <RoleGuard roles={['admin']}><Suspense fallback={<PageLoader />}><LicensePage /></Suspense></RoleGuard>,
       },
       {
         path: 'diagnostics',
-        element: <Suspense fallback={<PageLoader />}><DiagnosticsPage /></Suspense>,
+        element: <RoleGuard roles={['admin']}><Suspense fallback={<PageLoader />}><DiagnosticsPage /></Suspense></RoleGuard>,
       },
       {
         path: 'release-audit',
-        element: <Suspense fallback={<PageLoader />}><ReleaseAuditPage /></Suspense>,
+        element: <RoleGuard roles={['admin']}><Suspense fallback={<PageLoader />}><ReleaseAuditPage /></Suspense></RoleGuard>,
       },
       ...(isDev ? [{ path: 'ui', element: <Suspense fallback={<PageLoader />}><UIShowcasePage /></Suspense> }] : []),
     ],

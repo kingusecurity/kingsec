@@ -14,6 +14,7 @@ import { useAssessment, useStartAssessment, useCancelAssessment, useDeleteAssess
 import { useReportDetail } from '@/hooks/use-reports'
 import { adminApi } from '@/api/admin'
 import { ApiError } from '@/api/client'
+import { toast } from '@/components/ui/Toast'
 import { formatDate, cn } from '@/lib/utils'
 
 export function AssessmentDetailPage() {
@@ -267,7 +268,7 @@ function AssessmentReportSection({
           className="flex-1"
           onClick={() => {
             adminApi.downloadReport(assessmentId).catch((err) => {
-              console.error('Failed to download report', err)
+              toast.error('Download failed', err instanceof Error ? err.message : 'Could not download the report.')
             })
           }}
           iconLeft={<Download className="h-3.5 w-3.5" />}
