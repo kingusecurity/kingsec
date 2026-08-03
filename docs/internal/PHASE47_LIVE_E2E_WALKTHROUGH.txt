@@ -1,0 +1,129 @@
+KingSec — End-to-End Production Readiness: Live Test Results
+==========================================================================
+
+Ran the actual app (backend + frontend, isolated fresh DB) and drove it
+through a browser like a real customer would: register -> login ->
+every nav page -> create an assessment -> start a scan -> watch it run
+-> findings -> report generation -> AI Copilot. Two genuine, verified
+bugs found and fixed; one architectural issue flagged for a decision;
+one thing initially suspected as a bug and disproved on closer
+inspection.
+
+==========================================================================
+FIXED
+==========================================================================
+
+1. CRITICAL — No customer could ever start a scan through the web UI
+--------------------------------------------------------------------
+User impact: Every assessment created via the New Assessment wizard
+lands in "authorized" status. The "Start" button that's supposed to
+appear there was hidden — the page even said "Start the assessment to
+generate a report" with no button anywhere. This blocked the single
+most important workflow in the product.
+
+Root cause: AssessmentActions.tsx's visibility check looked for status
+'draft' or 'pending'. Neither matches reality: the domain state machine
+(domain/assessment.py) only allows start() from AUTHORIZED, and
+'pending' isn't a real AssessmentStatus value at all — it was confused
+with a separate, unrelated *execution-phase* vocabulary
+(pending/preparing/running_scanners/...) used elsewhere for scan
+progress.
+
+Files modified:
+  - frontend/src/components/features/assessment/AssessmentActions.tsx
+  - new test: __tests__/AssessmentActions.test.tsx
+
+Exact fix: Start now shows only for "authorized"; Cancel now shows for
+draft/authorized/running (all three can legally transition to
+"cancelled" per the domain model) instead of the old running/pending.
+
+Verification: Live-clicked Start on a real assessment — it transitioned
+authorized -> running -> completed in ~16s, produced 7 real findings
+(open ports from an actual Nmap scan against localhost), and the
+Findings page correctly aggregated them. 7 new unit tests, all passing.
+Full frontend suite 265/265, tsc -b clean, production build clean.
+
+Regression risk: Low. Single presentational component, no API/backend
+change, corrected to match an already-shipped, unchanged domain state
+machine.
+
+2. HIGH — Rate-limit responses lied about themselves
+--------------------------------------------------------------------
+User impact: A blocked login request (429) simultaneously reported
+X-RateLimit-Remaining: 19 of 20 — i.e., "you're rejected" and "you have
+19 attempts left" in the same response. Any sane client-side
+retry/backoff logic reading these headers would be actively misled.
+
+Root cause: /auth/login has two independent, uncoordinated rate
+limiters stacked on it: an IP-based token-bucket middleware
+(config-driven) and a stricter per-route sliding-window check
+(hardcoded 5 requests/15 min). The middleware unconditionally
+overwrote the response's X-RateLimit-* headers with its own numbers
+*after* call_next(), even when the inner response was already a 429
+from the stricter check.
+
+Files modified:
+  - src/kingsec/infrastructure/middleware/rate_limit.py
+  - new test added to test_rate_limit_api.py
+
+Exact fix: The middleware now leaves a 429 response's headers
+untouched.
+
+Verification: New regression test fails without the fix ('994' == '0')
+and passes with it. All 16 existing rate-limit tests still pass.
+Confirmed live against the real running server — headers are now
+internally consistent.
+
+Regression risk: Low. Narrow, additive guard; doesn't touch either
+limiter's actual policy or decision logic.
+
+==========================================================================
+FLAGGED — NOT TOUCHED, NEEDS A DECISION
+==========================================================================
+
+Auth tokens are memory-only, with zero persistence anywhere (no
+localStorage, no cookie). Confirmed three separate ways during this
+session: a hard page reload, and navigating directly to a deep-link URL
+(e.g. a bookmarked or shared assessment link), both immediately destroy
+the session and bounce to /login — even though the refresh token is
+still valid server-side. This is a real architectural/security
+trade-off (persisting tokens improves UX but widens XSS exposure), so
+it's being surfaced rather than a fix being picked unilaterally.
+
+The dual rate-limiter setup itself (separate from the header bug that
+was fixed): KINGSEC_RATE_LIMIT__AUTH_REQUESTS_PER_MINUTE has zero effect
+on the actual binding constraint for login, which is a hardcoded
+5-requests-per-15-minutes tuple in rate_limit_deps.py. Deciding which
+system should govern login throttling — and whether the other should be
+removed — is a security-posture decision, not a mechanical fix.
+
+==========================================================================
+INVESTIGATED AND DISPROVED (worth recording — initially suspected a bug)
+==========================================================================
+
+Report generation returned a 500 during testing. On inspection, this is
+NOT a bug — renderer.py already correctly catches WeasyPrint's
+ImportError/OSError and translates it into a clean ReportGenerationError
+with the exact user-facing message the UI showed ("The report could not
+be generated"). The actual cause was this test machine missing
+WeasyPrint's native GTK3 runtime — a documented (INSTALL.md) Windows
+prerequisite that hadn't been installed in this environment. The system
+failed honestly and cleanly, exactly as designed.
+
+==========================================================================
+OTHERWISE CLEAN
+==========================================================================
+
+All 26 sidebar pages render with zero console errors, zero failed
+requests, zero 5xx across a full client-side navigation sweep. AI
+Copilot's "New Investigation" flow creates a conversation cleanly with
+no errors (an actual AI response was not tested — no AI provider key
+configured in this test env, which is expected/documented "bring your
+own key" behavior, not a gap).
+
+==========================================================================
+STATUS
+==========================================================================
+
+Nothing has been committed — that remains gated on an explicit "commit"
+instruction, per standing project rules.

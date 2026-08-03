@@ -31,12 +31,12 @@ export function AssessmentActions({
 
   return (
     <div className="flex flex-wrap gap-2">
-      {(s === 'draft' || s === 'pending') && onStart && (
+      {s === 'authorized' && onStart && (
         <Button size="sm" onClick={onStart} loading={startLoading} iconLeft={<Play className="h-4 w-4" />}>
           Start
         </Button>
       )}
-      {(s === 'running' || s === 'pending') && onCancel && (
+      {(s === 'draft' || s === 'authorized' || s === 'running') && onCancel && (
         <Button size="sm" variant="outline" onClick={() => setConfirmAction('cancel')} iconLeft={<XCircle className="h-4 w-4" />}>
           Cancel
         </Button>

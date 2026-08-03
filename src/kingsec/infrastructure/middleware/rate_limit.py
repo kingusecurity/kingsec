@@ -164,6 +164,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             )
 
         response = await call_next(request)
+
+        # A downstream 429 (e.g. the per-route sliding-window check in
+        # rate_limit_deps.py) already carries its own authoritative
+        # X-RateLimit-*/Retry-After headers. Overwriting them here with this
+        # bucket's own (looser) numbers would make an already-rejected
+        # request claim requests are still "remaining" — contradicting the
+        # 429 status on the same response.
+        if response.status_code == 429:
+            return response
+
         response.headers["X-RateLimit-Limit"] = str(limit)
         response.headers["X-RateLimit-Remaining"] = str(remaining)
         response.headers["X-RateLimit-Reset"] = str(reset_seconds)

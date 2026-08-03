@@ -22,6 +22,8 @@ from kingsec.bootstrap.application import Application
 from kingsec.bootstrap.container import Container
 from kingsec.domain.rate_limit import RateLimitGroup
 from kingsec.infrastructure.config import Settings
+from kingsec.infrastructure.config.models import RateLimitSettings
+from kingsec.infrastructure.middleware import RateLimitMiddleware
 from kingsec.infrastructure.rate_limit.in_memory_lockout_repository import (
     InMemoryLockoutRepository,
 )
@@ -148,3 +150,68 @@ class TestRateLimitAPI:
         assert "X-RateLimit-Remaining" in resp.headers
         assert "X-RateLimit-Reset" in resp.headers
         assert resp.headers["X-RateLimit-Remaining"] == "0"
+
+
+class TestRateLimitMiddlewareAndDependencyStacked:
+    """The real running app stacks RateLimitMiddleware (a per-IP token
+    bucket, config-driven) *and* require_rate_limit (a per-route sliding
+    window, hardcoded per RateLimitGroup) on /auth/login. A 429 from the
+    stricter, inner check must not be overwritten by the looser, outer
+    middleware's own headers — see rate_limit.py's ``if response.status_code
+    == 429: return response`` guard.
+    """
+
+    @pytest.fixture
+    def app(self) -> FastAPI:
+        container = Container()
+
+        rate_limiter = InMemoryRateLimiter()
+        clock: ClockPort = SystemClock()
+        lockout_repo: LockoutRepository = InMemoryLockoutRepository()
+
+        container.register_instance(RateLimiterPort, rate_limiter)
+        container.register_instance(ClockPort, clock)
+        container.register_instance(LockoutRepository, lockout_repo)
+        container.register_factory(CheckRateLimit, lambda c: CheckRateLimit(c.resolve(RateLimiterPort)))
+
+        settings = Settings()
+        application = Application(
+            settings=settings,
+            container=container,
+            exception_handlers=None,
+            logger=None,
+            ensure_directories=False,
+        )
+
+        fastapi_app = FastAPI()
+        fastapi_app.state.kingsec_app = application
+        register_error_handlers(fastapi_app)
+
+        @fastapi_app.post("/api/v1/auth/login")
+        async def login_endpoint(
+            _=Depends(require_rate_limit(RateLimitGroup.LOGIN)),
+        ):
+            return {"ok": True}
+
+        # A deliberately loose middleware policy: on its own it would never
+        # block within this test, isolating the assertion to "did it
+        # clobber the inner 429's headers" rather than "did it also block".
+        fastapi_app.add_middleware(
+            RateLimitMiddleware,
+            settings=RateLimitSettings(enabled=True, auth_requests_per_minute=1000, burst_size=1000),
+        )
+
+        return fastapi_app
+
+    def test_inner_429_headers_survive_the_outer_middleware(self, app: FastAPI) -> None:
+        client = TestClient(app)
+        for _ in range(5):
+            client.post("/api/v1/auth/login", json={})
+
+        resp = client.post("/api/v1/auth/login", json={})
+        assert resp.status_code == 429
+        # Before the fix, the middleware unconditionally overwrote these
+        # with its own (unexhausted) bucket numbers, e.g. "Limit: 1000,
+        # Remaining: 999" on a request that was just rejected.
+        assert resp.headers["X-RateLimit-Remaining"] == "0"
+        assert int(resp.headers["X-RateLimit-Limit"]) == 5
