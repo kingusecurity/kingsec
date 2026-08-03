@@ -33,24 +33,24 @@ docker run -d --name kingsec -p 8765:8765 \
 > `KINGSEC_SECRETS__ENCRYPTION_KEY` is mandatory — the server refuses to
 > start without it, in every environment.
 
-See [QUICK_START.md](QUICK_START.md) for the complete walkthrough.
+See [docs/QUICK_START.md](docs/QUICK_START.md) for the complete walkthrough.
 
 ## Documentation
 
 | Guide | Description |
 |-------|-------------|
-| [INSTALL.md](INSTALL.md) | System requirements and installation (Docker, pip, Windows, Linux, macOS) |
-| [QUICK_START.md](QUICK_START.md) | First assessment in under 15 minutes |
-| [USER_GUIDE.md](USER_GUIDE.md) | End-user guide: assessments, findings, reports, settings |
-| [ADMIN_GUIDE.md](ADMIN_GUIDE.md) | Administration: users, roles, backup, security hardening |
-| [SCANNER_GUIDE.md](SCANNER_GUIDE.md) | Scanner installation, discovery, and troubleshooting |
-| [REPORTING_GUIDE.md](REPORTING_GUIDE.md) | Report formats, executive scoring, findings interpretation |
-| [API_REFERENCE.md](API_REFERENCE.md) | Complete REST API endpoint reference |
-| [FAQ.md](FAQ.md) | Frequently asked questions |
-| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Common issues and solutions |
-| [ROADMAP.md](ROADMAP.md) | Product roadmap and planned features |
+| [docs/INSTALL.md](docs/INSTALL.md) | System requirements and installation (Docker, pip, Windows, Linux, macOS) |
+| [docs/QUICK_START.md](docs/QUICK_START.md) | First assessment in under 15 minutes |
+| [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | End-user guide: assessments, findings, reports, settings |
+| [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md) | Administration: users, roles, backup, security hardening |
+| [docs/SCANNER_GUIDE.md](docs/SCANNER_GUIDE.md) | Scanner installation, discovery, and troubleshooting |
+| [docs/REPORTING_GUIDE.md](docs/REPORTING_GUIDE.md) | Report formats, executive scoring, findings interpretation |
+| [docs/API_REFERENCE.md](docs/API_REFERENCE.md) | Complete REST API endpoint reference |
+| [docs/FAQ.md](docs/FAQ.md) | Frequently asked questions |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Product roadmap and planned features |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
-| [RELEASE_NOTES.md](RELEASE_NOTES.md) | Current release notes |
+| [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) | Current release notes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development guide and contribution process |
 | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Community standards |
 | [SECURITY.md](SECURITY.md) | Security policy and vulnerability reporting |
@@ -85,7 +85,7 @@ kingsec-migrate
 kingsec
 ```
 
-See [INSTALL.md](INSTALL.md) for complete instructions including Windows, macOS, and scanner dependencies.
+See [docs/INSTALL.md](docs/INSTALL.md) for complete instructions including Windows, macOS, and scanner dependencies.
 
 ## Quick links
 

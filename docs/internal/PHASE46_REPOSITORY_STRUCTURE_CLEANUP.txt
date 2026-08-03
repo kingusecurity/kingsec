@@ -1,0 +1,88 @@
+KingSec — Repository Structure Cleanup ("make repo clean" follow-up)
+==========================================================================
+
+Companion to docs/internal/PHASE46_REPOSITORY_EXCELLENCE_AUDIT.txt and
+PHASE46_REPOSITORY_EXCELLENCE_FIXES.txt. This documents the deferred
+"Files That Should Be Moved" items from that audit, applied on request.
+
+==========================================================================
+WHAT MOVED
+==========================================================================
+
+Root -> docs/:
+  ADMIN_GUIDE.md
+  API_REFERENCE.md
+  FAQ.md
+  INSTALL.md
+  LICENSING.md
+  QUICK_START.md
+  REPORTING_GUIDE.md
+  ROADMAP.md
+  SCANNER_GUIDE.md
+  TROUBLESHOOTING.md
+  USER_GUIDE.md
+  RELEASE_NOTES.md
+
+Root now holds just the standard six: README.md, LICENSE, CHANGELOG.md,
+CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md.
+
+prototypes/ -> docs/design/:
+  All 9 KingSec-UI-*.html wireframes moved via git mv (history preserved).
+  The now-empty prototypes/ directory was removed.
+
+All moves used `git mv` to preserve file history.
+
+==========================================================================
+LINKS FIXED
+==========================================================================
+
+- README.md: 13 doc-table/inline markdown links updated to the new
+  docs/ paths (docs/INSTALL.md, docs/QUICK_START.md, docs/USER_GUIDE.md,
+  docs/ADMIN_GUIDE.md, docs/SCANNER_GUIDE.md, docs/REPORTING_GUIDE.md,
+  docs/API_REFERENCE.md, docs/FAQ.md, docs/TROUBLESHOOTING.md,
+  docs/ROADMAP.md, docs/RELEASE_NOTES.md).
+
+- .github/workflows/release.yml: `body_path: RELEASE_NOTES.md` ->
+  `body_path: docs/RELEASE_NOTES.md`. This one was a real functional
+  reference (the GitHub Release Action reads this file for the release
+  body) — left unfixed, the next tagged release would have shipped with
+  a missing/empty release body.
+
+- docs/LICENSING.md: link to LICENSE was same-directory style
+  ([LICENSE](LICENSE)), now broken since LICENSE stayed at root. Fixed
+  to ../LICENSE.
+
+- docs/RELEASE_NOTES.md: two links had the same problem —
+  [SECURITY.md](SECURITY.md) -> [SECURITY.md](../SECURITY.md), and
+  [LICENSE](LICENSE) -> [LICENSE](../LICENSE). Also updated a stale
+  "see the top-level `*.md` guides" phrase to "see the `docs/` guides",
+  since that sentence is no longer accurate after the move.
+
+==========================================================================
+VERIFICATION
+==========================================================================
+
+- Every markdown link in every .md file across the repo was resolved
+  programmatically (walk all *.md files, extract every [text](path.md)
+  link, check the target actually exists relative to the linking file) —
+  zero broken links remain.
+- Manually grepped scripts/, Makefile, make.bat, frontend/README.md,
+  frontend/ARCHITECTURE.md, .env.example, CONTRIBUTING.md, SECURITY.md,
+  CODE_OF_CONDUCT.md, docs/FOUNDATION.md for stale references — none
+  found.
+- Deliberately left untouched: bare (non-hyperlinked) filename mentions
+  in CHANGELOG.md and docs/commercial/github-release.md, since these are
+  historical/prose records describing past work, not broken paths — and
+  the docs/internal/PHASE4x*.txt audit-trail files, since rewriting
+  historical audit reports to reflect a later reorganization would
+  misrepresent the record.
+- This was a pure documentation/file-location change — no application
+  code was touched, so backend pytest / frontend vitest+build are
+  unaffected by construction.
+
+==========================================================================
+STATUS
+==========================================================================
+
+Nothing has been committed — that remains gated on an explicit "commit"
+instruction, per standing project rules.

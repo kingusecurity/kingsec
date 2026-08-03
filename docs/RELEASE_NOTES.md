@@ -144,8 +144,8 @@ Follow the Quick Start instructions above, or see [INSTALL.md](INSTALL.md).
 
 ## Support
 
-- **Documentation:** see the top-level `*.md` guides (INSTALL, QUICK_START, USER_GUIDE, ADMIN_GUIDE, SCANNER_GUIDE, TROUBLESHOOTING)
-- **Issues / Security:** kingusecurity@gmail.com — see [SECURITY.md](SECURITY.md) for the vulnerability-reporting process
+- **Documentation:** see the `docs/` guides (INSTALL, QUICK_START, USER_GUIDE, ADMIN_GUIDE, SCANNER_GUIDE, TROUBLESHOOTING)
+- **Issues / Security:** kingusecurity@gmail.com — see [SECURITY.md](../SECURITY.md) for the vulnerability-reporting process
 
 ---
 
@@ -153,4 +153,4 @@ Follow the Quick Start instructions above, or see [INSTALL.md](INSTALL.md).
 
 KingSec is proprietary software. All rights reserved.
 
-Copyright (c) 2026 Abdul Mannan. See [LICENSE](LICENSE).
+Copyright (c) 2026 Abdul Mannan. See [LICENSE](../LICENSE).
