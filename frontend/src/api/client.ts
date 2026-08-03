@@ -1,17 +1,52 @@
 const API_BASE = '/api/v1'
 
-let accessToken: string | null = null
-let refreshToken: string | null = null
+// Tokens are kept in localStorage (not just in memory) so a page refresh,
+// a bookmarked/shared deep link, or a new tab doesn't drop an otherwise
+// valid session — AuthGuard's existing useMe() check on mount then either
+// succeeds outright or transparently refreshes via the 401 handling below.
+// This does not change the auth model: still short-lived bearer JWTs over
+// HTTPS, no new storage of anything beyond what the API already issues.
+// Trade-off: localStorage is readable by any script running on the page
+// (XSS), which is why the app also ships a strict `default-src 'none'`
+// CSP and short (30 min) access-token expiry — the same trade-off most
+// bearer-token SPAs make to support refresh/bookmarks/deep-links at all.
+const ACCESS_TOKEN_KEY = 'kingsec_access_token'
+const REFRESH_TOKEN_KEY = 'kingsec_refresh_token'
+
+function readStoredToken(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key)
+  } catch {
+    // localStorage can throw in some contexts (privacy mode, disabled
+    // storage) — fall back to memory-only behavior rather than crashing.
+    return null
+  }
+}
+
+let accessToken: string | null = readStoredToken(ACCESS_TOKEN_KEY)
+let refreshToken: string | null = readStoredToken(REFRESH_TOKEN_KEY)
 let onLogout: (() => void) | null = null
 
 export function setTokens(access: string, refresh: string) {
   accessToken = access
   refreshToken = refresh
+  try {
+    window.localStorage.setItem(ACCESS_TOKEN_KEY, access)
+    window.localStorage.setItem(REFRESH_TOKEN_KEY, refresh)
+  } catch {
+    // Storage unavailable — session simply won't survive a reload.
+  }
 }
 
 export function clearTokens() {
   accessToken = null
   refreshToken = null
+  try {
+    window.localStorage.removeItem(ACCESS_TOKEN_KEY)
+    window.localStorage.removeItem(REFRESH_TOKEN_KEY)
+  } catch {
+    // Storage unavailable — nothing to clear.
+  }
 }
 
 export function setLogoutHandler(handler: () => void) {
@@ -48,6 +83,12 @@ async function refreshAccessToken(): Promise<string | null> {
 
     const data = await res.json()
     accessToken = data.access_token
+    try {
+      window.localStorage.setItem(ACCESS_TOKEN_KEY, data.access_token)
+    } catch {
+      // Storage unavailable — the refreshed token still works for the
+      // rest of this session, it just won't survive a reload.
+    }
     return accessToken
   } catch {
     return null

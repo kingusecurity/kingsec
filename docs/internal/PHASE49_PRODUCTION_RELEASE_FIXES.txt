@@ -1,0 +1,94 @@
+KingSec — Phase 49: Production Release Patch (Fixes Applied)
+==========================================================================
+
+Companion to docs/internal/PHASE49_PRODUCTION_RELEASE_AUDIT.txt.
+Implements only the items marked FAIL or High Priority in that audit.
+
+==========================================================================
+1. FILES MODIFIED
+==========================================================================
+
+- frontend/src/api/client.ts — tokens now persist to localStorage (read
+  on module init, written on login/refresh, cleared on logout); comment
+  explains the XSS trade-off and why it's acceptable given the existing
+  strict CSP.
+- src/kingsec/infrastructure/config/models.py — added
+  RateLimitSettings.login_max_attempts (default 5) and
+  login_window_seconds (default 900), matching the previously-hardcoded
+  values exactly.
+- src/kingsec/adapters/inbound/web/rate_limit_deps.py — the LOGIN group
+  now reads its policy from app.settings.rate_limit at request time
+  instead of a hardcoded tuple; removed from the static DEFAULT_POLICIES
+  dict.
+- src/kingsec/infrastructure/middleware/rate_limit.py — removed
+  /api/v1/auth/login from the middleware's _AUTH_PATHS, so the per-route
+  dependency above is now the sole authority for that path (register/mfa
+  paths unaffected).
+- release_manifest.json — git.commit replaced with the real current
+  commit hash (ac0dbe57796f1bbfe8e7639b685c90a3bd4ba706); git.dirty
+  corrected to accurately reflect the working tree's actual state.
+- tests/unit/infrastructure/test_rate_limit.py — one test's endpoint
+  changed from /auth/login to /auth/register (login is deliberately no
+  longer categorized as a middleware auth-path; register still is — same
+  test intent, correct endpoint).
+- tests/integration/adapters/inbound/web/test_api_key_integration.py,
+  test_audit_events_integration.py, test_auth_integration.py,
+  test_mfa_integration.py, test_rbac.py — each file's _StubApp test
+  double gained a `settings = Settings()` attribute. These all exercise
+  /auth/login as setup and broke once that route started reading
+  app.settings; this was a regression introduced and fixed within this
+  same pass.
+
+==========================================================================
+2. FILES REMOVED
+==========================================================================
+
+- assets/logo/, assets/icon/, assets/images/, docs/screenshots/ —
+  confirmed empty and untracked; no code or docs referenced them.
+
+Item 1 (repository URL) required NO file edits — the URL was
+re-verified live and https://github.com/kingusecurity/kingsec now
+returns 200 OK (it was a confirmed 404 earlier this engagement); the URL
+text already used everywhere was already correct, it just wasn't
+reachable until now.
+
+==========================================================================
+3. VERIFICATION RESULTS
+==========================================================================
+
+- Backend: ruff clean, mypy clean, full pytest — only the one
+  pre-existing, already-documented, unrelated failure
+  (test_application_never_imports_infrastructure) remains.
+- Frontend: tsc -b clean, vitest 265/265, oxlint clean on touched files,
+  production build clean.
+- Package: python -m build --wheel succeeds.
+- Live-verified: session survives both a hard page reload and a
+  brand-new-tab deep link (previously logged the user out both ways); a
+  real server confirms the configured login_max_attempts value now
+  genuinely controls the block threshold, with internally consistent
+  rate-limit headers.
+
+==========================================================================
+4. REMAINING KNOWN ISSUES
+==========================================================================
+
+- release_manifest.json's hand-maintained counts (endpoints_count,
+  tables_count, python_total, etc.) are point-in-time estimates that
+  will drift with future changes — regenerating them accurately
+  requires build-time tooling, which is a process change outside this
+  patch's scope.
+- KINGSEC_RATE_LIMIT__AUTH_REQUESTS_PER_MINUTE still governs
+  /auth/register and the MFA endpoints via the middleware (unchanged,
+  not part of the audited finding, which named /auth/login
+  specifically).
+- localStorage-based token persistence is the standard trade-off for
+  supporting refresh/bookmarks/deep-links in a bearer-token SPA; it is
+  not equivalent in risk profile to httpOnly cookies, though it doesn't
+  change the underlying auth architecture.
+
+==========================================================================
+5. RELEASE READINESS
+==========================================================================
+
+READY FOR RELEASE. All five FAIL/High-Priority items from the Phase 49
+audit are resolved and verified with no regressions.

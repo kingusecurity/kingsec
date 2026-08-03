@@ -16,6 +16,7 @@ from kingsec.application.ports import RateLimiterPort, TokenClaims, TokenService
 from kingsec.application.use_cases.check_rate_limit import CheckRateLimit
 from kingsec.domain import User
 from kingsec.domain.rate_limit import RateLimitDecision, RateLimitPolicy
+from kingsec.infrastructure.config import Settings
 
 # ── Stubs (same pattern as test_auth_integration) ─────────────────────────
 
@@ -198,6 +199,8 @@ def _build_app() -> tuple[FastAPI, StubTokenService, StubUserRepo, StubHasher]:
     app = FastAPI()
 
     class _StubApp:
+        settings = Settings()
+
         def resolve(self, service_type: type):
             from kingsec.application.ports import (
                 PasswordHasher,

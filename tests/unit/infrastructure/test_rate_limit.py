@@ -16,8 +16,8 @@ def _build_app(settings: RateLimitSettings | None = None) -> FastAPI:
     async def test_endpoint():
         return {"ok": True}
 
-    @app.post("/api/v1/auth/login")
-    async def login_endpoint():
+    @app.post("/api/v1/auth/register")
+    async def register_endpoint():
         return {"ok": True}
 
     if settings is None:
@@ -82,8 +82,8 @@ class TestRateLimitMiddleware:
         )
         app = _build_app(settings)
         client = TestClient(app, raise_server_exceptions=False)
-        client.post("/api/v1/auth/login")  # consume auth token
-        resp = client.post("/api/v1/auth/login")  # should be rate limited
+        client.post("/api/v1/auth/register")  # consume auth token
+        resp = client.post("/api/v1/auth/register")  # should be rate limited
         assert resp.status_code == 429
 
     def test_rate_limit_headers_present(self) -> None:

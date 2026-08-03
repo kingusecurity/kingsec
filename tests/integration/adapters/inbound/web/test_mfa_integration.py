@@ -34,6 +34,7 @@ from kingsec.application.use_cases.use_recovery_code import UseRecoveryCode
 from kingsec.application.use_cases.verify_mfa_code import VerifyMfaCode
 from kingsec.domain.mfa import MfaRecoveryCode, MfaSecret, RecoveryCodeStatus
 from kingsec.domain.rate_limit import RateLimitDecision, RateLimitPolicy
+from kingsec.infrastructure.config import Settings
 
 from .test_audit_events_integration import StubAuditEventRepository as EventRepo
 from .test_auth_integration import StubHasher, StubTokenService, StubUserRepo
@@ -108,6 +109,8 @@ def _build_app() -> tuple[FastAPI, StubUserRepo, StubTokenService, StubMfaSecret
     app = FastAPI()
 
     class _StubApp:
+        settings = Settings()
+
         def resolve(self, service_type: type):
             from kingsec.application import Login, RefreshToken, RegisterUser
             from kingsec.application.ports import UserRepository

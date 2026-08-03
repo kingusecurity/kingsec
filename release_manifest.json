@@ -90,9 +90,9 @@
   },
   "license": "Proprietary - All Rights Reserved",
   "git": {
-    "commit": "HEAD",
+    "commit": "ac0dbe57796f1bbfe8e7639b685c90a3bd4ba706",
     "branch": "main",
-    "dirty": false
+    "dirty": true
   },
   "supported_platforms": [
     "Windows 10/11",

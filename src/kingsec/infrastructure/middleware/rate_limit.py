@@ -72,9 +72,17 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     # Paths that use the stricter auth rate limit.
     # MFA verify and recovery are unauthenticated (the caller hasn't completed
     # auth yet), so they need the same brute-force protection as login.
+    #
+    # /auth/login is deliberately NOT listed here: it previously had two
+    # independent, uncoordinated limiters (this middleware's config-driven
+    # token bucket, and rate_limit_deps.py's separate hardcoded sliding
+    # window) — a request rejected by the stricter one could still have its
+    # response headers overwritten by this middleware's own, looser count.
+    # require_rate_limit(RateLimitGroup.LOGIN) is now the single
+    # authoritative, configurable check for that path
+    # (RateLimitSettings.login_max_attempts/login_window_seconds).
     _AUTH_PATHS = frozenset(
         {
-            "/api/v1/auth/login",
             "/api/v1/auth/register",
             "/api/v1/mfa/verify",
             "/api/v1/mfa/recovery",

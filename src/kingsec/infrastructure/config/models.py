@@ -502,10 +502,21 @@ class RateLimitSettings(BaseModel):
     enabled: bool = True
     # General API rate limit: requests per minute.
     api_requests_per_minute: int = Field(default=120, ge=1)
-    # Auth endpoint rate limit: requests per minute (stricter).
+    # Auth endpoint rate limit: requests per minute (stricter). Applies to
+    # the RateLimitMiddleware token bucket for /auth/register and the MFA
+    # endpoints. Login is governed solely by login_max_attempts/
+    # login_window_seconds below — see rate_limit_deps.py.
     auth_requests_per_minute: int = Field(default=20, ge=1)
     # Burst size for the token bucket.
     burst_size: int = Field(default=30, ge=1)
+    # The one authoritative login-throttling policy (brute-force
+    # protection): max attempts per IP+user within the window below.
+    # Previously this was a second, hardcoded (5, 900) tuple in
+    # rate_limit_deps.py that this setting had no effect on; it is now the
+    # sole source of truth for /auth/login. Defaults preserve the exact
+    # values already in production.
+    login_max_attempts: int = Field(default=5, ge=1)
+    login_window_seconds: int = Field(default=900, ge=1)
 
 
 class SecretsSettings(BaseModel):

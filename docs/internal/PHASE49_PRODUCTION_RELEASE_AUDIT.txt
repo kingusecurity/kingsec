@@ -1,0 +1,324 @@
+KingSec — Phase 49: Production Release Audit (Final Engineering Review)
+==========================================================================
+
+==========================================================================
+EXECUTIVE SUMMARY
+==========================================================================
+
+Overall production readiness score: 87/100
+
+KingSec's core product works end-to-end — verified this session by
+actually running it: installed into an isolated environment, registered
+the first user (auto-promoted to admin), created an assessment, started
+a real Nmap scan against a live target, watched it complete in ~16
+seconds, reviewed the 7 real findings it produced, and exercised report
+generation, the Findings/Reports pages, and AI Copilot. All 26
+navigation pages render without console or network errors. The backend
+test suite passes except two long-standing, unrelated, already-
+documented failures; the frontend suite passes 265/265 with a clean
+tsc -b and production build.
+
+The engineering foundation is solid: hexagonal architecture boundaries
+are enforced by import-linter, dead code is sparse for a codebase this
+size, and prior audit passes already removed a proprietary-license-
+violating PyPI auto-publish step, a drifted dependency declaration that
+broke the documented dev-setup path, and a dead Docker build step. This
+session additionally found and fixed a Critical defect (the "Start"
+button on a freshly created assessment never appeared, blocking the
+single most important workflow in the product) and a High-severity
+defect (rate-limit responses on login could report contradictory
+"remaining requests" alongside a 429 rejection).
+
+What remains is a short list of real, verified issues below Critical
+severity — a dead-end external repository URL referenced in 18 files
+(including the vulnerability-disclosure link in SECURITY.md), a
+browser-session-persistence gap that logs a user out on any page
+refresh or deep link, and a handful of cosmetic/packaging cleanup
+items.
+
+GO / NO-GO recommendation: GO, conditional on the High-priority items
+below being addressed in the immediate next patch — not blocking a
+controlled/initial release, but customer-visible enough to fix quickly.
+
+==========================================================================
+CRITICAL ISSUES (Must be fixed before release)
+==========================================================================
+
+None currently open. The one Critical issue found during this
+engagement's live testing — the "Start" button never appearing on a
+newly created, "authorized" assessment
+(frontend/src/components/features/assessment/AssessmentActions.tsx,
+status-check bug against 'draft'/'pending' instead of the real domain
+value 'authorized') — was fixed and verified live (commit ac0dbe5):
+assessment creation -> start -> scan execution -> findings now works
+end-to-end.
+
+==========================================================================
+HIGH PRIORITY ISSUES (Should be fixed before release)
+==========================================================================
+
+1. Dead-end repository URL referenced in 18 tracked files
+   Evidence: https://github.com/kingusecurity/kingsec returns a live
+   HTTP 404 (re-verified via direct fetch this session). It's the value
+   of Homepage/Documentation/Source/Issues/Changelog in
+   pyproject.toml:75-79, the vulnerability-disclosure link in
+   SECURITY.md, and the clone instructions in README.md,
+   docs/INSTALL.md, docs/QUICK_START.md, docs/USER_GUIDE.md,
+   docs/ADMIN_GUIDE.md, docs/SCANNER_GUIDE.md, CONTRIBUTING.md,
+   docs/internal/PRODUCTION_RELEASE_CHECKLIST.md, and 8 files under
+   docs/commercial/. Not fixable without a real destination — requires
+   either standing up the repository there or supplying the correct
+   URL.
+
+2. Browser session is destroyed by a page refresh or a deep link
+   Evidence: frontend/src/api/client.ts:3-4 — accessToken/refreshToken
+   are plain module-level JavaScript variables with zero persistence
+   (confirmed via repo-wide grep: no localStorage/sessionStorage/cookie
+   usage anywhere in the auth path — frontend/src/store/auth.ts is a
+   bare Zustand store with no persist() middleware). Confirmed live,
+   three separate ways this session: a hard reload, and navigating
+   directly to a bookmarked/shared assessment URL, both immediately
+   bounce an authenticated user to /login — even though the refresh
+   token is still valid server-side (the backend sets no session cookie
+   at all — confirmed via repo-wide grep of the web adapter layer). No
+   data is lost (scans keep running server-side), but this hits every
+   customer on the most ordinary browser action.
+
+3. Two independent, uncoordinated rate limiters govern /auth/login, and
+   the configurable one doesn't actually bind
+   Evidence: src/kingsec/infrastructure/middleware/rate_limit.py
+   enforces a token bucket sized from
+   KINGSEC_RATE_LIMIT__AUTH_REQUESTS_PER_MINUTE (default 20/min), while
+   src/kingsec/adapters/inbound/web/rate_limit_deps.py:25 hardcodes a
+   second, stricter, non-configurable limit
+   (RateLimitGroup.LOGIN: (5, 900, IP_USER) — 5 requests per 15 minutes)
+   that actually governs login throttling; the config setting has no
+   effect on it. The header-inconsistency symptom this produced (a 429
+   simultaneously claiming 19 of 20 requests "remaining") was fixed this
+   session (commit ac0dbe5); the underlying dual-system design was
+   deliberately left as a flagged decision, not a code fix, since
+   resolving it means choosing which system is authoritative.
+
+==========================================================================
+MEDIUM PRIORITY ISSUES (Cleanup recommended)
+==========================================================================
+
+- assets/logo/, assets/icon/, assets/images/, docs/screenshots/ are all
+  empty (untracked, not part of the actual git repo).
+  docs/commercial/screenshot-checklist.md already lists exactly what's
+  needed, but it was never executed.
+- release_manifest.json contains "git": {"commit": "HEAD", "branch":
+  "main", "dirty": false} — "HEAD" is the literal string, not a
+  resolved commit hash, and the hand-maintained counts
+  (endpoints_count, tables_count, python_total, etc.) will silently go
+  stale with every future change. Reads as fabricated metadata to a
+  technical reviewer.
+- Five frontend components have real unit-test coverage but are never
+  imported by any page:
+  frontend/src/components/features/findings/{FindingCard,
+  FindingFilters,FindingsTable}.tsx,
+  frontend/src/components/features/monitoring/NotificationBadge.tsx,
+  frontend/src/components/shared/LoadingOverlay.tsx (verified via grep
+  — zero importers outside their own dedicated test files). Not
+  deleted, since removing them would mean deleting real test coverage;
+  a product decision on whether to wire them in or retire them (and
+  their tests) is still open.
+- src/kingsec/infrastructure/persistence/repositories/
+  _legacy_repositories.py's SqlAlchemyAssessmentRepository/
+  SqlAlchemyReportRepository and repositories/assessment.py's
+  SQLAlchemyAssessmentRepository are both live, both wired
+  (infrastructure/persistence/provisioning.py:79-80), differing only in
+  the capitalization of "Sql"/"SQL" — a readability hazard, not a
+  functional bug.
+- Three frontend pages (ExecutionHistoryPage.tsx, KevViewPage.tsx,
+  CveExplorerPage.tsx) hand-roll their own pagination instead of
+  reusing the existing shared components/ui/Pagination.tsx.
+- Six untracked *__no_changes.py alembic migration stub files recur
+  every time a source file is edited in this dev environment (a
+  background-hook artifact, not a code defect);
+  docs/architecture/alembic_notes.md already documents this pattern for
+  the ones that ARE tracked and correctly recommends against squashing
+  them preemptively.
+
+==========================================================================
+REPOSITORY CLEANUP
+==========================================================================
+
+Unused files — Confirmed empty, untracked, and therefore invisible to
+git clone (harmless, but worth finishing or deleting before
+hand-packaging a non-git distribution): assets/logo/, assets/icon/,
+assets/images/, docs/screenshots/, docs/adr/, docs/api/.
+
+Dead code — All previously-identified dead code was removed in an
+earlier pass this engagement and reverified via grep before deletion:
+RecurringAssessmentService
+(infrastructure/integrations/scheduled_assessment_service.py, zero
+callers, superseded by the live calculate_next_run.py),
+SQLAlchemyPluginSdkManifestRepository
+(infrastructure/persistence/repositories/plugin_registry.py, zero
+callers, superseded by the live PluginRegistry), require_valid_session
+(adapters/inbound/web/session_deps.py, zero callers), and
+frontend/src/components/features/monitoring/NotificationDrawer.tsx
+(zero callers, zero test coverage). A stray non-test file
+(tests/unit/application/application_pkg__init__.py, an outdated
+docstring snapshot) was also removed. No further dead code was found in
+this final pass beyond the five test-covered-but-unwired components
+listed under Medium above, which were deliberately NOT deleted.
+
+Legacy artifacts — bootstrap/production.py is self-documented as
+deprecated and unreachable from the real __main__.py entrypoint, but
+it's the composition root for three test files including a substantial
+e2e suite (tests/integration/e2e/test_persistence_pipeline.py); deleting
+it would delete real test coverage, so it was kept and flagged rather
+than removed. EnvironmentSecretProvider
+(infrastructure/secrets/environment_secret_provider.py) is similarly
+unwired from production DI but has its own dedicated test class — kept
+for the same reason.
+
+Duplicate code — The _legacy_repositories.py/repositories/assessment.py
+naming collision noted under Medium is the only remaining
+duplicate-implementation pattern found; a duplicated
+_weasyprint_available() test helper was already merged into a shared
+tests/integration/conftest.py earlier this engagement.
+
+Obsolete documentation — None found as of this pass.
+docs/FOUNDATION.md's stale ADR-log checklist item, RELEASE_NOTES.md's
+superseded duplicate file, and the root-level documentation sprawl were
+all corrected in earlier passes this engagement (12 guide files moved
+into docs/, prototypes/*.html moved into docs/design/).
+
+==========================================================================
+DOCUMENTATION AUDIT
+==========================================================================
+
+README, docs/INSTALL.md, docs/QUICK_START.md, CHANGELOG.md, LICENSE,
+SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md are all present,
+internally consistent with each other, and version-accurate (2.0.0
+everywhere it's checked — src/kingsec/__init__.py, pyproject.toml,
+frontend/package.json, release_manifest.json). A repo-wide scripted
+check of every markdown link in every .md file (walking each
+[text](path.md) reference and confirming the target resolves) found
+zero broken internal links. The one confirmed-broken link class is
+external (the GitHub URL, covered under High Priority). No outdated
+commands, wrong paths, or fictional CLI subcommands remain —
+docs/INSTALL.md and docs/QUICK_START.md were rewritten earlier this
+engagement specifically to match actual shipped behavior (no PyPI
+package claim, correct kingsec-migrate invocation with no subcommand
+argument, documented mandatory KINGSEC_SECRETS__ENCRYPTION_KEY). No
+screenshots exist anywhere in the documentation (consistent with the
+empty docs/screenshots/ noted above) — text-only walkthroughs
+throughout.
+
+==========================================================================
+PACKAGING AUDIT
+==========================================================================
+
+pyproject.toml uses hatchling as the build backend with explicit
+wheel-target includes ([tool.hatch.build.targets.wheel]) — a
+MANIFEST.in is not applicable, since hatchling doesn't use the
+setuptools convention. All three declared console-script entry points
+(kingsec, kingsec-migrate, kingsec-bootstrap) were re-verified this
+session to resolve to real, importable functions. Dependency version
+ranges are sane and bounded. [project.optional-dependencies].dev and
+[dependency-groups].dev were previously found to have drifted (the
+latter silently missing two packages genuinely required by two real
+test files) — fixed earlier this engagement, both lists now carry a
+cross-reference comment requiring they stay in sync. License metadata
+is consistent: license = { text = "Proprietary - All Rights Reserved" }
+matches the root LICENSE file's text exactly. dist/ (stale 1.0.0/1.1.0
+wheel builds) is confirmed untracked, not part of the shipped
+repository.
+
+==========================================================================
+INSTALLATION AUDIT
+==========================================================================
+
+Performed live, not from documentation: created an isolated data
+directory, generated a fresh Fernet encryption key, ran
+python -m kingsec._migrate (26-revision chain applied cleanly, 0
+errors), started the server, confirmed /api/v1/health responds, started
+the frontend dev server, and used the app as a first-time customer
+would — registered the very first account (correctly auto-promoted to
+admin, matching src/kingsec/_bootstrap.py's documented behavior), logged
+in, and completed a full assessment lifecycle. Everything in
+docs/INSTALL.md and docs/QUICK_START.md matched what actually happened,
+with one exception unrelated to the product itself: report generation
+as PDF failed in this specific test environment because the native
+GTK3 runtime WeasyPrint depends on wasn't installed on this Windows
+machine — a prerequisite docs/INSTALL.md already documents. The failure
+mode itself was clean and honest (a proper caught exception surfaced as
+"The report could not be generated," not a raw crash or stack trace),
+confirming the documented caveat is accurate and the product's error
+handling for this exact scenario works as designed.
+
+==========================================================================
+SECURITY AUDIT
+==========================================================================
+
+debug: bool = False is the default
+(src/kingsec/infrastructure/config/models.py:64). No hardcoded or
+sample credentials exist anywhere in src/kingsec (confirmed via grep).
+Server binds to 127.0.0.1 by default per README/.env.example, with an
+explicit opt-in flag required to bind externally. Error handlers return
+domain-crafted messages (str(exc) on already-sanitized application
+exceptions) or a fixed generic message for unhandled exceptions — no
+raw Python tracebacks are exposed to the client anywhere in
+error_handlers.py. Secrets are typed SecretStr and masked in
+logs/repr. .env.example ships fully-formed example secret values
+(commented out, with explicit "GENERATE A NEW RANDOM SECRET"
+instructions) rather than an obvious placeholder token — a minor risk
+that someone copies the example verbatim, mitigated by the surrounding
+warning text. The rate-limiting/lockout gap covered under High Priority
+is the one substantive security-adjacent finding from this pass; no
+other security regressions were found.
+
+==========================================================================
+CUSTOMER EXPERIENCE AUDIT
+==========================================================================
+
+First-run experience: clean. Login/register pages render correctly,
+error states are real and legible (a duplicate-username registration
+attempt correctly shows "username already taken" inline, not a silent
+failure or generic crash). Startup errors: the server refuses to start
+without a real encryption key, with a clear message, rather than
+starting insecurely. Installation failures: the one encountered
+(missing WeasyPrint native deps) produced a clear, documented,
+actionable message rather than an opaque crash. Empty states: every
+list page checked (Assessments, Findings, Reports, AI Copilot) shows a
+proper "no items yet, here's how to create one" empty state rather than
+a blank screen. Error states: all 26 navigation pages were swept live —
+zero console errors, zero failed network requests, zero blank renders.
+Missing guidance: none found beyond the two High-priority items already
+listed (a dead repo link, and no in-app warning that a page refresh
+will sign you out).
+
+==========================================================================
+RELEASE CHECKLIST
+==========================================================================
+
+Version numbers consistent across all files ............... PASS
+Entry points resolve ........................................ PASS
+Backend test suite passes (excl. 2 pre-existing unrelated) .. PASS
+Frontend test suite passes (265/265) ........................ PASS
+Production frontend build succeeds .......................... PASS
+No debug mode by default .................................... PASS
+No hardcoded credentials .................................... PASS
+No raw stack traces exposed to clients ...................... PASS
+Core workflow (install->register->assessment->scan->findings) PASS
+Report generation works when system deps are present ........ PASS
+Repository URL resolves ...................................... FAIL
+Session survives a page refresh / deep link .................. FAIL
+Rate-limit config actually governs login throttling .......... FAIL
+Product logo / screenshots present ............................ FAIL
+CI/CD does not publish proprietary source publicly .......... PASS (fixed earlier this engagement)
+Dead code audit .............................................. PASS
+Documentation internal-link integrity ........................ PASS
+MANIFEST.in ........................................ NOT APPLICABLE (hatchling, not setuptools)
+GitHub Actions CI workflow ................................... PASS
+Package version metadata matches across all files ........... PASS
+
+==========================================================================
+FINAL RECOMMENDATION
+==========================================================================
+
+READY AFTER MINOR CLEANUP

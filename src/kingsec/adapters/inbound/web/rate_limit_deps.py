@@ -21,8 +21,14 @@ from .dependencies import get_application
 
 # Policies that are actually attached to at least one route.
 # Unused policies have been removed — a false claim is worse than no claim.
+#
+# LOGIN is deliberately absent here: it's the one policy that must reflect
+# live configuration (RateLimitSettings.login_max_attempts/
+# login_window_seconds), not a hardcoded value baked in at import time — see
+# the LOGIN special-case in `dependency()` below. It is also the sole
+# authority for /auth/login; RateLimitMiddleware no longer double-enforces
+# that path (see infrastructure/middleware/rate_limit.py).
 DEFAULT_POLICIES: dict[RateLimitGroup, tuple[int, int, RateLimitKeyType]] = {
-    RateLimitGroup.LOGIN: (5, 900, RateLimitKeyType.IP_USER),
     RateLimitGroup.API: (1000, 3600, RateLimitKeyType.USER),
     RateLimitGroup.REFRESH_TOKEN: (30, 3600, RateLimitKeyType.USER),
     RateLimitGroup.PASSWORD_CHANGE: (10, 3600, RateLimitKeyType.IP_USER),
@@ -68,13 +74,21 @@ async def _resolve_identifier(
 
 
 def require_rate_limit(group: RateLimitGroup) -> Callable[..., Any]:
-    max_reqs, window_secs, key_type = DEFAULT_POLICIES[group]
-
     async def dependency(
         request: Request,
         response: Response,
         app: Application = Depends(get_application),
     ) -> None:
+        if group is RateLimitGroup.LOGIN:
+            # The one policy read from live settings rather than a
+            # hardcoded tuple — see RateLimitSettings.login_max_attempts.
+            rl_settings = app.settings.rate_limit
+            max_reqs = rl_settings.login_max_attempts
+            window_secs = rl_settings.login_window_seconds
+            key_type = RateLimitKeyType.IP_USER
+        else:
+            max_reqs, window_secs, key_type = DEFAULT_POLICIES[group]
+
         policy = RateLimitPolicy(
             group=group,
             max_requests=max_reqs,

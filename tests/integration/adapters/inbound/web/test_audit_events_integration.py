@@ -28,6 +28,7 @@ from kingsec.domain.audit_event import (
     AuditSeverity,
 )
 from kingsec.domain.rate_limit import RateLimitDecision, RateLimitPolicy
+from kingsec.infrastructure.config import Settings
 
 from .test_auth_integration import StubHasher, StubTokenService, StubUserRepo
 
@@ -94,6 +95,8 @@ def _build_app() -> tuple[FastAPI, StubAuditEventRepository, StubTokenService, S
     app = FastAPI()
 
     class _StubApp:
+        settings = Settings()
+
         def resolve(self, service_type: type):
             from kingsec.application import Login, RefreshToken, RegisterUser
             from kingsec.application.ports import PasswordHasher, TokenService, UserRepository
