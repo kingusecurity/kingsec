@@ -4,6 +4,8 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { toast } from '@/components/ui/Toast'
+import { deploymentApi } from '@/api/deployment'
 import { useDiagnostics } from '@/hooks/use-deployment'
 
 function DiagnosticsSection() {
@@ -121,7 +123,10 @@ function DiagnosticsSection() {
         <Button variant="outline" onClick={() => refetch()}>
           Refresh Diagnostics
         </Button>
-        <Button variant="outline" disabled>
+        <Button
+          variant="outline"
+          onClick={() => deploymentApi.downloadDiagnostics().catch(() => toast.error('Failed to download diagnostics bundle'))}
+        >
           Download Bundle
         </Button>
       </div>

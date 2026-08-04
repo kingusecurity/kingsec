@@ -1,4 +1,6 @@
-import { apiRequest } from './client'
+import { apiRequest, getAccessToken } from './client'
+
+const API_BASE = '/api/v1'
 
 export interface SystemInfo {
   os: string
@@ -87,10 +89,25 @@ export const deploymentApi = {
   getDiagnostics: () =>
     apiRequest<DiagnosticsBundle>('/deployment/diagnostics'),
 
-  downloadDiagnostics: () =>
-    apiRequest<Blob>('/deployment/diagnostics/bundle', {
-      headers: { Accept: 'application/octet-stream' },
-    }),
+  // apiRequest always parses its response as JSON, which would throw on this
+  // endpoint's binary zip body — use a raw fetch + blob, same pattern as
+  // adminApi.downloadReport.
+  downloadDiagnostics: async (): Promise<void> => {
+    const token = getAccessToken()
+    const res = await fetch(`${API_BASE}/deployment/diagnostics/bundle`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!res.ok) throw new Error('Diagnostics bundle download failed')
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `kingsec-diagnostics-${new Date().toISOString().slice(0, 10)}.zip`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  },
 
   getUpgradePlan: (targetVersion: string) =>
     apiRequest<UpgradePlan>(`/deployment/upgrade/plan?target=${targetVersion}`),
