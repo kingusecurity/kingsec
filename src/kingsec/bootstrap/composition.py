@@ -562,8 +562,9 @@ def _register_use_cases(container: Container) -> None:
             c.resolve(AssessmentRepository),
             c.resolve(ReportRepository),
             c.resolve(ReportGeneratorPort),
-            c.resolve(EventPublisher),
-            c.resolve(AuditPublisher),
+            ai=c.resolve(AIPort),
+            events=c.resolve(EventPublisher),
+            audit=c.resolve(AuditPublisher),
         ),
     )
     container.register_factory(

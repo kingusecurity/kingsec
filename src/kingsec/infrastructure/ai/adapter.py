@@ -68,6 +68,30 @@ class AIProviderAdapter(AIPort):
             AIError: If the provider is unreachable, unauthenticated, or returns
                 an unusable response.
         """
+        enrichment = self._enrich(finding)
+        return self._to_recommendation(finding, enrichment)
+
+    def explain_business_risk(self, finding: Finding) -> str:
+        """Return a plain-language, business-risk explanation of ``finding``.
+
+        Args:
+            finding: The finding to explain.
+
+        Returns:
+            Prose combining the AI's plain-language explanation and business-
+            impact framing (whichever parts the response actually included).
+
+        Raises:
+            AIError: If the provider is unreachable, unauthenticated, or returns
+                an unusable response.
+        """
+        enrichment = self._enrich(finding)
+        parts = [p for p in (enrichment.explanation, enrichment.business_impact) if p]
+        return "\n\n".join(parts) if parts else f"The AI provider returned no explanation for {finding.title!r}."
+
+    def _enrich(self, finding: Finding) -> Enrichment:
+        """Call the provider and parse its response for ``finding`` (shared by
+        ``recommend()`` and ``explain_business_risk()``)."""
         api_key = self._require_api_key()
         base_url = self._settings.base_url or self._provider.default_base_url
         model = self._settings.model
@@ -89,7 +113,7 @@ class AIProviderAdapter(AIPort):
         text = self._provider.extract_text(response)
         enrichment = self._parser.parse(text)
         _logger.info("ai enrichment received", confidence=enrichment.confidence)
-        return self._to_recommendation(finding, enrichment)
+        return enrichment
 
     def _require_api_key(self) -> str:
         """Return the secret API key value, or raise if none is configured."""

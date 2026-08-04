@@ -33,6 +33,15 @@ class AIPort(ABC):
     def recommend(self, finding: Finding) -> Recommendation:
         """Return an AI-generated remediation recommendation for ``finding``."""
 
+    @abstractmethod
+    def explain_business_risk(self, finding: Finding) -> str:
+        """Return a plain-language, business-risk explanation of ``finding``.
+
+        Distinct from ``recommend()``: this is prose for a non-technical
+        reader (what the finding means for the business), not remediation
+        guidance.
+        """
+
 
 class ReportGeneratorPort(ABC):
     """Renders a domain report into a deliverable artifact (PDF/HTML/etc.)."""

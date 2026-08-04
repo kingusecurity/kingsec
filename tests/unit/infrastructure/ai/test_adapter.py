@@ -84,6 +84,36 @@ class TestRecommend:
             adapter.recommend(_finding())
 
 
+class TestExplainBusinessRisk:
+    def test_combines_explanation_and_business_impact(self) -> None:
+        adapter = _adapter(
+            transport_from(lambda r: openai_response(VALID_ENRICHMENT)),
+            AISettings(provider="openai", api_key=SecretStr("k"), base_url="http://t"),
+        )
+        explanation = adapter.explain_business_risk(_finding())
+        assert "The parameter is injectable." in explanation
+        assert "Full data exfiltration is possible." in explanation
+        # Distinct from recommend(): remediation text does not appear here.
+        assert "parameterised queries" not in explanation
+
+    def test_missing_api_key_raises(self) -> None:
+        adapter = _adapter(
+            transport_from(lambda r: openai_response(VALID_ENRICHMENT)),
+            AISettings(provider="openai", base_url="http://t"),  # no api_key
+        )
+        with pytest.raises(AIAuthenticationError):
+            adapter.explain_business_risk(_finding())
+
+    def test_falls_back_when_response_has_neither_field(self) -> None:
+        empty = {**VALID_ENRICHMENT, "explanation": "", "business_impact": ""}
+        adapter = _adapter(
+            transport_from(lambda r: openai_response(empty)),
+            AISettings(provider="openai", api_key=SecretStr("k"), base_url="http://t"),
+        )
+        explanation = adapter.explain_business_risk(_finding())
+        assert "no explanation" in explanation.lower()
+
+
 class TestProviderSelectionFromConfig:
     def test_anthropic_config_uses_anthropic_shape(self) -> None:
         captured: dict = {}
