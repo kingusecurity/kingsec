@@ -5,6 +5,7 @@ Exercises every public method against a real SQLite database.
 
 from __future__ import annotations
 
+import dataclasses
 from datetime import UTC, datetime
 
 import pytest
@@ -204,6 +205,39 @@ class TestMapping:
         for (sev_a, cnt_a), (sev_b, cnt_b) in zip(loaded.severity_counts, report.severity_counts, strict=False):
             assert sev_a == sev_b
             assert cnt_a == cnt_b
+
+    def test_round_trip_preserves_authorization_metadata(
+        self, repo: SQLAlchemyReportRepository, session: Session
+    ) -> None:
+        report = make_report()
+        repo.save(report)
+        session.flush()
+
+        loaded = repo.get(AssessmentId(report.assessment_id))
+        assert loaded.authorized_by == "tester"
+        assert loaded.scope == "*"
+
+    def test_round_trip_preserves_ai_explanations(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
+        report = make_report()
+        enriched_entries = tuple(
+            dataclasses.replace(e, ai_explanation=f"Business risk for {e.title}") for e in report.entries
+        )
+        enriched = dataclasses.replace(report, entries=enriched_entries, ai_enabled=True)
+        repo.save(enriched)
+        session.flush()
+
+        loaded = repo.get(AssessmentId(report.assessment_id))
+        assert loaded.ai_enabled is True
+        assert loaded.entries[0].ai_explanation == f"Business risk for {report.entries[0].title}"
+
+    def test_report_without_ai_defaults_to_disabled(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
+        report = make_report()
+        repo.save(report)
+        session.flush()
+
+        loaded = repo.get(AssessmentId(report.assessment_id))
+        assert loaded.ai_enabled is False
+        assert all(e.ai_explanation is None for e in loaded.entries)
 
     def test_round_trip_preserves_generated_at(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
         generated_at = datetime(2025, 6, 15, 14, 30, 0, 123456, tzinfo=UTC)

@@ -103,10 +103,36 @@ class InMemoryReportRepository(ReportRepository):
         offset: int = 0,
         order_by: str = "generated_at",
         order_dir: str = "desc",
+        search: str | None = None,
+        severity: str | None = None,
+        target: str | None = None,
         requesting_user: str = "",
         is_admin: bool = False,
     ) -> tuple[list[ReportProjection], int]:
-        return [], 0
+        # Ownership filtering isn't modeled here (Report has no owner field;
+        # the real adapter joins through Assessment) — these tests exercise
+        # GenerateReport's own logic, not the ownership boundary, which has
+        # its own integration test coverage against the real repository.
+        reports = list(self._store.values())
+        if target is not None:
+            reports = [r for r in reports if r.target == target]
+        reports.sort(key=lambda r: r.generated_at, reverse=(order_dir == "desc"))
+        total = len(reports)
+        page = reports[offset : offset + limit]
+        projections = [
+            ReportProjection(
+                assessment_id=r.assessment_id,
+                target=r.target,
+                generated_at=r.generated_at.isoformat(),
+                verdict_headline=r.verdict.headline,
+                verdict_highest_severity=(r.verdict.highest_severity.name if r.verdict.highest_severity else None),
+                verdict_action_required=r.verdict.action_required,
+                total_findings=r.total_findings,
+                executive_score=r.executive_score,
+            )
+            for r in page
+        ]
+        return projections, total
 
     def count(self) -> int:
         return 0
@@ -133,9 +159,15 @@ class StubAI(AIPort):
             priority=finding.severity,
         )
 
+    def explain_business_risk(self, finding: Finding) -> str:
+        return f"AI-generated business-risk explanation for {finding.title}."
+
 
 class FailingAI(AIPort):
     def recommend(self, finding: Finding) -> Recommendation:
+        raise RuntimeError("AI provider unavailable")
+
+    def explain_business_risk(self, finding: Finding) -> str:
         raise RuntimeError("AI provider unavailable")
 
 

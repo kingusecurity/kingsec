@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import pytest
 from tests.unit.application.conftest import (
+    FailingAI,
     InMemoryAssessmentRepository,
     InMemoryReportRepository,
+    StubAI,
     StubReportGenerator,
     StubScanner,
     make_findings,
@@ -82,6 +84,83 @@ class TestGenerateReport:
         assert response.artifact_bytes > 0
         # The snapshot was persisted for later retrieval.
         assert reports.get(assessment.id).total_findings == 2
+
+    def test_no_ai_port_leaves_report_unenriched(
+        self,
+        assessments: InMemoryAssessmentRepository,
+        reports: InMemoryReportRepository,
+        generator: StubReportGenerator,
+    ) -> None:
+        assessment = _completed(assessments)
+        GenerateReport(assessments, reports, generator).execute(GenerateReportRequest(str(assessment.id), is_admin=True))
+
+        report = reports.get(assessment.id)
+        assert report.ai_enabled is False
+        assert all(entry.ai_explanation is None for entry in report.entries)
+
+    def test_ai_port_enriches_every_entry(
+        self,
+        assessments: InMemoryAssessmentRepository,
+        reports: InMemoryReportRepository,
+        generator: StubReportGenerator,
+    ) -> None:
+        assessment = _completed(assessments)
+        GenerateReport(assessments, reports, generator, ai=StubAI()).execute(
+            GenerateReportRequest(str(assessment.id), is_admin=True)
+        )
+
+        report = reports.get(assessment.id)
+        assert report.ai_enabled is True
+        assert all(entry.ai_explanation is not None for entry in report.entries)
+
+    def test_failing_ai_degrades_gracefully(
+        self,
+        assessments: InMemoryAssessmentRepository,
+        reports: InMemoryReportRepository,
+        generator: StubReportGenerator,
+    ) -> None:
+        # A failing AI provider must never break report generation — same
+        # best-effort contract as scan-time enrichment in submit_assessment.py.
+        assessment = _completed(assessments)
+        response = GenerateReport(assessments, reports, generator, ai=FailingAI()).execute(
+            GenerateReportRequest(str(assessment.id), is_admin=True)
+        )
+        assert response.total_findings == 2
+
+        report = reports.get(assessment.id)
+        assert report.ai_enabled is True  # a provider WAS configured...
+        assert all(entry.ai_explanation is None for entry in report.entries)  # ...but every call failed
+
+    def test_first_report_for_a_target_has_no_history(
+        self,
+        assessments: InMemoryAssessmentRepository,
+        reports: InMemoryReportRepository,
+        generator: StubReportGenerator,
+    ) -> None:
+        assessment = _completed(assessments)
+        GenerateReport(assessments, reports, generator).execute(GenerateReportRequest(str(assessment.id), is_admin=True))
+
+        assert reports.get(assessment.id).history == ()
+
+    def test_second_report_for_same_target_sees_prior_score(
+        self,
+        assessments: InMemoryAssessmentRepository,
+        reports: InMemoryReportRepository,
+        generator: StubReportGenerator,
+    ) -> None:
+        # _completed() always targets "10.0.0.5" — two calls give two
+        # different assessments against the same target, exactly the
+        # same-target-different-assessment shape history is meant to chart.
+        first = _completed(assessments)
+        GenerateReport(assessments, reports, generator).execute(GenerateReportRequest(str(first.id), is_admin=True))
+        first_score = reports.get(first.id).executive_score
+
+        second = _completed(assessments)
+        GenerateReport(assessments, reports, generator).execute(GenerateReportRequest(str(second.id), is_admin=True))
+
+        history = reports.get(second.id).history
+        assert len(history) == 1
+        assert history[0].executive_score == first_score
 
     def test_report_for_incomplete_assessment_raises(
         self,

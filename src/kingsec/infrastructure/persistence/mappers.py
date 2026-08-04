@@ -13,6 +13,7 @@ restores the timezone-aware value the domain requires.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from kingsec.application.jobs import ScanJob
 from kingsec.application.ports.repositories import Asset
@@ -26,6 +27,7 @@ from kingsec.domain import (
     FindingId,
     FindingStatus,
     FindingSummary,
+    HistoryPoint,
     Recommendation,
     Report,
     ScannerId,
@@ -160,14 +162,37 @@ def report_to_orm(report: Report) -> ReportORM:
             {
                 "finding_id": entry.finding_id,
                 "title": entry.title,
+                "description": entry.description,
                 "severity": entry.severity.name,
                 "status": entry.status.value,
-                "evidence_count": entry.evidence_count,
-                "recommendation_count": entry.recommendation_count,
+                "evidence": [
+                    {
+                        "summary": e.summary,
+                        "detail": e.detail,
+                        "collected_at": e.collected_at.isoformat(),
+                    }
+                    for e in entry.evidence
+                ],
+                "recommendations": [
+                    {
+                        "title": r.title,
+                        "description": r.description,
+                        "priority": r.priority.name,
+                    }
+                    for r in entry.recommendations
+                ],
+                "ai_explanation": entry.ai_explanation,
             }
             for entry in report.entries
         ],
         severity_counts=[[severity.name, count] for severity, count in report.severity_counts],
+        ai_enabled=report.ai_enabled,
+        history=[
+            {"generated_at": h.generated_at.isoformat(), "executive_score": h.executive_score}
+            for h in report.history
+        ],
+        authorized_by=report.authorized_by,
+        scope=report.scope,
     )
 
 
@@ -236,6 +261,43 @@ def assessment_to_domain(orm: AssessmentORM) -> Assessment:
     return a
 
 
+def _finding_summary_from_json(entry: dict[str, Any]) -> FindingSummary:
+    """Rebuild a FindingSummary from its stored JSON shape.
+
+    Tolerant of reports persisted before evidence/recommendation content was
+    captured (older rows only have ``evidence_count``/``recommendation_count``
+    ints, no ``description``/``evidence``/``recommendations`` keys) — those
+    degrade to empty content rather than raising, since there is genuinely no
+    richer data to recover for them.
+    """
+    evidence = tuple(
+        Evidence(
+            summary=e["summary"],
+            detail=e["detail"],
+            collected_at=datetime.fromisoformat(e["collected_at"]),
+        )
+        for e in entry.get("evidence", [])
+    )
+    recommendations = tuple(
+        Recommendation(
+            title=r["title"],
+            description=r["description"],
+            priority=Severity[r["priority"]],
+        )
+        for r in entry.get("recommendations", [])
+    )
+    return FindingSummary(
+        finding_id=entry["finding_id"],
+        title=entry["title"],
+        description=entry.get("description", ""),
+        severity=Severity[entry["severity"]],
+        status=FindingStatus(entry["status"]),
+        evidence=evidence,
+        recommendations=recommendations,
+        ai_explanation=entry.get("ai_explanation"),
+    )
+
+
 def report_to_domain(orm: ReportORM) -> Report:
     """Rebuild a domain Report snapshot from a ReportORM row."""
     verdict = Verdict(
@@ -243,18 +305,15 @@ def report_to_domain(orm: ReportORM) -> Report:
         headline=orm.verdict_headline,
         action_required=orm.verdict_action_required,
     )
-    entries = tuple(
-        FindingSummary(
-            finding_id=entry["finding_id"],
-            title=entry["title"],
-            severity=Severity[entry["severity"]],
-            status=FindingStatus(entry["status"]),
-            evidence_count=entry["evidence_count"],
-            recommendation_count=entry["recommendation_count"],
-        )
-        for entry in orm.entries
-    )
+    entries = tuple(_finding_summary_from_json(entry) for entry in orm.entries)
     severity_counts = tuple((Severity[name], count) for name, count in orm.severity_counts)
+    history = tuple(
+        HistoryPoint(
+            generated_at=datetime.fromisoformat(h["generated_at"]),
+            executive_score=h["executive_score"],
+        )
+        for h in (orm.history or [])
+    )
     return Report(
         assessment_id=orm.assessment_id,
         target=orm.target,
@@ -262,6 +321,10 @@ def report_to_domain(orm: ReportORM) -> Report:
         verdict=verdict,
         entries=entries,
         severity_counts=severity_counts,
+        ai_enabled=orm.ai_enabled,
+        history=history,
+        authorized_by=orm.authorized_by,
+        scope=orm.scope,
     )
 
 

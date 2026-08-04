@@ -134,6 +134,14 @@ class ReportORM(Base):
     # entries: list of dicts; severity_counts: list of [severity_name, count].
     entries: Mapped[list[Any]] = mapped_column(JSON, nullable=False)
     severity_counts: Mapped[list[Any]] = mapped_column(JSON, nullable=False)
+    # Whether an AI provider was configured/available at generation time.
+    ai_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Prior reports for the same target (risk-over-time chart): list of
+    # {"generated_at": iso str, "executive_score": float}, oldest first.
+    history: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    # Cover-page authorization metadata.
+    authorized_by: Mapped[str] = mapped_column(String, nullable=False, default="")
+    scope: Mapped[str] = mapped_column(String, nullable=False, default="")
 
 
 class UserORM(Base):
