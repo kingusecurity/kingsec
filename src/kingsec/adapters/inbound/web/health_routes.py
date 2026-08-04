@@ -113,15 +113,15 @@ def performance_health(request: Request) -> dict[str, Any]:
         "uptime_seconds": metrics_data.uptime_seconds,
     }
     try:
-        from kingsec.infrastructure.cache.memory_cache import MemoryCacheService
+        from kingsec.application.ports import CacheMetricsPort
 
         app: Application = get_application(request)
-        cache = app.resolve(MemoryCacheService)
+        cache_stats = app.resolve(CacheMetricsPort).stats()
         result["cache"] = {
-            "size": cache.size,
-            "hit_ratio": round(cache.hit_ratio, 4),
-            "hits": cache.hits,
-            "misses": cache.misses,
+            "size": cache_stats.size,
+            "hit_ratio": round(cache_stats.hit_ratio, 4),
+            "hits": cache_stats.hits,
+            "misses": cache_stats.misses,
         }
     except Exception:
         result["cache"] = {"status": "unavailable"}
