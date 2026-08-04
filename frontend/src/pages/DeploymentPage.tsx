@@ -1,4 +1,5 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
 import { PageContainer, PageHeader } from '@/components/layout/PageContainer'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -176,6 +177,8 @@ function HealthSection() {
 }
 
 function UpgradeSection() {
+  const navigate = useNavigate()
+
   return (
     <Card className="p-4">
       <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Upgrade</h3>
@@ -186,7 +189,7 @@ function UpgradeSection() {
         <Button variant="outline" size="sm" disabled>
           Check for Updates
         </Button>
-        <Button variant="outline" size="sm" disabled>
+        <Button variant="outline" size="sm" onClick={() => navigate('/release-audit')}>
           View Changelog
         </Button>
       </div>
