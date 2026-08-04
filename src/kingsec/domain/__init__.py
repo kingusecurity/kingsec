@@ -85,7 +85,7 @@ from .rate_limit import (
     RateLimitKeyType,
     RateLimitPolicy,
 )
-from .report import FindingSummary, Report, Verdict
+from .report import FindingSummary, HistoryPoint, Report, Verdict
 from .scanner import (
     OutputFormat,
     PluginAvailability,
@@ -174,6 +174,7 @@ __all__ = [
     "FindingSummary",
     "HealthCheck",
     "HealthStatus",
+    "HistoryPoint",
     "IllegalStateTransition",
     "IntegrationConfig",
     "IntegrationStatus",
