@@ -1086,8 +1086,6 @@ async def get_report(
     repo: ReportRepository = app.resolve(ReportRepository)
     report = repo.get(AssessmentId(assessment_id))
     sc = {s.name: report.count_for(s) for s in Severity}
-    penalty = sc.get("CRITICAL", 0) * 25 + sc.get("HIGH", 0) * 10 + sc.get("MEDIUM", 0) * 5 + sc.get("LOW", 0) * 2
-    score = round(max(0.0, min(100.0, 100.0 - penalty)), 1)
     return schemas.ReportDetailResponse(
         assessment_id=report.assessment_id,
         target=report.target,
@@ -1101,7 +1099,7 @@ async def get_report(
         medium_count=sc.get("MEDIUM", 0),
         low_count=sc.get("LOW", 0),
         info_count=sc.get("INFORMATIONAL", 0),
-        executive_score=score,
+        executive_score=report.executive_score,
         format="pdf",
         file_size=0,
     )

@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 
 from kingsec.application import ReportNotFoundError, ReportRepository
 from kingsec.application.ports.repositories import ReportProjection
-from kingsec.domain import AssessmentId, Report
+from kingsec.domain import AssessmentId, Report, Severity
+from kingsec.domain.report import compute_executive_score
 from kingsec.infrastructure.persistence.mappers import report_to_domain, report_to_orm
 from kingsec.infrastructure.persistence.models import AssessmentORM, ReportORM
 
@@ -148,10 +149,8 @@ class SQLAlchemyReportRepository(ReportRepository):
 
     @staticmethod
     def _compute_score(severity_counts: dict[str, int]) -> float:
-        penalty = (
-            severity_counts.get("CRITICAL", 0) * 25
-            + severity_counts.get("HIGH", 0) * 10
-            + severity_counts.get("MEDIUM", 0) * 5
-            + severity_counts.get("LOW", 0) * 2
-        )
-        return round(max(0.0, min(100.0, 100.0 - penalty)), 1)
+        # Delegates to the domain's single source of truth for this formula
+        # (kingsec.domain.report.compute_executive_score) so the report list/
+        # detail API and the PDF executive summary can never disagree.
+        counts = tuple((Severity[label], count) for label, count in severity_counts.items() if label in Severity.__members__)
+        return compute_executive_score(counts)
