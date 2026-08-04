@@ -4,20 +4,22 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from kingsec.application.ports.outbound import AuditPublisher
+from kingsec.application.ports.outbound import (
+    AuditPublisher,
+    EmailNotificationPort,
+    SIEMExportPort,
+    TicketingPort,
+    WebhookDeliveryPort,
+)
 from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.domain.integration import IntegrationType, WebhookEventType
-from kingsec.infrastructure.config.models import IntegrationSettings
-from kingsec.infrastructure.integrations.email_service import EmailNotificationService
-from kingsec.infrastructure.integrations.siem_service import SIEMExportService
-from kingsec.infrastructure.integrations.ticketing_service import TicketingService
-from kingsec.infrastructure.integrations.webhook_service import WebhookDeliveryService
 
 from .auth import require_admin
 from .dependencies import get_application
 
 if TYPE_CHECKING:
     from kingsec.bootstrap.application import Application
+    from kingsec.infrastructure.config.models import IntegrationSettings
 
 router = APIRouter(prefix="/api/v1/integrations", tags=["integrations"], dependencies=[Depends(require_admin)])
 
@@ -94,12 +96,12 @@ async def test_integration(integration_type: str, request: Request) -> dict[str,
     success = False
 
     if itype in webhook_types:
-        svc: Any = _resolve(request, WebhookDeliveryService)
+        svc: Any = _resolve(request, WebhookDeliveryPort)
         test_payload = {"test": True, "message": "KingSec integration test"}
         records = svc.deliver(WebhookEventType.ASSESSMENT_STARTED, test_payload)
         success = any(r.status.value == "delivered" for r in records)
     elif itype == IntegrationType.EMAIL:
-        svc = _resolve(request, EmailNotificationService)
+        svc = _resolve(request, EmailNotificationPort)
         record = svc.send_raw(
             to_addresses=[settings.smtp_from_address] if settings.smtp_from_address else ["test@localhost"],
             subject="KingSec Integration Test",
@@ -107,11 +109,11 @@ async def test_integration(integration_type: str, request: Request) -> dict[str,
         )
         success = record.status.value == "delivered"
     elif itype in {IntegrationType.JIRA, IntegrationType.GITHUB_ISSUES, IntegrationType.GITLAB_ISSUES}:
-        svc = _resolve(request, TicketingService)
+        svc = _resolve(request, TicketingPort)
         ref = svc.create_ticket(itype, "test", "KingSec Integration Test", "Integration test", "info", "test-target")
         success = ref is not None
     elif itype in {IntegrationType.SPLUNK, IntegrationType.SENTINEL, IntegrationType.ELASTIC}:
-        svc = _resolve(request, SIEMExportService)
+        svc = _resolve(request, SIEMExportPort)
         test_finding: list[dict[str, Any]] = [{"finding_id": "test", "title": "Test Finding", "severity": "informational"}]
         results = svc.export_findings(test_finding, [itype])
         success = any(r.success for r in results)
@@ -129,7 +131,7 @@ async def test_integration(integration_type: str, request: Request) -> dict[str,
 
 @router.get("/webhook/history")
 async def webhook_history(limit: int = 50, request: Request = None) -> dict[str, Any]:  # type: ignore[assignment]
-    svc: Any = _resolve(request, WebhookDeliveryService)
+    svc: Any = _resolve(request, WebhookDeliveryPort)
     records = svc.get_history(limit=limit)
     return {
         "records": [
@@ -150,7 +152,7 @@ async def webhook_history(limit: int = 50, request: Request = None) -> dict[str,
 
 @router.get("/email/history")
 async def email_history(limit: int = 50, request: Request = None) -> dict[str, Any]:  # type: ignore[assignment]
-    svc: Any = _resolve(request, EmailNotificationService)
+    svc: Any = _resolve(request, EmailNotificationPort)
     records = svc.get_history(limit=limit)
     return {
         "records": [
@@ -169,7 +171,7 @@ async def email_history(limit: int = 50, request: Request = None) -> dict[str, A
 
 @router.get("/tickets")
 async def list_tickets(finding_id: str | None = None, request: Request = None) -> dict[str, Any]:  # type: ignore[assignment]
-    svc: Any = _resolve(request, TicketingService)
+    svc: Any = _resolve(request, TicketingPort)
     tickets = svc.get_tickets(finding_id=finding_id)
     return {
         "tickets": [

@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from typing import Any
 from urllib.request import Request, urlopen
 
-from kingsec.application.ports.outbound import AuditPublisher
+from kingsec.application.ports.outbound import AuditPublisher, SIEMExportPort
 from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.domain.integration import IntegrationType, SIEMBatchResult
 from kingsec.infrastructure.config.models import IntegrationSettings
@@ -18,7 +18,7 @@ from kingsec.infrastructure.notifications.url_validator import SSRFError, valida
 logger = get_logger("kingsec.infrastructure.integrations.siem")
 
 
-class SIEMExportService:
+class SIEMExportService(SIEMExportPort):
     def __init__(self, settings: IntegrationSettings, audit: AuditPublisher) -> None:
         self._settings = settings
         self._audit = audit

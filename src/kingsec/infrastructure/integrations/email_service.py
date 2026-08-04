@@ -7,7 +7,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any
 
-from kingsec.application.ports.outbound import AuditPublisher
+from kingsec.application.ports.outbound import AuditPublisher, EmailNotificationPort
 from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.domain.integration import DeliveryRecord, DeliveryStatus, IntegrationType
 from kingsec.infrastructure.config.models import IntegrationSettings
@@ -66,7 +66,7 @@ PLAIN_TEMPLATES: dict[str, str] = {
 }
 
 
-class EmailNotificationService:
+class EmailNotificationService(EmailNotificationPort):
     def __init__(self, settings: IntegrationSettings, audit: AuditPublisher) -> None:
         self._settings = settings
         self._audit = audit

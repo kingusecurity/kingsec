@@ -8,7 +8,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from kingsec.application.ports.outbound import AuditPublisher
+from kingsec.application.ports.outbound import AuditPublisher, WebhookDeliveryPort
 from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.domain.integration import (
     DeliveryRecord,
@@ -26,7 +26,7 @@ _RETRY_DELAYS = [10, 30, 60, 180, 300]
 _MAX_ATTEMPTS = len(_RETRY_DELAYS) + 1
 
 
-class WebhookDeliveryService:
+class WebhookDeliveryService(WebhookDeliveryPort):
     def __init__(
         self,
         settings: IntegrationSettings,
