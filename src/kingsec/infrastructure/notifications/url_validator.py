@@ -19,6 +19,8 @@ import socket
 from collections.abc import Iterable
 from urllib.parse import urlparse
 
+from kingsec.application.ports import UnsafeURLError, URLValidationPort
+
 # ---------------------------------------------------------------------------
 # Private / dangerous IP ranges
 # ---------------------------------------------------------------------------
@@ -98,3 +100,21 @@ def validate_url(url: str, *, allowlist: Iterable[str] | None = None) -> None:
             raise SSRFError(f"URL resolves to reserved address {raw_ip}: {url!r}")
         if ip.is_unspecified:
             raise SSRFError(f"URL resolves to unspecified address {raw_ip}: {url!r}")
+
+
+class SSRFURLValidator(URLValidationPort):
+    """Implements ``URLValidationPort`` using this module's SSRF checks.
+
+    Translates the infrastructure-specific ``SSRFError`` into the port-owned
+    ``UnsafeURLError``, so callers in the application layer never need to
+    import anything from ``kingsec.infrastructure``.
+    """
+
+    def __init__(self, *, allowlist: Iterable[str] | None = None) -> None:
+        self._allowlist = list(allowlist) if allowlist is not None else None
+
+    def validate(self, url: str) -> None:
+        try:
+            validate_url(url, allowlist=self._allowlist)
+        except SSRFError as exc:
+            raise UnsafeURLError(str(exc)) from exc

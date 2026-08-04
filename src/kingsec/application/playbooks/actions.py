@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from kingsec.application.ports import UnsafeURLError, URLValidationPort
 from kingsec.domain.playbook import (
     ActionExecutionLog,
     PlaybookAction,
@@ -36,6 +37,7 @@ class ActionExecutor:
         asset: AssetPort | None = None,
         alert: AlertPort | None = None,
         report_generator: ReportGeneratorPort | None = None,
+        url_validator: URLValidationPort | None = None,
     ) -> None:
         self._notification = notification
         self._ticketing = ticketing
@@ -46,6 +48,7 @@ class ActionExecutor:
         self._asset = asset
         self._alert = alert
         self._report_generator = report_generator
+        self._url_validator = url_validator
 
     def execute(
         self,
@@ -197,11 +200,12 @@ class ActionExecutor:
         url = config.get("url", "")
         if not url:
             return "No webhook URL configured"
-        from kingsec.infrastructure.notifications.url_validator import SSRFError, validate_url
+        if not self._url_validator:
+            return "URL validation service not available"
 
         try:
-            validate_url(url)
-        except SSRFError as exc:
+            self._url_validator.validate(url)
+        except UnsafeURLError as exc:
             raise RuntimeError(f"Webhook URL blocked by SSRF protection: {exc}") from exc
         payload = config.get("payload", {}).copy()
         payload.update(ctx)

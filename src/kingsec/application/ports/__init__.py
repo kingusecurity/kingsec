@@ -10,8 +10,11 @@ from .outbound.api_key_hasher import ApiKeyHasher
 from .outbound.api_key_repository import ApiKeyRepository
 from .outbound.audit_event_repository import AuditEventRepository
 from .outbound.audit_publisher import AuditPublisher
+from .outbound.cache_metrics import CacheMetricsPort, CacheStats
 from .outbound.clock_port import ClockPort
 from .outbound.dashboard_repository import DashboardRepositoryPort
+from .outbound.deployment_operations import DeploymentOperationsPort
+from .outbound.email_notification import EmailNotificationPort
 from .outbound.encryption_service import EncryptionServicePort
 from .outbound.event_publisher import EventPublisher
 from .outbound.job_runner import JobRunner
@@ -28,10 +31,14 @@ from .outbound.schedule_repository import ScheduleRepositoryPort
 from .outbound.scheduler_service import SchedulerServicePort
 from .outbound.secret_provider import SecretProviderPort
 from .outbound.session_repository import SessionRepository
+from .outbound.siem_export import SIEMExportPort
 from .outbound.template_renderer import TemplateRendererPort
+from .outbound.ticketing import TicketingPort
 from .outbound.token_service import TokenClaims, TokenExpiredError, TokenInvalidError, TokenService
 from .outbound.totp_service import TotpServicePort
+from .outbound.url_validation import UnsafeURLError, URLValidationPort
 from .outbound.user_repository import UserRepository
+from .outbound.webhook_delivery import WebhookDeliveryPort
 from .outbound.worker_service import WorkerServicePort
 from .pipeline_service import PipelineServicePort
 from .plugin_service import PluginServicePort
@@ -63,8 +70,12 @@ __all__ = [
     "AuditEventRepository",
     "AuditPublisher",
     "BackupServicePort",
+    "CacheMetricsPort",
+    "CacheStats",
     "ClockPort",
     "DashboardRepositoryPort",
+    "DeploymentOperationsPort",
+    "EmailNotificationPort",
     "EncryptionServicePort",
     "EventPublisher",
     "JobRepositoryPort",
@@ -87,6 +98,7 @@ __all__ = [
     "ReportGeneratorPort",
     "ReportRepository",
     "ReportServicePort",
+    "SIEMExportPort",
     "ScanRepositoryPort",
     "ScannerExecutor",
     "ScannerPluginPort",
@@ -98,13 +110,17 @@ __all__ = [
     "ServiceAPI",
     "SessionRepository",
     "TemplateRendererPort",
+    "TicketingPort",
     "TokenClaims",
     "TokenExpiredError",
     "TokenInvalidError",
     "TokenService",
     "TotpServicePort",
+    "URLValidationPort",
     "UnitOfWork",
     "UnitOfWorkFactory",
+    "UnsafeURLError",
     "UserRepository",
+    "WebhookDeliveryPort",
     "WorkerServicePort",
 ]

@@ -7,8 +7,11 @@ from .backup_compression import BackupCompressionPort
 from .backup_encryption import BackupEncryptionPort
 from .backup_repository import BackupRepositoryPort
 from .backup_storage import BackupStoragePort
+from .cache_metrics import CacheMetricsPort, CacheStats
 from .clock_port import ClockPort
 from .dashboard_repository import DashboardRepositoryPort
+from .deployment_operations import DeploymentOperationsPort
+from .email_notification import EmailNotificationPort
 from .encryption_service import EncryptionServicePort
 from .event_publisher import EventPublisher
 from .health_repository import HealthRepositoryPort
@@ -21,6 +24,7 @@ from .metrics_collector import MetricsCollectorPort
 from .notification_repository import NotificationRepositoryPort
 from .notification_sender import NotificationSenderPort
 from .password_hasher import PasswordHasher
+from .performance_metrics import PerformanceMetricsPort
 from .pipeline_orchestrator import PipelineOrchestratorPort
 from .pipeline_repository import PipelineRepositoryPort
 from .plugin_installer import PluginInstallerPort
@@ -34,10 +38,14 @@ from .scheduler_policy import SchedulerPolicyPort
 from .scheduler_service import SchedulerServicePort
 from .secret_provider import SecretProviderPort
 from .session_repository import SessionRepository
+from .siem_export import SIEMExportPort
 from .system_monitor import SystemMonitorPort
 from .template_renderer import TemplateRendererPort
+from .ticketing import TicketingPort
 from .token_service import TokenClaims, TokenExpiredError, TokenInvalidError, TokenService
+from .url_validation import UnsafeURLError, URLValidationPort
 from .user_repository import UserRepository
+from .webhook_delivery import WebhookDeliveryPort
 from .worker_service import WorkerServicePort
 
 __all__ = [
@@ -48,8 +56,12 @@ __all__ = [
     "BackupEncryptionPort",
     "BackupRepositoryPort",
     "BackupStoragePort",
+    "CacheMetricsPort",
+    "CacheStats",
     "ClockPort",
     "DashboardRepositoryPort",
+    "DeploymentOperationsPort",
+    "EmailNotificationPort",
     "EncryptionServicePort",
     "EventPublisher",
     "HealthRepositoryPort",
@@ -62,6 +74,7 @@ __all__ = [
     "NotificationRepositoryPort",
     "NotificationSenderPort",
     "PasswordHasher",
+    "PerformanceMetricsPort",
     "PipelineOrchestratorPort",
     "PipelineRepositoryPort",
     "PluginInstallerPort",
@@ -70,6 +83,7 @@ __all__ = [
     "PluginValidatorPort",
     "QueueRepositoryPort",
     "RateLimiterPort",
+    "SIEMExportPort",
     "ScheduleRepositoryPort",
     "SchedulerPolicyPort",
     "SchedulerServicePort",
@@ -77,10 +91,14 @@ __all__ = [
     "SessionRepository",
     "SystemMonitorPort",
     "TemplateRendererPort",
+    "TicketingPort",
     "TokenClaims",
     "TokenExpiredError",
     "TokenInvalidError",
     "TokenService",
+    "URLValidationPort",
+    "UnsafeURLError",
     "UserRepository",
+    "WebhookDeliveryPort",
     "WorkerServicePort",
 ]

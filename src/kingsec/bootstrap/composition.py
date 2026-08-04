@@ -374,7 +374,13 @@ def _register_adapters(
 
 
 def _register_integration_services(container: Container, settings: Any) -> None:
-    from kingsec.application.ports.outbound import AuditPublisher
+    from kingsec.application.ports.outbound import (
+        AuditPublisher,
+        EmailNotificationPort,
+        SIEMExportPort,
+        TicketingPort,
+        WebhookDeliveryPort,
+    )
     from kingsec.infrastructure.integrations.email_service import EmailNotificationService
     from kingsec.infrastructure.integrations.siem_service import SIEMExportService
     from kingsec.infrastructure.integrations.ticketing_service import TicketingService
@@ -396,6 +402,10 @@ def _register_integration_services(container: Container, settings: Any) -> None:
     container.register_factory(EmailNotificationService, _make_email)
     container.register_factory(TicketingService, _make_ticketing)
     container.register_factory(SIEMExportService, _make_siem)
+    container.register_factory(WebhookDeliveryPort, lambda c: c.resolve(WebhookDeliveryService))
+    container.register_factory(EmailNotificationPort, lambda c: c.resolve(EmailNotificationService))
+    container.register_factory(TicketingPort, lambda c: c.resolve(TicketingService))
+    container.register_factory(SIEMExportPort, lambda c: c.resolve(SIEMExportService))
 
 
 def _register_organization_repository(container: Container, session_factory: Any) -> None:
@@ -1310,6 +1320,8 @@ def _register_playbook_services(container: Container, session_factory: Any) -> N
         PlaybookRepositoryPort,
     )
     from kingsec.application.playbooks.service import PlaybookService
+    from kingsec.application.ports import URLValidationPort
+    from kingsec.infrastructure.notifications.url_validator import SSRFURLValidator
     from kingsec.infrastructure.persistence.repositories.playbook import (
         SQLAlchemyExecutionHistoryRepository,
         SQLAlchemyPlaybookRepository,
@@ -1321,9 +1333,10 @@ def _register_playbook_services(container: Container, session_factory: Any) -> N
     def _make_hist_repo(_c: Any) -> ExecutionHistoryRepositoryPort:
         return SQLAlchemyExecutionHistoryRepository(session_factory)
 
-    def _make_action_executor(_c: Any) -> ActionExecutor:
-        return ActionExecutor()
+    def _make_action_executor(c: Any) -> ActionExecutor:
+        return ActionExecutor(url_validator=c.resolve(URLValidationPort))
 
+    container.register_instance(URLValidationPort, SSRFURLValidator())
     container.register_factory(PlaybookRepositoryPort, _make_pb_repo)
     container.register_factory(ExecutionHistoryRepositoryPort, _make_hist_repo)
     container.register_factory(ActionExecutor, _make_action_executor)
@@ -1687,7 +1700,10 @@ def _register_backup_services(container: Container, session_factory: Any) -> Non
 
 def _register_performance_services(container: Container) -> None:
     """Register performance, caching, and metrics services."""
+    from kingsec.application.ports import CacheMetricsPort
+    from kingsec.application.ports.outbound.performance_metrics import PerformanceMetricsPort
     from kingsec.infrastructure.cache.memory_cache import MemoryCacheService
+    from kingsec.infrastructure.cache.metrics_adapter import MemoryCacheMetricsAdapter
     from kingsec.infrastructure.config.models import PerformanceSettings
     from kingsec.infrastructure.config.settings import Settings
     from kingsec.infrastructure.monitoring.performance_metrics import PerformanceMetrics
@@ -1706,10 +1722,24 @@ def _register_performance_services(container: Container) -> None:
         ),
     )
 
+    # Adapter-layer access to cache stats (health_routes.py) goes through
+    # this port instead of importing MemoryCacheService directly.
+    container.register_factory(
+        CacheMetricsPort,
+        lambda c: MemoryCacheMetricsAdapter(c.resolve(MemoryCacheService)),
+    )
+
     # Register performance metrics (singleton)
     container.register_factory(
         PerformanceMetrics,
         lambda c: PerformanceMetrics(),
+    )
+
+    # Adapter-layer access (metrics_routes.py) goes through this port
+    # instead of importing PerformanceMetrics directly.
+    container.register_factory(
+        PerformanceMetricsPort,
+        lambda c: c.resolve(PerformanceMetrics),
     )
 
 
@@ -1776,7 +1806,9 @@ def _register_production_services(container: Container, session_factory: Any) ->
 
 def _register_deployment_services(container: Container, settings: Any) -> None:
     """Register diagnostics, upgrade, release-audit and telemetry infrastructure."""
+    from kingsec.application.ports.outbound import DeploymentOperationsPort
     from kingsec.infrastructure.audit.release_audit import ReleaseAuditService
+    from kingsec.infrastructure.deployment.operations import DeploymentOperations
     from kingsec.infrastructure.monitoring.diagnostics import DiagnosticsCollector
     from kingsec.infrastructure.telemetry.product_telemetry import ProductTelemetry
     from kingsec.infrastructure.upgrade.upgrade_service import UpgradeService
@@ -1807,3 +1839,13 @@ def _register_deployment_services(container: Container, settings: Any) -> None:
             ProductTelemetry,
             lambda c: ProductTelemetry(data_dir=data_dir),
         )
+
+    container.register_factory(
+        DeploymentOperationsPort,
+        lambda c: DeploymentOperations(
+            diagnostics=c.resolve(DiagnosticsCollector),
+            upgrade=c.resolve(UpgradeService),
+            release_audit=c.resolve(ReleaseAuditService),
+            telemetry=c.resolve(ProductTelemetry),
+        ),
+    )
