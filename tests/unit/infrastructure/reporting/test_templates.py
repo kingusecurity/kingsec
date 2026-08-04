@@ -240,6 +240,35 @@ class TestVisualElements:
         assert ">0</text>" in chart_section
         assert ">100</text>" in chart_section
 
+    def test_first_point_label_does_not_collide_with_axis_gridline_labels(self) -> None:
+        # Regression test: the first history point always sits at the exact
+        # x-position of the y-axis gridline labels (0/25/50/75/100), so any
+        # purely vertical (above/below) offset for its value label eventually
+        # collides with SOME gridline label — a first attempt at fixing a
+        # collision with "100" just relocated it onto "75" instead, at a
+        # different score. The real fix separates them horizontally.
+        import re
+
+        from kingsec.domain.report import HistoryPoint
+
+        report = build_report()  # own score comes from its CRITICAL+LOW fixture
+        report = dataclasses.replace(
+            report,
+            history=(HistoryPoint(generated_at=report.generated_at, executive_score=100.0),),
+        )
+        html = render_report_html(report)
+        chart_section = html.split('aria-label="Risk score over time chart"')[1].split("</svg>")[0]
+
+        # The first point's label uses text-anchor="start" (placed to the
+        # right of its dot); the axis labels use text-anchor="end" (right-
+        # aligned against the left edge). Their x-positions must be clearly
+        # separated, not just their y-positions.
+        first_point_label = re.search(r'x="([\d.]+)"[^>]*text-anchor="start"[^>]*fill="#0b3d63">100</text>', chart_section)
+        axis_100_label = re.search(r'x="([\d.]+)"[^>]*text-anchor="end"[^>]*fill="#777">100</text>', chart_section)
+        assert first_point_label is not None, "expected the first point's '100' label to use text-anchor=start"
+        assert axis_100_label is not None
+        assert float(first_point_label.group(1)) > float(axis_100_label.group(1)) + 5
+
 
 class TestRiskPrioritization:
     def test_lists_findings_worst_first_with_effort(self) -> None:

@@ -304,11 +304,21 @@ def _risk_over_time_chart(report: Report) -> str:
         )
 
     dots_and_labels = []
-    for (x, y), p in zip(coords, points, strict=True):
-        label_y = y - 8 if y - 8 > top_pad else y + 14
+    for i, ((x, y), p) in enumerate(zip(coords, points, strict=True)):
+        if i == 0:
+            # The first point sits at the same x-position as the y-axis
+            # gridline labels (0/25/50/75/100), which all live in that same
+            # left-edge column — an above/below vertical offset alone always
+            # ends up colliding with SOME gridline label sooner or later
+            # (fixing a collision with "100" just relocated it to "75").
+            # Placing this one label to the right of its dot clears the axis
+            # column entirely, regardless of score.
+            label_x, label_y, anchor = x + 10, y - 6, "start"
+        else:
+            label_x, label_y, anchor = x, (y - 8 if y - 8 > top_pad + 10 else y + 14), "middle"
         dots_and_labels.append(
             f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3" fill="#0b3d63" />'
-            f'<text x="{x:.1f}" y="{label_y:.1f}" font-size="10" text-anchor="middle" '
+            f'<text x="{label_x:.1f}" y="{label_y:.1f}" font-size="10" text-anchor="{anchor}" '
             f'font-weight="700" fill="#0b3d63">{p.executive_score:.0f}</text>'
         )
 
