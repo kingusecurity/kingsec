@@ -7,6 +7,8 @@ import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
+from kingsec.application.ports.outbound.performance_metrics import PerformanceMetricsPort
+
 
 @dataclass(frozen=True)
 class LatencyStats:
@@ -60,7 +62,7 @@ class PerformanceSnapshot:
     uptime_seconds: float = 0.0
 
 
-class PerformanceMetrics:
+class PerformanceMetrics(PerformanceMetricsPort):
     """Thread-safe application performance metrics collector.
 
     Tracks request latency, database latency, cache performance,

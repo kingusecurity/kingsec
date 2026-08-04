@@ -4,7 +4,16 @@ from __future__ import annotations
 
 import pytest
 
+from kingsec.application.ports.outbound.performance_metrics import PerformanceMetricsPort
 from kingsec.infrastructure.monitoring.performance_metrics import PerformanceMetrics
+
+
+class TestPerformanceMetricsPort:
+    def test_is_a_performance_metrics_port(self) -> None:
+        # metrics_routes.py resolves this by PerformanceMetricsPort, not the
+        # concrete class, to avoid an application/adapter -> infrastructure
+        # import-linter violation.
+        assert isinstance(PerformanceMetrics(), PerformanceMetricsPort)
 
 
 class TestPerformanceMetrics:

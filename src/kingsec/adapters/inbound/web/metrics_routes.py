@@ -20,9 +20,9 @@ ADMIN_ONLY = Role.ADMIN
 def _get_metrics(request: Request) -> Any:
     app = get_application(request)
     try:
-        from kingsec.infrastructure.monitoring.performance_metrics import PerformanceMetrics
+        from kingsec.application.ports.outbound.performance_metrics import PerformanceMetricsPort
 
-        return app.resolve(PerformanceMetrics)
+        return app.resolve(PerformanceMetricsPort)
     except Exception:
         return None
 
