@@ -12,7 +12,7 @@ from kingsec.application.ai import (
 )
 from kingsec.domain.assessment import Assessment
 from kingsec.domain.identifiers import AssessmentId
-from kingsec.infrastructure.ai import AIError
+from kingsec.shared.errors import ExternalServiceError
 
 from .auth import CurrentUser, get_current_user
 from .dependencies import get_application
@@ -56,7 +56,7 @@ async def explain_finding(
         raise HTTPException(status_code=404, detail="Finding not found")
     try:
         result = svc.explain(finding)
-    except AIError as e:
+    except ExternalServiceError as e:
         raise HTTPException(status_code=502, detail=str(e)) from None
     return result
 
@@ -77,7 +77,7 @@ async def executive_summary(
         raise HTTPException(status_code=404, detail="Assessment not found")
     try:
         result = svc.generate(assessment)
-    except AIError as e:
+    except ExternalServiceError as e:
         raise HTTPException(status_code=502, detail=str(e)) from None
     return result
 
@@ -98,7 +98,7 @@ async def remediation_plan(
         raise HTTPException(status_code=404, detail="Assessment not found")
     try:
         result = svc.plan(list(assessment.findings))
-    except AIError as e:
+    except ExternalServiceError as e:
         raise HTTPException(status_code=502, detail=str(e)) from None
     return result
 
@@ -121,7 +121,7 @@ async def ai_chat(
         assessment = repo.get(AssessmentId(assessment_id))
     try:
         result = svc.chat(question, history, assessment)
-    except AIError as e:
+    except ExternalServiceError as e:
         raise HTTPException(status_code=502, detail=str(e)) from None
     return result
 
