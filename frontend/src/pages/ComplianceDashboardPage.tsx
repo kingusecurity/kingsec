@@ -18,6 +18,17 @@ const frameworkColors: Record<string, string> = {
   pci_dss_4: 'bg-pink-500',
 }
 
+// Single source of truth for the report types this page can generate — the
+// "Reports" overview tile and the Reports tab's description cards both read
+// from this array so they can't drift from each other or from what the
+// backend's /compliance/report endpoint actually supports (type: 'executive'
+// | 'technical' | 'gap_remediation').
+const REPORT_TYPES = [
+  { id: 'executive', label: 'Executive', description: 'High-level overview for stakeholders' },
+  { id: 'technical', label: 'Technical', description: 'Detailed finding-to-control mappings' },
+  { id: 'gap_remediation', label: 'Gap Remediation', description: 'Unaddressed controls with recommendations' },
+] as const
+
 function CoverageCharts({ frameworks }: { frameworks: { id: string; name: string }[] }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -73,31 +84,26 @@ export function ComplianceDashboardPage() {
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6 pt-4">
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-4 sm:grid-cols-3">
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-sm text-text-secondary">Frameworks</CardTitle>
                   </CardHeader>
                   <div className="px-5 pb-5">
                     <p className="text-2xl font-bold">{frameworks?.length ?? 0}</p>
-                  </div>
-                </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm text-text-secondary">Supported</CardTitle>
-                  </CardHeader>
-                  <div className="px-5 pb-5">
-                    <p className="text-2xl font-bold">8</p>
                     <p className="text-xs text-text-muted">frameworks loaded</p>
                   </div>
                 </Card>
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-sm text-text-secondary">Mapping</CardTitle>
+                    <CardTitle className="flex items-center gap-2 text-sm text-text-secondary">
+                      Mapping
+                      <Badge variant="neutral" size="sm">Platform</Badge>
+                    </CardTitle>
                   </CardHeader>
                   <div className="px-5 pb-5">
                     <p className="text-2xl font-bold">Auto</p>
-                    <p className="text-xs text-text-muted">keyword-based</p>
+                    <p className="text-xs text-text-muted">keyword-based &middot; not specific to your data</p>
                   </div>
                 </Card>
                 <Card>
@@ -105,7 +111,7 @@ export function ComplianceDashboardPage() {
                     <CardTitle className="text-sm text-text-secondary">Reports</CardTitle>
                   </CardHeader>
                   <div className="px-5 pb-5">
-                    <p className="text-2xl font-bold">3</p>
+                    <p className="text-2xl font-bold">{REPORT_TYPES.length}</p>
                     <p className="text-xs text-text-muted">formats available</p>
                   </div>
                 </Card>
@@ -197,18 +203,12 @@ export function ComplianceDashboardPage() {
                     Generate executive, technical, or gap remediation compliance reports.
                   </p>
                   <div className="mt-4 mx-auto grid max-w-lg gap-3 sm:grid-cols-3">
-                    <div className="rounded-lg border border-border p-3">
-                      <p className="font-medium text-text-primary">Executive</p>
-                      <p className="text-xs mt-1">High-level overview for stakeholders</p>
-                    </div>
-                    <div className="rounded-lg border border-border p-3">
-                      <p className="font-medium text-text-primary">Technical</p>
-                      <p className="text-xs mt-1">Detailed finding-to-control mappings</p>
-                    </div>
-                    <div className="rounded-lg border border-border p-3">
-                      <p className="font-medium text-text-primary">Gap Remediation</p>
-                      <p className="text-xs mt-1">Unaddressed controls with recommendations</p>
-                    </div>
+                    {REPORT_TYPES.map((type) => (
+                      <div key={type.id} className="rounded-lg border border-border p-3">
+                        <p className="font-medium text-text-primary">{type.label}</p>
+                        <p className="text-xs mt-1">{type.description}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </Card>
