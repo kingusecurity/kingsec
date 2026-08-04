@@ -122,6 +122,7 @@ None. This is the first GA release.
 ## Known Issues
 
 - Alembic migration `aabbccddee00` has a duplicate index that may cause errors when upgrading from RC1 specifically. Fresh installs are unaffected (verified via a clean migration run against an empty database).
+- Deployment page's "Check for Updates" is disabled by design: there is no mechanism yet to discover a target version to check against (the upgrade-plan endpoint works correctly but requires an explicit version). Not scheduled — flagging so it isn't lost.
 
 ---
 

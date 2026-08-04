@@ -186,7 +186,12 @@ function UpgradeSection() {
         Check for available upgrades and run version migrations.
       </p>
       <div className="flex gap-3">
-        <Button variant="outline" size="sm" disabled>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled
+          title="Requires a target version to check against — no mechanism exists yet to discover the latest available version"
+        >
           Check for Updates
         </Button>
         <Button variant="outline" size="sm" onClick={() => navigate('/release-audit')}>
