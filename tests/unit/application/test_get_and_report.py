@@ -151,6 +151,10 @@ class TestGenerateReport:
         # _completed() always targets "10.0.0.5" — two calls give two
         # different assessments against the same target, exactly the
         # same-target-different-assessment shape history is meant to chart.
+        # Also the positive-case counterpart to the self-exclusion regression
+        # test below: proves _with_history()'s `assessment_id != report.
+        # assessment_id` filter excludes ONLY the report's own assessment,
+        # not a genuinely different one for the same target.
         first = _completed(assessments)
         GenerateReport(assessments, reports, generator).execute(GenerateReportRequest(str(first.id), is_admin=True))
         first_score = reports.get(first.id).executive_score
@@ -161,6 +165,31 @@ class TestGenerateReport:
         history = reports.get(second.id).history
         assert len(history) == 1
         assert history[0].executive_score == first_score
+
+    def test_regenerating_the_same_report_does_not_duplicate_itself_in_history(
+        self,
+        assessments: InMemoryAssessmentRepository,
+        reports: InMemoryReportRepository,
+        generator: StubReportGenerator,
+    ) -> None:
+        # Regression test: regenerating a report for the SAME assessment
+        # previously pulled that assessment's own prior save back in as if
+        # it were a separate historical data point, since the history query
+        # ran before this assessment's own row existed the first time but
+        # found it (and mistook it for someone else's report) on every
+        # generation after that.
+        assessment = _completed(assessments)
+        uc = GenerateReport(assessments, reports, generator)
+
+        uc.execute(GenerateReportRequest(str(assessment.id), is_admin=True))
+        assert reports.get(assessment.id).history == ()  # nothing else exists yet
+
+        uc.execute(GenerateReportRequest(str(assessment.id), is_admin=True))
+        uc.execute(GenerateReportRequest(str(assessment.id), is_admin=True))
+
+        # No matter how many times the SAME assessment's report is
+        # regenerated, it must never appear in its own history.
+        assert reports.get(assessment.id).history == ()
 
     def test_report_for_incomplete_assessment_raises(
         self,

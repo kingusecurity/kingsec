@@ -121,6 +121,16 @@ class GenerateReport:
         access check above — never elevated access — so this can never surface
         another user's scan history for the same target. Best-effort: a query
         failure degrades to no history, never fails report generation.
+
+        Excludes this report's own assessment_id from the results: this method
+        runs BEFORE self._reports.save(report), so on any generation after the
+        first for a given assessment, that assessment's own prior save is
+        already sitting in the table and would otherwise be pulled back in as
+        if it were a separate historical data point — regenerating a report
+        must never inflate its own trend with itself. ReportRepository.list()
+        stays a general-purpose query (other callers, e.g. the reports list
+        page, correctly want to include this assessment) — "exclude self" is
+        specific to building history and belongs here, not in the port.
         """
         try:
             projections, _total = self._reports.list(
@@ -141,6 +151,7 @@ class GenerateReport:
                 executive_score=p.executive_score,
             )
             for p in projections
+            if p.assessment_id != report.assessment_id
         )
         return dataclasses.replace(report, history=history)
 
