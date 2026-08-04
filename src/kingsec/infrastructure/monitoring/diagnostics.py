@@ -176,6 +176,14 @@ class DiagnosticsCollector:
             "recent_logs": self.collect_recent_logs(50),
         }
 
+    def create_bundle(self, output_dir: Path | None = None) -> Path:
+        """Create a diagnostics bundle for this collector's data_dir/app_version."""
+        return create_diagnostics_bundle(
+            data_dir=self._data_dir,
+            app_version=self._app_version,
+            output_dir=output_dir,
+        )
+
 
 def create_diagnostics_bundle(
     data_dir: Path | None = None,

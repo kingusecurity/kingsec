@@ -1,9 +1,8 @@
 """Deployment, diagnostics, release-audit and telemetry routes.
 
-Exposes the previously-unwired infrastructure services
-(``DiagnosticsCollector``, ``UpgradeService``, ``ReleaseAuditService``,
-``ProductTelemetry``) over HTTP. Admin-only: this surface reveals host
-paths, environment variables and log excerpts.
+Exposes diagnostics, upgrade, release-audit and telemetry operations over
+HTTP through the single ``DeploymentOperationsPort``. Admin-only: this
+surface reveals host paths, environment variables and log excerpts.
 """
 
 from __future__ import annotations
@@ -14,14 +13,8 @@ from typing import TYPE_CHECKING, Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse
 
+from kingsec.application.ports.outbound import DeploymentOperationsPort
 from kingsec.domain import Role
-from kingsec.infrastructure.audit.release_audit import ReleaseAuditService
-from kingsec.infrastructure.monitoring.diagnostics import (
-    DiagnosticsCollector,
-    create_diagnostics_bundle,
-)
-from kingsec.infrastructure.telemetry.product_telemetry import ProductTelemetry
-from kingsec.infrastructure.upgrade.upgrade_service import UpgradeService
 
 from .auth import CurrentUser, get_current_user
 from .dependencies import get_application
@@ -39,24 +32,9 @@ def _require_admin(user: CurrentUser) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
 
 
-def _get_diagnostics(request: Request) -> DiagnosticsCollector:
+def _get_ops(request: Request) -> DeploymentOperationsPort:
     app: Application = get_application(request)
-    return cast(DiagnosticsCollector, app.resolve(DiagnosticsCollector))
-
-
-def _get_upgrade_service(request: Request) -> UpgradeService:
-    app: Application = get_application(request)
-    return cast(UpgradeService, app.resolve(UpgradeService))
-
-
-def _get_release_audit(request: Request) -> ReleaseAuditService:
-    app: Application = get_application(request)
-    return cast(ReleaseAuditService, app.resolve(ReleaseAuditService))
-
-
-def _get_telemetry(request: Request) -> ProductTelemetry:
-    app: Application = get_application(request)
-    return cast(ProductTelemetry, app.resolve(ProductTelemetry))
+    return cast(DeploymentOperationsPort, app.resolve(DeploymentOperationsPort))
 
 
 @router.get("/deployment/system-info")
@@ -65,7 +43,7 @@ def get_system_info(
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     _require_admin(user)
-    return _get_diagnostics(request).collect_system_info()
+    return _get_ops(request).collect_system_info()
 
 
 @router.get("/deployment/config")
@@ -74,7 +52,7 @@ def get_config_summary(
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     _require_admin(user)
-    return _get_diagnostics(request).collect_config_summary()
+    return _get_ops(request).collect_config_summary()
 
 
 @router.get("/deployment/diagnostics")
@@ -83,7 +61,7 @@ def get_diagnostics(
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     _require_admin(user)
-    return _get_diagnostics(request).collect_all()
+    return _get_ops(request).collect_all()
 
 
 @router.get("/deployment/diagnostics/bundle")
@@ -92,11 +70,7 @@ def download_diagnostics_bundle(
     user: CurrentUser = Depends(get_current_user),
 ) -> FileResponse:
     _require_admin(user)
-    app: Application = get_application(request)
-    bundle_path = create_diagnostics_bundle(
-        data_dir=app.settings.storage.data_dir,
-        app_version=app.settings.app.version,
-    )
+    bundle_path = _get_ops(request).create_bundle()
     return FileResponse(
         bundle_path,
         media_type="application/zip",
@@ -111,7 +85,7 @@ def get_upgrade_plan(
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     _require_admin(user)
-    plan = _get_upgrade_service(request).create_plan(target)
+    plan = _get_ops(request).create_plan(target)
     return {
         "from_version": plan.from_version,
         "to_version": plan.to_version,
@@ -135,8 +109,8 @@ def run_upgrade(
 
     from kingsec._migrate import run_migrations
 
-    upgrade_service = _get_upgrade_service(request)
-    plan = upgrade_service.create_plan(target_version)
+    ops = _get_ops(request)
+    plan = ops.create_plan(target_version)
     blocking = [c for c in plan.checks if not c.passed and c.severity == "error"]
     if blocking:
         raise HTTPException(
@@ -145,13 +119,13 @@ def run_upgrade(
         )
 
     from_version = plan.from_version
-    upgrade_service.create_backup()
+    ops.create_backup()
     returncode = run_migrations()
     if returncode != 0:
         raise HTTPException(status_code=500, detail="Database migration failed during upgrade")
 
-    upgrade_service.set_installed_version(target_version)
-    _get_release_audit(request).record_upgrade(
+    ops.set_installed_version(target_version)
+    ops.record_upgrade(
         from_version=from_version,
         to_version=target_version,
         upgraded_by=user.username,
@@ -165,7 +139,7 @@ def get_release_audit_report(
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     _require_admin(user)
-    report = _get_release_audit(request).generate_report()
+    report = _get_ops(request).generate_report()
     return {
         "current_version": report.current_version,
         "installed_at": report.installed_at,
@@ -185,7 +159,7 @@ def record_release(
     version = body.get("version")
     if not version:
         raise HTTPException(status_code=400, detail="version is required")
-    entry = _get_release_audit(request).record_release(
+    entry = _get_ops(request).record_release(
         version=version,
         release_type=body.get("release_type", "patch"),
         changes=tuple(body.get("changes", [])),
@@ -202,4 +176,4 @@ def get_telemetry_summary(
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     _require_admin(user)
-    return _get_telemetry(request).get_summary(days)
+    return _get_ops(request).get_summary(days)
