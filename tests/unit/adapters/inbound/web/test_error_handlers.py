@@ -181,3 +181,12 @@ class TestStatusMap:
     def test_status_codes_are_valid_http(self) -> None:
         for code, status in _KINGSEC_STATUS_MAP.items():
             assert 100 <= status <= 599, f"Invalid status {status} for {code}"
+
+    def test_report_generation_error_code_literal_matches_source(self) -> None:
+        """_KINGSEC_STATUS_MAP hardcodes "KS-REPORT-001" as a literal, rather
+        than importing ReportGenerationError (an adapter -> infrastructure
+        import-linter violation). This guards against that literal silently
+        drifting from the class it was copied from.
+        """
+        assert "KS-REPORT-001" == ReportGenerationError.code
+        assert "KS-REPORT-001" in _KINGSEC_STATUS_MAP
