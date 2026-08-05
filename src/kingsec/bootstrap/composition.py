@@ -182,7 +182,7 @@ def create_wired_application(
         brand_name=brand_name,
         validate_migrations=validate_migrations,
     )
-    _register_use_cases(app.container)
+    _register_use_cases(app)
     app.logger.info(
         "application composed",
         provider=app.settings.ai.provider,
@@ -510,7 +510,7 @@ def _register_job_service(container: Container, session_factory: Any) -> None:
     container.register_factory(JobServicePort, _factory)
 
 
-def _register_use_cases(container: Container) -> None:
+def _register_use_cases(app: Application) -> None:
     """Register use cases as DI factories.
 
     Each resolves its port dependencies from the container, so callers do
@@ -518,6 +518,8 @@ def _register_use_cases(container: Container) -> None:
     no manual wiring. The UseCaseServiceAPI facade is also registered here,
     wiring the use cases into the ServiceAPI port.
     """
+    container = app.container
+    settings = app.settings
     from kingsec.application.assessment_execution import AssessmentExecutionEngine
 
     container.register_factory(
@@ -600,12 +602,26 @@ def _register_use_cases(container: Container) -> None:
     )
 
     # Auth use cases.
+    # The account-lockout policy Login and RecordFailedAuthentication both
+    # need — sourced from Settings, matching how RateLimitSettings already
+    # correctly reads login_max_attempts/login_window_seconds, rather than
+    # letting RecordFailedAuthentication's own hardcoded constructor
+    # defaults (5, 900) silently stand in for real configuration.
+    from kingsec.domain.rate_limit import LockoutPolicy
+
+    lockout_policy = LockoutPolicy(
+        max_attempts=settings.rate_limit.account_lockout_max_attempts,
+        lockout_duration_seconds=settings.rate_limit.account_lockout_duration_seconds,
+    )
     container.register_factory(
         Login,
         lambda c: Login(
             c.resolve(UserRepository),
             c.resolve(PasswordHasher),
             c.resolve(TokenService),
+            c.resolve(LockoutRepository),
+            c.resolve(ClockPort),
+            lockout_policy,
             c.resolve(AuditPublisher),
         ),
     )
@@ -785,6 +801,8 @@ def _register_use_cases(container: Container) -> None:
         lambda c: RecordFailedAuthentication(
             c.resolve(LockoutRepository),
             c.resolve(ClockPort),
+            max_attempts=lockout_policy.max_attempts,
+            lockout_duration_seconds=lockout_policy.lockout_duration_seconds,
         ),
     )
     container.register_factory(

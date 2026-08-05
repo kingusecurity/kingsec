@@ -8,8 +8,11 @@ import pytest
 
 from kingsec.application.dto import LoginRequest
 from kingsec.application.ports import PasswordHasher, TokenClaims, TokenService, UserRepository
+from kingsec.application.ports.outbound.clock_port import ClockPort
+from kingsec.application.ports.outbound.lockout_repository import LockoutRepository
 from kingsec.application.use_cases.login import AuthenticationError, Login
 from kingsec.domain import Role, User
+from kingsec.domain.rate_limit import AccountLockout, LockoutPolicy
 
 # --- Stubs --------------------------------------------------------------------
 
@@ -106,6 +109,52 @@ class StubUserRepository(UserRepository):
         return ([], 0)
 
 
+class FakeLockoutRepository(LockoutRepository):
+    def __init__(self) -> None:
+        self._lockouts: dict[str, AccountLockout] = {}
+
+    def get(self, user_id: str) -> AccountLockout | None:
+        return self._lockouts.get(user_id)
+
+    def save(self, lockout: AccountLockout) -> None:
+        self._lockouts[lockout.user_id] = lockout
+
+    def delete(self, user_id: str) -> None:
+        self._lockouts.pop(user_id, None)
+
+
+class FakeClock(ClockPort):
+    def __init__(self, now: float = 1000.0) -> None:
+        self._now = now
+
+    def now(self) -> float:
+        return self._now
+
+    def advance(self, seconds: float) -> None:
+        self._now += seconds
+
+
+_DEFAULT_LOCKOUT_POLICY = LockoutPolicy(max_attempts=5, lockout_duration_seconds=900)
+
+
+def _make_login(
+    repo: UserRepository,
+    hasher: PasswordHasher,
+    tokens: TokenService,
+    lockout_repo: LockoutRepository | None = None,
+    clock: ClockPort | None = None,
+    policy: LockoutPolicy | None = None,
+) -> Login:
+    return Login(
+        repo,
+        hasher,
+        tokens,
+        lockout_repo if lockout_repo is not None else FakeLockoutRepository(),
+        clock if clock is not None else FakeClock(),
+        policy if policy is not None else _DEFAULT_LOCKOUT_POLICY,
+    )
+
+
 def _make_user(**kwargs) -> User:
     defaults = dict(
         id="user-001",
@@ -128,7 +177,7 @@ class TestLogin:
         hasher = StubPasswordHasher(verify_result=True)
         tokens = StubTokenService()
 
-        login = Login(repo, hasher, tokens)
+        login = _make_login(repo, hasher, tokens)
         request = LoginRequest(username="testuser", password="password")
         result = login.execute(request)
 
@@ -146,7 +195,7 @@ class TestLogin:
         hasher = StubPasswordHasher(verify_result=True)
         tokens = StubTokenService()
 
-        login = Login(repo, hasher, tokens)
+        login = _make_login(repo, hasher, tokens)
         request = LoginRequest(username="testuser", password="password")
         login.execute(request)
 
@@ -158,7 +207,7 @@ class TestLogin:
         hasher = StubPasswordHasher(verify_result=False)
         tokens = StubTokenService()
 
-        login = Login(repo, hasher, tokens)
+        login = _make_login(repo, hasher, tokens)
         request = LoginRequest(username="testuser", password="wrong")
 
         with pytest.raises(AuthenticationError, match="invalid username or password"):
@@ -169,7 +218,7 @@ class TestLogin:
         hasher = StubPasswordHasher()
         tokens = StubTokenService()
 
-        login = Login(repo, hasher, tokens)
+        login = _make_login(repo, hasher, tokens)
         request = LoginRequest(username="nobody", password="password")
 
         with pytest.raises(AuthenticationError, match="invalid username or password"):
@@ -181,8 +230,184 @@ class TestLogin:
         hasher = StubPasswordHasher(verify_result=True)
         tokens = StubTokenService()
 
-        login = Login(repo, hasher, tokens)
+        login = _make_login(repo, hasher, tokens)
         request = LoginRequest(username="testuser", password="password")
 
         with pytest.raises(AuthenticationError, match="disabled"):
             login.execute(request)
+
+
+class TestAccountLockout:
+    def test_locks_after_max_attempts_and_rejects_even_correct_password(self) -> None:
+        user = _make_user()
+        repo = StubUserRepository(user)
+        tokens = StubTokenService()
+        lockout_repo = FakeLockoutRepository()
+        clock = FakeClock()
+        policy = LockoutPolicy(max_attempts=3, lockout_duration_seconds=900)
+
+        wrong_hasher = StubPasswordHasher(verify_result=False)
+        login = _make_login(repo, wrong_hasher, tokens, lockout_repo, clock, policy)
+        request = LoginRequest(username="testuser", password="wrong")
+
+        for _ in range(3):
+            with pytest.raises(AuthenticationError):
+                login.execute(request)
+
+        # The 4th attempt is against an already-locked account. Use a hasher
+        # that reports the CORRECT password this time - it must still fail,
+        # proving lockout wins over a correct password, not just over wrong ones.
+        correct_hasher = StubPasswordHasher(verify_result=True)
+        login_with_correct_password = _make_login(repo, correct_hasher, tokens, lockout_repo, clock, policy)
+        correct_request = LoginRequest(username="testuser", password="password")
+
+        with pytest.raises(AuthenticationError, match="invalid username or password"):
+            login_with_correct_password.execute(correct_request)
+        assert tokens.create_access_called is False
+
+    def test_locked_account_error_is_identical_to_wrong_password_error(self) -> None:
+        # Same account, same policy, same clock - one login locked by prior
+        # failures, one fresh. Both must raise the exact same message.
+        locked_user = _make_user(id="user-locked", username="lockeduser")
+        fresh_user = _make_user(id="user-fresh", username="freshuser")
+        tokens = StubTokenService()
+        clock = FakeClock()
+        policy = LockoutPolicy(max_attempts=1, lockout_duration_seconds=900)
+
+        locked_repo = StubUserRepository(locked_user)
+        locked_lockout_repo = FakeLockoutRepository()
+        wrong_hasher = StubPasswordHasher(verify_result=False)
+        lock_it = _make_login(locked_repo, wrong_hasher, tokens, locked_lockout_repo, clock, policy)
+        with pytest.raises(AuthenticationError):
+            lock_it.execute(LoginRequest(username="lockeduser", password="wrong"))
+
+        # Now locked. Try again with a hasher that would report success.
+        correct_hasher = StubPasswordHasher(verify_result=True)
+        try_locked = _make_login(locked_repo, correct_hasher, tokens, locked_lockout_repo, clock, policy)
+        locked_error = None
+        try:
+            try_locked.execute(LoginRequest(username="lockeduser", password="password"))
+        except AuthenticationError as exc:
+            locked_error = str(exc)
+
+        fresh_repo = StubUserRepository(fresh_user)
+        wrong_hasher_2 = StubPasswordHasher(verify_result=False)
+        try_fresh = _make_login(fresh_repo, wrong_hasher_2, tokens, FakeLockoutRepository(), clock, policy)
+        fresh_error = None
+        try:
+            try_fresh.execute(LoginRequest(username="freshuser", password="wrong"))
+        except AuthenticationError as exc:
+            fresh_error = str(exc)
+
+        assert locked_error is not None
+        assert fresh_error is not None
+        assert locked_error == fresh_error == "invalid username or password"
+
+    def test_nonexistent_account_and_locked_account_produce_indistinguishable_responses(self) -> None:
+        user = _make_user()
+        repo = StubUserRepository(user)
+        tokens = StubTokenService()
+        lockout_repo = FakeLockoutRepository()
+        clock = FakeClock()
+        policy = LockoutPolicy(max_attempts=1, lockout_duration_seconds=900)
+
+        wrong_hasher = StubPasswordHasher(verify_result=False)
+        lock_it = _make_login(repo, wrong_hasher, tokens, lockout_repo, clock, policy)
+        with pytest.raises(AuthenticationError):
+            lock_it.execute(LoginRequest(username="testuser", password="wrong"))
+
+        # Locked-account attempt.
+        locked_login = _make_login(repo, StubPasswordHasher(verify_result=True), tokens, lockout_repo, clock, policy)
+        locked_error = None
+        try:
+            locked_login.execute(LoginRequest(username="testuser", password="anything"))
+        except AuthenticationError as exc:
+            locked_error = str(exc)
+
+        # Nonexistent-account attempt (separate repo/lockout store, same policy/clock).
+        nonexistent_login = _make_login(
+            StubUserRepository(user=None), StubPasswordHasher(), tokens, FakeLockoutRepository(), clock, policy
+        )
+        nonexistent_error = None
+        try:
+            nonexistent_login.execute(LoginRequest(username="nobody", password="anything"))
+        except AuthenticationError as exc:
+            nonexistent_error = str(exc)
+
+        assert locked_error == nonexistent_error == "invalid username or password"
+
+    def test_hasher_verify_still_called_when_already_locked(self) -> None:
+        """Timing-safety: the real hash comparison must run even when the
+        account is already locked, so a locked account's response takes the
+        same time as an ordinary wrong-password check - matching the
+        dummy-hash pattern's care level for the nonexistent-user case."""
+        user = _make_user()
+        repo = StubUserRepository(user)
+        tokens = StubTokenService()
+        lockout_repo = FakeLockoutRepository()
+        clock = FakeClock()
+        policy = LockoutPolicy(max_attempts=1, lockout_duration_seconds=900)
+
+        wrong_hasher = StubPasswordHasher(verify_result=False)
+        lock_it = _make_login(repo, wrong_hasher, tokens, lockout_repo, clock, policy)
+        with pytest.raises(AuthenticationError):
+            lock_it.execute(LoginRequest(username="testuser", password="wrong"))
+
+        hasher_while_locked = StubPasswordHasher(verify_result=True)
+        try_while_locked = _make_login(repo, hasher_while_locked, tokens, lockout_repo, clock, policy)
+        with pytest.raises(AuthenticationError):
+            try_while_locked.execute(LoginRequest(username="testuser", password="password"))
+
+        assert hasher_while_locked.verify_called is True
+
+    def test_lockout_clears_after_configured_duration(self) -> None:
+        user = _make_user()
+        repo = StubUserRepository(user)
+        tokens = StubTokenService()
+        lockout_repo = FakeLockoutRepository()
+        clock = FakeClock()
+        policy = LockoutPolicy(max_attempts=1, lockout_duration_seconds=900)
+
+        wrong_hasher = StubPasswordHasher(verify_result=False)
+        lock_it = _make_login(repo, wrong_hasher, tokens, lockout_repo, clock, policy)
+        with pytest.raises(AuthenticationError):
+            lock_it.execute(LoginRequest(username="testuser", password="wrong"))
+
+        clock.advance(901)  # past the 900s lockout duration
+
+        correct_hasher = StubPasswordHasher(verify_result=True)
+        login_after_expiry = _make_login(repo, correct_hasher, tokens, lockout_repo, clock, policy)
+        result = login_after_expiry.execute(LoginRequest(username="testuser", password="password"))
+
+        assert result.user_id == user.id
+
+    def test_successful_login_resets_failed_attempt_count(self) -> None:
+        user = _make_user()
+        repo = StubUserRepository(user)
+        tokens = StubTokenService()
+        lockout_repo = FakeLockoutRepository()
+        clock = FakeClock()
+        policy = LockoutPolicy(max_attempts=3, lockout_duration_seconds=900)
+
+        # Two failures, then a successful login.
+        wrong_hasher = StubPasswordHasher(verify_result=False)
+        fail_login = _make_login(repo, wrong_hasher, tokens, lockout_repo, clock, policy)
+        for _ in range(2):
+            with pytest.raises(AuthenticationError):
+                fail_login.execute(LoginRequest(username="testuser", password="wrong"))
+
+        correct_hasher = StubPasswordHasher(verify_result=True)
+        succeed_login = _make_login(repo, correct_hasher, tokens, lockout_repo, clock, policy)
+        succeed_login.execute(LoginRequest(username="testuser", password="password"))
+
+        # Two more failures after the reset should NOT lock (would need 3
+        # under this policy) - proving the count restarted from zero rather
+        # than continuing at 2.
+        fail_again = _make_login(repo, wrong_hasher, tokens, lockout_repo, clock, policy)
+        for _ in range(2):
+            with pytest.raises(AuthenticationError, match="invalid username or password"):
+                fail_again.execute(LoginRequest(username="testuser", password="wrong"))
+
+        final_correct_login = _make_login(repo, correct_hasher, tokens, lockout_repo, clock, policy)
+        result = final_correct_login.execute(LoginRequest(username="testuser", password="password"))
+        assert result.user_id == user.id

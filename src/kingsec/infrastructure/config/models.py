@@ -517,6 +517,15 @@ class RateLimitSettings(BaseModel):
     # values already in production.
     login_max_attempts: int = Field(default=5, ge=1)
     login_window_seconds: int = Field(default=900, ge=1)
+    # Account lockout policy (a distinct mechanism from the login throttle
+    # above: this tracks failed attempts per account, not per IP+user
+    # request volume, and persists a lockout across the throttle window
+    # resetting). Previously these were hardcoded (5, 900) constructor
+    # defaults on RecordFailedAuthentication that this setting had no
+    # effect on; composition.py now sources them from here via a real
+    # LockoutPolicy. Defaults preserve the values already in use.
+    account_lockout_max_attempts: int = Field(default=5, ge=1)
+    account_lockout_duration_seconds: int = Field(default=900, ge=1)
 
 
 class SecretsSettings(BaseModel):

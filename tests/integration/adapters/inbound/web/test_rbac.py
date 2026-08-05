@@ -13,9 +13,11 @@ from fastapi.testclient import TestClient
 from kingsec.application import Login, RefreshToken, RegisterUser
 from kingsec.application.auth import AuthorizationService
 from kingsec.application.ports import RateLimiterPort, TokenClaims, TokenService
+from kingsec.application.ports.outbound.clock_port import ClockPort
+from kingsec.application.ports.outbound.lockout_repository import LockoutRepository
 from kingsec.application.use_cases.check_rate_limit import CheckRateLimit
 from kingsec.domain import User
-from kingsec.domain.rate_limit import RateLimitDecision, RateLimitPolicy
+from kingsec.domain.rate_limit import AccountLockout, LockoutPolicy, RateLimitDecision, RateLimitPolicy
 from kingsec.infrastructure.config import Settings
 
 # ── Stubs (same pattern as test_auth_integration) ─────────────────────────
@@ -120,6 +122,24 @@ class StubHasher:
         return password_hash == f"hashed:{password}"
 
 
+class StubLockoutRepo(LockoutRepository):
+    """No-op lockout store - this suite doesn't exercise lockout behavior."""
+
+    def get(self, user_id: str) -> AccountLockout | None:
+        return None
+
+    def save(self, lockout: AccountLockout) -> None:
+        pass
+
+    def delete(self, user_id: str) -> None:
+        pass
+
+
+class StubClock(ClockPort):
+    def now(self) -> float:
+        return 0.0
+
+
 class StubRateLimiter(RateLimiterPort):
     """Rate limiter that always allows (never rate-limits in tests)."""
 
@@ -220,7 +240,14 @@ def _build_app() -> tuple[FastAPI, StubTokenService, StubUserRepo, StubHasher]:
             if service_type == RegisterUser:
                 return RegisterUser(user_repo, hasher)
             if service_type == Login:
-                return Login(user_repo, hasher, token_service)
+                return Login(
+                    user_repo,
+                    hasher,
+                    token_service,
+                    StubLockoutRepo(),
+                    StubClock(),
+                    LockoutPolicy(max_attempts=5, lockout_duration_seconds=900),
+                )
             if service_type == RefreshToken:
                 return RefreshToken(user_repo, token_service)
             if service_type == AuthorizationService:

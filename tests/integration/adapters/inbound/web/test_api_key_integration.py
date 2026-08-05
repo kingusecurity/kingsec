@@ -20,10 +20,10 @@ from kingsec.application.ports import ApiKeyHasher, ApiKeyRepository, TokenServi
 from kingsec.application.ports.outbound.rate_limiter import RateLimiterPort
 from kingsec.application.use_cases.check_rate_limit import CheckRateLimit
 from kingsec.domain.api_key import ApiKey
-from kingsec.domain.rate_limit import RateLimitDecision, RateLimitPolicy
+from kingsec.domain.rate_limit import LockoutPolicy, RateLimitDecision, RateLimitPolicy
 from kingsec.infrastructure.config import Settings
 
-from .test_auth_integration import StubHasher, StubTokenService, StubUserRepo
+from .test_auth_integration import StubClock, StubHasher, StubLockoutRepo, StubTokenService, StubUserRepo
 
 
 class StubApiKeyHasher(ApiKeyHasher):
@@ -96,7 +96,14 @@ def _build_app() -> tuple[FastAPI, StubTokenService, StubUserRepo, StubApiKeyRep
             if service_type == RegisterUser:
                 return RegisterUser(user_repo, hasher)
             if service_type == Login:
-                return Login(user_repo, hasher, token_service)
+                return Login(
+                    user_repo,
+                    hasher,
+                    token_service,
+                    StubLockoutRepo(),
+                    StubClock(),
+                    LockoutPolicy(max_attempts=5, lockout_duration_seconds=900),
+                )
             if service_type == RefreshToken:
                 return RefreshToken(user_repo, token_service)
             if service_type == CreateApiKey:
