@@ -24,8 +24,17 @@ export interface NotificationListResponse {
   offset: number
 }
 
+export interface NotificationListParams {
+  limit?: number
+  offset?: number
+  read?: boolean
+  channel?: string
+  priority?: string
+  status?: string
+}
+
 export const notificationsApi = {
-  list: (params?: { limit?: number; offset?: number }) =>
+  list: (params?: NotificationListParams) =>
     apiRequest<NotificationListResponse>('/notifications', { params }),
 
   get: (id: string) =>
@@ -33,6 +42,9 @@ export const notificationsApi = {
 
   markRead: (id: string) =>
     apiRequest<void>('/notifications/' + id + '/read', { method: 'POST' }),
+
+  markAllRead: () =>
+    apiRequest<{ marked_read: number }>('/notifications/mark-all-read', { method: 'POST' }),
 
   delete: (id: string) =>
     apiRequest<void>('/notifications/' + id, { method: 'DELETE' }),

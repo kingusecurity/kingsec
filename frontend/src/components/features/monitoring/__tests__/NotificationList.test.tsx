@@ -1,13 +1,20 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { NotificationList } from '../NotificationList'
 
 vi.mock('@/hooks/use-notifications', () => ({
   useNotifications: vi.fn(),
   useMarkNotificationRead: vi.fn(),
+  useMarkAllNotificationsRead: vi.fn(),
   useDeleteNotification: vi.fn(),
 }))
 
-import { useNotifications, useMarkNotificationRead, useDeleteNotification } from '@/hooks/use-notifications'
+import {
+  useNotifications,
+  useMarkNotificationRead,
+  useMarkAllNotificationsRead,
+  useDeleteNotification,
+} from '@/hooks/use-notifications'
 
 const mockNotifications = {
   notifications: [
@@ -58,6 +65,7 @@ describe('NotificationList', () => {
       refetch: vi.fn(),
     } as any)
     vi.mocked(useMarkNotificationRead).mockReturnValue({ mutate: vi.fn() } as any)
+    vi.mocked(useMarkAllNotificationsRead).mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
     vi.mocked(useDeleteNotification).mockReturnValue({ mutate: vi.fn() } as any)
   })
 
@@ -107,5 +115,42 @@ describe('NotificationList', () => {
   it('renders notifications in a list', () => {
     render(<NotificationList />)
     expect(screen.getByRole('list')).toHaveAttribute('aria-label', 'Notifications')
+  })
+
+  it('shows "Mark all as read" and calls the mutation when there are unread notifications', async () => {
+    const mutate = vi.fn()
+    vi.mocked(useMarkAllNotificationsRead).mockReturnValue({ mutate, isPending: false } as any)
+
+    render(<NotificationList />)
+    const button = screen.getByText('Mark all as read')
+    await userEvent.click(button)
+
+    expect(mutate).toHaveBeenCalledOnce()
+  })
+
+  it('hides "Mark all as read" when there are no unread notifications anywhere', () => {
+    vi.mocked(useNotifications).mockImplementation((params?: { read?: boolean }) => {
+      if (params?.read === false) {
+        return {
+          data: { notifications: [], total: 0, limit: 1, offset: 0 },
+          isLoading: false,
+          error: null,
+          refetch: vi.fn(),
+        } as any
+      }
+      return { data: mockNotifications, isLoading: false, error: null, refetch: vi.fn() } as any
+    })
+
+    render(<NotificationList />)
+
+    expect(screen.queryByText('Mark all as read')).not.toBeInTheDocument()
+  })
+
+  it('renders filter controls for read status, channel, priority, and status', () => {
+    render(<NotificationList />)
+    expect(screen.getByLabelText('Filter by read status')).toBeInTheDocument()
+    expect(screen.getByLabelText('Filter by channel')).toBeInTheDocument()
+    expect(screen.getByLabelText('Filter by priority')).toBeInTheDocument()
+    expect(screen.getByLabelText('Filter by status')).toBeInTheDocument()
   })
 })
