@@ -103,9 +103,10 @@ export function useMitigateExposure() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => attackSurfaceApi.mitigate(id),
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: ['exposures'] })
       qc.invalidateQueries({ queryKey: ['attack-surface-summary'] })
+      qc.invalidateQueries({ queryKey: ['exposure', id] })
     },
   })
 }
