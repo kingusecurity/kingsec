@@ -125,6 +125,7 @@ None. This is the first GA release.
 - Deployment page's "Check for Updates" is disabled by design: there is no mechanism yet to discover a target version to check against (the upgrade-plan endpoint works correctly but requires an explicit version). Not scheduled — flagging so it isn't lost.
 - Assessments list search/status/sort controls exist in the frontend but can't be wired up: the backend only supports `limit`/`offset` on this endpoint (route, DTO, use case, and repository all the way down). Not scheduled — flagging so it isn't lost.
 - No public endpoint exposes the running app version: Settings → About shows a hardcoded literal because the only real source (`/deployment/diagnostics`) requires admin, and the About page doesn't gate by role. Not scheduled — flagging so it isn't lost.
+- Asset Detail's risk override has no real data to pre-fill: findings aren't linked to assets anywhere in the domain model (`Finding` has no `asset_id`; findings belong to assessments, not assets), so there's no query that could auto-populate an asset's actual critical/high/open finding counts. The control is a manual override the user fills in by hand, not an automatic recalculation. Not scheduled — flagging so it isn't lost.
 
 ---
 

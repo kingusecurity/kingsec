@@ -5,8 +5,17 @@ import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
 import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs'
-import { useAsset, useAssetRelationships, useAssetHistory, useAddTag, useRemoveTag } from '@/hooks/use-assets'
+import {
+  useAsset,
+  useAssetRelationships,
+  useAssetHistory,
+  useAddTag,
+  useRemoveTag,
+  useRecalculateRisk,
+  useUpdateCriticality,
+} from '@/hooks/use-assets'
 
 const criticalityColors: Record<string, string> = {
   critical: 'border-red-500 text-red-500',
@@ -14,6 +23,8 @@ const criticalityColors: Record<string, string> = {
   medium: 'border-yellow-500 text-yellow-500',
   low: 'border-green-500 text-green-500',
 }
+
+const CRITICALITY_LEVELS = ['low', 'medium', 'high', 'critical']
 
 export function AssetDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -26,6 +37,13 @@ export function AssetDetailPage() {
   const { data: history } = useAssetHistory(id ?? null)
   const addTag = useAddTag()
   const removeTag = useRemoveTag()
+  const recalculateRisk = useRecalculateRisk()
+  const updateCriticality = useUpdateCriticality()
+
+  const [showCriticalityForm, setShowCriticalityForm] = useState(false)
+  const [newCriticality, setNewCriticality] = useState('medium')
+  const [showRiskForm, setShowRiskForm] = useState(false)
+  const [riskInputs, setRiskInputs] = useState({ critical: '0', high: '0', open: '0' })
 
   if (isLoading) {
     return (
@@ -58,6 +76,28 @@ export function AssetDetailPage() {
     if (id) removeTag.mutate({ id, key })
   }
 
+  const openCriticalityForm = () => {
+    setNewCriticality(asset.criticality)
+    setShowCriticalityForm(true)
+  }
+
+  const handleSaveCriticality = async () => {
+    if (!id) return
+    await updateCriticality.mutateAsync({ id, criticality: newCriticality })
+    setShowCriticalityForm(false)
+  }
+
+  const handleRecalculateRisk = async () => {
+    if (!id) return
+    await recalculateRisk.mutateAsync({
+      id,
+      criticalFindings: Number(riskInputs.critical) || 0,
+      highFindings: Number(riskInputs.high) || 0,
+      openFindings: Number(riskInputs.open) || 0,
+    })
+    setShowRiskForm(false)
+  }
+
   return (
     <PageContainer>
       <div className="mb-4">
@@ -79,11 +119,88 @@ export function AssetDetailPage() {
           </div>
           {asset.description && <p className="mt-1 text-sm text-text-muted">{asset.description}</p>}
         </div>
-        <div className="flex items-center gap-2 text-sm text-text-muted">
-          <span>Risk: <strong className="text-text-primary">{asset.risk_score.toFixed(1)}</strong></span>
-          <span>Findings: <strong>{asset.finding_count}</strong></span>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-2 text-sm text-text-muted">
+            <span>Risk: <strong className="text-text-primary">{asset.risk_score.toFixed(1)}</strong></span>
+            <span>Findings: <strong>{asset.finding_count}</strong></span>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={showCriticalityForm ? () => setShowCriticalityForm(false) : openCriticalityForm}>
+              {showCriticalityForm ? 'Cancel' : 'Change Criticality'}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowRiskForm(!showRiskForm)}>
+              {showRiskForm ? 'Cancel' : 'Override Risk Score'}
+            </Button>
+          </div>
         </div>
       </div>
+
+      {showCriticalityForm && (
+        <Card className="mb-4 p-4">
+          <div className="flex items-end gap-3">
+            <div className="space-y-1.5">
+              <span className="block text-xs text-text-muted">New criticality</span>
+              <select
+                value={newCriticality}
+                onChange={(e) => setNewCriticality(e.target.value)}
+                className="flex h-10 rounded-lg border border-border bg-surface-primary px-3 py-2 text-sm"
+              >
+                {CRITICALITY_LEVELS.map((level) => (
+                  <option key={level} value={level}>{level}</option>
+                ))}
+              </select>
+            </div>
+            <Button onClick={handleSaveCriticality} disabled={updateCriticality.isPending}>
+              {updateCriticality.isPending ? 'Saving...' : 'Save'}
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {showRiskForm && (
+        <Card className="mb-4 p-4">
+          <p className="mb-3 text-xs text-text-muted">
+            Manually override the risk score from finding counts you enter below. There is no automatic
+            way to pull this asset&apos;s real finding counts yet, so these values aren&apos;t verified against
+            actual data - enter them carefully.
+          </p>
+          <div className="flex items-end gap-3">
+            <div className="space-y-1.5">
+              <span className="block text-xs text-text-muted">Critical findings</span>
+              <Input
+                type="number"
+                min={0}
+                value={riskInputs.critical}
+                onChange={(e) => setRiskInputs({ ...riskInputs, critical: e.target.value })}
+                className="w-28"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <span className="block text-xs text-text-muted">High findings</span>
+              <Input
+                type="number"
+                min={0}
+                value={riskInputs.high}
+                onChange={(e) => setRiskInputs({ ...riskInputs, high: e.target.value })}
+                className="w-28"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <span className="block text-xs text-text-muted">Open findings</span>
+              <Input
+                type="number"
+                min={0}
+                value={riskInputs.open}
+                onChange={(e) => setRiskInputs({ ...riskInputs, open: e.target.value })}
+                className="w-28"
+              />
+            </div>
+            <Button onClick={handleRecalculateRisk} disabled={recalculateRisk.isPending}>
+              {recalculateRisk.isPending ? 'Saving...' : 'Apply Override'}
+            </Button>
+          </div>
+        </Card>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
