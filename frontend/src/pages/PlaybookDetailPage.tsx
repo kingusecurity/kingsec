@@ -5,13 +5,36 @@ import { Card } from '@/components/ui/Card'
 import { Spinner } from '@/components/ui/Spinner'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import {
   usePlaybook,
   useEnablePlaybook,
   useDisablePlaybook,
   useExecutePlaybook,
   useExecutions,
+  useUpdatePlaybook,
 } from '@/hooks/use-playbooks'
+import type { Playbook } from '@/api/playbooks'
+
+const SEVERITIES = ['critical', 'high', 'medium', 'low']
+
+interface PlaybookFormState {
+  name: string
+  description: string
+  category: string
+  severity: string
+  tags: string
+}
+
+function playbookToForm(pb: Playbook): PlaybookFormState {
+  return {
+    name: pb.name,
+    description: pb.description,
+    category: pb.category,
+    severity: pb.severity,
+    tags: pb.tags.join(', '),
+  }
+}
 
 const triggerLabels: Record<string, string> = {
   critical_finding: 'Critical Finding',
@@ -47,12 +70,39 @@ export function PlaybookDetailPage() {
   const enablePb = useEnablePlaybook()
   const disablePb = useDisablePlaybook()
   const executePb = useExecutePlaybook()
+  const updatePb = useUpdatePlaybook()
   const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState<PlaybookFormState | null>(null)
 
   if (isLoading) return <div className="flex justify-center py-16"><Spinner /></div>
   if (!pb) return <div className="flex justify-center py-16 text-text-muted">Playbook not found</div>
 
   const executions = execs?.items?.filter(e => e.playbook_id === pb.id) ?? []
+
+  const openEdit = () => {
+    setForm(playbookToForm(pb))
+    setEditing(true)
+  }
+
+  const closeEdit = () => {
+    setEditing(false)
+    setForm(null)
+  }
+
+  const handleSave = async () => {
+    if (!form) return
+    await updatePb.mutateAsync({
+      id: pb.id,
+      data: {
+        name: form.name,
+        description: form.description,
+        category: form.category,
+        severity: form.severity,
+        tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
+      },
+    })
+    closeEdit()
+  }
 
   return (
     <PageContainer>
@@ -61,7 +111,7 @@ export function PlaybookDetailPage() {
         description={pb.description || 'No description'}
         actions={
           <div className="flex gap-2">
-            <Button onClick={() => setEditing(!editing)} variant="outline">{editing ? 'Cancel' : 'Edit'}</Button>
+            <Button onClick={editing ? closeEdit : openEdit} variant="outline">{editing ? 'Cancel' : 'Edit'}</Button>
             {pb.enabled ? (
               <Button onClick={() => disablePb.mutate(pb.id)} variant="outline">Disable</Button>
             ) : (
@@ -71,6 +121,33 @@ export function PlaybookDetailPage() {
           </div>
         }
       />
+
+      {editing && form && (
+        <Card className="mb-6 p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-text-primary">Edit Playbook</h3>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input placeholder="Name *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            <Input placeholder="Category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
+            <select
+              value={form.severity}
+              onChange={(e) => setForm({ ...form, severity: e.target.value })}
+              className="flex h-10 rounded-lg border border-border bg-surface-primary px-3 py-2 text-sm"
+            >
+              {SEVERITIES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            <Input placeholder="Tags (comma-separated)" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} />
+          </div>
+          <Input placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+          <p className="text-xs text-text-muted">
+            Trigger and actions aren&apos;t editable here yet - only name, description, category, severity, and tags.
+          </p>
+          <Button onClick={handleSave} disabled={!form.name || updatePb.isPending}>
+            {updatePb.isPending ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Details */}
