@@ -106,7 +106,11 @@ export function BackupDetailPage() {
         <div className="grid grid-cols-3 gap-3 items-end">
           <div>
             <label className="text-xs text-text-muted">Scope</label>
-            <select className="input mt-1" value={scope} onChange={e => setScope(e.target.value)}>
+            <select
+              value={scope}
+              onChange={e => setScope(e.target.value)}
+              className="mt-1 flex h-10 rounded-lg border border-border bg-surface-primary px-3 py-2 text-sm"
+            >
               <option value="complete">Complete</option>
               <option value="database">Database</option>
               <option value="configuration">Configuration</option>

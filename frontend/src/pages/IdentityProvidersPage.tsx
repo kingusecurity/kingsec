@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
+import { Input } from '@/components/ui/Input'
 
 const protocolLabels: Record<string, string> = {
   saml2: 'SAML 2.0',
@@ -82,16 +83,20 @@ export function IdentityProvidersPage() {
         <Card className="p-4 space-y-3">
           <h3 className="font-medium">Add Identity Provider</h3>
           <div className="grid grid-cols-2 gap-3">
-            <input className="input" placeholder="Provider Name *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-            <select className="input" value={form.protocol} onChange={e => setForm({ ...form, protocol: e.target.value })}>
+            <Input placeholder="Provider Name *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+            <select
+              value={form.protocol}
+              onChange={e => setForm({ ...form, protocol: e.target.value })}
+              className="flex h-10 rounded-lg border border-border bg-surface-primary px-3 py-2 text-sm"
+            >
               <option value="oidc">OpenID Connect</option>
               <option value="saml2">SAML 2.0</option>
               <option value="ldap">LDAP</option>
               <option value="active_directory">Active Directory</option>
               <option value="oauth2">OAuth 2.0</option>
             </select>
-            <input className="input" placeholder="Issuer URL" value={form.issuer} onChange={e => setForm({ ...form, issuer: e.target.value })} />
-            <input className="input" placeholder="Domain Hint" value={form.domain_hint} onChange={e => setForm({ ...form, domain_hint: e.target.value })} />
+            <Input placeholder="Issuer URL" value={form.issuer} onChange={e => setForm({ ...form, issuer: e.target.value })} />
+            <Input placeholder="Domain Hint" value={form.domain_hint} onChange={e => setForm({ ...form, domain_hint: e.target.value })} />
           </div>
           <Button onClick={handleCreate} disabled={!form.name}>Create Provider</Button>
         </Card>

@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
+import { Input } from '@/components/ui/Input'
 
 export function BackupCenterPage() {
   const { data: backups, isLoading: loadingBackups } = useBackups()
@@ -121,12 +122,16 @@ export function BackupCenterPage() {
         <Card className="p-4 space-y-3">
           <h3 className="font-medium">Create Backup</h3>
           <div className="grid grid-cols-2 gap-3">
-            <select className="input" value={form.backup_type} onChange={e => setForm({ ...form, backup_type: e.target.value })}>
+            <select
+              value={form.backup_type}
+              onChange={e => setForm({ ...form, backup_type: e.target.value })}
+              className="flex h-10 rounded-lg border border-border bg-surface-primary px-3 py-2 text-sm"
+            >
               <option value="full">Full</option>
               <option value="incremental">Incremental</option>
               <option value="differential">Differential</option>
             </select>
-            <input className="input" placeholder="Includes (comma-separated)" value={form.includes} onChange={e => setForm({ ...form, includes: e.target.value })} />
+            <Input placeholder="Includes (comma-separated)" value={form.includes} onChange={e => setForm({ ...form, includes: e.target.value })} />
           </div>
           <Button onClick={handleCreateBackup} disabled={createBackup.isPending}>
             {createBackup.isPending ? 'Creating...' : 'Create Backup'}
@@ -169,15 +174,23 @@ export function BackupCenterPage() {
           <Card className="p-4 space-y-3">
             <h3 className="font-medium">Create Schedule</h3>
             <div className="grid grid-cols-3 gap-3">
-              <input className="input" placeholder="Name" value={schedForm.name} onChange={e => setSchedForm({ ...schedForm, name: e.target.value })} />
-              <select className="input" value={schedForm.frequency} onChange={e => setSchedForm({ ...schedForm, frequency: e.target.value })}>
+              <Input placeholder="Name" value={schedForm.name} onChange={e => setSchedForm({ ...schedForm, name: e.target.value })} />
+              <select
+                value={schedForm.frequency}
+                onChange={e => setSchedForm({ ...schedForm, frequency: e.target.value })}
+                className="flex h-10 rounded-lg border border-border bg-surface-primary px-3 py-2 text-sm"
+              >
                 <option value="manual">Manual</option>
                 <option value="daily">Daily</option>
                 <option value="weekly">Weekly</option>
                 <option value="monthly">Monthly</option>
                 <option value="cron">Cron</option>
               </select>
-              <select className="input" value={schedForm.backup_type} onChange={e => setSchedForm({ ...schedForm, backup_type: e.target.value })}>
+              <select
+                value={schedForm.backup_type}
+                onChange={e => setSchedForm({ ...schedForm, backup_type: e.target.value })}
+                className="flex h-10 rounded-lg border border-border bg-surface-primary px-3 py-2 text-sm"
+              >
                 <option value="full">Full</option>
                 <option value="incremental">Incremental</option>
               </select>
@@ -210,9 +223,9 @@ export function BackupCenterPage() {
           <Card className="p-4 space-y-3">
             <h3 className="font-medium">Create Recovery Plan</h3>
             <div className="grid grid-cols-3 gap-3">
-              <input className="input" placeholder="Plan Name" value={planForm.name} onChange={e => setPlanForm({ ...planForm, name: e.target.value })} />
-              <input className="input" placeholder="Description" value={planForm.description} onChange={e => setPlanForm({ ...planForm, description: e.target.value })} />
-              <input className="input" type="number" placeholder="Est. Downtime (min)" value={planForm.estimated_downtime_minutes} onChange={e => setPlanForm({ ...planForm, estimated_downtime_minutes: parseInt(e.target.value) || 0 })} />
+              <Input placeholder="Plan Name" value={planForm.name} onChange={e => setPlanForm({ ...planForm, name: e.target.value })} />
+              <Input placeholder="Description" value={planForm.description} onChange={e => setPlanForm({ ...planForm, description: e.target.value })} />
+              <Input type="number" placeholder="Est. Downtime (min)" value={planForm.estimated_downtime_minutes} onChange={e => setPlanForm({ ...planForm, estimated_downtime_minutes: parseInt(e.target.value) || 0 })} />
             </div>
             <Button onClick={handleCreatePlan} disabled={!planForm.name}>Create Plan</Button>
           </Card>
