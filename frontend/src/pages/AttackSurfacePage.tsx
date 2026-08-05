@@ -1,12 +1,25 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PageContainer, PageHeader } from '@/components/layout/PageContainer'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
+import { ErrorState } from '@/components/ui/ErrorState'
 import { Input } from '@/components/ui/Input'
+import { Pagination } from '@/components/ui/Pagination'
 import { useAttackSurfaceSummary, useExposures } from '@/hooks/use-attack-surface'
 import type { ExposureListItem } from '@/api/attack-surface'
+
+const PAGE_SIZE = 24
+
+function useDebouncedValue(value: string, delay: number): string {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(timer)
+  }, [value, delay])
+  return debounced
+}
 
 const severityColors: Record<string, string> = {
   critical: 'border-red-500 text-red-500',
@@ -62,15 +75,22 @@ export function AttackSurfacePage() {
   const [search, setSearch] = useState('')
   const [sevFilter, setSevFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
-  const { data: summary, isLoading: summaryLoading } = useAttackSurfaceSummary()
+  const [page, setPage] = useState(1)
+  const debouncedSearch = useDebouncedValue(search, 300)
+  const { data: summary, isLoading: summaryLoading, isError, error, refetch } = useAttackSurfaceSummary()
   const { data: listData, isLoading: listLoading } = useExposures({
-    search: search || undefined,
+    search: debouncedSearch || undefined,
     severity: sevFilter || undefined,
     status: statusFilter || undefined,
+    limit: PAGE_SIZE,
+    offset: (page - 1) * PAGE_SIZE,
   })
+
+  useEffect(() => { setPage(1) }, [debouncedSearch, sevFilter, statusFilter])
 
   const exposures = listData?.items ?? []
   const total = listData?.total ?? 0
+  const totalPages = listData ? Math.ceil(listData.total / (listData.limit || PAGE_SIZE)) : 0
 
   return (
     <PageContainer>
@@ -79,7 +99,13 @@ export function AttackSurfacePage() {
         description="Discover and manage exposures across your infrastructure"
       />
 
-      {summaryLoading ? (
+      {isError ? (
+        <ErrorState
+          title="Failed to load attack surface summary"
+          message={(error as Error)?.message}
+          onRetry={() => refetch()}
+        />
+      ) : summaryLoading ? (
         <div className="flex justify-center py-12">
           <Spinner size="lg" />
         </div>
@@ -148,9 +174,16 @@ export function AttackSurfacePage() {
               <Spinner />
             </div>
           ) : exposures.length > 0 ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {exposures.map((e) => <ExposureCard key={e.id} item={e} />)}
-            </div>
+            <>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {exposures.map((e) => <ExposureCard key={e.id} item={e} />)}
+              </div>
+              {totalPages > 1 && (
+                <div className="flex justify-center pt-2">
+                  <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+                </div>
+              )}
+            </>
           ) : (
             <div className="py-12 text-center text-text-muted">
               <p className="text-lg font-medium">No exposures found</p>
