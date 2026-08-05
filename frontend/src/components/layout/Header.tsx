@@ -1,9 +1,10 @@
 import { useNavigate } from 'react-router-dom'
-import { Bell, Search, Menu, User, Settings, BookOpen, LogOut } from 'lucide-react'
+import { Search, Menu, User, Settings, BookOpen, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Input, Badge } from '@/components/ui'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/DropdownMenu'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbSeparator } from '@/components/ui/Breadcrumb'
+import { NotificationBadge } from '@/components/features/monitoring/NotificationBadge'
 import { useAuthStore } from '@/store/auth'
 import { useUIStore } from '@/store/ui'
 import { useLogout } from '@/hooks/use-auth'
@@ -58,14 +59,7 @@ export function Header() {
         />
       </div>
 
-      <button
-        onClick={() => navigate('/notifications')}
-        className="relative rounded-lg p-1.5 text-text-muted hover:bg-surface-tertiary hover:text-text-primary transition-colors"
-        aria-label="Notifications"
-      >
-        <Bell className="h-5 w-5" />
-        <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" aria-hidden="true" />
-      </button>
+      <NotificationBadge onClick={() => navigate('/notifications')} />
 
       <div className="flex items-center gap-2">
         <div className="hidden sm:flex h-8 w-8 items-center justify-center rounded-full bg-accent/10 text-xs font-semibold text-accent">

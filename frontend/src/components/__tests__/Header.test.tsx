@@ -30,7 +30,7 @@ describe('Header', () => {
 
   it('renders notification bell', () => {
     renderHeader()
-    expect(screen.getByLabelText('Notifications')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /unread notifications/i })).toBeInTheDocument()
   })
 
   it('shows username when authenticated', () => {
