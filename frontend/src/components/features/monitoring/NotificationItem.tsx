@@ -1,4 +1,4 @@
-import { AlertCircle, AlertTriangle, CheckCircle2, Info, Trash2, MailOpen } from 'lucide-react'
+import { AlertCircle, AlertTriangle, Info, Trash2, MailOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatRelativeTime } from '@/lib/utils'
 import type { Notification } from '@/api/notifications'
@@ -9,17 +9,13 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   high: AlertTriangle,
   medium: AlertTriangle,
   low: Info,
-  info: Info,
-  success: CheckCircle2,
 }
 
-const badgeVariantMap: Record<string, 'critical' | 'high' | 'medium' | 'low' | 'info' | 'success'> = {
+const badgeVariantMap: Record<string, 'critical' | 'high' | 'medium' | 'low'> = {
   critical: 'critical',
   high: 'high',
   medium: 'medium',
   low: 'low',
-  info: 'info',
-  success: 'success',
 }
 
 interface NotificationItemProps {

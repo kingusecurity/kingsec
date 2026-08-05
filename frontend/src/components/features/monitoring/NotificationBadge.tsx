@@ -8,7 +8,7 @@ interface NotificationBadgeProps {
 }
 
 export function NotificationBadge({ onClick, className }: NotificationBadgeProps) {
-  const { data } = useNotifications({ limit: 1 })
+  const { data } = useNotifications({ limit: 1, read: false })
   const unreadCount = data?.total ?? 0
 
   return (
