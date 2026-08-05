@@ -123,6 +123,8 @@ None. This is the first GA release.
 
 - Alembic migration `aabbccddee00` has a duplicate index that may cause errors when upgrading from RC1 specifically. Fresh installs are unaffected (verified via a clean migration run against an empty database).
 - Deployment page's "Check for Updates" is disabled by design: there is no mechanism yet to discover a target version to check against (the upgrade-plan endpoint works correctly but requires an explicit version). Not scheduled — flagging so it isn't lost.
+- Assessments list search/status/sort controls exist in the frontend but can't be wired up: the backend only supports `limit`/`offset` on this endpoint (route, DTO, use case, and repository all the way down). Not scheduled — flagging so it isn't lost.
+- No public endpoint exposes the running app version: Settings → About shows a hardcoded literal because the only real source (`/deployment/diagnostics`) requires admin, and the About page doesn't gate by role. Not scheduled — flagging so it isn't lost.
 
 ---
 
