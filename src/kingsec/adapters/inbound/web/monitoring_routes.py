@@ -298,6 +298,7 @@ def create_rule(
     try:
         rule = _get_service(request).create_rule(
             name=body["name"],
+            description=body.get("description", ""),
             event_type_str=body.get("event_type"),
             conditions=body.get("conditions"),
             alert_severity=body.get("alert_severity", "medium"),

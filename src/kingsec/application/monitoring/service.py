@@ -70,6 +70,7 @@ class MonitoringService:
         self,
         name: str,
         *,
+        description: str = "",
         event_type_str: str | None = None,
         conditions: list[dict[str, str]] | None = None,
         alert_severity: str = "medium",
@@ -94,6 +95,7 @@ class MonitoringService:
                 )
         rule = Rule.create(
             name,
+            description=description,
             event_type=event_type,
             conditions=rule_conditions,
             alert_severity=AlertSeverity(alert_severity),
