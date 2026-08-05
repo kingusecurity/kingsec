@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Shield, ShieldOff, AlertTriangle, CheckCircle, RefreshCw, Package, Wifi, WifiOff, Search, Filter, Copy, Terminal, ExternalLink, FileText } from 'lucide-react'
+import { Shield, ShieldOff, AlertTriangle, CheckCircle, RefreshCw, Package, Wifi, WifiOff, Search, Filter, Copy, Terminal, ExternalLink } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -320,30 +320,6 @@ function ScannerDetailPanel({
         </div>
       )}
 
-      <div className="flex items-center gap-2 pt-1">
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={() => {
-            const exportUrl = `/scanners/${scannerId}/diagnostics?fmt=markdown`
-            window.open(exportUrl, '_blank')
-          }}
-          iconLeft={<FileText className="h-3 w-3" />}
-        >
-          Export Markdown
-        </Button>
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={() => {
-            const exportUrl = `/scanners/${scannerId}/diagnostics?fmt=text`
-            window.open(exportUrl, '_blank')
-          }}
-          iconLeft={<FileText className="h-3 w-3" />}
-        >
-          Export Text
-        </Button>
-      </div>
     </div>
   )
 }
