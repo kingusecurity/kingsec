@@ -54,6 +54,7 @@ const IdentityProvidersPage = lazy(() => import('@/pages/IdentityProvidersPage')
 const IdentityProviderDetailPage = lazy(() => import('@/pages/IdentityProviderDetailPage').then(m => ({ default: m.IdentityProviderDetailPage })))
 const BackupCenterPage = lazy(() => import('@/pages/BackupCenterPage').then(m => ({ default: m.BackupCenterPage })))
 const BackupDetailPage = lazy(() => import('@/pages/BackupDetailPage').then(m => ({ default: m.BackupDetailPage })))
+const RecoveryPlanDetailPage = lazy(() => import('@/pages/RecoveryPlanDetailPage').then(m => ({ default: m.RecoveryPlanDetailPage })))
 const DeploymentPage = lazy(() => import('@/pages/DeploymentPage').then(m => ({ default: m.default })))
 const LicensePage = lazy(() => import('@/pages/LicensePage').then(m => ({ default: m.default })))
 const DiagnosticsPage = lazy(() => import('@/pages/DiagnosticsPage').then(m => ({ default: m.default })))
@@ -264,6 +265,10 @@ export const router = createBrowserRouter([
       {
         path: 'backup/:id',
         element: <RoleGuard roles={['admin']}><Suspense fallback={<PageLoader />}><BackupDetailPage /></Suspense></RoleGuard>,
+      },
+      {
+        path: 'backup/recovery/:id',
+        element: <RoleGuard roles={['admin']}><Suspense fallback={<PageLoader />}><RecoveryPlanDetailPage /></Suspense></RoleGuard>,
       },
       {
         path: 'settings',
