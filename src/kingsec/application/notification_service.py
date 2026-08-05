@@ -7,10 +7,12 @@ from kingsec.application.ports.outbound import (
     NotificationSenderPort,
     TemplateRendererPort,
 )
+from kingsec.application.ports.outbound.notification_repository import NotificationFilter
 from kingsec.application.use_cases.notifications import (
     DeleteNotification,
     GetNotification,
     ListNotifications,
+    MarkAllNotificationsRead,
     MarkNotificationRead,
     RenderNotification,
     RetryFailedNotifications,
@@ -33,6 +35,7 @@ class NotificationService(NotificationServicePort):
         self._list = ListNotifications(repo)
         self._get = GetNotification(repo)
         self._mark_read = MarkNotificationRead(repo, audit)
+        self._mark_all_read = MarkAllNotificationsRead(repo, audit)
         self._delete = DeleteNotification(repo, audit)
         self._retry = RetryFailedNotifications(repo, sender, audit)
         self._render = RenderNotification(templates)
@@ -50,11 +53,15 @@ class NotificationService(NotificationServicePort):
     def send_bulk(self, notifications: list[Notification]) -> list[Notification]:
         return self._send_bulk.execute(notifications)
 
-    def list_by_user(self, user_id: str, limit: int = 50, offset: int = 0) -> tuple[list[Notification], int]:
-        return self._list.execute(user_id=user_id, limit=limit, offset=offset)
+    def list_by_user(
+        self, user_id: str, limit: int = 50, offset: int = 0, filter_: NotificationFilter | None = None
+    ) -> tuple[list[Notification], int]:
+        return self._list.execute(user_id=user_id, limit=limit, offset=offset, filter_=filter_)
 
-    def list_all(self, limit: int = 50, offset: int = 0) -> tuple[list[Notification], int]:
-        return self._list.execute(limit=limit, offset=offset)
+    def list_all(
+        self, limit: int = 50, offset: int = 0, filter_: NotificationFilter | None = None
+    ) -> tuple[list[Notification], int]:
+        return self._list.execute(limit=limit, offset=offset, filter_=filter_)
 
     def get(self, notification_id: NotificationId) -> Notification:
         n = self._get.execute(notification_id)
@@ -71,6 +78,9 @@ class NotificationService(NotificationServicePort):
 
             raise NotificationNotFoundError(f"Notification not found: {notification_id}")
         return n
+
+    def mark_all_read(self, user_id: str) -> int:
+        return self._mark_all_read.execute(user_id)
 
     def delete(self, notification_id: NotificationId) -> None:
         self._delete.execute(notification_id)

@@ -10,6 +10,7 @@ from kingsec.application.ports.outbound import (
     NotificationSenderPort,
     TemplateRendererPort,
 )
+from kingsec.application.ports.outbound.notification_repository import NotificationFilter
 from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.domain.notification import (
     Notification,
@@ -149,10 +150,16 @@ class ListNotifications:
     def __init__(self, repo: NotificationRepositoryPort) -> None:
         self._repo = repo
 
-    def execute(self, user_id: str | None = None, limit: int = 50, offset: int = 0) -> tuple[list[Notification], int]:
+    def execute(
+        self,
+        user_id: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+        filter_: NotificationFilter | None = None,
+    ) -> tuple[list[Notification], int]:
         if user_id:
-            return self._repo.find_by_user(user_id, limit, offset)
-        return self._repo.find_all(limit, offset)
+            return self._repo.find_by_user(user_id, limit, offset, filter_)
+        return self._repo.find_all(limit, offset, filter_)
 
 
 class GetNotification:
@@ -184,6 +191,37 @@ class MarkNotificationRead:
         )
         datetime.now(UTC).isoformat()
         return _with_status(notification, NotificationStatus.READ)
+
+
+class MarkAllNotificationsRead:
+    """Marks every unread notification for a user as read in one query.
+
+    The status/read_at transition must match MarkNotificationRead's
+    single-item behavior exactly (same skip condition, same fields
+    touched) - it's a bulk version of the same operation, not a
+    different one. The repository is responsible for the SQL; this
+    use case's job is scoping to the user and auditing the result.
+    """
+
+    def __init__(self, repo: NotificationRepositoryPort, audit: AuditPublisher | None = None) -> None:
+        self._repo = repo
+        self._audit = audit
+
+    def execute(self, user_id: str) -> int:
+        count = self._repo.mark_all_read(user_id)
+        if count > 0:
+            _safe_audit_record(
+                self._audit,
+                AuditEntry(
+                    action=AuditAction.NOTIFICATION_READ,
+                    resource_type="notification",
+                    resource_id="bulk",
+                    success=True,
+                    user_id=user_id,
+                    metadata={"count": count},
+                ),
+            )
+        return count
 
 
 class DeleteNotification:

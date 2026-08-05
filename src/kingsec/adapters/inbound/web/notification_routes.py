@@ -6,8 +6,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from kingsec.application.errors import NotificationNotFoundError
 from kingsec.application.ports.notification_service import NotificationServicePort
+from kingsec.application.ports.outbound.notification_repository import NotificationFilter
 from kingsec.domain import Role
-from kingsec.domain.notification import NotificationChannel, NotificationId, NotificationPriority
+from kingsec.domain.notification import (
+    NotificationChannel,
+    NotificationId,
+    NotificationPriority,
+    NotificationStatus,
+)
 
 from .auth import CurrentUser, get_current_user, require_admin, require_viewer
 from .dependencies import get_application
@@ -28,19 +34,42 @@ async def list_notifications(
     request: Request,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    read: bool | None = Query(None),
+    channel: str | None = Query(None),
+    priority: str | None = Query(None),
+    status_: str | None = Query(None, alias="status"),
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = _get_service(request)
+    try:
+        filter_ = NotificationFilter(
+            read=read,
+            channel=NotificationChannel(channel) if channel else None,
+            priority=NotificationPriority(priority) if priority else None,
+            status=NotificationStatus(status_) if status_ else None,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e)) from e
     if user.role == Role.ADMIN:
-        notifications, total = service.list_all(limit=limit, offset=offset)
+        notifications, total = service.list_all(limit=limit, offset=offset, filter_=filter_)
     else:
-        notifications, total = service.list_by_user(user.user_id, limit=limit, offset=offset)
+        notifications, total = service.list_by_user(user.user_id, limit=limit, offset=offset, filter_=filter_)
     return {
         "notifications": [_to_json(n) for n in notifications],
         "total": total,
         "limit": limit,
         "offset": offset,
     }
+
+
+@router.post("/mark-all-read")
+async def mark_all_read(
+    request: Request,
+    user: CurrentUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    service = _get_service(request)
+    count = service.mark_all_read(user.user_id)
+    return {"marked_read": count}
 
 
 @router.get("/{notification_id}")
