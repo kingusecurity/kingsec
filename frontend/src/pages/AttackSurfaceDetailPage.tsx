@@ -149,8 +149,8 @@ export function AttackSurfaceDetailPage() {
                 ['Updated', exposure.updated_at],
               ].filter(([_, v]) => v).map(([label, value]) => (
                 <div key={label as string} className="flex justify-between px-5 py-3 text-sm">
-                  <span className="text-text-muted">{label as string}</span>
-                  <span className="text-text-primary">{value as string}</span>
+                  <span className="shrink-0 text-text-muted">{label as string}</span>
+                  <span className="break-all text-right text-text-primary">{value as string}</span>
                 </div>
               ))}
             </div>
