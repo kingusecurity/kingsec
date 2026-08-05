@@ -70,16 +70,16 @@ export function QueuePage() {
             <div className="space-y-2">
               {queueData?.entries.map(e => (
                 <Card key={e.entry_id} className="p-3 flex items-center justify-between cursor-pointer hover:border-accent/50" onClick={() => navigate(`/queue/${e.entry_id}`)}>
-                  <div className="space-y-1">
+                  <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-sm">{e.entry_id}</span>
+                      <span className="truncate font-mono text-sm" title={e.entry_id}>{e.entry_id}</span>
                       <Badge variant={stateColor(e.state)}>{e.state}</Badge>
                     </div>
                     <div className="text-xs text-text-muted">
                       Target: {e.target} &middot; Retries: {e.retry_count}/{e.max_retries}
                       {e.assigned_worker_id && ` &middot; Worker: ${e.assigned_worker_id}`}
                     </div>
-                    {e.error_message && <div className="text-xs text-red-400">{e.error_message}</div>}
+                    {e.error_message && <div className="truncate text-xs text-red-400" title={e.error_message}>{e.error_message}</div>}
                   </div>
                   <div className="flex gap-1">
                     {e.state === 'failed' && (
@@ -102,12 +102,12 @@ export function QueuePage() {
           {dlLoading ? <div className="flex justify-center py-8"><Spinner /></div> : (
             deadLetterData?.entries.map(e => (
               <Card key={e.entry_id} className="p-3 flex items-center justify-between">
-                <div className="space-y-1">
+                <div className="min-w-0 space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm">{e.original_job_id}</span>
+                    <span className="truncate font-mono text-sm" title={e.original_job_id}>{e.original_job_id}</span>
                     <Badge variant="critical">dead</Badge>
                   </div>
-                  <div className="text-xs text-text-muted">{e.reason}</div>
+                  <div className="truncate text-xs text-text-muted" title={e.reason}>{e.reason}</div>
                   <div className="text-xs text-text-muted">Retried {e.retry_count}x &middot; Failed at: {new Date(e.failed_at).toLocaleString()}</div>
                 </div>
                 <Button size="sm" variant="outline" onClick={() => requeue.mutate(e.entry_id)}>Requeue</Button>
