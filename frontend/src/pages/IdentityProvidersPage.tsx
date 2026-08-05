@@ -111,13 +111,16 @@ export function IdentityProvidersPage() {
         {data?.providers.map((p) => (
           <Card key={p.id} className="p-4">
             <div className="flex items-start justify-between">
-              <div className="space-y-1 cursor-pointer" onClick={() => navigate(`/identity/${p.id}`)}>
+              <div className="min-w-0 space-y-1 cursor-pointer" onClick={() => navigate(`/identity/${p.id}`)}>
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-text-primary">{p.name}</span>
                   <Badge variant={statusColor(p.status)}>{p.status}</Badge>
                   <Badge variant="info">{protocolLabels[p.protocol] ?? p.protocol}</Badge>
                 </div>
-                <div className="text-sm text-text-muted">
+                <div
+                  className="truncate text-sm text-text-muted"
+                  title={[p.issuer && `Issuer: ${p.issuer}`, p.domain_hint && `Domain: ${p.domain_hint}`].filter(Boolean).join(' · ')}
+                >
                   {p.issuer && <span>Issuer: {p.issuer}</span>}
                   {p.domain_hint && <span> &middot; Domain: {p.domain_hint}</span>}
                 </div>
