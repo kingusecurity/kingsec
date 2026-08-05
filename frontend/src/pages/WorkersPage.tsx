@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
+import { Input } from '@/components/ui/Input'
 
 export function WorkersPage() {
   const { data, isLoading } = useWorkers()
@@ -52,11 +53,11 @@ export function WorkersPage() {
         <Card className="p-4 space-y-3">
           <h3 className="font-medium">Register New Worker</h3>
           <div className="grid grid-cols-2 gap-3">
-            <input className="input" placeholder="Worker ID *" value={form.worker_id} onChange={e => setForm({ ...form, worker_id: e.target.value })} />
-            <input className="input" placeholder="Hostname" value={form.hostname} onChange={e => setForm({ ...form, hostname: e.target.value })} />
-            <input className="input" placeholder="OS" value={form.os} onChange={e => setForm({ ...form, os: e.target.value })} />
-            <input className="input" placeholder="CPU" value={form.cpu} onChange={e => setForm({ ...form, cpu: e.target.value })} />
-            <input className="input" placeholder="RAM (MB)" type="number" value={form.ram_mb} onChange={e => setForm({ ...form, ram_mb: parseInt(e.target.value) || 0 })} />
+            <Input placeholder="Worker ID *" value={form.worker_id} onChange={e => setForm({ ...form, worker_id: e.target.value })} />
+            <Input placeholder="Hostname" value={form.hostname} onChange={e => setForm({ ...form, hostname: e.target.value })} />
+            <Input placeholder="OS" value={form.os} onChange={e => setForm({ ...form, os: e.target.value })} />
+            <Input placeholder="CPU" value={form.cpu} onChange={e => setForm({ ...form, cpu: e.target.value })} />
+            <Input placeholder="RAM (MB)" type="number" value={form.ram_mb} onChange={e => setForm({ ...form, ram_mb: parseInt(e.target.value) || 0 })} />
           </div>
           {registerWorker.isError && (
             <p className="text-sm text-red-500">
