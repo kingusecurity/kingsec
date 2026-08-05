@@ -22,11 +22,15 @@ describe('SettingsPage', () => {
     renderPage()
     expect(screen.getByRole('tab', { name: 'General' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Appearance' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Dashboard' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Notifications' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Security' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'API' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'About' })).toBeInTheDocument()
+  })
+
+  it('does not render the Dashboard/Notifications preference tabs (hidden - saved values had no effect)', () => {
+    renderPage()
+    expect(screen.queryByRole('tab', { name: 'Dashboard' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Notifications' })).not.toBeInTheDocument()
   })
 
   it('shows General section by default', () => {

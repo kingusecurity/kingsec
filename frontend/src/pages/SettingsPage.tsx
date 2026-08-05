@@ -3,8 +3,6 @@ import { PageContainer, PageHeader } from '@/components/layout/PageContainer'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs'
 import { GeneralSection } from '@/components/features/settings/GeneralSection'
 import { AppearanceSection } from '@/components/features/settings/AppearanceSection'
-import { DashboardPreferencesSection } from '@/components/features/settings/DashboardPreferencesSection'
-import { NotificationPreferencesSection } from '@/components/features/settings/NotificationPreferencesSection'
 import { SecuritySection } from '@/components/features/settings/SecuritySection'
 import { ApiSettingsSection } from '@/components/features/settings/ApiSettingsSection'
 import { AboutSection } from '@/components/features/settings/AboutSection'
@@ -12,11 +10,13 @@ import { IntegrationsSection } from '@/components/features/settings/Integrations
 import { LicenseSection } from '@/components/features/settings/LicenseSection'
 import { OrganizationSection } from '@/components/features/settings/OrganizationSection'
 
+// Dashboard preferences and Notification preferences tabs were removed:
+// both saved correctly to local storage, but nothing downstream ever read
+// either set of values, so the controls had no effect. See
+// docs/audits/dead-button-audit-2026-08.md.
 const tabs = [
   { value: 'general', label: 'General' },
   { value: 'appearance', label: 'Appearance' },
-  { value: 'dashboard', label: 'Dashboard' },
-  { value: 'notifications', label: 'Notifications' },
   { value: 'license', label: 'License' },
   { value: 'organizations', label: 'Organizations' },
   { value: 'integrations', label: 'Integrations' },
@@ -39,8 +39,6 @@ export function SettingsPage() {
         </TabsList>
         <TabsContent value="general"><GeneralSection /></TabsContent>
         <TabsContent value="appearance"><AppearanceSection /></TabsContent>
-        <TabsContent value="dashboard"><DashboardPreferencesSection /></TabsContent>
-        <TabsContent value="notifications"><NotificationPreferencesSection /></TabsContent>
         <TabsContent value="license"><LicenseSection /></TabsContent>
         <TabsContent value="organizations"><OrganizationSection /></TabsContent>
         <TabsContent value="integrations"><IntegrationsSection /></TabsContent>
