@@ -231,6 +231,22 @@ class TestCheckAccountLockout:
         assert result.failed_attempts == 0
         assert lockout_repo.get("u1") is None
 
+    def test_in_progress_attempt_count_is_not_locked_and_is_not_cleared(self) -> None:
+        """RecordFailedAuthentication saves locked_until=0.0 for an attempt
+        that hasn't crossed the lockout threshold yet - that's not an
+        expired lock, so checking it must neither report locked=True nor
+        delete the record (which would silently reset the attempt count on
+        every check before the threshold is ever reached)."""
+        lockout_repo = FakeLockoutRepository()
+        clock = FakeClock(_now=1000.0)
+        lockout_repo.save(AccountLockout(user_id="u1", locked_until=0.0, failed_attempts=2))
+        use_case = CheckAccountLockout(lockout_repo, clock)
+        req = CheckAccountLockoutRequest(user_id="u1")
+        result = use_case.execute(req)
+        assert not result.locked
+        assert result.failed_attempts == 2
+        assert lockout_repo.get("u1") is not None
+
 
 class TestResetFailedAttempts:
     def test_resets_lockout(self) -> None:

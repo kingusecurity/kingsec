@@ -24,6 +24,20 @@ class CheckAccountLockout:
                 failed_attempts=0,
             )
 
+        if existing.locked_until <= 0:
+            # RecordFailedAuthentication saves a record with locked_until=0.0
+            # to track an attempt count that hasn't crossed the lockout
+            # threshold yet - it isn't a lock, so there's nothing to clear
+            # and `now >= 0` must not be treated as "this lock expired"
+            # (it always is, which would silently wipe the in-progress
+            # attempt count on every check before it ever reaches the
+            # threshold).
+            return CheckAccountLockoutResponse(
+                locked=False,
+                locked_until=None,
+                failed_attempts=existing.failed_attempts,
+            )
+
         if now >= existing.locked_until:
             self._lockout_repo.delete(request.user_id)
             return CheckAccountLockoutResponse(
