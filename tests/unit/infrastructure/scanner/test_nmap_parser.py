@@ -265,3 +265,38 @@ class TestSeverityClassification:
         from kingsec.infrastructure.scanner.nmap_parser import _classify_script_severity
 
         assert _classify_script_severity("smb-vuln-ms17-010") is Severity.MEDIUM
+
+
+class TestRemediationLookupStaysInSyncWithGeneratedTitles:
+    """domain/report.py's generic_remediation_for() fallback table is keyed on
+    this parser's exact generated title string, not a structured finding-type
+    identifier - there isn't one anywhere in Finding/FindingSummary to key on
+    instead (checked: neither carries anything beyond title/description/
+    severity/status). That makes the match fragile to wording drift, with no
+    signal if it silently breaks. This test is the safety net: it runs the
+    real parser against a real fixture and feeds the real generated title
+    into the real lookup, so a wording change on either side fails this test
+    immediately instead of quietly falling back to "no guidance available"
+    in production.
+    """
+
+    def test_open_port_title_still_matches_the_remediation_table(self) -> None:
+        from kingsec.domain.report import generic_remediation_for
+
+        # _SINGLE_HOST_XML has two open ports and no scripts, so every finding
+        # it produces is an "open port" finding by construction - taken by
+        # position, not by re-matching the very title text under test, so a
+        # wording change of any kind (not just one that drops the word
+        # "Open") still reaches the assertion below with a clear message
+        # instead of failing earlier on an unrelated lookup.
+        findings = parse_nmap_xml(_SINGLE_HOST_XML)
+        assert len(findings) == 2
+        open_port_finding = findings[0]
+
+        rec = generic_remediation_for(open_port_finding.title, open_port_finding.severity)
+
+        assert rec is not None, (
+            f"nmap_parser.py's generated title {open_port_finding.title!r} no "
+            "longer matches domain/report.py's _GENERIC_REMEDIATION_BY_TITLE_PREFIX "
+            "table - update the table's prefix to match, or vice versa."
+        )
