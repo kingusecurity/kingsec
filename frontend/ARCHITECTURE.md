@@ -177,6 +177,10 @@ Closed: `false_positive`, `remediated`
 |--------|------|------|
 | GET | `/api/v1/events?assessment_id=` | any |
 
+Exists on the backend but nothing calls it today (see "Key Backend
+Idiosyncrasies" below) — live progress currently goes through polling,
+not this endpoint.
+
 ### Audit
 
 | Method | Path | Min role |
@@ -253,7 +257,7 @@ Pagination params accepted by list endpoints: `limit`, `offset`.
 | Charts | Recharts (dashboard) |
 | Tables | TanStack Table v8 (assessments, findings) |
 | Animations | Framer Motion (transitions, loading states) |
-| Real-time | EventSource (SSE) for `/api/v1/events` |
+| Real-time | HTTP polling via TanStack Query `refetchInterval` (`use-execution.ts`'s `useExecutionStatus`/`useExecutionEvents`/`useExecutionProgress`) — not SSE; see idiosyncrasy #7 |
 | Fonts | Self-hosted Inter + JetBrains Mono — no CDN |
 
 ## Screen-to-Endpoint Mapping (Blueprint v2)
@@ -265,7 +269,7 @@ Pagination params accepted by list endpoints: `limit`, `offset`.
 | Dashboard | `GET /dashboard/*` (10 endpoints) | VIEWER |
 | Assessment List | `GET /assessments` | VIEWER |
 | Assessment Create | `POST /assessments` | ANALYST |
-| Assessment Detail | `GET /assessments/{id}`, SSE `/events` | VIEWER |
+| Assessment Detail | `GET /assessments/{id}`, polled via `use-execution.ts` | VIEWER |
 | Finding Detail | `GET /assessments/{id}` (extract finding) | VIEWER |
 | Findings Browser | `GET /assessments` (aggregate) | VIEWER |
 | Reports | `POST /assessments/{id}/report`, `GET /assessments/{id}` | ANALYST |
@@ -289,7 +293,7 @@ Pagination params accepted by list endpoints: `limit`, `offset`.
 4. Login is rate-limited via `require_rate_limit(LOGIN)` — frontend must handle 429
 5. First registered user gets ADMIN, subsequent get VIEWER — no ANALYST assignment via registration
 6. Only ADMIN can assign roles (analyst/promote to admin)
-7. SSE endpoint at `/api/v1/events` supports optional `assessment_id` query filter
+7. SSE endpoint at `/api/v1/events` supports optional `assessment_id` query filter, but nothing calls it — live assessment progress is actually served by polling (`use-execution.ts`, TanStack Query `refetchInterval`). The SSE endpoint requires a bearer `Authorization` header, which browser `EventSource` cannot send; a stream-ticket auth pattern (short-lived, single-use, query-param) would be needed before `EventSource` could connect to it directly. Don't build against this endpoint as-is expecting it to work from a browser.
 8. Audit endpoint (`GET /api/v1/audit`) supports rich filtering: `user_id`, `action`, `resource_type`, `since`, `until`, `success`
 9. API key auth supports both `Authorization: Bearer <key>` and `X-API-Key` header
 10. Password min 8 chars with mixed case + digit requirement
