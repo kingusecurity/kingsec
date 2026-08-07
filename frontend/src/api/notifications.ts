@@ -24,7 +24,7 @@ export interface NotificationListResponse {
   offset: number
 }
 
-export interface NotificationListParams {
+export type NotificationListParams = Record<string, string | number | boolean | undefined | null> & {
   limit?: number
   offset?: number
   read?: boolean
