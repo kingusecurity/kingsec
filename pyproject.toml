@@ -101,6 +101,14 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/kingsec"]
 include = ["src/kingsec/alembic/alembic.ini", "src/kingsec/alembic/script.py.mako", "src/kingsec/alembic/versions/*.py"]
+# `artifacts` (not `include`) because static/ is gitignored - it's
+# generated, not committed - and Hatchling's default file-selection
+# otherwise respects VCS ignore files. `artifacts` is specifically for
+# "include this even though your VCS ignores it." Populated by
+# `npm ci && npm run build` + a copy step run ahead of `python -m build`
+# (see release.yml, Dockerfile). Absent in a plain source checkout, in
+# which case spa.py's register_spa() simply skips registering SPA routes.
+artifacts = ["src/kingsec/adapters/inbound/web/static/**/*"]
 
 # =============================================================================
 # Ruff - linting + formatting

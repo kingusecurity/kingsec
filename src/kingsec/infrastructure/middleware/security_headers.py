@@ -13,6 +13,16 @@ Documentation route CSP
     To swap to a self-hosted Swagger bundle in the future, change only the
     ``DOCS_CSP`` constant — no other code needs to change.
 
+SPA route CSP
+    Everything that isn't an ``/api/*`` or documentation path is either the
+    bundled frontend (served by ``spa.py``'s static mount/fallback) or a
+    genuinely unmatched path that the SPA fallback still answers with
+    ``index.html``. ``default-src 'none'`` would break the SPA outright —
+    no script execution, no stylesheets, no fetch() to the API — so those
+    responses get ``SPA_CSP`` instead: still no external origins (the
+    frontend is 100% self-hosted, zero CDN, per its own tech constraints),
+    just permitting same-origin script/style/img/connect/worker.
+
 Permissions-Policy
     A restrictive Permissions-Policy header is added to all responses,
     disabling browser features that have no use in an API context (camera,
@@ -56,6 +66,29 @@ DOCS_CSP = (
 # Route prefixes that receive the relaxed documentation CSP.
 DOCS_PATHS = ("/docs", "/redoc")
 
+# CSP for the bundled frontend SPA (everything not under /api or the docs
+# paths). Self-hosted only — the build has zero CDN/external-request
+# dependencies — so this stays tight: no 'unsafe-inline', no 'unsafe-eval',
+# no third-party origins anywhere.
+SPA_CSP = (
+    "default-src 'self'; "
+    "script-src 'self'; "
+    "style-src 'self'; "
+    "img-src 'self' data:; "
+    "font-src 'self'; "
+    "connect-src 'self'; "
+    "manifest-src 'self'; "
+    "worker-src 'self'; "
+    "base-uri 'self'; "
+    "form-action 'self'; "
+    "frame-ancestors 'none'"
+)
+
+# Path prefix under which every real API route lives (see
+# adapters/inbound/web/versioning.py) — anything outside this and
+# DOCS_PATHS is the SPA's territory.
+_API_PREFIX = "/api"
+
 # Default Permissions-Policy: disable all browser features not needed by an API.
 _DEFAULT_PERMISSIONS_POLICY = (
     "camera=(), microphone=(), geolocation=(), payment=(), "
@@ -92,6 +125,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # Content-Security-Policy with optional nonce support.
         if request.url.path.startswith(DOCS_PATHS):
             response.headers["Content-Security-Policy"] = DOCS_CSP
+        elif not request.url.path.startswith(_API_PREFIX) and request.url.path != "/openapi.json":
+            response.headers["Content-Security-Policy"] = SPA_CSP
         else:
             csp = self._settings.content_security_policy
             # If CSP contains 'nonce-', generate a per-request nonce.

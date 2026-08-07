@@ -29,6 +29,7 @@ from fastapi import FastAPI
 
 from .error_handlers import register_error_handlers
 from .openapi import configure_openapi
+from .spa import register_spa
 from .versioning import register_versioned_routes
 
 if TYPE_CHECKING:
@@ -75,5 +76,10 @@ def create_fastapi_app(
 
     # Versioned routes (v1, future v2+).
     register_versioned_routes(app)
+
+    # Bundled frontend SPA, if one was built into this package. Must come
+    # last: its catch-all fallback route would otherwise shadow anything
+    # registered after it.
+    register_spa(app)
 
     return app

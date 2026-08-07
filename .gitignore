@@ -14,6 +14,10 @@ dist/
 *.egg-info/
 .eggs/
 
+# Bundled frontend build output, copied into the package by the release
+# pipeline (see release.yml, Dockerfile) - never hand-authored, never committed.
+src/kingsec/adapters/inbound/web/static/
+
 # Environment & secrets (NEVER commit real values)
 .env
 .env.*
