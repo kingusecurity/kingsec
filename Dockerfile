@@ -1,7 +1,21 @@
 # =============================================================================
 # KingSec — Multi-stage Docker Build
 # =============================================================================
-# Stage 1: Build (build the wheel from source)
+# Stage 1: Frontend build (produces frontend/dist, bundled into the wheel
+# by the next stage - the running backend serves it same-origin, see
+# adapters/inbound/web/spa.py)
+FROM node:20-slim AS frontend-builder
+
+WORKDIR /frontend
+
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+
+COPY frontend/ ./
+RUN npm run build
+
+# =============================================================================
+# Stage 2: Build (build the wheel from source)
 FROM python:3.12-slim AS builder
 
 WORKDIR /build
@@ -24,12 +38,17 @@ COPY pyproject.toml README.md LICENSE ./
 # Copy the application source
 COPY src/ ./src/
 
+# Bundle the frontend build into the package before packaging - artifacts
+# in pyproject.toml's wheel target picks this up even though static/ is
+# gitignored (it's generated, not committed).
+COPY --from=frontend-builder /frontend/dist/ ./src/kingsec/adapters/inbound/web/static/
+
 # Build the wheel
 RUN uv pip install --system build && \
     python -m build --wheel --outdir=/build/dist
 
 # =============================================================================
-# Stage 2: Runtime (minimal image)
+# Stage 3: Runtime (minimal image)
 FROM python:3.12-slim
 
 # Security: run as non-root user
