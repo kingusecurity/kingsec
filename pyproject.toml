@@ -139,8 +139,11 @@ known-first-party = ["kingsec"]
 
 [tool.ruff.lint.per-file-ignores]
 # FastAPI Depends() in route arg defaults is the standard DI pattern, not a bug.
-"src/**/web/*.py" = ["B008"]
-"src/**/routes/*.py" = ["B008"]
+# PT028 ("test function parameter has default argument") is a pytest-style rule
+# that misfires on the same pattern in production route handlers - it isn't a
+# test function, the "default" is a real dependency injection, not a fixture.
+"src/**/web/*.py" = ["B008", "PT028"]
+"src/**/routes/*.py" = ["B008", "PT028"]
 # Tests may assert freely and use test-only patterns.
 "tests/**" = [
   "S101",      # assert is fine in tests

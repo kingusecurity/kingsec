@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import ClassVar
 
 from kingsec.domain.threat_intelligence import CveEntry, ExploitMaturity
 
@@ -19,7 +20,7 @@ class ThreatRiskCalculator:
     EXPLOITABILITY_WEIGHT = 0.35
     LIKELIHOOD_WEIGHT = 0.35
     KEV_BOOST = 15.0
-    MATURITY_BOOST = {
+    MATURITY_BOOST: ClassVar[dict[ExploitMaturity, float]] = {
         ExploitMaturity.ACTIVE_EXPLOITATION: 20.0,
         ExploitMaturity.WEAPONIZED: 15.0,
         ExploitMaturity.PROOF_OF_CONCEPT: 8.0,

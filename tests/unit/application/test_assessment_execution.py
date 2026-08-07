@@ -1,4 +1,3 @@
-from datetime import UTC, datetime
 
 from kingsec.application.assessment_execution import (
     AssessmentExecutionEngine,
@@ -53,7 +52,7 @@ class TestAssessmentExecutionEngine:
         self.engine.skip_scanner("assess-1", "zap", "Not installed")
         state = self.engine.get_state("assess-1")
         assert state is not None
-        zap = [s for s in state.scanner_progress if s.scanner_id == "zap"][0]
+        zap = next(s for s in state.scanner_progress if s.scanner_id == "zap")
         assert zap.status == "skipped"
         assert zap.skipped_reason == "Not installed"
 

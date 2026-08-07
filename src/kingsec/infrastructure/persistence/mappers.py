@@ -1536,7 +1536,8 @@ def identity_provider_to_domain(orm: IdentityProviderModel) -> IdentityProvider:
     if orm.saml_config_json:
         try:
             d = json.loads(orm.saml_config_json)
-            if isinstance(d.get("scopes"), list): d["scopes"] = tuple(d["scopes"])
+            if isinstance(d.get("scopes"), list):
+                d["scopes"] = tuple(d["scopes"])
             saml_cfg = Saml2Config(**d)
         except (json.JSONDecodeError, TypeError):
             pass
@@ -1544,7 +1545,8 @@ def identity_provider_to_domain(orm: IdentityProviderModel) -> IdentityProvider:
     if orm.oidc_config_json:
         try:
             d = json.loads(orm.oidc_config_json)
-            if isinstance(d.get("scopes"), list): d["scopes"] = tuple(d["scopes"])
+            if isinstance(d.get("scopes"), list):
+                d["scopes"] = tuple(d["scopes"])
             oidc_cfg = OidcConfig(**d)
         except (json.JSONDecodeError, TypeError):
             pass
@@ -1558,7 +1560,8 @@ def identity_provider_to_domain(orm: IdentityProviderModel) -> IdentityProvider:
     if orm.oauth2_config_json:
         try:
             d = json.loads(orm.oauth2_config_json)
-            if isinstance(d.get("scopes"), list): d["scopes"] = tuple(d["scopes"])
+            if isinstance(d.get("scopes"), list):
+                d["scopes"] = tuple(d["scopes"])
             oauth2_cfg = OAuth2Config(**d)
         except (json.JSONDecodeError, TypeError):
             pass

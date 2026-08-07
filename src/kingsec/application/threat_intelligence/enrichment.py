@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 from kingsec.domain.identifiers import CveId
 from kingsec.domain.threat_intelligence import (
@@ -217,7 +217,7 @@ class KevService:
 
 
 class CvssService:
-    SEVERITY_MAP = {
+    SEVERITY_MAP: ClassVar[dict[tuple[float, float], str]] = {
         (9.0, 10.0): "CRITICAL",
         (7.0, 8.9): "HIGH",
         (4.0, 6.9): "MEDIUM",

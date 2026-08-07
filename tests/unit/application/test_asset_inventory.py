@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
-from typing import Any
-
 import pytest
 
 from kingsec.application.ports.asset_inventory import (
-    AssetDetail,
     AssetFilter,
     AssetInventoryRepositoryPort,
     AssetSummary,
@@ -17,11 +13,8 @@ from kingsec.domain.asset import (
     AssetCriticality,
     AssetHistoryEntry,
     AssetRelationship,
-    AssetTag,
     AssetType,
-    TechnologyFingerprint,
 )
-from kingsec.domain.identifiers import AssetId
 
 
 class InMemoryAssetInventoryRepository(AssetInventoryRepositoryPort):
