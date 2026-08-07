@@ -147,7 +147,7 @@ def get_asset(
         result["finding_count"] = detail.finding_count
         return result
     except (AssetNotFoundError, KeyError) as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.post("/assets")
@@ -185,7 +185,7 @@ def update_asset(
         asset = _get_service(request).update_asset(asset_id, body)
         return _asset_to_dict(asset)
     except (AssetNotFoundError, KeyError) as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.delete("/assets/{asset_id}")
@@ -198,7 +198,7 @@ def delete_asset(
         _get_service(request).delete_asset(asset_id)
         return {"status": "deleted"}
     except AssetNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 # =====================================================================
@@ -217,7 +217,7 @@ def add_tag(
         asset = _get_service(request).add_tag(asset_id, body["key"], body["value"])
         return _asset_to_dict(asset)
     except AssetNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.delete("/assets/{asset_id}/tags/{key}")
@@ -231,7 +231,7 @@ def remove_tag(
         asset = _get_service(request).remove_tag(asset_id, key)
         return _asset_to_dict(asset)
     except AssetNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 # =====================================================================
@@ -299,7 +299,7 @@ def recalculate_risk(
         )
         return {"risk_score": asset.risk_score}
     except AssetNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.put("/assets/{asset_id}/criticality")
@@ -313,7 +313,7 @@ def update_criticality(
         asset = _get_service(request).update_criticality(asset_id, body["criticality"])
         return _asset_to_dict(asset)
     except AssetNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 # =====================================================================

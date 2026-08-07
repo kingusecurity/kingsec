@@ -170,7 +170,7 @@ def get_monitoring_event(
     try:
         return _event_to_dict(_get_service(request).get_event(event_id))
     except MonitorEventNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 # =====================================================================
@@ -212,7 +212,7 @@ def get_alert(
     try:
         return _alert_to_dict(_get_service(request).get_alert(alert_id))
     except AlertNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.post("/monitoring/alerts/{alert_id}/acknowledge")
@@ -224,7 +224,7 @@ def acknowledge_alert(
     try:
         return _alert_to_dict(_get_service(request).acknowledge_alert(alert_id))
     except AlertNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.post("/monitoring/alerts/{alert_id}/resolve")
@@ -236,7 +236,7 @@ def resolve_alert(
     try:
         return _alert_to_dict(_get_service(request).resolve_alert(alert_id))
     except AlertNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.post("/monitoring/alerts/{alert_id}/dismiss")
@@ -248,7 +248,7 @@ def dismiss_alert(
     try:
         return _alert_to_dict(_get_service(request).dismiss_alert(alert_id))
     except AlertNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 # =====================================================================
@@ -286,7 +286,7 @@ def get_rule(
     try:
         return _rule_to_dict(_get_service(request).get_rule(rule_id))
     except RuleNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.post("/monitoring/rules")
@@ -308,7 +308,7 @@ def create_rule(
             notify_channels=body.get("notify_channels"),
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     return _rule_to_dict(rule)
 
 
@@ -323,9 +323,9 @@ def update_rule(
         rule = _get_service(request).update_rule(rule_id, body)
         return _rule_to_dict(rule)
     except RuleNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.delete("/monitoring/rules/{rule_id}")
@@ -338,7 +338,7 @@ def delete_rule(
         _get_service(request).delete_rule(rule_id)
         return {"status": "deleted"}
     except RuleNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.post("/monitoring/rules/{rule_id}/enable")
@@ -350,7 +350,7 @@ def enable_rule(
     try:
         return _rule_to_dict(_get_service(request).enable_rule(rule_id))
     except RuleNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.post("/monitoring/rules/{rule_id}/disable")
@@ -362,7 +362,7 @@ def disable_rule(
     try:
         return _rule_to_dict(_get_service(request).disable_rule(rule_id))
     except RuleNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.post("/monitoring/rules/seed")

@@ -112,7 +112,7 @@ async def sync_cve(
         entry = await service.sync_cve(cve_code)
         return _cve_to_dict(entry)
     except CveNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.delete("/cves/{cve_id}")
@@ -124,7 +124,7 @@ async def delete_cve(
         await service.delete_cve(CveId(cve_id))
         return {"status": "deleted"}
     except CveNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.get("/cves/{cve_id}/risk")
@@ -142,7 +142,7 @@ async def get_risk_assessment(
             "overall_threat_score": risk.overall_threat_score,
         }
     except CveNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.get("/kev")

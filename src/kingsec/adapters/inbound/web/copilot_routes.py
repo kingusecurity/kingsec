@@ -100,7 +100,7 @@ def get_conversation(
         conv = copilot.get_conversation(conversation_id, user.username, _is_admin(user))
         return _conv_to_dict(conv)
     except CopilotConversationNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.delete("/copilot/conversations/{conversation_id}")
@@ -113,7 +113,7 @@ def delete_conversation(
         copilot.delete_conversation(conversation_id, user.username, _is_admin(user))
         return {"status": "deleted"}
     except CopilotConversationNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 # --- Ask ---
@@ -135,7 +135,7 @@ def ask_copilot(
     try:
         return copilot.ask(conversation_id, question, template_id, user.username, _is_admin(user))
     except CopilotConversationNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 # --- Prompt Templates ---
@@ -199,7 +199,7 @@ def get_note(
         note = notes_svc.get_note(note_id, user.username, _is_admin(user))
         return _note_to_dict(note)
     except InvestigationNoteNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.put("/copilot/notes/{note_id}")
@@ -213,7 +213,7 @@ def update_note(
         note = notes_svc.update_note(note_id, body.get("content", ""), user.username, _is_admin(user))
         return _note_to_dict(note)
     except InvestigationNoteNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.post("/copilot/notes/{note_id}/pin")
@@ -226,7 +226,7 @@ def pin_note(
         note = notes_svc.pin_note(note_id, user.username, _is_admin(user))
         return _note_to_dict(note)
     except InvestigationNoteNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.post("/copilot/notes/{note_id}/unpin")
@@ -239,7 +239,7 @@ def unpin_note(
         note = notes_svc.unpin_note(note_id, user.username, _is_admin(user))
         return _note_to_dict(note)
     except InvestigationNoteNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.delete("/copilot/notes/{note_id}")
@@ -252,7 +252,7 @@ def delete_note(
         notes_svc.delete_note(note_id, user.username, _is_admin(user))
         return {"status": "deleted"}
     except InvestigationNoteNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 # --- Export ---

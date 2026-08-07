@@ -63,7 +63,7 @@ class AssetInventoryService:
         try:
             return self._repo.get(asset_id)
         except AssetNotFoundError:
-            raise AssetNotFoundError(f"Asset not found: {asset_id}")
+            raise AssetNotFoundError(f"Asset not found: {asset_id}") from None
 
     def get_asset_detail(self, asset_id: str) -> AssetDetail:
         asset = self._repo.get(asset_id)

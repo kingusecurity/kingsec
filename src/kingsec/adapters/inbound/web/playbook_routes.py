@@ -53,7 +53,7 @@ def create_playbook(
         )
         return _playbook_to_dict(pb)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/playbooks/history")
@@ -126,7 +126,7 @@ def update_playbook(
         )
         return _playbook_to_dict(pb)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.delete("/playbooks/{playbook_id}", status_code=204)
@@ -151,7 +151,7 @@ def execute_playbook(
         )
         return _execution_to_dict(result)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/playbooks/{playbook_id}/enable")
@@ -163,7 +163,7 @@ def enable_playbook(
         pb = service.enable_playbook(playbook_id)
         return _playbook_to_dict(pb)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/playbooks/{playbook_id}/disable")
@@ -175,7 +175,7 @@ def disable_playbook(
         pb = service.disable_playbook(playbook_id)
         return _playbook_to_dict(pb)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 def _playbook_to_dict(pb: Any) -> dict[str, Any]:

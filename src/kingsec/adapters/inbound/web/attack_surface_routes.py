@@ -162,7 +162,7 @@ def get_exposure(
         e = _get_service(request).get_exposure(exposure_id)
         return _exposure_to_dict(e)
     except ExposureNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.post("/attack-surface/exposures")
@@ -212,7 +212,7 @@ def update_exposure(
         e = _get_service(request).update_exposure(exposure_id, body)
         return _exposure_to_dict(e)
     except ExposureNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.delete("/attack-surface/exposures/{exposure_id}")
@@ -225,7 +225,7 @@ def delete_exposure(
         _get_service(request).delete_exposure(exposure_id)
         return {"status": "deleted"}
     except ExposureNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 # =====================================================================
@@ -267,7 +267,7 @@ def mitigate_exposure(
         e = _get_service(request).mitigate_exposure(exposure_id)
         return _exposure_to_dict(e)
     except ExposureNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.put("/attack-surface/exposures/{exposure_id}/remediation")
@@ -281,7 +281,7 @@ def update_remediation(
         e = _get_service(request).update_exposure_remediation(exposure_id, body["remediation"])
         return _exposure_to_dict(e)
     except ExposureNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 # =====================================================================

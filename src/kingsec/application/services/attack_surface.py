@@ -59,7 +59,7 @@ class AttackSurfaceService:
         try:
             return self._repo.get(exposure_id)
         except ExposureNotFoundError:
-            raise ExposureNotFoundError(f"Exposure not found: {exposure_id}")
+            raise ExposureNotFoundError(f"Exposure not found: {exposure_id}") from None
 
     def delete_exposure(self, exposure_id: str) -> None:
         self._repo.get(exposure_id)
