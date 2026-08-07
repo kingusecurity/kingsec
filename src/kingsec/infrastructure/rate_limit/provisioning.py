@@ -1,20 +1,26 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
+from sqlalchemy.orm import Session
+
 from kingsec.application.ports.outbound.clock_port import ClockPort
 from kingsec.application.ports.outbound.lockout_repository import LockoutRepository
 from kingsec.application.ports.outbound.rate_limiter import RateLimiterPort
 from kingsec.infrastructure._container import ContainerProtocol
 from kingsec.infrastructure.config.settings import Settings
 
-from .in_memory_lockout_repository import InMemoryLockoutRepository
 from .in_memory_rate_limiter import InMemoryRateLimiter
+from .sql_lockout_repository import SQLAlchemyLockoutRepository
 from .system_clock import SystemClock
 
 
-def register_rate_limiter(container: ContainerProtocol, settings: Settings) -> None:
+def register_rate_limiter(
+    container: ContainerProtocol, settings: Settings, session_factory: Callable[..., Session]
+) -> None:
     rate_limiter = InMemoryRateLimiter()
     clock: ClockPort = SystemClock()
-    lockout_repo: LockoutRepository = InMemoryLockoutRepository()
+    lockout_repo: LockoutRepository = SQLAlchemyLockoutRepository(session_factory)
 
     container.register_instance(RateLimiterPort, rate_limiter)
     container.register_instance(ClockPort, clock)

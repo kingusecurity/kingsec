@@ -268,8 +268,9 @@ def _register_adapters(
     # MFA (TOTP) infrastructure.
     register_mfa(container, session_factory)
 
-    # Rate limiting infrastructure (in-memory, thread-safe).
-    register_rate_limiter(container, settings)
+    # Rate limiting infrastructure (in-memory rate limiter; account
+    # lockout is SQL-backed so it survives a restart).
+    register_rate_limiter(container, settings, session_factory)
 
     # Secrets management infrastructure.
     register_secrets(container, settings, str(settings.storage.data_dir / "secrets.json"))

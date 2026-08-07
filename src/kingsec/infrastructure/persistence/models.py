@@ -309,6 +309,22 @@ class RevokedTokenORM(Base):
     expires_at: Mapped[str] = mapped_column(String, nullable=False, index=True)  # ISO-8601
 
 
+class AccountLockoutORM(Base):
+    """Row representation of an :class:`~kingsec.domain.rate_limit.AccountLockout`.
+
+    One row per user with any recorded failed-login history. ``locked_until``
+    is a Unix timestamp (matches ``ClockPort.now()``'s float epoch seconds) -
+    0.0 means "tracking an attempt count that hasn't crossed the lockout
+    threshold yet," not an active lock (see CheckAccountLockout).
+    """
+
+    __tablename__ = "account_lockouts"
+
+    user_id: Mapped[str] = mapped_column(String, primary_key=True)
+    locked_until: Mapped[float] = mapped_column(Float, nullable=False)
+    failed_attempts: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
 # ===========================================================================
 #  Notification model
 # ===========================================================================

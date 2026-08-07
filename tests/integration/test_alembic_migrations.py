@@ -73,6 +73,7 @@ def _get_indexes(database_url: str, table_name: str) -> dict[str, bool]:
 EXPECTED_TABLES = frozenset(
     {
         "account_links",
+        "account_lockouts",
         "api_keys",
         "assessments",
         "asset_history",
