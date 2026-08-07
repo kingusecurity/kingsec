@@ -27,6 +27,7 @@ from kingsec.infrastructure.persistence import (
 from kingsec.infrastructure.persistence.repositories import (
     SQLAlchemyAssessmentRepository,
     SQLAlchemyAssetRepository,
+    SQLAlchemyJobRepository,
     SQLAlchemyReportRepository,
     SQLAlchemyScanRepository,
 )
@@ -272,3 +273,49 @@ class TestCrossRepository:
             repo = SQLAlchemyAssessmentRepository(s2)
             assert repo.get(a1.id).id == a1.id
             assert repo.get(a2.id).id == a2.id
+
+    def test_independent_uow_instances_sharing_one_session_dont_interfere(self, engine) -> None:
+        """Two separate UnitOfWork wrapper instances built over the same
+        underlying Session (not two sessions) must not stomp on each
+        other's commits."""
+        from kingsec.application.jobs import JobId, JobStatus, ScanJob
+
+        with Session(engine) as session:
+            now = datetime.now(UTC)
+            uow1 = SQLAlchemyUnitOfWork(session)
+            with uow1:
+                uow1.job_repository.save(
+                    ScanJob(id=JobId("shared-session-1"), target="first.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now)
+                )
+                uow1.commit()
+
+            uow2 = SQLAlchemyUnitOfWork(session)
+            with uow2:
+                uow2.job_repository.save(
+                    ScanJob(id=JobId("shared-session-2"), target="second.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now)
+                )
+                uow2.commit()
+
+            assert uow2.job_repository.get("shared-session-1").target == "first.com"
+            assert uow2.job_repository.get("shared-session-2").target == "second.com"
+
+    def test_rollback_of_pending_write_preserves_prior_commit_in_same_session(self, engine) -> None:
+        """Rolling back a later, uncommitted write in a session must not
+        erase an earlier write that was already committed in that same
+        session."""
+        from kingsec.application.jobs import JobId, JobStatus, ScanJob
+
+        with Session(engine) as session:
+            now = datetime.now(UTC)
+            repo = SQLAlchemyJobRepository(session)
+            repo.save(ScanJob(id=JobId("pre-existing"), target="stable.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now))
+            session.commit()
+
+            uow = SQLAlchemyUnitOfWork(session)
+            with uow:
+                uow.job_repository.save(
+                    ScanJob(id=JobId("during-error"), target="unstable.com", config={}, status=JobStatus.PENDING, created_at=now, updated_at=now)
+                )
+                uow.rollback()
+
+            assert repo.get("pre-existing").target == "stable.com"

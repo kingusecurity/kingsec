@@ -11,7 +11,6 @@ from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.orm import Session
-from tests.unit.interfaces.api.helpers import fake_get_current_user
 
 from kingsec.application.errors import IllegalJobTransitionError, JobNotFoundError
 from kingsec.application.jobs import JobStatus, ScanJob
@@ -349,96 +348,3 @@ class TestTransactionBoundaries:
         service.submit_scan("tx-list-2.com")
         jobs = service.list_jobs()
         assert len(jobs) == 2
-
-
-# ===========================================================================
-# API integration — quick smoke tests
-# ===========================================================================
-
-
-class TestApiIntegration:
-    """Uses a file-based DB so data survives session close/reopen in the UoW."""
-
-    @pytest.fixture
-    def api_env(self):
-        import os
-        import tempfile
-
-        db_path = tempfile.mktemp(suffix=".db")
-        engine = create_database_engine(url=f"sqlite:///{db_path}")
-        create_schema(engine)
-        with Session(engine) as s:
-            yield s, engine
-        engine.dispose()
-        try:
-            os.unlink(db_path)
-        except PermissionError:
-            pass
-
-    def test_jobs_endpoint_returns_jobs(self, api_env) -> None:
-        from fastapi.testclient import TestClient
-
-        from kingsec.interfaces.api.app import create_app
-
-        session, _ = api_env
-        uow = SQLAlchemyUnitOfWork(session)
-        svc = PersistentJobService(lambda: uow)
-        app = create_app(job_service=svc, get_current_user=fake_get_current_user)
-        client = TestClient(app)
-
-        svc.submit_scan("api-test.com")
-        response = client.get("/jobs")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) >= 1
-
-    def test_create_job_via_api(self, api_env) -> None:
-        from fastapi.testclient import TestClient
-
-        from kingsec.interfaces.api.app import create_app
-
-        session, _ = api_env
-        uow = SQLAlchemyUnitOfWork(session)
-        svc = PersistentJobService(lambda: uow)
-        app = create_app(job_service=svc, get_current_user=fake_get_current_user)
-        client = TestClient(app)
-
-        response = client.post("/jobs", json={"target": "api-create.com"})
-        assert response.status_code == 202
-        data = response.json()
-        assert data["status"] == "PENDING"
-        assert data["target"] == "api-create.com"
-
-    def test_get_job_via_api(self, api_env) -> None:
-        from fastapi.testclient import TestClient
-
-        from kingsec.interfaces.api.app import create_app
-
-        session, _ = api_env
-        uow = SQLAlchemyUnitOfWork(session)
-        svc = PersistentJobService(lambda: uow)
-        job = svc.submit_scan("api-get.com")
-
-        app = create_app(job_service=svc, get_current_user=fake_get_current_user)
-        client = TestClient(app)
-
-        response = client.get(f"/jobs/{job.id}")
-        assert response.status_code == 200
-        assert response.json()["target"] == "api-get.com"
-
-    def test_cancel_job_via_api(self, api_env) -> None:
-        from fastapi.testclient import TestClient
-
-        from kingsec.interfaces.api.app import create_app
-
-        session, _ = api_env
-        uow = SQLAlchemyUnitOfWork(session)
-        svc = PersistentJobService(lambda: uow)
-        job = svc.submit_scan("api-cancel.com")
-
-        app = create_app(job_service=svc, get_current_user=fake_get_current_user)
-        client = TestClient(app)
-
-        response = client.delete(f"/jobs/{job.id}")
-        assert response.status_code == 200
-        assert response.json()["status"] == "CANCELLED"

@@ -397,6 +397,26 @@ class TestEdgeCases:
             with pytest.raises(AssessmentNotFoundError):
                 repo2.get(assessment.id)
 
+    def test_resave_across_sessions_does_not_corrupt(self, engine) -> None:
+        """Saving the same assessment id from two different sessions (each
+        committing) must not corrupt the row — the second write is a normal
+        upsert, and a third, unrelated session must still read a consistent
+        result."""
+        assessment = make_assessment()
+
+        with Session(engine) as s1:
+            SQLAlchemyAssessmentRepository(s1).save(assessment)
+            s1.commit()
+
+        with Session(engine) as s2:
+            SQLAlchemyAssessmentRepository(s2).save(assessment)
+            s2.commit()
+
+        with Session(engine) as s3:
+            loaded = SQLAlchemyAssessmentRepository(s3).get(assessment.id)
+            assert loaded.id == assessment.id
+            assert loaded.target.value == assessment.target.value
+
     def test_empty_list_with_pagination(self, repo: SQLAlchemyAssessmentRepository) -> None:
         assert repo.list(limit=10, offset=0) == []
         assert repo.list(limit=0, offset=0) == []
