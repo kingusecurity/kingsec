@@ -10,6 +10,7 @@ from tests.unit.infrastructure.reporting.conftest import build_report
 _SECTIONS = (
     "Executive Summary",
     "Assessment Information",
+    "Scanner Coverage",
     "Risk Summary",
     "Findings",
     "Technical Findings",
@@ -293,3 +294,72 @@ class TestEmptyFindings:
         html = render_report_html(build_report(with_findings=False))
         assert "No findings were recorded" in html
         assert "no findings recorded" in html.lower()  # conclusion
+
+
+class TestScannerCoverage:
+    def test_no_scanner_summary_renders_honest_fallback(self) -> None:
+        html = render_report_html(build_report())
+        section = html.split('id="scanner-coverage"')[1].split("</section>")[0]
+        assert "No scanner outcome was recorded" in section
+
+    def test_profile_gated_outcome_groups_by_status_and_reason(self) -> None:
+        from kingsec.domain import ScannerRunSummary
+
+        summary = (
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status="completed", findings_count=7),
+            ScannerRunSummary(
+                scanner_id="nuclei", name="Nuclei", status="skipped", skipped_reason="excluded by profile"
+            ),
+            ScannerRunSummary(
+                scanner_id="nikto", name="Nikto", status="skipped", skipped_reason="excluded by profile"
+            ),
+            ScannerRunSummary(scanner_id="trivy", name="Trivy", status="failed", skipped_reason="binary not found"),
+            ScannerRunSummary(
+                scanner_id="semgrep", name="Semgrep", status="failed", skipped_reason="binary not found"
+            ),
+        )
+        html = render_report_html(build_report(scanner_summary=summary))
+        section = html.split('id="scanner-coverage"')[1].split("</section>")[0]
+
+        assert "Nmap: completed, 7 findings." in section
+        assert "Nuclei, Nikto: not run (excluded by profile)." in section
+        assert "Trivy, Semgrep: not run (binary not found)." in section
+
+    def test_internal_error_framing_is_stripped(self) -> None:
+        """A raw exception message from the scanner orchestrator (error code
+        tag + 'unexpected error in plugin' wrapper) must never leak into a
+        customer-facing report verbatim."""
+        from kingsec.domain import ScannerRunSummary
+
+        summary = (
+            ScannerRunSummary(
+                scanner_id="trivy",
+                name="Trivy",
+                status="failed",
+                skipped_reason="unexpected error in plugin 'trivy': [KS-SCAN-001] scan timed out after 600s",
+            ),
+        )
+        html = render_report_html(build_report(scanner_summary=summary))
+        section = html.split('id="scanner-coverage"')[1].split("</section>")[0]
+
+        assert "Trivy: not run (scan timed out after 600s)." in section
+        assert "KS-SCAN-001" not in section
+        assert "unexpected error in plugin" not in section
+
+    def test_singular_finding_count_has_no_trailing_s(self) -> None:
+        from kingsec.domain import ScannerRunSummary
+
+        summary = (ScannerRunSummary(scanner_id="nmap", name="Nmap", status="completed", findings_count=1),)
+        html = render_report_html(build_report(scanner_summary=summary))
+        section = html.split('id="scanner-coverage"')[1].split("</section>")[0]
+        assert "Nmap: completed, 1 finding." in section
+
+    def test_scanner_names_are_escaped(self) -> None:
+        from kingsec.domain import ScannerRunSummary
+
+        summary = (
+            ScannerRunSummary(scanner_id="x", name="<script>alert('x')</script>", status="completed", findings_count=0),
+        )
+        html = render_report_html(build_report(scanner_summary=summary))
+        assert "<script>alert('x')</script>" not in html
+        assert "&lt;script&gt;" in html

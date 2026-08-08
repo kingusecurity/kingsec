@@ -254,7 +254,11 @@ def _execute_scan(
                     name=p.name,
                     status=p.status,
                     findings_count=p.findings_count,
-                    skipped_reason=p.skipped_reason,
+                    # skipped_reason covers the pre-execution "skipped" status;
+                    # error covers "failed" (missing binary, non-zero exit,
+                    # etc.) - a scanner's real outcome reason lives in
+                    # whichever of the two its terminal status actually set.
+                    skipped_reason=p.skipped_reason or p.error,
                 )
                 for p in (state.scanner_progress if state is not None else ())
             )

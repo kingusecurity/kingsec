@@ -16,6 +16,7 @@ Security properties:
 
 from __future__ import annotations
 
+import re
 from html import escape
 
 from kingsec.domain import HistoryPoint, Report, Severity
@@ -126,9 +127,12 @@ def _cover_page(report: Report, *, brand_name: str) -> str:
 
 
 def _limitations(report: Report) -> str:
-    """A general, honest limitations statement (no scanner-skip-level detail —
-    which tools ran/were skipped isn't captured anywhere upstream today, so
-    this stays general rather than claiming per-tool specifics not tracked)."""
+    """A general, honest limitations statement.
+
+    Per-tool coverage detail (which scanners ran, which were skipped and why)
+    is now tracked and rendered separately in Scanner Coverage - this section
+    stays about what automated scanning as a method cannot guarantee, not
+    about which specific tools executed."""
     return (
         '<section id="limitations">'
         "<h2>Limitations</h2>"
@@ -399,6 +403,67 @@ def _assessment_information(report: Report) -> str:
     return f'<section id="assessment-information"><h2>Assessment Information</h2><table>{body}</table></section>'
 
 
+# Internal error framing that must never reach a customer-facing report
+# verbatim: the "[CODE] " prefix every KingSecError.__str__ adds, and the
+# "unexpected error in plugin 'x': " wrapper the orchestrator adds when a
+# plugin raises something it didn't already recognise.
+_ERROR_CODE_PREFIX = re.compile(r"^\[[A-Z]+-[A-Z]+-\d+\]\s*")
+_PLUGIN_WRAPPER_PREFIX = re.compile(r"^unexpected error in plugin '[^']+':\s*")
+
+
+def _clean_scanner_reason(reason: str) -> str:
+    """Strip internal error-code/wrapper framing, leaving the factual reason."""
+    cleaned = _PLUGIN_WRAPPER_PREFIX.sub("", reason)
+    cleaned = _ERROR_CODE_PREFIX.sub("", cleaned)
+    return cleaned
+
+
+def _scanner_summary(report: Report) -> str:
+    """Scanner coverage: which scanners ran, and why any didn't.
+
+    Groups scanners sharing the same status and reason into one sentence
+    (e.g. "Nuclei, Nikto: not run (binary not found)") rather than a
+    one-row-per-scanner table, matching this report's factual, grouped tone
+    elsewhere (Executive Summary, Conclusion). Reads sensibly whether the
+    assessment used a profile (some scanners excluded by selection) or not
+    (every compatible scanner was attempted).
+    """
+    if not report.scanner_summary:
+        return (
+            '<section id="scanner-coverage">'
+            "<h2>Scanner Coverage</h2>"
+            "<p>No scanner outcome was recorded for this assessment.</p>"
+            "</section>"
+        )
+
+    groups: dict[tuple[str, str], list[str]] = {}
+    order: list[tuple[str, str]] = []
+    for s in report.scanner_summary:
+        if s.status == "completed":
+            detail = f"{s.findings_count} finding" + ("" if s.findings_count == 1 else "s")
+        else:
+            detail = _clean_scanner_reason(s.skipped_reason) if s.skipped_reason else "did not complete"
+        key = (s.status, detail)
+        groups.setdefault(key, []).append(s.name)
+        if key not in order:
+            order.append(key)
+
+    sentences = []
+    for status, detail in order:
+        names = ", ".join(escape(n) for n in groups[(status, detail)])
+        if status == "completed":
+            sentences.append(f"{names}: completed, {escape(detail)}.")
+        else:
+            sentences.append(f"{names}: not run ({escape(detail)}).")
+
+    return (
+        '<section id="scanner-coverage">'
+        "<h2>Scanner Coverage</h2>"
+        f"<p>{' '.join(sentences)}</p>"
+        "</section>"
+    )
+
+
 def _risk_summary(report: Report) -> str:
     counts = dict(report.severity_counts)
     rows = "".join(f"<tr><td>{_badge(sev)}</td><td>{counts.get(sev, 0)}</td></tr>" for sev in _SEVERITY_ORDER)
@@ -565,6 +630,7 @@ def render_report_html(report: Report, *, brand_name: str = "KingSec") -> str:
         f"{_business_impact(report)}"
         f"{_risk_prioritization(report)}"
         f"{_assessment_information(report)}"
+        f"{_scanner_summary(report)}"
         f"{_risk_summary(report)}"
         f"{_findings(report)}"
         f"{_technical_findings(report, target=report.target)}"

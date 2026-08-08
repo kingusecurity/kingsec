@@ -12,6 +12,7 @@ from kingsec.domain import (
     Finding,
     Recommendation,
     Report,
+    ScannerRunSummary,
     Severity,
     Target,
     TargetType,
@@ -24,7 +25,12 @@ configure_logging(LoggingSettings(level="ERROR", json_format=True), stream=io.St
 _FIXED = datetime(2026, 7, 7, 12, 0, 0, tzinfo=UTC)
 
 
-def build_report(*, title: str = "SQL Injection", with_findings: bool = True) -> Report:
+def build_report(
+    *,
+    title: str = "SQL Injection",
+    with_findings: bool = True,
+    scanner_summary: tuple[ScannerRunSummary, ...] = (),
+) -> Report:
     """Build a Report snapshot from a completed assessment."""
     assessment = Assessment.create(Target("10.0.0.5", TargetType.IP_ADDRESS))
     assessment.authorize(Authorization("tester", _FIXED, scope="10.0.0.5"))
@@ -36,5 +42,7 @@ def build_report(*, title: str = "SQL Injection", with_findings: bool = True) ->
         critical.confirm()
         assessment.record_finding(critical)
         assessment.record_finding(Finding.create("Missing headers", "no CSP", Severity.LOW))
+    if scanner_summary:
+        assessment.record_scanner_summary(scanner_summary)
     assessment.complete()
     return Report.from_assessment(assessment, generated_at=_FIXED)
