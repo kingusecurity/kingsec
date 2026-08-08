@@ -7,7 +7,6 @@ from .assessment_execution import (
     ExecutionPhase,
     ScannerProgress,
 )
-from .correlation import CorrelatedFinding, CorrelationEngine
 from .dto import (
     AdminChangePasswordRequest,
     ApiKeyView,
@@ -50,7 +49,6 @@ from .dto import (
     ValidateApiKeyRequest,
     ValidateApiKeyResponse,
 )
-from .enrichment import EnrichedFinding, FindingEnricher
 from .errors import (
     ApplicationError,
     AssessmentNotFoundError,
@@ -89,7 +87,6 @@ from .jobs import (
     ScanJobResult,
     validate_transition,
 )
-from .normalization import FindingNormalizer, NormalizedFinding
 from .ports import (
     AIPort,
     ApiKeyHasher,
@@ -136,7 +133,6 @@ from .ports import (
     UserRepository,
 )
 from .production_service import ProductionService
-from .risk import RiskAssessment, RiskFactor, RiskScorer
 from .service_api import UseCaseServiceAPI
 from .services.configuration_security_service import ConfigurationSecurityService
 from .services.persistent_job_service import PersistentJobService
@@ -384,8 +380,6 @@ __all__ = [
     "CleanupExpiredBackups",
     "ClockPort",
     "ConfigurationSecurityService",
-    "CorrelatedFinding",
-    "CorrelationEngine",
     "CreateApiKey",
     "CreateApiKeyRequest",
     "CreateApiKeyResponse",
@@ -430,14 +424,11 @@ __all__ = [
     "EncryptSecretRequest",
     "EncryptSecretResponse",
     "EncryptionServicePort",
-    "EnrichedFinding",
     "EventPublisher",
     "ExecutionEvent",
     "ExecutionPhase",
     "FindDueSchedules",
-    "FindingEnricher",
     "FindingListItem",
-    "FindingNormalizer",
     "FindingView",
     "GenerateRecoveryCodes",
     "GenerateRecoveryCodesRequest",
@@ -489,7 +480,6 @@ __all__ = [
     "LoginResponse",
     "MfaSecretRepository",
     "MfaStatusResponse",
-    "NormalizedFinding",
     "PasswordChangeError",
     "PasswordHasher",
     "PausePipeline",
@@ -554,9 +544,6 @@ __all__ = [
     "RevokeSession",
     "RevokeSessionRequest",
     "RevokeSessionResponse",
-    "RiskAssessment",
-    "RiskFactor",
-    "RiskScorer",
     "RotateApiKey",
     "RotateApiKeyRequest",
     "RotateApiKeyResponse",
