@@ -31,9 +31,28 @@ export function RegisterPage() {
   }
 
   const onSubmit = (data: RegisterForm) => {
-    registerMutation.mutate(data, {
-      onSuccess: () => navigate('/login', { replace: true }),
-    })
+    registerMutation.mutate(data)
+  }
+
+  if (registerMutation.isSuccess) {
+    const isFirstAdmin = registerMutation.data.role === 'Admin'
+    return (
+      <div className="space-y-4">
+        <h1 className="text-center text-xl font-semibold">Create account</h1>
+        <div className="rounded-md bg-emerald-900/50 px-3 py-2 text-sm text-emerald-400">
+          {isFirstAdmin
+            ? "Account created. You're the first user, so you're the system administrator."
+            : 'Account created. You can now sign in.'}
+        </div>
+        <button
+          type="button"
+          onClick={() => navigate('/login', { replace: true })}
+          className="w-full rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-500"
+        >
+          Continue to sign in
+        </button>
+      </div>
+    )
   }
 
   return (
@@ -43,12 +62,6 @@ export function RegisterPage() {
       {registerMutation.error && (
         <div className="rounded-md bg-red-900/50 px-3 py-2 text-sm text-red-400">
           {registerMutation.error.message}
-        </div>
-      )}
-
-      {registerMutation.isSuccess && (
-        <div className="rounded-md bg-emerald-900/50 px-3 py-2 text-sm text-emerald-400">
-          Account created. You can now sign in.
         </div>
       )}
 

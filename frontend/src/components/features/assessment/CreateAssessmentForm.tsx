@@ -357,6 +357,14 @@ export function CreateAssessmentForm({ onSubmit, isPending, error }: CreateAsses
                   <PlanSummary plan={currentPlan} />
                 </div>
               )}
+
+              <div className="flex items-start gap-2 text-xs text-text-muted">
+                <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <span>
+                  Creating the assessment does not start it. It's saved as authorized, and
+                  you'll start the scan as a separate, deliberate step on the next screen.
+                </span>
+              </div>
             </div>
           )}
         </div>

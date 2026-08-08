@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react'
-import { Shield, AlertTriangle, Activity, TrendingUp, FileText, Eye, ArrowRight } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Shield, AlertTriangle, Activity, TrendingUp, FileText, Eye, ArrowRight, ShieldCheck } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 import { PageContainer, PageHeader, StatGrid } from '@/components/layout/PageContainer'
 import { StatCard } from '@/components/features/dashboard/StatCard'
 import { RecentAssessmentsTable } from '@/components/features/dashboard/RecentAssessmentsTable'
@@ -8,6 +8,7 @@ import { QuickActions } from '@/components/features/dashboard/QuickActions'
 import { ScannerHealthPanel } from '@/components/features/monitoring/ScannerHealthPanel'
 import { DashboardSkeleton, Skeleton } from '@/components/ui/Skeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { useDashboardSummary, useDashboardJobs } from '@/hooks/use-dashboard'
 import { useAssessments } from '@/hooks/use-assessments'
 import { useReports } from '@/hooks/use-reports'
@@ -15,6 +16,7 @@ import { formatRelativeTime } from '@/lib/utils'
 import type { ReportListEntry } from '@/types/api'
 
 export function DashboardPage() {
+  const navigate = useNavigate()
   const { data: summary, isLoading: summaryLoading, error: summaryError, refetch: refetchSummary } = useDashboardSummary()
   const { data: jobs, isLoading: jobsLoading, error: jobsError, refetch: refetchJobs } = useDashboardJobs()
   const { data: assessments, isLoading: assessmentsLoading } = useAssessments({ limit: 5 })
@@ -36,16 +38,38 @@ export function DashboardPage() {
     return <DashboardSkeleton />
   }
 
+  // A genuinely empty account (never created a single assessment), not a
+  // styling choice - total_scans counts every assessment ever created,
+  // regardless of status.
+  const isFirstRun = (summary?.total_scans ?? 0) === 0
+
   return (
     <PageContainer>
       <PageHeader title="Dashboard" description="Security assessment overview" />
 
-      <StatGrid columns={4}>
-        <StatCard icon={Shield} label="Total Scans" value={summary?.total_scans ?? 0} loading={summaryLoading} />
-        <StatCard icon={AlertTriangle} label="Critical" value={summary?.critical_findings ?? 0} variant="danger" loading={summaryLoading} />
-        <StatCard icon={Activity} label="Running" value={jobs?.running ?? 0} variant="warning" loading={jobsLoading} />
-        <StatCard icon={TrendingUp} label="Completed" value={jobs?.completed ?? 0} variant="success" loading={jobsLoading} />
-      </StatGrid>
+      {isFirstRun ? (
+        <div className="rounded-xl border border-border bg-surface-secondary">
+          <EmptyState
+            icon={<Shield className="h-8 w-8" />}
+            title="No assessments yet"
+            description="Run your first security assessment to see findings and reports here."
+            action={{ label: 'New Assessment', onClick: () => navigate('/assessments/new') }}
+          />
+          <p className="pb-6 text-center text-sm text-text-muted">
+            <a href="#scanner-health" className="inline-flex items-center gap-1 text-accent hover:underline">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Check which scanners are ready before you start
+            </a>
+          </p>
+        </div>
+      ) : (
+        <StatGrid columns={4}>
+          <StatCard icon={Shield} label="Total Scans" value={summary?.total_scans ?? 0} loading={summaryLoading} />
+          <StatCard icon={AlertTriangle} label="Critical" value={summary?.critical_findings ?? 0} variant="danger" loading={summaryLoading} />
+          <StatCard icon={Activity} label="Running" value={jobs?.running ?? 0} variant="warning" loading={jobsLoading} />
+          <StatCard icon={TrendingUp} label="Completed" value={jobs?.completed ?? 0} variant="success" loading={jobsLoading} />
+        </StatGrid>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-xl border border-border bg-surface-secondary">
@@ -60,12 +84,14 @@ export function DashboardPage() {
             <h3 className="text-sm font-semibold text-text-primary">Quick Actions</h3>
           </div>
           <div className="p-5">
-            <QuickActions />
+            <QuickActions suggestFirst={isFirstRun} />
           </div>
         </div>
       </div>
 
-      <ScannerHealthPanel />
+      <div id="scanner-health">
+        <ScannerHealthPanel />
+      </div>
 
       <RecentReportsSection />
     </PageContainer>
