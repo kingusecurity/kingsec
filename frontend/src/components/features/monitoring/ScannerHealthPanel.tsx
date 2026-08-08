@@ -9,9 +9,37 @@ import { Button } from '@/components/ui/Button'
 import { toast } from '@/components/ui/Toast'
 import { cn } from '@/lib/utils'
 import { useScannerHealth, useScannerDetail, useScannerInstallInfo } from '@/hooks/use-scanner-health'
+import { useProfiles } from '@/hooks/use-profiles'
 import type { ScannerStatus } from '@/api/scanner-health'
+import type { AssessmentProfile } from '@/api/profiles'
 
 type FilterMode = 'all' | 'installed' | 'missing' | 'warning'
+
+/** Which profiles reference a scanner, split by whether it's required or
+ * merely optional there. A scanner can be required by some profiles and
+ * only-optional in others (e.g. Nmap is required everywhere it's used
+ * except "Full Assessment", which requires nothing) - both lists can be
+ * non-empty for the same scanner. */
+interface ProfileRelevance {
+  requiredBy: string[]
+  optionalFor: string[]
+}
+
+function buildProfileRelevance(profiles: AssessmentProfile[]): Record<string, ProfileRelevance> {
+  const relevance: Record<string, ProfileRelevance> = {}
+  for (const profile of profiles) {
+    for (const scannerId of profile.scanners) {
+      const entry = relevance[scannerId] ?? { requiredBy: [], optionalFor: [] }
+      if (profile.required_scanners.includes(scannerId)) {
+        entry.requiredBy.push(profile.name)
+      } else {
+        entry.optionalFor.push(profile.name)
+      }
+      relevance[scannerId] = entry
+    }
+  }
+  return relevance
+}
 
 interface ScannerHealthPanelProps {
   className?: string
@@ -51,9 +79,11 @@ function HealthBar({ score }: { score: number }) {
 
 function ScannerRow({
   scanner,
+  relevance,
   onSelect,
 }: {
   scanner: ScannerStatus
+  relevance: ProfileRelevance | undefined
   onSelect: (id: string) => void
 }) {
   const Icon = scannerIcons[scanner.scanner_id] ?? Shield
@@ -103,6 +133,16 @@ function ScannerRow({
             <span>Not installed</span>
           )}
         </div>
+        {relevance && (relevance.requiredBy.length > 0 || relevance.optionalFor.length > 0) && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {relevance.requiredBy.length > 0 && (
+              <Badge variant="low" size="sm">Required by: {relevance.requiredBy.join(', ')}</Badge>
+            )}
+            {relevance.optionalFor.length > 0 && (
+              <Badge variant="neutral" size="sm">Optional for: {relevance.optionalFor.join(', ')}</Badge>
+            )}
+          </div>
+        )}
         {scanner.warnings.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">
             {scanner.warnings.map((w, i) => (
@@ -326,8 +366,11 @@ function ScannerDetailPanel({
 
 export function ScannerHealthPanel({ className }: ScannerHealthPanelProps) {
   const { data, isLoading, error, refetch } = useScannerHealth()
+  const { data: profiles } = useProfiles()
   const [filter, setFilter] = useState<FilterMode>('all')
   const [selectedScanner, setSelectedScanner] = useState<string | null>(null)
+
+  const profileRelevance = buildProfileRelevance(profiles ?? [])
 
   if (error) {
     return (
@@ -421,7 +464,7 @@ export function ScannerHealthPanel({ className }: ScannerHealthPanelProps) {
         ) : (
           filtered.map((scanner) => (
             <div key={scanner.scanner_id}>
-              <ScannerRow scanner={scanner} onSelect={setSelectedScanner} />
+              <ScannerRow scanner={scanner} relevance={profileRelevance[scanner.scanner_id]} onSelect={setSelectedScanner} />
               {selectedScanner === scanner.scanner_id && (
                 <ScannerDetailPanel
                   scannerId={scanner.scanner_id}
