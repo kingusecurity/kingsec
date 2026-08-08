@@ -414,6 +414,7 @@ async def create_assessment(
         authorized_by=body.authorized_by,
         scope=body.scope,
         owner_id=current_user.user_id,
+        profile_id=body.profile_id,
     )
     result = service.create_assessment(request)
     return schemas.CreateAssessmentResponse(
@@ -507,6 +508,17 @@ async def get_assessment(
                 recommendation_count=f.recommendation_count,
             )
             for f in result.findings
+        ],
+        profile_id=result.profile_id,
+        scanner_summary=[
+            schemas.ScannerSummaryResponse(
+                scanner_id=s.scanner_id,
+                name=s.name,
+                status=s.status,
+                findings_count=s.findings_count,
+                skipped_reason=s.skipped_reason,
+            )
+            for s in result.scanner_summary
         ],
     )
 

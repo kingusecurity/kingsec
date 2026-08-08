@@ -35,8 +35,14 @@ class ZapScannerAdapter(ScannerPort):
         self._settings = settings
         self._runner: CommandRunner = runner or SubprocessCommandRunner()
 
-    def scan(self, target: Target) -> Sequence[Finding]:
+    def compatible_scanners(self, target: Target) -> dict[str, str]:
+        """This adapter only ever runs OWASP ZAP - no target-type filtering here."""
+        return {"zap": "OWASP ZAP"}
+
+    def scan(self, target: Target, scanner_ids: Sequence[str] | None = None) -> Sequence[Finding]:
         """Scan ``target`` with ZAP and return the findings discovered."""
+        if scanner_ids is not None and "zap" not in scanner_ids:
+            return ()
         args = self._build_args(target)
 
         _logger.info(

@@ -44,12 +44,18 @@ class NucleiScannerAdapter(ScannerPort):
         self._settings = settings
         self._runner: CommandRunner = runner or SubprocessCommandRunner()
 
-    def scan(self, target: Target) -> Sequence[Finding]:
+    def compatible_scanners(self, target: Target) -> dict[str, str]:
+        """This adapter only ever runs Nuclei - no target-type filtering here."""
+        return {"nuclei": "Nuclei"}
+
+    def scan(self, target: Target, scanner_ids: Sequence[str] | None = None) -> Sequence[Finding]:
         """Scan ``target`` with Nuclei and return the findings discovered.
 
         Args:
             target: The validated domain target to scan. It is passed to Nuclei
                 as a single ``argv`` element, so it cannot inject arguments.
+            scanner_ids: When given, this adapter only runs if "nuclei" is a
+                member; otherwise it returns no findings without executing.
 
         Returns:
             The findings discovered (possibly empty).
@@ -58,6 +64,8 @@ class NucleiScannerAdapter(ScannerPort):
             ScannerError: If the scanner is misconfigured, fails to run, times
                 out, or exits with a non-zero status.
         """
+        if scanner_ids is not None and "nuclei" not in scanner_ids:
+            return ()
         self._validate_templates_dir()
         args = self._build_args(target)
 

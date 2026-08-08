@@ -65,6 +65,11 @@ class CreateAssessmentBody(BaseModel):
         description="Scope of authorization (audit trail).",
         examples=["10.0.0.5"],
     )
+    profile_id: str | None = Field(
+        default=None,
+        description="Assessment profile to plan this scan against. Omit to run every target-compatible scanner (the pre-profile default behavior).",
+        examples=["quick-scan"],
+    )
 
 
 class StartAssessmentBody(BaseModel):
@@ -139,6 +144,18 @@ class FindingResponse(BaseModel):
     recommendation_count: int
 
 
+class ScannerSummaryResponse(BaseModel):
+    """Nested per-scanner outcome inside an assessment view."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    scanner_id: str
+    name: str
+    status: str
+    findings_count: int
+    skipped_reason: str | None = None
+
+
 class AssessmentResponse(BaseModel):
     """GET /api/v1/assessments/{id} response body."""
 
@@ -150,6 +167,8 @@ class AssessmentResponse(BaseModel):
     is_authorized: bool
     created_at: str
     findings: list[FindingResponse]
+    profile_id: str | None = None
+    scanner_summary: list[ScannerSummaryResponse] = Field(default_factory=list)
 
 
 class StartAssessmentResponse(BaseModel):

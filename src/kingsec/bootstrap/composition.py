@@ -92,6 +92,7 @@ from kingsec.application import (
     RotateApiKey,
     RotateRecoveryCodes,
     RotateSecrets,
+    ScannerExecutor,
     ScannerPort,
     ScheduleRepositoryPort,
     SchedulerServicePort,
@@ -370,6 +371,12 @@ def _register_adapters(
 
     container.register_instance(AssessmentExecutionEngine, AssessmentExecutionEngine())
 
+    # Execution Planner: matches assessment profiles against targets and
+    # scanner health, stateless so a single shared instance is fine.
+    from kingsec.application.assessment_profiles import ExecutionPlanner
+
+    container.register_instance(ExecutionPlanner, ExecutionPlanner())
+
     # Enterprise integration services (Phase 13).
     _register_integration_services(container, settings)
 
@@ -522,6 +529,18 @@ def _register_use_cases(app: Application) -> None:
     container = app.container
     settings = app.settings
     from kingsec.application.assessment_execution import AssessmentExecutionEngine
+    from kingsec.application.assessment_profiles import ExecutionPlanner
+
+    def _resolve_scanner_executor(c: Any) -> ScannerExecutor | None:
+        """Return the resolved scanner if it also implements ScannerExecutor.
+
+        In production this is the same ScannerOrchestrator instance bound to
+        both ports. Test doubles implementing only ScannerPort get None here
+        and the use case falls back to the plain scan() contract - zero
+        changes required for those existing doubles.
+        """
+        scanner = c.resolve(ScannerPort)
+        return scanner if isinstance(scanner, ScannerExecutor) else None
 
     container.register_factory(
         CreateAssessment,
@@ -539,6 +558,7 @@ def _register_use_cases(app: Application) -> None:
             c.resolve(AIPort),
             c.resolve(EventPublisher),
             c.resolve(AuditPublisher),
+            c.resolve(ExecutionPlanner),
         ),
     )
     container.register_factory(
@@ -551,6 +571,8 @@ def _register_use_cases(app: Application) -> None:
             c.resolve(EventPublisher),
             c.resolve(AuditPublisher),
             c.resolve(AssessmentExecutionEngine),
+            c.resolve(ExecutionPlanner),
+            _resolve_scanner_executor(c),
         ),
     )
     container.register_factory(

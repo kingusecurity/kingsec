@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from kingsec.domain.assessment import Assessment
+    from kingsec.domain.assessment import Assessment, ScannerRunSummary
     from kingsec.domain.finding import Finding
 
 
@@ -236,6 +236,10 @@ class CreateAssessmentRequest:
     authorized_by: str
     scope: str
     owner_id: str = ""
+    # Which AssessmentProfile to plan this scan against. None means "no
+    # profile" - execution runs every target-compatible scanner, exactly
+    # as it always has.
+    profile_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -333,6 +337,28 @@ class FindingView:
 
 
 @dataclass(frozen=True)
+class ScannerSummaryView:
+    """Read-only view of one scanner's final outcome for a completed assessment."""
+
+    scanner_id: str
+    name: str
+    status: str
+    findings_count: int
+    skipped_reason: str | None
+
+    @classmethod
+    def from_domain(cls, summary: ScannerRunSummary) -> ScannerSummaryView:
+        """Map a domain ScannerRunSummary to a boundary-safe view."""
+        return cls(
+            scanner_id=summary.scanner_id,
+            name=summary.name,
+            status=summary.status,
+            findings_count=summary.findings_count,
+            skipped_reason=summary.skipped_reason,
+        )
+
+
+@dataclass(frozen=True)
 class AssessmentView:
     """Full assessment view including findings."""
 
@@ -342,6 +368,8 @@ class AssessmentView:
     is_authorized: bool
     created_at: str
     findings: tuple[FindingView, ...]
+    profile_id: str | None = None
+    scanner_summary: tuple[ScannerSummaryView, ...] = ()
 
     @classmethod
     def from_domain(cls, assessment: Assessment) -> AssessmentView:
@@ -353,6 +381,8 @@ class AssessmentView:
             is_authorized=assessment.is_authorized,
             created_at=assessment.created_at.isoformat(),
             findings=tuple(FindingView.from_domain(f) for f in assessment.findings),
+            profile_id=assessment.profile_id,
+            scanner_summary=tuple(ScannerSummaryView.from_domain(s) for s in assessment.scanner_summary),
         )
 
 

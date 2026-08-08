@@ -9,6 +9,8 @@ from typing import Any
 
 import pytest
 
+from kingsec.application.assessment_execution import AssessmentExecutionEngine
+from kingsec.application.assessment_profiles import ExecutionPlan, PlanScannerEntry
 from kingsec.application.dto import SubmitAssessmentRequest, SubmitAssessmentResponse
 from kingsec.application.errors import AssessmentNotFoundError
 from kingsec.application.submit_assessment import SubmitAssessment
@@ -61,6 +63,9 @@ class FakeScanner:
     def scan(self, target: Any) -> Sequence[Finding]:
         return list(self._findings)
 
+    def compatible_scanners(self, target: Any) -> dict[str, str]:
+        return {"fake": "Fake Scanner"}
+
 
 class RecordingJobRunner:
     """JobRunner that records submitted jobs and runs them inline (synchronously)."""
@@ -90,6 +95,31 @@ class RecordingJobRunner:
         pass
 
 
+class RecordingScanner:
+    """Scanner that records the scanner_ids it was called with."""
+
+    def __init__(self, findings: list[Finding] | None = None) -> None:
+        self._findings = findings or []
+        self.scan_calls: list[Sequence[str] | None] = []
+
+    def scan(self, target: Any, scanner_ids: Sequence[str] | None = None) -> Sequence[Finding]:
+        self.scan_calls.append(scanner_ids)
+        return list(self._findings)
+
+    def compatible_scanners(self, target: Any) -> dict[str, str]:
+        return {"nmap": "Nmap", "nuclei": "Nuclei"}
+
+
+class _ScriptedPlanner:
+    """Stub ExecutionPlanner returning a scripted plan regardless of input."""
+
+    def __init__(self, plan: ExecutionPlan) -> None:
+        self._plan = plan
+
+    def plan(self, profile_id: str, target_value: str, target_type: Any) -> ExecutionPlan:
+        return self._plan
+
+
 class FakeAI:
     """AI that returns a fixed recommendation."""
 
@@ -109,9 +139,14 @@ def _make_assessment(
     assessment_id: str = "asmt-test-001",
     target: str = "10.0.0.5",
     status: AssessmentStatus = AssessmentStatus.AUTHORIZED,
+    profile_id: str | None = None,
 ) -> Assessment:
     """Build an Assessment in the desired state."""
-    a = Assessment(assessment_id=AssessmentId(assessment_id), target=Target(target, TargetType.IP_ADDRESS))
+    a = Assessment(
+        assessment_id=AssessmentId(assessment_id),
+        target=Target(target, TargetType.IP_ADDRESS),
+        profile_id=profile_id,
+    )
     if status == AssessmentStatus.AUTHORIZED:
         a.authorize(Authorization("test-user", datetime.now(UTC), scope="test-scope"))
     elif status == AssessmentStatus.RUNNING:
@@ -228,6 +263,9 @@ class TestSubmitAssessmentScanFailure:
             def scan(self, target: Any) -> Sequence[Finding]:
                 raise ConnectionError("scanner unreachable")
 
+            def compatible_scanners(self, target: Any) -> dict[str, str]:
+                return {"failing": "Failing Scanner"}
+
         assessment = _make_assessment()
         repo = FakeAssessmentRepository({str(assessment.id): assessment})
         job_runner = RecordingJobRunner(run_inline=True)
@@ -301,6 +339,88 @@ class TestSubmitAssessmentAccessControl:
         assert response.status == "completed"
 
 
+class TestSubmitAssessmentExecutionEngineWiring:
+    """Regression coverage for the bug where _execute_scan() passed a
+    hardcoded empty dict to start_execution() instead of the scanner's
+    real compatible_scanners() mapping - so ExecutionProgressPanel always
+    rendered zero scanner rows for a real run, even though the scan had
+    genuinely run and completed."""
+
+    def test_start_execution_receives_real_scanner_mapping(self) -> None:
+        assessment = _make_assessment()
+        repo = FakeAssessmentRepository({str(assessment.id): assessment})
+        scanner = FakeScanner()
+        job_runner = RecordingJobRunner(run_inline=True)
+        engine = AssessmentExecutionEngine()
+
+        use_case = SubmitAssessment(
+            assessments=repo,
+            scanner=scanner,
+            job_runner=job_runner,
+            execution_engine=engine,
+        )
+
+        use_case.execute(SubmitAssessmentRequest(assessment_id="asmt-test-001", is_admin=True))
+
+        state = engine.get_state("asmt-test-001")
+        assert state is not None
+        # Not empty - this is the actual bug: it used to be start_execution(id, {}).
+        assert len(state.scanner_progress) == 1
+        assert state.scanner_progress[0].scanner_id == "fake"
+        assert state.scanner_progress[0].name == "Fake Scanner"
+
+    def test_scanner_mapping_reflects_compatible_scanners_not_a_guess(self) -> None:
+        """A scanner reporting multiple compatible scanners (the real
+        ScannerOrchestrator can) must show up as multiple tracked entries,
+        not just one - proving the mapping is genuinely threaded through,
+        not a single hardcoded placeholder swapped in for another."""
+
+        class MultiScanner:
+            def scan(self, target: Any) -> Sequence[Finding]:
+                return []
+
+            def compatible_scanners(self, target: Any) -> dict[str, str]:
+                return {"nmap": "Nmap", "nuclei": "Nuclei"}
+
+        assessment = _make_assessment()
+        repo = FakeAssessmentRepository({str(assessment.id): assessment})
+        job_runner = RecordingJobRunner(run_inline=True)
+        engine = AssessmentExecutionEngine()
+
+        use_case = SubmitAssessment(
+            assessments=repo,
+            scanner=MultiScanner(),
+            job_runner=job_runner,
+            execution_engine=engine,
+        )
+
+        use_case.execute(SubmitAssessmentRequest(assessment_id="asmt-test-001", is_admin=True))
+
+        state = engine.get_state("asmt-test-001")
+        assert state is not None
+        tracked_ids = {sp.scanner_id for sp in state.scanner_progress}
+        assert tracked_ids == {"nmap", "nuclei"}
+
+    def test_phase_reaches_completed_with_real_mapping(self) -> None:
+        assessment = _make_assessment()
+        repo = FakeAssessmentRepository({str(assessment.id): assessment})
+        job_runner = RecordingJobRunner(run_inline=True)
+        engine = AssessmentExecutionEngine()
+
+        use_case = SubmitAssessment(
+            assessments=repo,
+            scanner=FakeScanner(),
+            job_runner=job_runner,
+            execution_engine=engine,
+        )
+
+        use_case.execute(SubmitAssessmentRequest(assessment_id="asmt-test-001", is_admin=True))
+
+        state = engine.get_state("asmt-test-001")
+        assert state is not None
+        assert state.phase.value == "completed"
+
+
 class TestSubmitAssessmentBackgroundExecution:
     def test_job_runs_in_background_thread(self) -> None:
         """Verify the job actually runs in a separate thread."""
@@ -348,3 +468,100 @@ class TestSubmitAssessmentBackgroundExecution:
 
         assert len(thread_ids) == 1
         assert thread_ids[0] != main_thread_id
+
+
+class TestSubmitAssessmentProfileGating:
+    """Coverage for Part 2: profile_id gates which scanners actually run,
+    and the plan is re-checked at execution time rather than trusted from
+    an earlier client-side /plan preview."""
+
+    def test_profile_id_none_scans_without_a_scanner_ids_filter(self) -> None:
+        """Backward compatibility: no profile means today's exact
+        'run everything compatible' behavior - scan() is called exactly
+        as it always has been, with no scanner_ids argument at all."""
+        assessment = _make_assessment()
+        repo = FakeAssessmentRepository({str(assessment.id): assessment})
+        scanner = RecordingScanner()
+        job_runner = RecordingJobRunner(run_inline=True)
+
+        use_case = SubmitAssessment(
+            assessments=repo,
+            scanner=scanner,
+            job_runner=job_runner,
+        )
+
+        use_case.execute(SubmitAssessmentRequest(assessment_id="asmt-test-001", is_admin=True))
+
+        assert scanner.scan_calls == [None]
+        assert repo.saved[-1].status == AssessmentStatus.COMPLETED
+
+    def test_plan_selected_scanners_are_passed_to_scan(self) -> None:
+        """A profile's plan.selected_scanners (not its full static list)
+        becomes the scanner_ids filter passed to scan()."""
+        assessment = _make_assessment(profile_id="quick-scan")
+        repo = FakeAssessmentRepository({str(assessment.id): assessment})
+        scanner = RecordingScanner()
+        job_runner = RecordingJobRunner(run_inline=True)
+        plan = ExecutionPlan(
+            profile_id="quick-scan",
+            profile_name="Quick Host Scan",
+            target_value="10.0.0.5",
+            target_type=TargetType.IP_ADDRESS,
+            selected_scanners=(PlanScannerEntry(scanner_id="nmap", name="Nmap", status="selected"),),
+            skipped_scanners=(PlanScannerEntry(scanner_id="nuclei", name="Nuclei", status="skipped", reason="not selected"),),
+            unavailable_scanners=(),
+            warnings=(),
+            estimated_duration_minutes=5,
+            can_proceed=True,
+        )
+
+        use_case = SubmitAssessment(
+            assessments=repo,
+            scanner=scanner,
+            job_runner=job_runner,
+            planner=_ScriptedPlanner(plan),
+        )
+
+        use_case.execute(SubmitAssessmentRequest(assessment_id="asmt-test-001", is_admin=True))
+
+        assert scanner.scan_calls == [("nmap",)]
+        assert repo.saved[-1].status == AssessmentStatus.COMPLETED
+
+    def test_required_scanner_unavailable_fails_cleanly_without_scanning(self) -> None:
+        """Server-side re-validation: if the plan can't proceed at execution
+        time, the assessment fails with a clear reason and scan() is never
+        called - no silent subset run, no trusting stale client-side data."""
+        assessment = _make_assessment(profile_id="quick-scan")
+        repo = FakeAssessmentRepository({str(assessment.id): assessment})
+        scanner = RecordingScanner()
+        job_runner = RecordingJobRunner(run_inline=True)
+        plan = ExecutionPlan(
+            profile_id="quick-scan",
+            profile_name="Quick Host Scan",
+            target_value="10.0.0.5",
+            target_type=TargetType.IP_ADDRESS,
+            selected_scanners=(),
+            skipped_scanners=(),
+            unavailable_scanners=(
+                PlanScannerEntry(
+                    scanner_id="nmap", name="Nmap", status="required_unavailable", reason="'Nmap' is not installed"
+                ),
+            ),
+            warnings=("Required scanner 'Nmap' is not installed.",),
+            estimated_duration_minutes=0,
+            can_proceed=False,
+        )
+
+        use_case = SubmitAssessment(
+            assessments=repo,
+            scanner=scanner,
+            job_runner=job_runner,
+            planner=_ScriptedPlanner(plan),
+        )
+
+        use_case.execute(SubmitAssessmentRequest(assessment_id="asmt-test-001", is_admin=True))
+
+        assert scanner.scan_calls == []
+        failed = repo.saved[-1]
+        assert failed.status == AssessmentStatus.FAILED
+        assert "not installed" in (failed.failure_reason or "")

@@ -35,8 +35,14 @@ class NmapScannerAdapter(ScannerPort):
         self._settings = settings
         self._runner: CommandRunner = runner or SubprocessCommandRunner()
 
-    def scan(self, target: Target) -> Sequence[Finding]:
+    def compatible_scanners(self, target: Target) -> dict[str, str]:
+        """This adapter only ever runs Nmap - no target-type filtering here."""
+        return {"nmap": "Nmap"}
+
+    def scan(self, target: Target, scanner_ids: Sequence[str] | None = None) -> Sequence[Finding]:
         """Scan ``target`` with Nmap and return the findings discovered."""
+        if scanner_ids is not None and "nmap" not in scanner_ids:
+            return ()
         args = self._build_args(target)
 
         _logger.info(

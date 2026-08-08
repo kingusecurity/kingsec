@@ -12,7 +12,9 @@ executor = runner, use case = orchestrator of business logic.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 
+from kingsec.application.assessment_execution import AssessmentExecutionEngine
 from kingsec.domain import PluginConfig, ScannerId, ScannerResult, Target
 
 
@@ -55,6 +57,9 @@ class ScannerExecutor(ABC):
         self,
         target: Target,
         configs: dict[ScannerId, PluginConfig] | None = None,
+        scanner_ids: Sequence[str] | None = None,
+        execution_engine: AssessmentExecutionEngine | None = None,
+        tracking_id: str | None = None,
     ) -> tuple[ScannerResult, ...]:
         """Execute all compatible plugins for a target.
 
@@ -68,6 +73,16 @@ class ScannerExecutor(ABC):
             configs: Optional per-plugin configuration overrides.
                 Keys are ScannerIds. Plugins not in this dict use
                 their default configuration.
+            scanner_ids: When given, narrows execution to this subset of
+                otherwise-compatible plugins. ``None`` runs every
+                compatible plugin, exactly as before this parameter
+                existed.
+            execution_engine: When given (together with ``tracking_id``),
+                each plugin's start/completion/failure is reported to it
+                in real time, so ``execution_engine.get_state(tracking_id)``
+                reflects the true outcome once this call returns.
+            tracking_id: The assessment id to report progress under.
+                Ignored unless ``execution_engine`` is also given.
 
         Returns:
             A tuple of ScannerResult from all plugins that succeeded.

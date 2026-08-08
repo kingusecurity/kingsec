@@ -19,7 +19,9 @@ from __future__ import annotations
 import logging
 
 from kingsec.application._support import to_assessment_id
+from kingsec.application.assessment_profiles import ExecutionPlanner
 from kingsec.application.dto import StartAssessmentRequest, StartAssessmentResponse
+from kingsec.application.errors import ExecutionPlanUnsatisfiedError
 from kingsec.application.events import (
     EVENT_ASSESSMENT_COMPLETED,
     EVENT_ASSESSMENT_FAILED,
@@ -47,12 +49,14 @@ class StartAssessment:
         ai: AIPort | None = None,
         events: EventPublisher | None = None,
         audit: AuditPublisher | None = None,
+        planner: ExecutionPlanner | None = None,
     ) -> None:
         self._assessments = assessments
         self._scanner = scanner
         self._ai = ai  # optional: AI enrichment is not required to run a scan
         self._events = events
         self._audit = audit
+        self._planner = planner
 
     def execute(self, request: StartAssessmentRequest) -> StartAssessmentResponse:
         assessment = self._assessments.get(to_assessment_id(request.assessment_id))
@@ -82,7 +86,26 @@ class StartAssessment:
         )
 
         try:
-            for finding in self._scanner.scan(assessment.target):
+            scanner_ids: tuple[str, ...] | None = None
+            if assessment.profile_id is not None and self._planner is not None:
+                # Server-side re-validation: re-plan now, at run time, rather
+                # than trusting whatever the client saw at an earlier /plan
+                # preview - scanner availability can change in the gap.
+                plan = self._planner.plan(assessment.profile_id, assessment.target.value, assessment.target.type)
+                if not plan.can_proceed:
+                    reason = "; ".join(plan.warnings) or (
+                        f"profile {assessment.profile_id!r} cannot proceed: "
+                        "a required scanner is unavailable"
+                    )
+                    raise ExecutionPlanUnsatisfiedError(reason)
+                scanner_ids = tuple(e.scanner_id for e in plan.selected_scanners)
+
+            scan_results = (
+                self._scanner.scan(assessment.target, scanner_ids=scanner_ids)
+                if scanner_ids is not None
+                else self._scanner.scan(assessment.target)
+            )
+            for finding in scan_results:
                 self._enrich(finding)
                 assessment.record_finding(finding)
 

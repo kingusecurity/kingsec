@@ -32,6 +32,7 @@ from kingsec.domain import (
     Report,
     ScannerId,
     ScannerResult,
+    ScannerRunSummary,
     Severity,
     Target,
     TargetType,
@@ -127,6 +128,32 @@ def finding_to_orm(finding: Finding) -> FindingORM:
     )
 
 
+def _scanner_summary_to_json(summary: tuple[ScannerRunSummary, ...]) -> list[dict[str, Any]]:
+    return [
+        {
+            "scanner_id": s.scanner_id,
+            "name": s.name,
+            "status": s.status,
+            "findings_count": s.findings_count,
+            "skipped_reason": s.skipped_reason,
+        }
+        for s in summary
+    ]
+
+
+def _scanner_summary_from_json(entries: list[Any]) -> tuple[ScannerRunSummary, ...]:
+    return tuple(
+        ScannerRunSummary(
+            scanner_id=e["scanner_id"],
+            name=e["name"],
+            status=e["status"],
+            findings_count=e.get("findings_count", 0),
+            skipped_reason=e.get("skipped_reason"),
+        )
+        for e in (entries or [])
+    )
+
+
 def assessment_to_orm(assessment: Assessment) -> AssessmentORM:
     """Build an AssessmentORM aggregate (with findings) from a domain Assessment."""
     authorization = assessment.authorization
@@ -143,6 +170,8 @@ def assessment_to_orm(assessment: Assessment) -> AssessmentORM:
         organization_id=assessment.organization_id,
         team_id=assessment.team_id,
         owner_id=assessment.owner_id,
+        profile_id=assessment.profile_id,
+        scanner_summary=_scanner_summary_to_json(assessment.scanner_summary),
         findings=[finding_to_orm(finding) for finding in assessment.findings],
     )
 
@@ -193,6 +222,7 @@ def report_to_orm(report: Report) -> ReportORM:
         ],
         authorized_by=report.authorized_by,
         scope=report.scope,
+        scanner_summary=_scanner_summary_to_json(report.scanner_summary),
     )
 
 
@@ -251,6 +281,8 @@ def assessment_to_domain(orm: AssessmentORM) -> Assessment:
         authorization=authorization,
         failure_reason=orm.failure_reason,
         findings=findings,
+        profile_id=orm.profile_id,
+        scanner_summary=_scanner_summary_from_json(orm.scanner_summary),
     )
     if orm.organization_id or orm.team_id or orm.owner_id:
         a.set_ownership(
@@ -325,6 +357,7 @@ def report_to_domain(orm: ReportORM) -> Report:
         history=history,
         authorized_by=orm.authorized_by,
         scope=orm.scope,
+        scanner_summary=_scanner_summary_from_json(orm.scanner_summary),
     )
 
 

@@ -21,6 +21,16 @@ class ScannerPluginError(ApplicationError):
     """Base class for all scanner plugin framework errors."""
 
 
+class ExecutionPlanUnsatisfiedError(ApplicationError):
+    """A required scanner in the assessment's profile is unavailable at run time.
+
+    Raised by the server-side re-validation that runs immediately before
+    scanning starts - it never trusts an earlier client-side ``/plan``
+    preview, since scanner availability can change in the gap between
+    preview and execution.
+    """
+
+
 class ScannerUnavailableError(ScannerPluginError):
     def __init__(
         self,

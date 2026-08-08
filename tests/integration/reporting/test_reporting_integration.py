@@ -59,6 +59,9 @@ class _StubScanner(ScannerPort):
     def scan(self, target: Target) -> Sequence[Finding]:
         return [Finding.create("SQLi", "injectable", Severity.CRITICAL)]
 
+    def compatible_scanners(self, target: Target) -> dict[str, str]:
+        return {"stub": "Stub Scanner"}
+
 
 class TestRealRendering:
     @needs_weasyprint

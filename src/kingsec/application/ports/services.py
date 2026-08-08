@@ -22,8 +22,25 @@ class ScannerPort(ABC):
     """Runs a security scan against a target and returns domain findings."""
 
     @abstractmethod
-    def scan(self, target: Target) -> Sequence[Finding]:
-        """Scan ``target`` and return the findings discovered (possibly empty)."""
+    def scan(self, target: Target, scanner_ids: Sequence[str] | None = None) -> Sequence[Finding]:
+        """Scan ``target`` and return the findings discovered (possibly empty).
+
+        ``scanner_ids``, when given, narrows execution to that subset of
+        otherwise-compatible scanners (e.g. an assessment profile's
+        selection) instead of every compatible one. ``None`` (the
+        default) means "no narrowing" — every caller written before this
+        parameter existed keeps its exact prior behavior unchanged.
+        """
+
+    @abstractmethod
+    def compatible_scanners(self, target: Target) -> dict[str, str]:
+        """Return the scanners that would actually run for ``target``.
+
+        Maps scanner_id -> human-readable display name. Callers use this to
+        report *what is about to run* before calling ``scan()`` — ``scan()``
+        itself is an opaque call that returns only findings, with no way to
+        report back which individual scanners it attempted.
+        """
 
 
 class AIPort(ABC):

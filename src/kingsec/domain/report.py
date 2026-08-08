@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from .assessment import Assessment
+from .assessment import Assessment, ScannerRunSummary
 from .enums import AssessmentStatus, FindingStatus, Severity
 from .errors import IllegalStateTransition
 from .evidence import Evidence, Recommendation
@@ -210,6 +210,10 @@ class Report:
     # are non-empty in practice; the fallback only guards the type checker.
     authorized_by: str = ""
     scope: str = ""
+    # Which scanners ran and why others were skipped - carried over from the
+    # assessment as-is, so a reader never needs to return to the live app to
+    # see it. Empty for assessments that predate this feature.
+    scanner_summary: tuple[ScannerRunSummary, ...] = ()
 
     @classmethod
     def from_assessment(cls, assessment: Assessment, *, generated_at: datetime | None = None) -> Report:
@@ -253,6 +257,7 @@ class Report:
             severity_counts=severity_counts,
             authorized_by=authorization.authorized_by if authorization else "",
             scope=authorization.scope if authorization else "",
+            scanner_summary=assessment.scanner_summary,
         )
 
     # --- convenience ---------------------------------------------------------

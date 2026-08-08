@@ -35,8 +35,14 @@ class FfufScannerAdapter(ScannerPort):
         self._settings = settings
         self._runner: CommandRunner = runner or SubprocessCommandRunner()
 
-    def scan(self, target: Target) -> Sequence[Finding]:
+    def compatible_scanners(self, target: Target) -> dict[str, str]:
+        """This adapter only ever runs ffuf - no target-type filtering here."""
+        return {"ffuf": "FFUF"}
+
+    def scan(self, target: Target, scanner_ids: Sequence[str] | None = None) -> Sequence[Finding]:
         """Scan ``target`` with ffuf and return the findings discovered."""
+        if scanner_ids is not None and "ffuf" not in scanner_ids:
+            return ()
         self._validate_config()
         args = self._build_args(target)
 

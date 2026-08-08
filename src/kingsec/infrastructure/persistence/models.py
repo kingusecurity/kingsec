@@ -50,6 +50,15 @@ class AssessmentORM(Base):
     team_id: Mapped[str | None] = mapped_column(String, ForeignKey("teams.id"), nullable=True)
     owner_id: Mapped[str | None] = mapped_column(String, nullable=True)
 
+    # Which AssessmentProfile this scan was planned against. NULL means "no
+    # profile" - the execution layer runs every target-compatible scanner,
+    # exactly as it did before this feature existed.
+    profile_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Final per-scanner outcome, written once at completion: list of
+    # {"scanner_id", "name", "status", "findings_count", "skipped_reason"}.
+    # Empty for assessments that predate this feature or never completed.
+    scanner_summary: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+
     findings: Mapped[list["FindingORM"]] = relationship(
         back_populates="assessment",
         cascade="all, delete-orphan",
@@ -142,6 +151,10 @@ class ReportORM(Base):
     # Cover-page authorization metadata.
     authorized_by: Mapped[str] = mapped_column(String, nullable=False, default="")
     scope: Mapped[str] = mapped_column(String, nullable=False, default="")
+    # Snapshot of which scanners ran and why others were skipped, carried
+    # over from the assessment at generation time - same shape as
+    # AssessmentORM.scanner_summary.
+    scanner_summary: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
 
 
 class UserORM(Base):

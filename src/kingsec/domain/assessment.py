@@ -13,6 +13,7 @@ holds even if some future caller forgets an infrastructure-level check.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from .authorization import Authorization
@@ -24,6 +25,23 @@ from .target import Target
 
 # Default sentinel for optional org/team/owner fields.
 _UNSET = object()
+
+
+@dataclass(frozen=True, slots=True)
+class ScannerRunSummary:
+    """A durable, post-scan record of one scanner's outcome.
+
+    Captured once, at completion, from the (in-memory, ephemeral)
+    execution-tracking state - this is what makes "which scanners ran and
+    why others didn't" survive past the point where that tracking state
+    is gone, without needing to return to the live app.
+    """
+
+    scanner_id: str
+    name: str
+    status: str  # "completed" | "failed" | "skipped" | ... (mirrors ScannerProgress.status)
+    findings_count: int = 0
+    skipped_reason: str | None = None
 
 # Legal state transitions. An empty set marks a terminal state.
 _ALLOWED_ASSESSMENT_TRANSITIONS: dict[AssessmentStatus, set[AssessmentStatus]] = {
@@ -49,6 +67,7 @@ class Assessment:
         target: Target,
         *,
         created_at: datetime | None = None,
+        profile_id: str | None = None,
     ) -> None:
         if not isinstance(assessment_id, AssessmentId):
             raise InvariantViolation("assessment_id must be an AssessmentId")
@@ -66,14 +85,24 @@ class Assessment:
         self._organization_id: str | None = None
         self._team_id: str | None = None
         self._owner_id: str | None = None
+        # Which AssessmentProfile this scan was planned against, if any.
+        # None means "no profile" - the execution layer runs every
+        # target-compatible scanner, exactly as it always has.
+        self._profile_id = profile_id
+        # Populated once, at completion, from the execution engine's
+        # per-scanner state - empty until then, and permanently empty for
+        # assessments that predate this feature.
+        self._scanner_summary: tuple[ScannerRunSummary, ...] = ()
         # Keyed by FindingId to make duplicate detection O(1) and cheap.
         self._findings: dict[FindingId, Finding] = {}
 
     # --- factory -------------------------------------------------------------
     @classmethod
-    def create(cls, target: Target, *, created_at: datetime | None = None) -> Assessment:
+    def create(
+        cls, target: Target, *, created_at: datetime | None = None, profile_id: str | None = None
+    ) -> Assessment:
         """Create a new DRAFT assessment with a freshly generated id."""
-        return cls(AssessmentId.generate(), target, created_at=created_at)
+        return cls(AssessmentId.generate(), target, created_at=created_at, profile_id=profile_id)
 
     @classmethod
     def reconstitute(
@@ -86,6 +115,8 @@ class Assessment:
         authorization: Authorization | None,
         failure_reason: str | None = None,
         findings: list[Finding] | None = None,
+        profile_id: str | None = None,
+        scanner_summary: tuple[ScannerRunSummary, ...] = (),
     ) -> Assessment:
         """Rebuild an Assessment from stored state (persistence boundary).
 
@@ -103,6 +134,8 @@ class Assessment:
         a._organization_id = None
         a._team_id = None
         a._owner_id = None
+        a._profile_id = profile_id
+        a._scanner_summary = scanner_summary
         a._findings = {f.id: f for f in (findings or [])}
         if len(a._findings) != len(findings or []):
             raise InvariantViolation("duplicate finding id in reconstitution")
@@ -155,6 +188,14 @@ class Assessment:
         return self._failure_reason
 
     @property
+    def profile_id(self) -> str | None:
+        return self._profile_id
+
+    @property
+    def scanner_summary(self) -> tuple[ScannerRunSummary, ...]:
+        return self._scanner_summary
+
+    @property
     def findings(self) -> tuple[Finding, ...]:
         return tuple(self._findings.values())
 
@@ -199,6 +240,17 @@ class Assessment:
         if finding.id in self._findings:
             raise InvariantViolation(f"duplicate finding id {finding.id.value!r}")
         self._findings[finding.id] = finding
+
+    def record_scanner_summary(self, summary: tuple[ScannerRunSummary, ...]) -> None:
+        """Attach the final per-scanner outcome record. Call once, right
+        before ``complete()`` - same lifecycle window as ``record_finding``,
+        since both are facts about a scan that's still RUNNING."""
+        if self._status is not AssessmentStatus.RUNNING:
+            raise IllegalStateTransition(
+                f"cannot record scanner summary while assessment is {self._status.value}",
+                current=self._status,
+            )
+        self._scanner_summary = summary
 
     def complete(self) -> None:
         """Finish successfully: RUNNING -> COMPLETED."""

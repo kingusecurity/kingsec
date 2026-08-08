@@ -150,6 +150,9 @@ class StubScanner(ScannerPort):
     def scan(self, target: Target) -> Sequence[Finding]:
         return list(self._findings)
 
+    def compatible_scanners(self, target: Target) -> dict[str, str]:
+        return {"stub": "Stub Scanner"}
+
 
 class StubAI(AIPort):
     def recommend(self, finding: Finding) -> Recommendation:

@@ -381,6 +381,57 @@ class TestScan:
 
 
 # ===========================================================================
+# compatible_scanners()
+# ===========================================================================
+
+
+class TestCompatibleScanners:
+    def test_maps_id_to_display_name(
+        self, registry: InMemoryPluginRegistry, orchestrator: ScannerOrchestrator, fake_ip: Target
+    ) -> None:
+        registry.register(_StubPlugin(plugin_id="nuclei"))
+        result = orchestrator.compatible_scanners(fake_ip)
+        assert result == {"nuclei": "Stub nuclei"}
+
+    def test_multiple_plugins(
+        self, registry: InMemoryPluginRegistry, orchestrator: ScannerOrchestrator, fake_ip: Target
+    ) -> None:
+        registry.register(_StubPlugin(plugin_id="nuclei"))
+        registry.register(_StubPlugin(plugin_id="nmap"))
+        result = orchestrator.compatible_scanners(fake_ip)
+        assert result == {"nuclei": "Stub nuclei", "nmap": "Stub nmap"}
+
+    def test_empty_registry(
+        self, registry: InMemoryPluginRegistry, orchestrator: ScannerOrchestrator, fake_ip: Target
+    ) -> None:
+        result = orchestrator.compatible_scanners(fake_ip)
+        assert result == {}
+
+    def test_matches_what_scan_would_actually_run(
+        self, registry: InMemoryPluginRegistry, orchestrator: ScannerOrchestrator, fake_ip: Target
+    ) -> None:
+        """The whole point of this method: it must reflect exactly what a
+        subsequent scan() against the same target would attempt - not an
+        independent guess."""
+        registry.register(_StubPlugin(plugin_id="nuclei", findings=(_finding(),)))
+        registry.register(_StubPlugin(plugin_id="nmap"))
+
+        compatible = orchestrator.compatible_scanners(fake_ip)
+        results = orchestrator.execute_all(fake_ip)
+
+        assert set(compatible.keys()) == {str(r.scanner_id) for r in results}
+
+    def test_excludes_incompatible_target_type(
+        self, registry: InMemoryPluginRegistry, orchestrator: ScannerOrchestrator, fake_url: Target
+    ) -> None:
+        """_StubPlugin only declares IP_ADDRESS capability - a URL target
+        must resolve to no plugins, same as execute_all/scan would see."""
+        registry.register(_StubPlugin(plugin_id="nuclei"))
+        result = orchestrator.compatible_scanners(fake_url)
+        assert result == {}
+
+
+# ===========================================================================
 # shutdown()
 # ===========================================================================
 

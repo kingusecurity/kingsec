@@ -14,6 +14,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import cast
 
+from kingsec.application.assessment_execution import AssessmentExecutionEngine
 from kingsec.application.errors import ScannerPluginError
 from kingsec.application.ports.scanner_executor import ScannerExecutor
 from kingsec.application.ports.scanner_plugin import ScannerPluginPort
@@ -73,6 +74,9 @@ class ScannerOrchestrator(ScannerPort, ScannerExecutor):
         self,
         target: Target,
         configs: dict[ScannerId, PluginConfig] | None = None,
+        scanner_ids: Sequence[str] | None = None,
+        execution_engine: AssessmentExecutionEngine | None = None,
+        tracking_id: str | None = None,
     ) -> tuple[ScannerResult, ...]:
         """Execute all compatible plugins for a target.
 
@@ -80,8 +84,21 @@ class ScannerOrchestrator(ScannerPort, ScannerExecutor):
         (including an unavailable/missing tool) are logged and that plugin
         is skipped — execution continues with the remaining plugins, the
         same graceful-degradation contract already used by ``shutdown()``.
+
+        ``scanner_ids``, when given, narrows the resolved plugins to that
+        subset (e.g. a profile's selected scanners) instead of every
+        target-compatible one. ``None`` runs every compatible plugin,
+        exactly as before this parameter existed.
+
+        When ``execution_engine`` and ``tracking_id`` are both given, each
+        plugin's start/completion/failure is reported to the engine as it
+        happens, so a caller can read back the real final per-scanner
+        outcome after this call returns.
         """
         plugins = self._registry.resolve(target)
+        if scanner_ids is not None:
+            allowed = set(scanner_ids)
+            plugins = tuple(p for p in plugins if p.metadata().id.value in allowed)
         if not plugins:
             _logger.warning(
                 "no scanner plugin is compatible with this target type; "
@@ -89,36 +106,58 @@ class ScannerOrchestrator(ScannerPort, ScannerExecutor):
                 target_type=str(target.type),
             )
         results: list[ScannerResult] = []
+        engine, tid = execution_engine, tracking_id
 
         for plugin in plugins:
             plugin_id = plugin.metadata().id
             config = (configs or {}).get(plugin_id, PluginConfig())
 
+            if engine is not None and tid is not None:
+                engine.start_scanner(tid, plugin_id.value)
+
             try:
                 result = self.execute(plugin, target, config)
                 results.append(result)
+                if engine is not None and tid is not None:
+                    engine.complete_scanner(
+                        tid,
+                        plugin_id.value,
+                        findings_count=len(result.findings),
+                        warnings=result.warnings,
+                    )
             except Exception as exc:
                 _logger.warning(
                     "scanner plugin failed, skipping",
                     plugin_id=str(plugin_id),
                     error=str(exc),
                 )
+                if engine is not None and tid is not None:
+                    engine.fail_scanner(tid, plugin_id.value, str(exc))
 
         return tuple(results)
 
     # -- ScannerPort ---------------------------------------------------------
 
-    def scan(self, target: Target) -> Sequence[Finding]:
+    def scan(self, target: Target, scanner_ids: Sequence[str] | None = None) -> Sequence[Finding]:
         """Scan ``target`` by executing all compatible plugins.
 
         Satisfies the ``ScannerPort`` contract. Flattens all findings from
         all successful plugin results into a single tuple.
         """
-        results = self.execute_all(target)
+        results = self.execute_all(target, scanner_ids=scanner_ids)
         findings: list[Finding] = []
         for result in results:
             findings.extend(result.findings)
         return tuple(findings)
+
+    def compatible_scanners(self, target: Target) -> dict[str, str]:
+        """Return the plugins ``scan()`` would attempt for ``target``.
+
+        Reuses the same registry resolution ``execute_all`` uses
+        internally, so this always reflects exactly what a subsequent
+        ``scan()`` call against the same target would run.
+        """
+        return {p.metadata().id.value: p.metadata().name for p in self._registry.resolve(target)}
 
     # -- Lifecycle -----------------------------------------------------------
 

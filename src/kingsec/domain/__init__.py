@@ -8,7 +8,7 @@ Python so the core business rules can be understood and tested in isolation.
 from __future__ import annotations
 
 from .api_key import ApiKey, ApiKeyScope, ApiKeyStatus
-from .assessment import Assessment
+from .assessment import Assessment, ScannerRunSummary
 from .asset import (
     Asset,
     AssetCriticality,
@@ -227,6 +227,7 @@ __all__ = [
     "ScannerId",
     "ScannerPluginMetadata",
     "ScannerResult",
+    "ScannerRunSummary",
     "ScheduleId",
     "ScheduleStatus",
     "ScheduleType",

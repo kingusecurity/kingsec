@@ -20,12 +20,14 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 
-from kingsec.domain import AssessmentId, Finding
+from kingsec.domain import AssessmentId, Finding, ScannerRunSummary
 from kingsec.domain.audit import AuditAction, AuditEntry
 
 from ._support import check_assessment_access, to_assessment_id
 from .assessment_execution import AssessmentExecutionEngine, ExecutionPhase
+from .assessment_profiles import ExecutionPlanner
 from .dto import SubmitAssessmentRequest, SubmitAssessmentResponse
+from .errors import ExecutionPlanUnsatisfiedError
 from .events import (
     EVENT_ASSESSMENT_COMPLETED,
     EVENT_ASSESSMENT_FAILED,
@@ -38,6 +40,7 @@ from .ports import (
     AuditPublisher,
     EventPublisher,
     JobRunner,
+    ScannerExecutor,
     ScannerPort,
 )
 
@@ -54,6 +57,8 @@ class SubmitAssessment:
         events: EventPublisher | None = None,
         audit: AuditPublisher | None = None,
         execution_engine: AssessmentExecutionEngine | None = None,
+        planner: ExecutionPlanner | None = None,
+        scanner_executor: ScannerExecutor | None = None,
     ) -> None:
         self._assessments = assessments
         self._scanner = scanner
@@ -62,6 +67,8 @@ class SubmitAssessment:
         self._events = events
         self._audit = audit
         self._execution_engine = execution_engine
+        self._planner = planner
+        self._scanner_executor = scanner_executor
 
     def execute(self, request: SubmitAssessmentRequest) -> SubmitAssessmentResponse:
         assessment_id = to_assessment_id(request.assessment_id)
@@ -100,6 +107,8 @@ class SubmitAssessment:
             ai=self._ai,
             events=self._events,
             execution_engine=self._execution_engine,
+            planner=self._planner,
+            scanner_executor=self._scanner_executor,
         )
         self._job_runner.submit(job_id, background_fn)
 
@@ -136,6 +145,8 @@ class SubmitAssessment:
         ai: AIPort | None,
         events: EventPublisher | None,
         execution_engine: AssessmentExecutionEngine | None,
+        planner: ExecutionPlanner | None,
+        scanner_executor: ScannerExecutor | None,
     ) -> Callable[[], None]:
         """Build a closure that runs the scan in the background."""
 
@@ -147,6 +158,8 @@ class SubmitAssessment:
                 ai=ai,
                 events=events,
                 execution_engine=execution_engine,
+                planner=planner,
+                scanner_executor=scanner_executor,
             )
 
         return _run_scan
@@ -160,6 +173,8 @@ def _execute_scan(
     ai: AIPort | None,
     events: EventPublisher | None = None,
     execution_engine: AssessmentExecutionEngine | None = None,
+    planner: ExecutionPlanner | None = None,
+    scanner_executor: ScannerExecutor | None = None,
 ) -> None:
     """Run the scan and complete the assessment. Called from a background thread.
 
@@ -169,18 +184,81 @@ def _execute_scan(
     assessment = assessments.get(assessment_id)
     tracking_id = str(assessment_id)
 
-    if execution_engine is not None:
-        execution_engine.start_execution(tracking_id, {})
-        execution_engine.transition_phase(tracking_id, ExecutionPhase.RUNNING_SCANNERS)
-
     try:
-        for finding in scanner.scan(assessment.target):
+        # Which scanners are allowed to run, and what the profile's plan
+        # already ruled out before execution even starts.
+        scanner_ids: tuple[str, ...] | None = None
+        selected_names: dict[str, str] = {}
+        preplanned_skips: tuple[ScannerRunSummary, ...] = ()
+
+        if assessment.profile_id is not None and planner is not None:
+            # Server-side re-validation: re-plan now, at execution time,
+            # rather than trusting whatever the client saw at an earlier
+            # /plan preview - scanner availability can change in the async
+            # gap between preview and this background run.
+            plan = planner.plan(assessment.profile_id, assessment.target.value, assessment.target.type)
+            if not plan.can_proceed:
+                reason = "; ".join(plan.warnings) or (
+                    f"profile {assessment.profile_id!r} cannot proceed: "
+                    "a required scanner is unavailable"
+                )
+                raise ExecutionPlanUnsatisfiedError(reason)
+
+            scanner_ids = tuple(e.scanner_id for e in plan.selected_scanners)
+            selected_names = {e.scanner_id: e.name for e in plan.selected_scanners}
+            preplanned_skips = tuple(
+                ScannerRunSummary(
+                    scanner_id=e.scanner_id,
+                    name=e.name,
+                    status="skipped",
+                    skipped_reason=e.reason or None,
+                )
+                for e in (*plan.skipped_scanners, *plan.unavailable_scanners)
+            )
+        elif execution_engine is not None:
+            # No profile: today's exact "run everything compatible" behavior.
+            selected_names = scanner.compatible_scanners(assessment.target)
+
+        if execution_engine is not None:
+            execution_engine.start_execution(tracking_id, selected_names)
+            execution_engine.transition_phase(tracking_id, ExecutionPhase.RUNNING_SCANNERS)
+
+        if scanner_executor is not None:
+            # The richer lifecycle port: reports real per-scanner start/
+            # completion/failure to the execution engine as it runs.
+            results = scanner_executor.execute_all(
+                assessment.target,
+                scanner_ids=scanner_ids,
+                execution_engine=execution_engine,
+                tracking_id=tracking_id,
+            )
+            findings: list[Finding] = [f for result in results for f in result.findings]
+        elif scanner_ids is not None:
+            findings = list(scanner.scan(assessment.target, scanner_ids=scanner_ids))
+        else:
+            findings = list(scanner.scan(assessment.target))
+
+        for finding in findings:
             _enrich(finding, ai)
             assessment.record_finding(finding)
 
         if execution_engine is not None:
             execution_engine.transition_phase(tracking_id, ExecutionPhase.CORRELATING)
             execution_engine.transition_phase(tracking_id, ExecutionPhase.REPORTING)
+
+        if execution_engine is not None:
+            state = execution_engine.get_state(tracking_id)
+            ran_summaries = tuple(
+                ScannerRunSummary(
+                    scanner_id=p.scanner_id,
+                    name=p.name,
+                    status=p.status,
+                    findings_count=p.findings_count,
+                    skipped_reason=p.skipped_reason,
+                )
+                for p in (state.scanner_progress if state is not None else ())
+            )
+            assessment.record_scanner_summary(ran_summaries + preplanned_skips)
 
         assessment.complete()
         assessments.save(assessment)

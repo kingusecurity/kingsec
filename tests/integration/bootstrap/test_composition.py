@@ -64,6 +64,9 @@ class _StubScanner(ScannerPort):
     def scan(self, target: Target) -> Sequence[Finding]:
         return [Finding.create("SQLi", "injectable", Severity.CRITICAL)]
 
+    def compatible_scanners(self, target: Target) -> dict[str, str]:
+        return {"stub": "Stub Scanner"}
+
 
 class TestStartup:
     def test_complete_application_startup(self, wired_app: Application) -> None:
