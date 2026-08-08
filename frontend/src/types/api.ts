@@ -82,6 +82,14 @@ export interface FindingResponse {
   recommendation_count: number
 }
 
+export interface ScannerSummaryResponse {
+  scanner_id: string
+  name: string
+  status: string
+  findings_count: number
+  skipped_reason: string | null
+}
+
 export interface AssessmentResponse {
   assessment_id: string
   target: string
@@ -89,6 +97,8 @@ export interface AssessmentResponse {
   is_authorized: boolean
   created_at: string
   findings: FindingResponse[]
+  profile_id: string | null
+  scanner_summary: ScannerSummaryResponse[]
 }
 
 export interface CreateAssessmentBody {
@@ -96,6 +106,7 @@ export interface CreateAssessmentBody {
   target_type: string
   authorized_by: string
   scope: string
+  profile_id?: string
 }
 
 export interface CreateAssessmentResponse {

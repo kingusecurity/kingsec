@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, FileText, Download, RotateCw } from 'lucide-react'
+import { ArrowLeft, FileText, Download, RotateCw, CheckCircle2, XCircle, SkipForward, Clock } from 'lucide-react'
 import { PageContainer } from '@/components/layout/PageContainer'
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -16,6 +16,7 @@ import { adminApi } from '@/api/admin'
 import { ApiError } from '@/api/client'
 import { toast } from '@/components/ui/Toast'
 import { formatDate, cn } from '@/lib/utils'
+import type { ScannerSummaryResponse } from '@/types/api'
 
 export function AssessmentDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -138,6 +139,28 @@ export function AssessmentDetailPage() {
               <FindingsSummaryTable findings={assessment.findings} />
             </div>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Scanners ({assessment.scanner_summary.length})</CardTitle>
+              <CardDescription>Which scanners ran for this assessment, and their outcome</CardDescription>
+            </CardHeader>
+            <div className="px-5 pb-5">
+              {assessment.scanner_summary.length === 0 ? (
+                <p className="text-sm text-text-muted">
+                  {isCompleted
+                    ? 'No scanner outcome was recorded for this assessment.'
+                    : 'Scanner outcomes will appear here once the assessment runs.'}
+                </p>
+              ) : (
+                <div className="space-y-1.5">
+                  {assessment.scanner_summary.map((s) => (
+                    <ScannerSummaryRow key={s.scanner_id} scanner={s} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
         </>
       ) : (
         <Card>
@@ -161,6 +184,44 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
     <div className="flex justify-between items-center">
       <span className="text-sm text-text-secondary">{label}</span>
       <span className="text-sm text-text-primary font-medium">{value}</span>
+    </div>
+  )
+}
+
+const SCANNER_STATUS_COLORS: Record<string, string> = {
+  completed: 'border-emerald-800/50 bg-emerald-950/20',
+  failed: 'border-red-800/50 bg-red-950/20',
+  skipped: 'border-gray-700 bg-gray-900/50',
+}
+
+function ScannerStatusIcon({ status }: { status: string }) {
+  switch (status) {
+    case 'completed':
+      return <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+    case 'failed':
+      return <XCircle className="h-4 w-4 text-red-400" />
+    case 'skipped':
+      return <SkipForward className="h-4 w-4 text-gray-500" />
+    default:
+      return <Clock className="h-4 w-4 text-gray-600" />
+  }
+}
+
+function ScannerSummaryRow({ scanner }: { scanner: ScannerSummaryResponse }) {
+  return (
+    <div className={cn('flex items-center gap-3 rounded-lg border p-3', SCANNER_STATUS_COLORS[scanner.status] || 'border-gray-800 bg-transparent')}>
+      <ScannerStatusIcon status={scanner.status} />
+      <div className="min-w-0 flex-1">
+        <span className="text-sm font-medium text-text-primary truncate">{scanner.name}</span>
+        <div className="mt-0.5 flex items-center gap-3 text-xs text-text-muted">
+          {scanner.status === 'completed' && (
+            <span>{scanner.findings_count} finding{scanner.findings_count === 1 ? '' : 's'}</span>
+          )}
+          {scanner.skipped_reason && (
+            <span className="text-gray-500 truncate" title={scanner.skipped_reason}>{scanner.skipped_reason}</span>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
