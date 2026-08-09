@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
   ArrowLeft, ArrowRight, Check, AlertTriangle, Clock,
-  ShieldOff, Cpu, Info,
+  ShieldOff, Cpu, Info, ShieldAlert,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -324,13 +324,41 @@ export function CreateAssessmentForm({ onSubmit, isPending, error }: CreateAsses
 
           {step === 2 && (
             <>
+              <div className="flex gap-2.5 rounded-lg bg-red-900/20 p-3.5 text-xs text-red-200">
+                <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5 text-red-400" />
+                <div className="space-y-2">
+                  <p>
+                    KingSec won&apos;t run a scan without this. It&apos;s not a formality —
+                    authorization is the one guarantee this product enforces unconditionally:
+                    an assessment that isn&apos;t authorized here can never start.
+                  </p>
+                  <p>
+                    Scanning a system without explicit permission to test it can be illegal,
+                    even if you believe the target is yours or it&apos;s on your own network.
+                    Before continuing, make sure you have real authorization for this specific
+                    target — a signed engagement letter, a ticket, or written sign-off from
+                    whoever owns it. This isn&apos;t legal advice, and KingSec can&apos;t tell
+                    you what&apos;s authorized in your situation — only you, or whoever granted
+                    permission, can. If you&apos;re not sure, stop and confirm before proceeding.
+                  </p>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-text-primary mb-1.5">Authorized By</label>
+                <p className="mb-1.5 text-xs text-text-muted">
+                  Who actually granted permission — a name, or a ticket/engagement reference
+                  you could point back to later.
+                </p>
                 <Input {...register('authorized_by')} placeholder="admin@company.com" />
                 {errors.authorized_by && <p className="mt-1 text-xs text-red-400">{errors.authorized_by.message}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-text-primary mb-1.5">Scope</label>
+                <p className="mb-1.5 text-xs text-text-muted">
+                  Exactly what was authorized: the specific target or range. Scanning outside
+                  this exceeds your authorization, even mid-engagement.
+                </p>
                 <Textarea {...register('scope')} placeholder="10.0.0.0/24" rows={3} />
                 {errors.scope && <p className="mt-1 text-xs text-red-400">{errors.scope.message}</p>}
               </div>
