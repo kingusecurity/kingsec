@@ -13,9 +13,10 @@ from kingsec.application.use_cases.mfa_dto import (
 )
 from kingsec.domain import RateLimitGroup
 
-from .auth import CurrentUser, get_current_user, require_admin
+from .auth import CurrentUser, get_current_user_jwt_only, require_admin_jwt_only
 from .rate_limit_deps import require_rate_limit
 from .schemas import MfaStatusResponse as MfaStatusSchema
+from .session_helpers import create_session_for_login
 
 if TYPE_CHECKING:
     from kingsec.bootstrap.application import Application
@@ -38,7 +39,7 @@ def _get_app(request: Request) -> Application:
 )
 async def get_mfa_status(
     request: Request,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user_jwt_only),
 ) -> MfaStatusSchema:
     from kingsec.application.use_cases.get_mfa_status import GetMfaStatus
 
@@ -59,7 +60,7 @@ async def get_mfa_status(
 )
 async def enable_mfa(
     request: Request,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user_jwt_only),
 ) -> dict[str, Any]:
     from kingsec.application.use_cases.enable_mfa import EnableMfa
     from kingsec.application.use_cases.mfa_dto import EnableMfaRequest
@@ -72,15 +73,17 @@ async def enable_mfa(
 
 @router.post(
     "/verify",
-    summary="Authenticate with TOTP code",
+    summary="Complete login with a TOTP code",
     description=(
-        "Authenticate using username, password, and TOTP code. "
-        "Returns JWT tokens on success. Use this endpoint instead of "
-        "/auth/login when MFA is enabled."
+        "Complete a login that returned mfa_required=true, using the "
+        "pending_token from that response plus a TOTP code. Returns JWT "
+        "tokens on success. This is the required second step for any "
+        "account with MFA enabled - POST /auth/login alone is not enough "
+        "to obtain access for such an account."
     ),
     responses={
         200: {"description": "Authentication successful"},
-        401: {"description": "Invalid credentials or TOTP code"},
+        401: {"description": "Invalid or expired pending token, or invalid TOTP code"},
     },
 )
 async def verify_mfa(
@@ -94,19 +97,25 @@ async def verify_mfa(
     use_case: VerifyMfaCode = app.resolve(VerifyMfaCode)
     try:
         request_body = VerifyMfaCodeRequest(
-            username=body["username"],
-            password=body["password"],
+            pending_token=body["pending_token"],
             totp_code=body["totp_code"],
         )
     except KeyError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="username, password, and totp_code are required",
+            detail="pending_token and totp_code are required",
         ) from exc
     try:
         result = use_case.execute(request_body)
     except ApplicationError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+
+    create_session_for_login(
+        request,
+        user_id=result.user_id,
+        access_token=result.access_token,
+        refresh_token=result.refresh_token,
+    )
 
     return {
         "user_id": result.user_id,
@@ -130,7 +139,7 @@ async def verify_mfa(
 )
 async def disable_mfa(
     request: Request,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user_jwt_only),
 ) -> dict[str, Any]:
     from kingsec.application.use_cases.disable_mfa import DisableMfa
     from kingsec.application.use_cases.mfa_dto import DisableMfaRequest
@@ -145,7 +154,7 @@ async def disable_mfa(
     "/disable/{user_id}",
     summary="Admin: disable MFA for any user",
     description="ADMIN role required. Disable MFA for a specified user.",
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_jwt_only)],
     responses={
         200: {"description": "MFA disabled"},
         401: {"description": "Missing or invalid authentication"},
@@ -155,7 +164,7 @@ async def disable_mfa(
 async def admin_disable_mfa(
     user_id: str,
     request: Request,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user_jwt_only),
 ) -> dict[str, Any]:
     from kingsec.application.use_cases.disable_mfa import DisableMfa
     from kingsec.application.use_cases.mfa_dto import DisableMfaRequest
@@ -168,11 +177,15 @@ async def admin_disable_mfa(
 
 @router.post(
     "/recovery",
-    summary="Authenticate with recovery code",
-    description="Authenticate using username, password, and a recovery code (when MFA device is unavailable).",
+    summary="Complete login with a recovery code",
+    description=(
+        "Complete a login that returned mfa_required=true, using the "
+        "pending_token from that response plus a recovery code (when the "
+        "MFA device is unavailable)."
+    ),
     responses={
         200: {"description": "Authentication successful"},
-        401: {"description": "Invalid credentials or recovery code"},
+        401: {"description": "Invalid or expired pending token, or invalid recovery code"},
     },
 )
 async def use_recovery_code(
@@ -186,19 +199,25 @@ async def use_recovery_code(
     use_case: UseRecoveryCode = app.resolve(UseRecoveryCode)
     try:
         request_body = UseRecoveryCodeRequest(
-            username=body["username"],
-            password=body["password"],
+            pending_token=body["pending_token"],
             recovery_code=body["recovery_code"],
         )
     except KeyError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="username, password, and recovery_code are required",
+            detail="pending_token and recovery_code are required",
         ) from exc
     try:
         result = use_case.execute(request_body)
     except ApplicationError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+
+    create_session_for_login(
+        request,
+        user_id=result.user_id,
+        access_token=result.access_token,
+        refresh_token=result.refresh_token,
+    )
 
     return {
         "user_id": result.user_id,
@@ -222,7 +241,7 @@ async def use_recovery_code(
 )
 async def generate_recovery_codes(
     request: Request,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user_jwt_only),
 ) -> dict[str, Any]:
     from kingsec.application.use_cases.generate_recovery_codes import GenerateRecoveryCodes
     from kingsec.application.use_cases.mfa_dto import GenerateRecoveryCodesRequest
@@ -244,7 +263,7 @@ async def generate_recovery_codes(
 )
 async def rotate_recovery_codes(
     request: Request,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user_jwt_only),
 ) -> dict[str, Any]:
     from kingsec.application.use_cases.mfa_dto import RotateRecoveryCodesRequest
     from kingsec.application.use_cases.rotate_recovery_codes import RotateRecoveryCodes

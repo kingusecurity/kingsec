@@ -146,10 +146,16 @@ class FakeTokenService(TokenService):
     def create_refresh_token(self, user_id: str, username: str, role: str) -> str:
         return ""
 
+    def create_mfa_pending_token(self, user_id: str, username: str, role: str) -> str:
+        return ""
+
     def verify_access_token(self, token: str) -> TokenClaims:
         raise NotImplementedError
 
     def verify_refresh_token(self, token: str) -> TokenClaims:
+        raise NotImplementedError
+
+    def verify_mfa_pending_token(self, token: str) -> TokenClaims:
         raise NotImplementedError
 
     def revoke_token(self, jti: str) -> None:

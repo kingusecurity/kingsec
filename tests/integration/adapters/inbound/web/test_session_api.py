@@ -4,7 +4,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from kingsec.adapters.inbound.web.auth import CurrentUser, get_current_user
+from kingsec.adapters.inbound.web.auth import CurrentUser, get_current_user_jwt_only
 from kingsec.adapters.inbound.web.error_handlers import register_error_handlers
 from kingsec.adapters.inbound.web.session_routes import router as sessions_router
 from kingsec.application.ports.outbound.clock_port import ClockPort
@@ -59,6 +59,20 @@ class FakeTokenService(TokenService):
             role="admin",
             token_type="refresh",
             jti="rjti_" + token,
+            issued_at=None,
+            expires_at=None,
+        )
+
+    def create_mfa_pending_token(self, user_id: str, username: str, role: str) -> str:
+        return f"pending_{user_id}"
+
+    def verify_mfa_pending_token(self, token: str) -> TokenClaims:
+        return TokenClaims(
+            user_id=token.replace("pending_", ""),
+            username="testuser",
+            role="admin",
+            token_type="mfa_pending",
+            jti="pjti_" + token,
             issued_at=None,
             expires_at=None,
         )
@@ -244,7 +258,7 @@ def app() -> FastAPI:
 
     fastapi_app = FastAPI()
     fastapi_app.state.kingsec_app = application
-    fastapi_app.dependency_overrides[get_current_user] = override_get_current_user
+    fastapi_app.dependency_overrides[get_current_user_jwt_only] = override_get_current_user
     fastapi_app.include_router(sessions_router)
     register_error_handlers(fastapi_app)
 

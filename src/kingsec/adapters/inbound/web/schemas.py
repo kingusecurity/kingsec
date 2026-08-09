@@ -262,15 +262,23 @@ class LoginBody(BaseModel):
 
 
 class LoginResponse(BaseModel):
-    """POST /api/v1/auth/login response body."""
+    """POST /api/v1/auth/login response body.
+
+    Two shapes: fully authenticated (access_token/refresh_token populated,
+    mfa_required false) or MFA still required (mfa_required true,
+    pending_token populated, access_token/refresh_token absent). See
+    application.dto.LoginResponse for the full explanation.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     user_id: str
     username: str
     role: str
-    access_token: str
-    refresh_token: str
+    access_token: str | None = None
+    refresh_token: str | None = None
+    mfa_required: bool = False
+    pending_token: str | None = None
     token_type: str = "bearer"
     expires_in: int
 

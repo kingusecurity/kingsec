@@ -9,10 +9,13 @@ Steps:
        may itself trigger a new lockout) and reject with the exact same
        generic error either way.
     5. Check that the account is active.
-    6. Record the successful authentication (clears any lockout state).
-    7. Generate access and refresh tokens.
-    8. Record the login timestamp.
-    9. Publish audit entry (success or failure).
+    6. If MFA is enabled for this account: issue only a short-lived,
+       narrowly-scoped pending token and return - do NOT record success or
+       issue real tokens yet. The client must complete the second factor
+       via VerifyMfaCode/UseRecoveryCode before a real session exists.
+    7. Otherwise: record the successful authentication (clears any lockout
+       state), generate access and refresh tokens, record the login
+       timestamp, and publish a success audit entry.
 
 Security considerations:
     - Password verification uses constant-time comparison (via PasswordHasher).
@@ -28,6 +31,12 @@ Security considerations:
     - Disabled accounts are rejected with a specific error — this one IS
       intentionally distinguishable from a wrong password (existing,
       unchanged behavior; lockout deliberately does not follow this example).
+    - MFA-enabled accounts never receive a real access/refresh token from
+      this use case, under any circumstance - only a pending token whose
+      distinct JWT type is rejected by every protected route. This is the
+      fix for a confirmed live bypass: previously this use case had no
+      concept of MFA at all, so a correct password alone was sufficient to
+      obtain full access even for an account with MFA "enabled".
     - Audit entries record both successes and failures for security monitoring.
 """
 
@@ -40,6 +49,7 @@ from kingsec.application.errors import ApplicationError
 from kingsec.application.ports import AuditPublisher, PasswordHasher, TokenService, UserRepository
 from kingsec.application.ports.outbound.clock_port import ClockPort
 from kingsec.application.ports.outbound.lockout_repository import LockoutRepository
+from kingsec.application.ports.outbound.mfa_secret_repository import MfaSecretRepository
 from kingsec.application.use_cases.check_account_lockout import CheckAccountLockout
 from kingsec.application.use_cases.rate_limit_dto import (
     CheckAccountLockoutRequest,
@@ -49,6 +59,7 @@ from kingsec.application.use_cases.rate_limit_dto import (
 from kingsec.application.use_cases.record_failed_authentication import RecordFailedAuthentication
 from kingsec.application.use_cases.record_successful_authentication import RecordSuccessfulAuthentication
 from kingsec.domain.audit import AuditAction, AuditEntry
+from kingsec.domain.mfa import MfaStatus
 from kingsec.domain.rate_limit import LockoutPolicy
 
 
@@ -63,11 +74,13 @@ class Login:
         lockout_repo: LockoutRepository,
         clock: ClockPort,
         lockout_policy: LockoutPolicy,
+        mfa_secrets: MfaSecretRepository,
         audit: AuditPublisher | None = None,
     ) -> None:
         self._users = users
         self._hasher = hasher
         self._tokens = tokens
+        self._mfa_secrets = mfa_secrets
         self._audit = audit
         # Sub-use-cases built from the injected ports, same shape as e.g.
         # NotificationService building MarkNotificationRead from its own
@@ -151,10 +164,41 @@ class Login:
             )
             raise AuthenticationError("account is disabled")
 
-        # Step 6: Record the successful authentication (clears any lockout).
+        # Step 6: If MFA is enabled, stop here - issue only a pending token
+        # and hand off to VerifyMfaCode/UseRecoveryCode. This account gets
+        # no real access/refresh token from this call, under any
+        # circumstance.
+        mfa_secret = self._mfa_secrets.find_by_user_id(user.id)
+        if mfa_secret is not None and mfa_secret.status is MfaStatus.ENABLED:
+            pending_token = self._tokens.create_mfa_pending_token(
+                user_id=user.id,
+                username=user.username,
+                role=user.role.label,
+            )
+            self._publish_audit(
+                AuditEntry(
+                    action=AuditAction.LOGIN,
+                    resource_type="user",
+                    resource_id=user.id,
+                    success=False,
+                    reason="password verified, MFA challenge issued",
+                    user_id=user.id,
+                    username=user.username,
+                    role=user.role.label,
+                )
+            )
+            return LoginResponse(
+                user_id=user.id,
+                username=user.username,
+                role=user.role.label,
+                mfa_required=True,
+                pending_token=pending_token,
+            )
+
+        # Step 7: Record the successful authentication (clears any lockout).
         self._record_success.execute(RecordSuccessfulAuthenticationRequest(user_id=user.id))
 
-        # Step 7: Generate tokens.
+        # Step 8: Generate tokens.
         access_token = self._tokens.create_access_token(
             user_id=user.id,
             username=user.username,
@@ -166,11 +210,11 @@ class Login:
             role=user.role.label,
         )
 
-        # Step 8: Record login.
+        # Step 9: Record login.
         user.record_login()
         self._users.save(user)
 
-        # Step 9: Audit successful login.
+        # Step 10: Audit successful login.
         self._publish_audit(
             AuditEntry(
                 action=AuditAction.LOGIN,

@@ -23,7 +23,14 @@ from kingsec.domain.api_key import ApiKey
 from kingsec.domain.rate_limit import LockoutPolicy, RateLimitDecision, RateLimitPolicy
 from kingsec.infrastructure.config import Settings
 
-from .test_auth_integration import StubClock, StubHasher, StubLockoutRepo, StubTokenService, StubUserRepo
+from .test_auth_integration import (
+    StubClock,
+    StubHasher,
+    StubLockoutRepo,
+    StubMfaSecretRepo,
+    StubTokenService,
+    StubUserRepo,
+)
 
 
 class StubApiKeyHasher(ApiKeyHasher):
@@ -103,6 +110,7 @@ def _build_app() -> tuple[FastAPI, StubTokenService, StubUserRepo, StubApiKeyRep
                     StubLockoutRepo(),
                     StubClock(),
                     LockoutPolicy(max_attempts=5, lockout_duration_seconds=900),
+                    StubMfaSecretRepo(),
                 )
             if service_type == RefreshToken:
                 return RefreshToken(user_repo, token_service)
@@ -320,4 +328,67 @@ class TestApiKeyIntegration:
             "/api/v1/apikeys/me",
             headers={"X-API-Key": "ks_invalid_secret"},
         )
+        assert resp.status_code == 401
+
+    def test_api_key_management_itself_rejects_api_key_auth(self) -> None:
+        """API key management must stay JWT-only, or a leaked key could mint/rotate keys.
+
+        Uses a full_access key owned by an Admin - if this route weren't
+        forced to JWT-only, both the scope and the role would otherwise
+        allow the request through. It must still be rejected at the
+        authentication layer (401), not merely under-permissioned (403).
+        """
+        app, token_service, user_repo, _key_repo, _key_hasher = _build_app()
+        client = TestClient(app)
+
+        token = self._register_and_login(client, token_service, user_repo, username="apikeyadmin")
+        from kingsec.domain import Role
+
+        user = user_repo.find_by_username("apikeyadmin")
+        assert user is not None
+        user.change_role(Role.ADMIN)
+        user_repo.save(user)
+
+        create_resp = client.post(
+            "/api/v1/apikeys",
+            json={"name": "Full access key", "scope": "full_access"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert create_resp.status_code == 201
+        plaintext_key = create_resp.json()["plaintext_key"]
+
+        # The key itself works fine on a route that does accept key auth.
+        me_resp = client.get("/api/v1/apikeys/me", headers={"X-API-Key": plaintext_key})
+        assert me_resp.status_code == 200
+
+        # But using it to create *another* key must fail.
+        escalation_resp = client.post(
+            "/api/v1/apikeys",
+            json={"name": "Minted by a key", "scope": "full_access"},
+            headers={"X-API-Key": plaintext_key},
+        )
+        assert escalation_resp.status_code == 401
+
+    def test_user_administration_rejects_api_key_auth(self) -> None:
+        """User/role administration must stay JWT-only even for a full_access Admin key."""
+        app, token_service, user_repo, _key_repo, _key_hasher = _build_app()
+        client = TestClient(app)
+
+        token = self._register_and_login(client, token_service, user_repo, username="useradmin")
+        from kingsec.domain import Role
+
+        user = user_repo.find_by_username("useradmin")
+        assert user is not None
+        user.change_role(Role.ADMIN)
+        user_repo.save(user)
+
+        create_resp = client.post(
+            "/api/v1/apikeys",
+            json={"name": "Admin key", "scope": "full_access"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        plaintext_key = create_resp.json()["plaintext_key"]
+
+        resp = client.get("/api/v1/users", headers={"X-API-Key": plaintext_key})
+
         assert resp.status_code == 401

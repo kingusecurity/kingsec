@@ -10,8 +10,10 @@ from kingsec.application.dto import LoginRequest
 from kingsec.application.ports import PasswordHasher, TokenClaims, TokenService, UserRepository
 from kingsec.application.ports.outbound.clock_port import ClockPort
 from kingsec.application.ports.outbound.lockout_repository import LockoutRepository
+from kingsec.application.ports.outbound.mfa_secret_repository import MfaSecretRepository
 from kingsec.application.use_cases.login import AuthenticationError, Login
 from kingsec.domain import Role, User
+from kingsec.domain.mfa import MfaSecret, MfaStatus
 from kingsec.domain.rate_limit import AccountLockout, LockoutPolicy
 
 # --- Stubs --------------------------------------------------------------------
@@ -36,6 +38,7 @@ class StubTokenService(TokenService):
     def __init__(self) -> None:
         self.create_access_called = False
         self.create_refresh_called = False
+        self.create_mfa_pending_called = False
 
     def create_access_token(self, user_id: str, username: str, role: str) -> str:
         self.create_access_called = True
@@ -44,6 +47,10 @@ class StubTokenService(TokenService):
     def create_refresh_token(self, user_id: str, username: str, role: str) -> str:
         self.create_refresh_called = True
         return f"refresh-token-{user_id}"
+
+    def create_mfa_pending_token(self, user_id: str, username: str, role: str) -> str:
+        self.create_mfa_pending_called = True
+        return f"pending-token-{user_id}"
 
     def verify_access_token(self, token: str) -> TokenClaims:
         return TokenClaims(
@@ -59,11 +66,30 @@ class StubTokenService(TokenService):
     def verify_refresh_token(self, token: str) -> TokenClaims:
         return self.verify_access_token(token)
 
+    def verify_mfa_pending_token(self, token: str) -> TokenClaims:
+        return self.verify_access_token(token)
+
     def revoke_token(self, jti: str) -> None:
         pass
 
     def is_revoked(self, jti: str) -> bool:
         return False
+
+
+class FakeMfaSecretRepository(MfaSecretRepository):
+    """No MFA configured for anyone, unless a secret is explicitly saved."""
+
+    def __init__(self) -> None:
+        self._secrets: dict[str, MfaSecret] = {}
+
+    def find_by_user_id(self, user_id: str) -> MfaSecret | None:
+        return self._secrets.get(user_id)
+
+    def save(self, secret: MfaSecret) -> None:
+        self._secrets[secret.user_id] = secret
+
+    def delete_by_user_id(self, user_id: str) -> None:
+        self._secrets.pop(user_id, None)
 
 
 class StubUserRepository(UserRepository):
@@ -144,6 +170,7 @@ def _make_login(
     lockout_repo: LockoutRepository | None = None,
     clock: ClockPort | None = None,
     policy: LockoutPolicy | None = None,
+    mfa_secrets: MfaSecretRepository | None = None,
 ) -> Login:
     return Login(
         repo,
@@ -152,6 +179,7 @@ def _make_login(
         lockout_repo if lockout_repo is not None else FakeLockoutRepository(),
         clock if clock is not None else FakeClock(),
         policy if policy is not None else _DEFAULT_LOCKOUT_POLICY,
+        mfa_secrets if mfa_secrets is not None else FakeMfaSecretRepository(),
     )
 
 
@@ -411,3 +439,101 @@ class TestAccountLockout:
         final_correct_login = _make_login(repo, correct_hasher, tokens, lockout_repo, clock, policy)
         result = final_correct_login.execute(LoginRequest(username="testuser", password="password"))
         assert result.user_id == user.id
+
+
+class TestMfaGate:
+    """Regression coverage for the confirmed live bypass: a correct password
+    alone must never be sufficient for an MFA-enabled account. Login must
+    issue only a pending token, never real access/refresh tokens, when MFA
+    is enabled - and must behave exactly as before when it isn't."""
+
+    def test_mfa_enabled_account_gets_no_real_tokens(self) -> None:
+        user = _make_user()
+        repo = StubUserRepository(user)
+        hasher = StubPasswordHasher(verify_result=True)
+        tokens = StubTokenService()
+        mfa_secrets = FakeMfaSecretRepository()
+        mfa_secrets.save(MfaSecret(user_id=user.id, secret_key="JBSWY3DPEHPK3PXP", status=MfaStatus.ENABLED))
+
+        login = _make_login(repo, hasher, tokens, mfa_secrets=mfa_secrets)
+        result = login.execute(LoginRequest(username="testuser", password="password"))
+
+        assert result.mfa_required is True
+        assert result.pending_token == f"pending-token-{user.id}"
+        assert result.access_token is None
+        assert result.refresh_token is None
+        assert tokens.create_mfa_pending_called is True
+        assert tokens.create_access_called is False
+        assert tokens.create_refresh_called is False
+
+    def test_mfa_enabled_account_not_recorded_as_a_completed_login(self) -> None:
+        """The account's lockout-clearing "successful authentication" record
+        must not fire for a login that hasn't actually completed - only the
+        MFA-completion use case should do that, once the second factor is
+        verified."""
+        user = _make_user()
+        repo = StubUserRepository(user)
+        hasher = StubPasswordHasher(verify_result=True)
+        tokens = StubTokenService()
+        mfa_secrets = FakeMfaSecretRepository()
+        mfa_secrets.save(MfaSecret(user_id=user.id, secret_key="secret", status=MfaStatus.ENABLED))
+
+        login = _make_login(repo, hasher, tokens, mfa_secrets=mfa_secrets)
+        login.execute(LoginRequest(username="testuser", password="password"))
+
+        # record_login()/save() is part of the real-completion path only.
+        assert repo.save_called is False
+
+    def test_mfa_disabled_status_behaves_like_no_mfa(self) -> None:
+        """A secret that exists but is DISABLED (e.g. after the user turned
+        MFA off) must not gate login - only ENABLED does."""
+        user = _make_user()
+        repo = StubUserRepository(user)
+        hasher = StubPasswordHasher(verify_result=True)
+        tokens = StubTokenService()
+        mfa_secrets = FakeMfaSecretRepository()
+        mfa_secrets.save(MfaSecret(user_id=user.id, secret_key="secret", status=MfaStatus.DISABLED))
+
+        login = _make_login(repo, hasher, tokens, mfa_secrets=mfa_secrets)
+        result = login.execute(LoginRequest(username="testuser", password="password"))
+
+        assert result.mfa_required is False
+        assert result.access_token == f"access-token-{user.id}"
+        assert result.refresh_token == f"refresh-token-{user.id}"
+
+    def test_no_mfa_account_is_completely_unaffected(self) -> None:
+        """Backward compatibility, verified explicitly rather than assumed:
+        an account with no MFA secret at all gets the exact same
+        single-step behavior as before this fix - real tokens, immediately,
+        with mfa_required absent/false."""
+        user = _make_user()
+        repo = StubUserRepository(user)
+        hasher = StubPasswordHasher(verify_result=True)
+        tokens = StubTokenService()
+
+        login = _make_login(repo, hasher, tokens)  # FakeMfaSecretRepository() default - no secret
+        result = login.execute(LoginRequest(username="testuser", password="password"))
+
+        assert result.mfa_required is False
+        assert result.pending_token is None
+        assert result.access_token == f"access-token-{user.id}"
+        assert result.refresh_token == f"refresh-token-{user.id}"
+        assert tokens.create_mfa_pending_called is False
+        assert repo.save_called is True
+
+    def test_wrong_password_rejected_before_mfa_is_even_checked(self) -> None:
+        """MFA must not become a way to probe whether a password is correct -
+        a wrong password fails exactly as before, without ever reaching the
+        MFA branch, real account with MFA enabled or not."""
+        user = _make_user()
+        repo = StubUserRepository(user)
+        hasher = StubPasswordHasher(verify_result=False)
+        tokens = StubTokenService()
+        mfa_secrets = FakeMfaSecretRepository()
+        mfa_secrets.save(MfaSecret(user_id=user.id, secret_key="secret", status=MfaStatus.ENABLED))
+
+        login = _make_login(repo, hasher, tokens, mfa_secrets=mfa_secrets)
+        with pytest.raises(AuthenticationError, match="invalid username or password"):
+            login.execute(LoginRequest(username="testuser", password="wrong"))
+
+        assert tokens.create_mfa_pending_called is False

@@ -2,6 +2,7 @@ import { apiRequest } from './client'
 import type {
   LoginBody,
   LoginResponse,
+  MfaLoginResponse,
   RefreshTokenBody,
   RefreshTokenResponse,
   RegisterUserBody,
@@ -9,11 +10,19 @@ import type {
   UserResponse,
   AssignRoleBody,
   AssignRoleResponse,
+  VerifyMfaBody,
+  UseRecoveryCodeBody,
 } from '@/types/api'
 
 export const authApi = {
   login: (data: LoginBody) =>
     apiRequest<LoginResponse>('/auth/login', { method: 'POST', body: data }),
+
+  verifyMfa: (data: VerifyMfaBody) =>
+    apiRequest<MfaLoginResponse>('/mfa/verify', { method: 'POST', body: data }),
+
+  useRecoveryCode: (data: UseRecoveryCodeBody) =>
+    apiRequest<MfaLoginResponse>('/mfa/recovery', { method: 'POST', body: data }),
 
   refresh: (data: RefreshTokenBody) =>
     apiRequest<RefreshTokenResponse>('/auth/refresh', { method: 'POST', body: data }),

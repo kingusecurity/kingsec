@@ -1,4 +1,4 @@
-"""Use case: authenticate with password + recovery code when MFA device is lost."""
+"""Use case: complete a pending login with a recovery code (MFA device lost)."""
 
 from __future__ import annotations
 
@@ -6,10 +6,11 @@ import hashlib
 import logging
 
 from kingsec.application.errors import ApplicationError
-from kingsec.application.ports import AuditPublisher, PasswordHasher, TokenService, UserRepository
+from kingsec.application.ports import AuditPublisher, TokenService, UserRepository
 from kingsec.application.ports.outbound.audit_event_repository import AuditEventRepository
 from kingsec.application.ports.outbound.mfa_secret_repository import MfaSecretRepository
 from kingsec.application.ports.outbound.recovery_code_repository import RecoveryCodeRepository
+from kingsec.application.ports.outbound.token_service import TokenError
 from kingsec.domain.audit import AuditAction as LegacyAuditAction
 from kingsec.domain.audit import AuditEntry
 from kingsec.domain.audit_event import (
@@ -24,12 +25,17 @@ from .mfa_dto import UseRecoveryCodeRequest, UseRecoveryCodeResponse
 
 
 class UseRecoveryCode:
-    """Authenticate using username + password + recovery code."""
+    """Complete a pending login with a recovery code, when the MFA device is lost.
+
+    Second step of the MFA-aware login flow, same shape as VerifyMfaCode but
+    for the "lost my authenticator" path: Login issues a pending token after
+    password/lockout/active-account checks pass; this use case verifies that
+    token plus a recovery code and only then issues real tokens.
+    """
 
     def __init__(
         self,
         users: UserRepository,
-        hasher: PasswordHasher,
         tokens: TokenService,
         secret_repo: MfaSecretRepository,
         recovery_repo: RecoveryCodeRepository,
@@ -37,7 +43,6 @@ class UseRecoveryCode:
         audit_repo: AuditEventRepository | None = None,
     ) -> None:
         self._users = users
-        self._hasher = hasher
         self._tokens = tokens
         self._secret_repo = secret_repo
         self._recovery_repo = recovery_repo
@@ -48,33 +53,14 @@ class UseRecoveryCode:
         import uuid
         from datetime import UTC, datetime
 
-        user = self._users.find_by_username(request.username)
-        if user is None:
-            self._publish_legacy(
-                AuditEntry(
-                    action=LegacyAuditAction.FAILED_LOGIN,
-                    resource_type="user",
-                    success=False,
-                    reason="invalid credentials",
-                    username=request.username,
-                )
-            )
-            raise ApplicationError("invalid username or password")
+        try:
+            claims = self._tokens.verify_mfa_pending_token(request.pending_token)
+        except TokenError:
+            raise ApplicationError("invalid or expired login attempt; please sign in again") from None
 
-        if not self._hasher.verify(request.password, user.password_hash):
-            self._publish_legacy(
-                AuditEntry(
-                    action=LegacyAuditAction.FAILED_LOGIN,
-                    resource_type="user",
-                    resource_id=user.id,
-                    success=False,
-                    reason="invalid credentials",
-                    user_id=user.id,
-                    username=user.username,
-                    role=user.role.label,
-                )
-            )
-            raise ApplicationError("invalid username or password")
+        user = self._users.find_by_id(claims.user_id)
+        if user is None:
+            raise ApplicationError("invalid or expired login attempt; please sign in again")
 
         if not user.is_active:
             raise ApplicationError("account is disabled")
@@ -126,6 +112,7 @@ class UseRecoveryCode:
             username=user.username,
             role=user.role.label,
         )
+        self._tokens.revoke_token(claims.jti)
         user.record_login()
         self._users.save(user)
 

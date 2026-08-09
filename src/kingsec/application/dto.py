@@ -129,13 +129,26 @@ class LoginRequest:
 
 @dataclass(frozen=True)
 class LoginResponse:
-    """Response from successful authentication."""
+    """Response from a login attempt - one of two shapes.
+
+    - Fully authenticated (no MFA, or MFA already satisfied): access_token
+      and refresh_token are populated, mfa_required is False.
+    - Password verified but MFA is enabled and still required:
+      mfa_required is True, pending_token is populated, access_token and
+      refresh_token are None. The pending token proves password+lockout+
+      active-account checks passed; it grants no access on its own and can
+      only be used to complete login via /mfa/verify or /mfa/recovery -
+      every other protected route rejects it outright because its JWT
+      ``type`` claim isn't ``access``.
+    """
 
     user_id: str
     username: str
     role: str
-    access_token: str
-    refresh_token: str
+    access_token: str | None = None
+    refresh_token: str | None = None
+    mfa_required: bool = False
+    pending_token: str | None = None
     token_type: str = "bearer"
     expires_in: int = 1800  # 30 minutes in seconds
 

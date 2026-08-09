@@ -30,7 +30,14 @@ from kingsec.domain.audit_event import (
 from kingsec.domain.rate_limit import LockoutPolicy, RateLimitDecision, RateLimitPolicy
 from kingsec.infrastructure.config import Settings
 
-from .test_auth_integration import StubClock, StubHasher, StubLockoutRepo, StubTokenService, StubUserRepo
+from .test_auth_integration import (
+    StubClock,
+    StubHasher,
+    StubLockoutRepo,
+    StubMfaSecretRepo,
+    StubTokenService,
+    StubUserRepo,
+)
 
 
 class StubAuditEventRepository(AuditEventRepository):
@@ -117,6 +124,7 @@ def _build_app() -> tuple[FastAPI, StubAuditEventRepository, StubTokenService, S
                     StubLockoutRepo(),
                     StubClock(),
                     LockoutPolicy(max_attempts=5, lockout_duration_seconds=900),
+                    StubMfaSecretRepo(),
                 )
             if service_type == RefreshToken:
                 return RefreshToken(user_repo, token_service)

@@ -1,9 +1,35 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { QueryClient } from '@tanstack/react-query'
 import { authApi } from '@/api/auth'
 import { settingsApi } from '@/api/settings'
 import { setTokens, clearTokens, setLogoutHandler } from '@/api/client'
 import { useAuthStore } from '@/store/auth'
-import type { LoginBody, RegisterUserBody } from '@/types/api'
+import type {
+  LoginBody,
+  MfaLoginResponse,
+  RegisterUserBody,
+  UserResponse,
+  UseRecoveryCodeBody,
+  VerifyMfaBody,
+} from '@/types/api'
+
+function completeLogin(
+  data: MfaLoginResponse,
+  setUser: (user: UserResponse) => void,
+  queryClient: QueryClient,
+) {
+  setTokens(data.access_token, data.refresh_token)
+  setUser({
+    user_id: data.user_id,
+    username: data.username,
+    role: data.role,
+    email: '',
+    is_active: true,
+    created_at: '',
+    last_login_at: null,
+  })
+  queryClient.invalidateQueries()
+}
 
 export function useLogin() {
   const setUser = useAuthStore((s) => s.setUser)
@@ -12,18 +38,35 @@ export function useLogin() {
   return useMutation({
     mutationFn: (data: LoginBody) => authApi.login(data),
     onSuccess: (data) => {
-      setTokens(data.access_token, data.refresh_token)
-      setUser({
-        user_id: data.user_id,
-        username: data.username,
-        role: data.role,
-        email: '',
-        is_active: true,
-        created_at: '',
-        last_login_at: null,
-      })
-      queryClient.invalidateQueries()
+      // MFA-enabled accounts get only a pending_token here - the caller
+      // (LoginPage) is responsible for prompting for the second factor and
+      // completing the flow via useVerifyMfa/useRecoveryLogin. Only a
+      // non-MFA login carries real tokens at this point.
+      if (data.mfa_required || !data.access_token || !data.refresh_token) {
+        return
+      }
+      completeLogin(data as MfaLoginResponse, setUser, queryClient)
     },
+  })
+}
+
+export function useVerifyMfa() {
+  const setUser = useAuthStore((s) => s.setUser)
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: VerifyMfaBody) => authApi.verifyMfa(data),
+    onSuccess: (data) => completeLogin(data, setUser, queryClient),
+  })
+}
+
+export function useRecoveryLogin() {
+  const setUser = useAuthStore((s) => s.setUser)
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: UseRecoveryCodeBody) => authApi.useRecoveryCode(data),
+    onSuccess: (data) => completeLogin(data, setUser, queryClient),
   })
 }
 

@@ -1,13 +1,14 @@
-"""Use case: authenticate with password + TOTP code and issue JWT."""
+"""Use case: complete a pending login with a TOTP code and issue JWT."""
 
 from __future__ import annotations
 
 import logging
 
 from kingsec.application.errors import ApplicationError
-from kingsec.application.ports import AuditPublisher, PasswordHasher, TokenService, UserRepository
+from kingsec.application.ports import AuditPublisher, TokenService, UserRepository
 from kingsec.application.ports.outbound.audit_event_repository import AuditEventRepository
 from kingsec.application.ports.outbound.mfa_secret_repository import MfaSecretRepository
+from kingsec.application.ports.outbound.token_service import TokenError
 from kingsec.application.ports.outbound.totp_service import TotpServicePort
 from kingsec.domain.audit import AuditAction as LegacyAuditAction
 from kingsec.domain.audit import AuditEntry
@@ -23,17 +24,19 @@ from .mfa_dto import VerifyMfaCodeRequest, VerifyMfaCodeResponse
 
 
 class VerifyMfaCode:
-    """Verify password + TOTP code and issue JWT tokens.
+    """Complete a pending login with a TOTP code and issue JWT tokens.
 
-    This is the MFA-aware login flow. The user must provide valid credentials
-    AND a valid TOTP code. If MFA is not enabled for the user, authentication
-    will fail (they should use the standard login endpoint instead).
+    This is the second step of the MFA-aware login flow: Login issues a
+    short-lived pending token once the password (and lockout/active-account
+    checks) have passed; this use case verifies that token plus a TOTP code
+    and only then issues real access/refresh tokens. It never accepts a
+    username/password directly - the pending token is the only proof of the
+    first factor this use case will accept.
     """
 
     def __init__(
         self,
         users: UserRepository,
-        hasher: PasswordHasher,
         tokens: TokenService,
         secret_repo: MfaSecretRepository,
         totp_service: TotpServicePort,
@@ -41,7 +44,6 @@ class VerifyMfaCode:
         audit_repo: AuditEventRepository | None = None,
     ) -> None:
         self._users = users
-        self._hasher = hasher
         self._tokens = tokens
         self._secret_repo = secret_repo
         self._totp_service = totp_service
@@ -52,37 +54,25 @@ class VerifyMfaCode:
         import uuid
         from datetime import UTC, datetime
 
-        # Step 1: Look up user.
-        user = self._users.find_by_username(request.username)
+        # Step 1: Verify the pending token - this is the only accepted proof
+        # that password/lockout/active-account checks already passed. Its
+        # distinct JWT type means it can't be an access/refresh token
+        # someone already had; a malformed, expired, or already-used
+        # (revoked) pending token is rejected exactly like any other invalid
+        # token, with the same generic message as a bad password would get.
+        try:
+            claims = self._tokens.verify_mfa_pending_token(request.pending_token)
+        except TokenError:
+            raise ApplicationError("invalid or expired login attempt; please sign in again") from None
+
+        # Step 2: Look up the user the pending token identifies.
+        user = self._users.find_by_id(claims.user_id)
         if user is None:
-            self._publish_legacy_audit(
-                AuditEntry(
-                    action=LegacyAuditAction.FAILED_LOGIN,
-                    resource_type="user",
-                    success=False,
-                    reason="invalid credentials",
-                    username=request.username,
-                )
-            )
-            raise ApplicationError("invalid username or password")
+            raise ApplicationError("invalid or expired login attempt; please sign in again")
 
-        # Step 2: Verify password.
-        if not self._hasher.verify(request.password, user.password_hash):
-            self._publish_legacy_audit(
-                AuditEntry(
-                    action=LegacyAuditAction.FAILED_LOGIN,
-                    resource_type="user",
-                    resource_id=user.id,
-                    success=False,
-                    reason="invalid credentials",
-                    user_id=user.id,
-                    username=user.username,
-                    role=user.role.label,
-                )
-            )
-            raise ApplicationError("invalid username or password")
-
-        # Step 3: Check account active.
+        # Step 3: Check account active. (Defense in depth against a TOCTOU
+        # race - the account could theoretically be disabled in the short
+        # window the pending token is valid for.)
         if not user.is_active:
             raise ApplicationError("account is disabled")
 
@@ -131,7 +121,8 @@ class VerifyMfaCode:
             )
             raise ApplicationError("invalid TOTP code")
 
-        # Step 6: Issue tokens.
+        # Step 6: Issue tokens, and revoke the pending token so it can't be
+        # used a second time (single-use, even within its 5-minute expiry).
         access_token = self._tokens.create_access_token(
             user_id=user.id,
             username=user.username,
@@ -142,6 +133,7 @@ class VerifyMfaCode:
             username=user.username,
             role=user.role.label,
         )
+        self._tokens.revoke_token(claims.jti)
         user.record_login()
         self._users.save(user)
 

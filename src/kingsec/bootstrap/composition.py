@@ -645,6 +645,7 @@ def _register_use_cases(app: Application) -> None:
             c.resolve(LockoutRepository),
             c.resolve(ClockPort),
             lockout_policy,
+            c.resolve(MfaSecretRepository),
             c.resolve(AuditPublisher),
         ),
     )
@@ -746,7 +747,6 @@ def _register_use_cases(app: Application) -> None:
         VerifyMfaCode,
         lambda c: VerifyMfaCode(
             c.resolve(UserRepository),
-            c.resolve(PasswordHasher),
             c.resolve(TokenService),
             c.resolve(MfaSecretRepository),
             c.resolve(TotpServicePort),
@@ -762,7 +762,6 @@ def _register_use_cases(app: Application) -> None:
         UseRecoveryCode,
         lambda c: UseRecoveryCode(
             c.resolve(UserRepository),
-            c.resolve(PasswordHasher),
             c.resolve(TokenService),
             c.resolve(MfaSecretRepository),
             c.resolve(RecoveryCodeRepository),

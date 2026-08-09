@@ -29,10 +29,15 @@ class DisableMfaRequest:
 
 @dataclass(frozen=True)
 class VerifyMfaCodeRequest:
-    """Request to authenticate with username + password + TOTP."""
+    """Request to complete a login pending MFA, with a TOTP code.
 
-    username: str
-    password: str
+    ``pending_token`` is the short-lived token Login issued after password
+    verification succeeded - not the username/password again. It identifies
+    the in-progress login attempt and proves the first factor already
+    passed.
+    """
+
+    pending_token: str
     totp_code: str
 
 
@@ -65,10 +70,14 @@ class GenerateRecoveryCodesResponse:
 
 @dataclass(frozen=True)
 class UseRecoveryCodeRequest:
-    """Request to authenticate with username + password + recovery code."""
+    """Request to complete a login pending MFA, with a recovery code.
 
-    username: str
-    password: str
+    ``pending_token`` is the short-lived token Login issued after password
+    verification succeeded - not the username/password again. See
+    ``VerifyMfaCodeRequest`` for the same shape used with a TOTP code.
+    """
+
+    pending_token: str
     recovery_code: str
 
 

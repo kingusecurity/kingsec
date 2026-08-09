@@ -13,6 +13,15 @@ class CheckRateLimit:
         self._rate_limiter = rate_limiter
 
     def execute(self, request: CheckRateLimitRequest) -> CheckRateLimitResponse:
+        # check() and record() are two separate, non-atomic calls - safe today
+        # only because every caller in this codebase reaches here through an
+        # `async def` chain with no `await` between check() and record(), so
+        # a single-process uvicorn event loop can't interleave another
+        # request's check() in between. The interface itself does not
+        # guarantee atomicity: this would need a real fix (e.g. a combined
+        # check-and-record operation under one lock) before ever running
+        # multi-worker/multi-process, or before swapping the backend for
+        # something with a genuine `await` point (e.g. Redis).
         decision = self._rate_limiter.check(request.key, request.policy)
 
         if not decision.allowed:

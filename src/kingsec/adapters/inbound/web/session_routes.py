@@ -23,7 +23,7 @@ from kingsec.application.use_cases.terminate_other_sessions import (
 )
 
 from . import schemas
-from .auth import CurrentUser, get_current_user
+from .auth import CurrentUser, get_current_user_jwt_only
 
 router = APIRouter(prefix="/api/v1/sessions", tags=["sessions"])
 
@@ -60,7 +60,7 @@ def _get_session_repo(request: Request) -> Any:
 
 @router.get("", response_model=list[SessionView])
 async def list_sessions(
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user_jwt_only),
     list_uc: Any = Depends(_get_list_sessions_uc),
 ) -> list[SessionView]:
     req = ListUserSessionsRequest(user_id=current_user.user_id)
@@ -70,9 +70,13 @@ async def list_sessions(
 
 @router.get("/current", response_model=SessionView)
 async def get_current_session(
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user_jwt_only),
     repo: Any = Depends(_get_session_repo),
 ) -> SessionView:
+    if current_user.claims is None:
+        # Unreachable via get_current_user_jwt_only, which always sets claims -
+        # a real 401 beats a stripped-assert crash if that ever stops holding.
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid session context")
     session = repo.find_by_jti(current_user.claims.jti)
     if session is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="session not found")
@@ -95,10 +99,12 @@ async def get_current_session(
 
 @router.delete("/current", status_code=status.HTTP_204_NO_CONTENT)
 async def logout_current(
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user_jwt_only),
     revoke_uc: Any = Depends(_get_revoke_session_uc),
     repo: Any = Depends(_get_session_repo),
 ) -> None:
+    if current_user.claims is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid session context")
     session = repo.find_by_jti(current_user.claims.jti)
     if session:
         revoke_uc.execute(RevokeSessionRequest(session_id=str(session.id)))
@@ -107,7 +113,7 @@ async def logout_current(
 @router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_session_by_id(
     session_id: str,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user_jwt_only),
     revoke_uc: Any = Depends(_get_revoke_session_uc),
     repo: Any = Depends(_get_session_repo),
 ) -> None:
@@ -119,7 +125,7 @@ async def revoke_session_by_id(
 
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
 async def logout_all(
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user_jwt_only),
     revoke_all_uc: Any = Depends(_get_revoke_all_uc),
 ) -> None:
     req = RevokeAllSessionsRequest(user_id=current_user.user_id)

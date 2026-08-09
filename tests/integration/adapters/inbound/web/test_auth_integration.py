@@ -17,9 +17,11 @@ from kingsec.application import Login, RefreshToken, RegisterUser
 from kingsec.application.ports import TokenClaims, TokenService
 from kingsec.application.ports.outbound.clock_port import ClockPort
 from kingsec.application.ports.outbound.lockout_repository import LockoutRepository
+from kingsec.application.ports.outbound.mfa_secret_repository import MfaSecretRepository
 from kingsec.application.ports.outbound.rate_limiter import RateLimiterPort
 from kingsec.application.use_cases.check_rate_limit import CheckRateLimit
 from kingsec.domain import User
+from kingsec.domain.mfa import MfaSecret
 from kingsec.domain.rate_limit import AccountLockout, LockoutPolicy, RateLimitDecision, RateLimitPolicy
 from kingsec.infrastructure.config import Settings
 
@@ -63,6 +65,22 @@ class StubTokenService(TokenService):
         )
         return token
 
+    def create_mfa_pending_token(self, user_id: str, username: str, role: str) -> str:
+        import uuid
+
+        jti = uuid.uuid4().hex
+        token = f"pending-{jti}"
+        self._tokens[token] = TokenClaims(
+            user_id=user_id,
+            username=username,
+            role=role,
+            token_type="mfa_pending",
+            jti=jti,
+            issued_at=__import__("datetime").datetime.now(__import__("datetime").timezone.utc),
+            expires_at=__import__("datetime").datetime.now(__import__("datetime").timezone.utc),
+        )
+        return token
+
     def verify_access_token(self, token: str) -> TokenClaims:
         if token not in self._tokens:
             raise Exception("invalid token")
@@ -79,6 +97,16 @@ class StubTokenService(TokenService):
         claims = self._tokens[token]
         if claims.token_type != "refresh":
             raise Exception("not a refresh token")
+        return claims
+
+    def verify_mfa_pending_token(self, token: str) -> TokenClaims:
+        if token not in self._tokens:
+            raise Exception("invalid token")
+        claims = self._tokens[token]
+        if claims.token_type != "mfa_pending":
+            raise Exception("not a pending token")
+        if claims.jti in self._revoked:
+            raise Exception("token revoked")
         return claims
 
     def revoke_token(self, jti: str) -> None:
@@ -147,6 +175,19 @@ class StubClock(ClockPort):
         return 0.0
 
 
+class StubMfaSecretRepo(MfaSecretRepository):
+    """No-op MFA secret store - this suite doesn't exercise MFA-enabled accounts."""
+
+    def find_by_user_id(self, user_id: str) -> MfaSecret | None:
+        return None
+
+    def save(self, secret: MfaSecret) -> None:
+        pass
+
+    def delete_by_user_id(self, user_id: str) -> None:
+        pass
+
+
 class StubRateLimiter(RateLimiterPort):
     def check(self, key: str, policy: RateLimitPolicy) -> RateLimitDecision:
         return RateLimitDecision(allowed=True, limit=policy.max_requests, remaining=policy.max_requests - 1, reset_seconds=policy.window_seconds)
@@ -186,6 +227,7 @@ def _build_app() -> tuple[FastAPI, StubTokenService, StubUserRepo]:
                     StubLockoutRepo(),
                     StubClock(),
                     LockoutPolicy(max_attempts=5, lockout_duration_seconds=900),
+                    StubMfaSecretRepo(),
                 )
             if service_type == RefreshToken:
                 return RefreshToken(user_repo, token_service)

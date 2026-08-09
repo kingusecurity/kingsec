@@ -7,6 +7,10 @@ Security considerations:
     - Secret key is loaded from configuration (env var / .env).
     - Access tokens: short-lived (30 min default).
     - Refresh tokens: long-lived (7 days default).
+    - MFA-pending tokens: very short-lived (5 min, fixed), prove password
+      verification passed but grant no access - rejected everywhere except
+      the MFA-completion endpoint, by the same type-check every token goes
+      through.
     - Token revocation uses a database-backed store (survives restarts).
     - Expired revoked tokens are cleaned up lazily during verification.
     - All token operations are thread-safe.
@@ -32,6 +36,13 @@ from kingsec.infrastructure.config.models import JWTSettings
 
 class JWTTokenService(TokenService):
     """JWT token creation and verification using PyJWT."""
+
+    # How long a pending-MFA token is valid: long enough to open an
+    # authenticator app and type a code, short enough to bound the window
+    # if intercepted. Not exposed as a setting - unlike access/refresh
+    # lifetimes, there's no legitimate reason an operator would want this
+    # longer, and a short, fixed value is part of the security property.
+    _MFA_PENDING_EXPIRE = timedelta(minutes=5)
 
     def __init__(self, settings: JWTSettings, session_factory: Any = None) -> None:
         self._secret = settings.secret_key.get_secret_value()
@@ -82,11 +93,33 @@ class JWTTokenService(TokenService):
         }
         return jwt.encode(payload, self._secret, algorithm=self._algorithm)
 
+    def create_mfa_pending_token(
+        self,
+        user_id: str,
+        username: str,
+        role: str,
+    ) -> str:
+        now = datetime.now(UTC)
+        payload = {
+            "sub": user_id,
+            "username": username,
+            "role": role,
+            "type": "mfa_pending",
+            "iat": now,
+            "exp": now + self._MFA_PENDING_EXPIRE,
+            "iss": self._issuer,
+            "jti": uuid.uuid4().hex,
+        }
+        return jwt.encode(payload, self._secret, algorithm=self._algorithm)
+
     def verify_access_token(self, token: str) -> TokenClaims:
         return self._verify(token, expected_type="access")
 
     def verify_refresh_token(self, token: str) -> TokenClaims:
         return self._verify(token, expected_type="refresh")
+
+    def verify_mfa_pending_token(self, token: str) -> TokenClaims:
+        return self._verify(token, expected_type="mfa_pending")
 
     def cleanup_expired(self) -> int:
         """Remove expired revoked tokens from the database.

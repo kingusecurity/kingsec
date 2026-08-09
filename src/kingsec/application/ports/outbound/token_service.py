@@ -27,7 +27,7 @@ class TokenClaims:
     user_id: str
     username: str
     role: str
-    token_type: str  # "access" or "refresh"
+    token_type: str  # "access", "refresh", or "mfa_pending"
     jti: str  # unique token identifier
     issued_at: datetime
     expires_at: datetime
@@ -85,6 +85,32 @@ class TokenService(ABC):
         """
 
     @abstractmethod
+    def create_mfa_pending_token(
+        self,
+        user_id: str,
+        username: str,
+        role: str,
+    ) -> str:
+        """Create a short-lived token proving password+lockout+active-account
+        checks passed, pending a second factor.
+
+        This token has no capability beyond completing the in-progress login:
+        it is a distinct ``type`` claim, so it is rejected by
+        ``verify_access_token``/``verify_refresh_token`` on every other
+        protected route, by the exact same type-mismatch check that already
+        governs access vs. refresh tokens - no new authorization logic to
+        get wrong.
+
+        Args:
+            user_id: The subject (user ID).
+            username: The username for claims.
+            role: The user's role string.
+
+        Returns:
+            The encoded JWT string.
+        """
+
+    @abstractmethod
     def verify_access_token(self, token: str) -> TokenClaims:
         """Verify and decode an access token.
 
@@ -112,6 +138,22 @@ class TokenService(ABC):
         Raises:
             TokenExpiredError: If the token has expired.
             TokenInvalidError: If the token is malformed or has invalid claims.
+        """
+
+    @abstractmethod
+    def verify_mfa_pending_token(self, token: str) -> TokenClaims:
+        """Verify and decode a pending-MFA token.
+
+        Args:
+            token: The JWT string to verify.
+
+        Returns:
+            The decoded token claims.
+
+        Raises:
+            TokenExpiredError: If the token has expired.
+            TokenInvalidError: If the token is malformed, has invalid claims,
+                or has already been used (revoked).
         """
 
     @abstractmethod

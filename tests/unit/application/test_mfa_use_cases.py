@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import UTC, datetime
 
 import pytest
 
 from kingsec.application.errors import ApplicationError
-from kingsec.application.ports import PasswordHasher, TokenService
+from kingsec.application.ports import PasswordHasher, TokenClaims, TokenService
 from kingsec.application.ports.outbound.audit_event_repository import AuditEventRepository
 from kingsec.application.ports.outbound.mfa_secret_repository import MfaSecretRepository
 from kingsec.application.ports.outbound.recovery_code_repository import RecoveryCodeRepository
+from kingsec.application.ports.outbound.token_service import TokenInvalidError
 from kingsec.application.ports.outbound.totp_service import TotpServicePort
 from kingsec.application.use_cases.disable_mfa import DisableMfa
 from kingsec.application.use_cases.enable_mfa import EnableMfa
@@ -48,8 +50,16 @@ class StubPasswordHasher(PasswordHasher):
 
 
 class StubTokenService(TokenService):
+    """Fake that actually round-trips pending tokens, so VerifyMfaCode/
+    UseRecoveryCode can be tested against realistic verify() behavior
+    (unknown/revoked/wrong-type tokens genuinely rejected) rather than a
+    token that always successfully decodes to whatever the test wants."""
+
     def __init__(self) -> None:
         self._tokens: dict[str, str] = {}
+        self._pending: dict[str, TokenClaims] = {}
+        self._revoked: set[str] = set()
+        self.pending_tokens_issued = 0
 
     def create_access_token(self, user_id: str, username: str, role: str) -> str:
         token = f"access:{user_id}"
@@ -59,17 +69,40 @@ class StubTokenService(TokenService):
     def create_refresh_token(self, user_id: str, username: str, role: str) -> str:
         return f"refresh:{user_id}"
 
+    def create_mfa_pending_token(self, user_id: str, username: str, role: str) -> str:
+        self.pending_tokens_issued += 1
+        jti = f"pending-jti-{self.pending_tokens_issued}"
+        token = f"pending:{jti}"
+        self._pending[token] = TokenClaims(
+            user_id=user_id,
+            username=username,
+            role=role,
+            token_type="mfa_pending",
+            jti=jti,
+            issued_at=datetime.now(UTC),
+            expires_at=datetime.now(UTC),
+        )
+        return token
+
     def verify_access_token(self, token: str) -> object:
         return object()
 
     def verify_refresh_token(self, token: str) -> object:
         return object()
 
+    def verify_mfa_pending_token(self, token: str) -> TokenClaims:
+        claims = self._pending.get(token)
+        if claims is None:
+            raise TokenInvalidError("invalid pending token")
+        if claims.jti in self._revoked:
+            raise TokenInvalidError("token has been revoked")
+        return claims
+
     def revoke_token(self, jti: str) -> None:
-        pass
+        self._revoked.add(jti)
 
     def is_revoked(self, jti: str) -> bool:
-        return False
+        return jti in self._revoked
 
 
 class StubUserRepo:
@@ -236,7 +269,7 @@ class TestDisableMfa:
 
 
 class TestVerifyMfaCode:
-    def _setup(self) -> tuple[VerifyMfaCode, StubUserRepo, StubMfaSecretRepo]:
+    def _setup(self) -> tuple[VerifyMfaCode, StubUserRepo, StubMfaSecretRepo, StubTokenService, str]:
         users = StubUserRepo()
         hasher = StubPasswordHasher()
         tokens = StubTokenService()
@@ -253,29 +286,56 @@ class TestVerifyMfaCode:
         users.save(user)
         secret_repo.save(MfaSecret(user_id="user-1", secret_key="JBSWY3DPEHPK3PXP", status=MfaStatus.ENABLED))
 
-        uc = VerifyMfaCode(users, hasher, tokens, secret_repo, totp)
-        return uc, users, secret_repo
+        # Simulates what Login does once password/lockout/active checks pass.
+        pending_token = tokens.create_mfa_pending_token(user_id="user-1", username="testuser", role="Viewer")
+
+        uc = VerifyMfaCode(users, tokens, secret_repo, totp)
+        return uc, users, secret_repo, tokens, pending_token
 
     def test_valid_code_returns_tokens(self) -> None:
-        uc, _, _ = self._setup()
-        result = uc.execute(VerifyMfaCodeRequest(username="testuser", password="pass123", totp_code="123456"))
+        uc, _, _, _, pending_token = self._setup()
+        result = uc.execute(VerifyMfaCodeRequest(pending_token=pending_token, totp_code="123456"))
         assert result.access_token == "access:user-1"
         assert result.username == "testuser"
 
-    def test_invalid_password_raises_error(self) -> None:
-        uc, _, _ = self._setup()
-        with pytest.raises(ApplicationError, match="invalid username or password"):
-            uc.execute(VerifyMfaCodeRequest(username="testuser", password="wrong", totp_code="123456"))
+    def test_invalid_pending_token_raises_error(self) -> None:
+        uc, _, _, _, _ = self._setup()
+        with pytest.raises(ApplicationError, match="invalid or expired login attempt"):
+            uc.execute(VerifyMfaCodeRequest(pending_token="not-a-real-token", totp_code="123456"))
 
     def test_invalid_totp_raises_error(self) -> None:
-        uc, _, _ = self._setup()
+        uc, _, _, _, pending_token = self._setup()
         with pytest.raises(ApplicationError, match="invalid TOTP code"):
-            uc.execute(VerifyMfaCodeRequest(username="testuser", password="pass123", totp_code="999999"))
+            uc.execute(VerifyMfaCodeRequest(pending_token=pending_token, totp_code="999999"))
 
-    def test_unknown_user_raises_error(self) -> None:
-        uc, _, _ = self._setup()
-        with pytest.raises(ApplicationError, match="invalid username or password"):
-            uc.execute(VerifyMfaCodeRequest(username="nobody", password="pass123", totp_code="123456"))
+    def test_pending_token_cannot_be_reused_after_success(self) -> None:
+        """Single-use: once a pending token completes a login, it must be
+        rejected on any further attempt, even within its validity window."""
+        uc, _, _, _, pending_token = self._setup()
+        uc.execute(VerifyMfaCodeRequest(pending_token=pending_token, totp_code="123456"))
+
+        with pytest.raises(ApplicationError, match="invalid or expired login attempt"):
+            uc.execute(VerifyMfaCodeRequest(pending_token=pending_token, totp_code="123456"))
+
+    def test_pending_token_only_completes_its_own_user(self) -> None:
+        """A pending token minted for one user cannot be used to complete a
+        login as a different user - there is no username in this request at
+        all, so the token itself is the only identity source."""
+        uc, users, secret_repo, tokens, _ = self._setup()
+        other = User(
+            id="user-other",
+            username="otheruser",
+            email="other@example.com",
+            password_hash="irrelevant",
+            role=Role.VIEWER,
+        )
+        users.save(other)
+        secret_repo.save(MfaSecret(user_id="user-other", secret_key="ANYSECRET", status=MfaStatus.ENABLED))
+        other_pending = tokens.create_mfa_pending_token(user_id="user-other", username="otheruser", role="Viewer")
+
+        result = uc.execute(VerifyMfaCodeRequest(pending_token=other_pending, totp_code="123456"))
+        assert result.user_id == "user-other"
+        assert result.username == "otheruser"
 
     def test_mfa_not_enabled_raises_error(self) -> None:
         users = StubUserRepo()
@@ -292,10 +352,11 @@ class TestVerifyMfaCode:
             role=Role.VIEWER,
         )
         users.save(user)
+        pending_token = tokens.create_mfa_pending_token(user_id="user-2", username="nomfa", role="Viewer")
 
-        uc = VerifyMfaCode(users, hasher, tokens, secret_repo, totp)
+        uc = VerifyMfaCode(users, tokens, secret_repo, totp)
         with pytest.raises(ApplicationError, match="MFA is not enabled"):
-            uc.execute(VerifyMfaCodeRequest(username="nomfa", password="pass", totp_code="123456"))
+            uc.execute(VerifyMfaCodeRequest(pending_token=pending_token, totp_code="123456"))
 
 
 class TestGenerateRecoveryCodes:
@@ -321,7 +382,7 @@ class TestGenerateRecoveryCodes:
 
 
 class TestUseRecoveryCode:
-    def test_valid_recovery_code_returns_tokens(self) -> None:
+    def _setup(self) -> tuple[UseRecoveryCode, StubTokenService, StubRecoveryCodeRepo, str]:
         users = StubUserRepo()
         hasher = StubPasswordHasher()
         tokens = StubTokenService()
@@ -337,64 +398,47 @@ class TestUseRecoveryCode:
         )
         users.save(user)
         secret_repo.save(MfaSecret(user_id="user-1", secret_key="secret", status=MfaStatus.ENABLED))
+        pending_token = tokens.create_mfa_pending_token(user_id="user-1", username="testuser", role="Admin")
 
+        uc = UseRecoveryCode(users, tokens, secret_repo, recovery_repo)
+        return uc, tokens, recovery_repo, pending_token
+
+    def test_valid_recovery_code_returns_tokens(self) -> None:
+        uc, _tokens, recovery_repo, pending_token = self._setup()
         uc_gen = GenerateRecoveryCodes(recovery_repo)
         gen_result = uc_gen.execute(GenerateRecoveryCodesRequest(user_id="user-1"))
 
-        uc_use = UseRecoveryCode(users, hasher, tokens, secret_repo, recovery_repo)
-        result = uc_use.execute(
-            UseRecoveryCodeRequest(username="testuser", password="pass", recovery_code=gen_result.codes[0])
-        )
+        result = uc.execute(UseRecoveryCodeRequest(pending_token=pending_token, recovery_code=gen_result.codes[0]))
         assert result.access_token == "access:user-1"
 
     def test_used_code_cannot_be_reused(self) -> None:
-        users = StubUserRepo()
-        hasher = StubPasswordHasher()
-        tokens = StubTokenService()
-        secret_repo = StubMfaSecretRepo()
-        recovery_repo = StubRecoveryCodeRepo()
-
-        user = User(
-            id="user-1",
-            username="testuser",
-            email="test@example.com",
-            password_hash=hasher.hash("pass"),
-            role=Role.ADMIN,
-        )
-        users.save(user)
-        secret_repo.save(MfaSecret(user_id="user-1", secret_key="secret", status=MfaStatus.ENABLED))
-
+        uc, tokens, recovery_repo, pending_token = self._setup()
         uc_gen = GenerateRecoveryCodes(recovery_repo)
         gen_result = uc_gen.execute(GenerateRecoveryCodesRequest(user_id="user-1"))
 
-        uc_use = UseRecoveryCode(users, hasher, tokens, secret_repo, recovery_repo)
-        uc_use.execute(UseRecoveryCodeRequest(username="testuser", password="pass", recovery_code=gen_result.codes[0]))
+        uc.execute(UseRecoveryCodeRequest(pending_token=pending_token, recovery_code=gen_result.codes[0]))
 
+        # A second pending token, since the first was consumed (single-use)
+        # by the successful completion above - isolates "code already used"
+        # from "pending token already used", tested separately below.
+        second_pending = tokens.create_mfa_pending_token(user_id="user-1", username="testuser", role="Admin")
         with pytest.raises(ApplicationError, match="invalid recovery code"):
-            uc_use.execute(
-                UseRecoveryCodeRequest(username="testuser", password="pass", recovery_code=gen_result.codes[0])
-            )
+            uc.execute(UseRecoveryCodeRequest(pending_token=second_pending, recovery_code=gen_result.codes[0]))
 
-    def test_invalid_password_raises_error(self) -> None:
-        users = StubUserRepo()
-        hasher = StubPasswordHasher()
-        tokens = StubTokenService()
-        secret_repo = StubMfaSecretRepo()
-        recovery_repo = StubRecoveryCodeRepo()
+    def test_pending_token_cannot_be_reused_after_success(self) -> None:
+        uc, _, recovery_repo, pending_token = self._setup()
+        uc_gen = GenerateRecoveryCodes(recovery_repo)
+        gen_result = uc_gen.execute(GenerateRecoveryCodesRequest(user_id="user-1"))
 
-        user = User(
-            id="user-1",
-            username="testuser",
-            email="test@example.com",
-            password_hash=hasher.hash("pass"),
-            role=Role.ADMIN,
-        )
-        users.save(user)
-        secret_repo.save(MfaSecret(user_id="user-1", secret_key="secret", status=MfaStatus.ENABLED))
+        uc.execute(UseRecoveryCodeRequest(pending_token=pending_token, recovery_code=gen_result.codes[0]))
 
-        uc_use = UseRecoveryCode(users, hasher, tokens, secret_repo, recovery_repo)
-        with pytest.raises(ApplicationError, match="invalid username or password"):
-            uc_use.execute(UseRecoveryCodeRequest(username="testuser", password="wrong", recovery_code="some-code"))
+        with pytest.raises(ApplicationError, match="invalid or expired login attempt"):
+            uc.execute(UseRecoveryCodeRequest(pending_token=pending_token, recovery_code=gen_result.codes[1]))
+
+    def test_invalid_pending_token_raises_error(self) -> None:
+        uc, _, _, _ = self._setup()
+        with pytest.raises(ApplicationError, match="invalid or expired login attempt"):
+            uc.execute(UseRecoveryCodeRequest(pending_token="not-a-real-token", recovery_code="some-code"))
 
 
 class TestRotateRecoveryCodes:

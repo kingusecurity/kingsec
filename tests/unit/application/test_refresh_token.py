@@ -31,6 +31,9 @@ class StubTokenService(TokenService):
     def create_refresh_token(self, user_id: str, username: str, role: str) -> str:
         return f"new-refresh-{user_id}"
 
+    def create_mfa_pending_token(self, user_id: str, username: str, role: str) -> str:
+        return f"pending-{user_id}"
+
     def verify_access_token(self, token: str) -> TokenClaims:
         return self._make_claims("access")
 
@@ -38,6 +41,9 @@ class StubTokenService(TokenService):
         if not self._valid:
             raise Exception("invalid token")
         return self._make_claims(self._token_type)
+
+    def verify_mfa_pending_token(self, token: str) -> TokenClaims:
+        return self._make_claims("mfa_pending")
 
     def _make_claims(self, token_type: str) -> TokenClaims:
         return TokenClaims(

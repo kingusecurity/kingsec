@@ -131,6 +131,7 @@ def _build_app() -> tuple[FastAPI, StubUserRepo, StubTokenService, StubMfaSecret
                     StubLockoutRepo(),
                     StubClock(),
                     LockoutPolicy(max_attempts=5, lockout_duration_seconds=900),
+                    mfa_secret_repo,
                 )
             if service_type == RefreshToken:
                 return RefreshToken(user_repo, token_service)
@@ -149,13 +150,11 @@ def _build_app() -> tuple[FastAPI, StubUserRepo, StubTokenService, StubMfaSecret
             if service_type == DisableMfa:
                 return DisableMfa(mfa_secret_repo, recovery_repo, audit_repo)
             if service_type == VerifyMfaCode:
-                return VerifyMfaCode(user_repo, hasher, token_service, mfa_secret_repo, totp_service, None, audit_repo)
+                return VerifyMfaCode(user_repo, token_service, mfa_secret_repo, totp_service, None, audit_repo)
             if service_type == GenerateRecoveryCodes:
                 return GenerateRecoveryCodes(recovery_repo)
             if service_type == UseRecoveryCode:
-                return UseRecoveryCode(
-                    user_repo, hasher, token_service, mfa_secret_repo, recovery_repo, None, audit_repo
-                )
+                return UseRecoveryCode(user_repo, token_service, mfa_secret_repo, recovery_repo, None, audit_repo)
             if service_type == RotateRecoveryCodes:
                 return RotateRecoveryCodes(recovery_repo, audit_repo)
             if service_type == CheckRateLimit:
@@ -191,6 +190,16 @@ def _register_and_login(client: TestClient, username: str = "testuser", role: st
     login_resp = client.post("/api/v1/auth/login", json={"username": username, "password": "Passw0rd!"})
     assert login_resp.status_code == 200
     return login_resp.json()["access_token"]
+
+
+def _login_for_pending_token(client: TestClient, username: str, password: str = "Passw0rd!") -> str:
+    """Log in against an MFA-enabled account and return its pending_token."""
+    resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["mfa_required"] is True
+    assert data.get("access_token") is None
+    return data["pending_token"]
 
 
 class TestMfaIntegration:
@@ -231,8 +240,9 @@ class TestMfaIntegration:
 
         client.post("/api/v1/mfa/enable", headers={"Authorization": f"Bearer {token}"})
 
+        pending_token = _login_for_pending_token(client, "user4")
         resp = client.post(
-            "/api/v1/mfa/verify", json={"username": "user4", "password": "Passw0rd!", "totp_code": "123456"}
+            "/api/v1/mfa/verify", json={"pending_token": pending_token, "totp_code": "123456"}
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -246,8 +256,9 @@ class TestMfaIntegration:
         token = _register_and_login(client, username="user5")
         client.post("/api/v1/mfa/enable", headers={"Authorization": f"Bearer {token}"})
 
+        pending_token = _login_for_pending_token(client, "user5")
         resp = client.post(
-            "/api/v1/mfa/verify", json={"username": "user5", "password": "Passw0rd!", "totp_code": "999999"}
+            "/api/v1/mfa/verify", json={"pending_token": pending_token, "totp_code": "999999"}
         )
         assert resp.status_code == 401
 
@@ -258,8 +269,10 @@ class TestMfaIntegration:
         token = _register_and_login(client, username="user6")
         client.post("/api/v1/mfa/enable", headers={"Authorization": f"Bearer {token}"})
 
+        # Wrong password never even gets to the pending-token stage - Login
+        # rejects it before MFA is considered.
         resp = client.post(
-            "/api/v1/mfa/verify", json={"username": "user6", "password": "wrongpass", "totp_code": "123456"}
+            "/api/v1/auth/login", json={"username": "user6", "password": "wrongpass"}
         )
         assert resp.status_code == 401
 
@@ -301,8 +314,9 @@ class TestMfaIntegration:
         gen_resp = client.post("/api/v1/mfa/recovery/generate", headers={"Authorization": f"Bearer {token}"})
         recovery_code = gen_resp.json()["codes"][0]
 
+        pending_token = _login_for_pending_token(client, "user8")
         resp = client.post(
-            "/api/v1/mfa/recovery", json={"username": "user8", "password": "Passw0rd!", "recovery_code": recovery_code}
+            "/api/v1/mfa/recovery", json={"pending_token": pending_token, "recovery_code": recovery_code}
         )
         assert resp.status_code == 200
         assert "access_token" in resp.json()
@@ -318,14 +332,17 @@ class TestMfaIntegration:
         recovery_code = gen_resp.json()["codes"][0]
 
         # First use succeeds
+        pending_token1 = _login_for_pending_token(client, "user9")
         resp1 = client.post(
-            "/api/v1/mfa/recovery", json={"username": "user9", "password": "Passw0rd!", "recovery_code": recovery_code}
+            "/api/v1/mfa/recovery", json={"pending_token": pending_token1, "recovery_code": recovery_code}
         )
         assert resp1.status_code == 200
 
-        # Second use fails
+        # Second use fails - a fresh pending token doesn't resurrect a
+        # used recovery code.
+        pending_token2 = _login_for_pending_token(client, "user9")
         resp2 = client.post(
-            "/api/v1/mfa/recovery", json={"username": "user9", "password": "Passw0rd!", "recovery_code": recovery_code}
+            "/api/v1/mfa/recovery", json={"pending_token": pending_token2, "recovery_code": recovery_code}
         )
         assert resp2.status_code == 401
 
@@ -348,7 +365,20 @@ class TestMfaIntegration:
         assert resp.status_code == 401
 
     def test_verify_mfa_not_enabled_returns_401(self) -> None:
-        app, _, _, _, _, _ = _build_app()
+        app, user_repo, token_service, _, _, _ = _build_app()
         client = TestClient(app, raise_server_exceptions=False)
-        resp = client.post("/api/v1/mfa/verify", json={"username": "nobody", "password": "x", "totp_code": "123456"})
+
+        _register_and_login(client, username="user11")
+        user = user_repo.find_by_username("user11")
+        assert user is not None
+
+        # This user never enabled MFA, so Login would never actually mint a
+        # pending token for them - forge one directly to exercise
+        # VerifyMfaCode's own "MFA not enabled" guard.
+        pending_token = token_service.create_mfa_pending_token(
+            user_id=user.id, username=user.username, role=user.role.label
+        )
+        resp = client.post(
+            "/api/v1/mfa/verify", json={"pending_token": pending_token, "totp_code": "123456"}
+        )
         assert resp.status_code == 401

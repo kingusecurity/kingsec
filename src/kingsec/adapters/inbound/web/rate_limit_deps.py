@@ -53,22 +53,29 @@ async def _resolve_identifier(
             key_id = api_key.key_id if hasattr(api_key, "key_id") else str(id(api_key))
             return f"apikey:{key_id}"
         except Exception:
-            return f"ip:{client_ip}"
+            # Group-namespaced: see the IP_USER branch below for why.
+            return f"ip:{client_ip}:{policy.group.value}"
     elif policy.key_type == RateLimitKeyType.USER:
         try:
             creds = await bearer_scheme(request)
-            user = await get_current_user(creds)
+            user = await get_current_user(request, creds)
             return f"user:{user.user_id if hasattr(user, 'user_id') else str(id(user))}"
         except Exception:
-            return f"ip:{client_ip}"
+            # Group-namespaced: see the IP_USER branch below for why.
+            return f"ip:{client_ip}:{policy.group.value}"
     elif policy.key_type == RateLimitKeyType.IP_USER:
         try:
             creds = await bearer_scheme(request)
-            user = await get_current_user(creds)
+            user = await get_current_user(request, creds)
             uid = user.user_id if hasattr(user, "user_id") else str(id(user))
             return f"ip_user:{client_ip}:{uid}"
         except Exception:
-            return f"ip:{client_ip}"
+            # Unauthenticated (no bearer token to resolve a real identity
+            # from) falls back to per-IP - but must include the group, or
+            # two unauthenticated-by-design groups sharing this key type
+            # (e.g. LOGIN and MFA_VERIFY) would collapse onto one shared
+            # "ip:{client_ip}" bucket instead of getting independent quotas.
+            return f"ip:{client_ip}:{policy.group.value}"
 
     raise ValueError(f"unhandled rate-limit key type: {policy.key_type}")
 

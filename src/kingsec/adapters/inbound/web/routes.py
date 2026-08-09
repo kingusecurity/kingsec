@@ -27,7 +27,6 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from kingsec.application.dto import LoginResponse
 from kingsec.application.ports.inbound.service_api import ServiceAPI
 
 from . import schemas
@@ -43,13 +42,15 @@ from .auth import (
     CurrentApiKey,
     CurrentUser,
     get_current_api_key,
-    require_admin,
+    require_admin_jwt_only,
     require_analyst,
     require_permission,
     require_viewer,
+    require_viewer_jwt_only,
 )
 from .dependencies import get_service
 from .rate_limit_deps import require_rate_limit
+from .session_helpers import create_session_for_login
 
 router = APIRouter(prefix="/api/v1")
 
@@ -124,7 +125,16 @@ async def login(
         _record_failed_login_audit(request, body.username)
         raise
 
-    _create_session_for_login(request, result)
+    # MFA still required: no real tokens exist yet, so there is nothing to
+    # create a session for. The session is created when the login is
+    # actually completed via /mfa/verify or /mfa/recovery instead.
+    if not result.mfa_required and result.access_token is not None and result.refresh_token is not None:
+        create_session_for_login(
+            request,
+            user_id=result.user_id,
+            access_token=result.access_token,
+            refresh_token=result.refresh_token,
+        )
 
     return schemas.LoginResponse(
         user_id=result.user_id,
@@ -132,39 +142,11 @@ async def login(
         role=result.role,
         access_token=result.access_token,
         refresh_token=result.refresh_token,
+        mfa_required=result.mfa_required,
+        pending_token=result.pending_token,
         token_type=result.token_type,
         expires_in=result.expires_in,
     )
-
-
-def _create_session_for_login(request: Request, result: LoginResponse) -> None:
-    try:
-        app: Application = request.app.state.kingsec_app
-        from kingsec.application.ports import TokenService
-        from kingsec.application.use_cases.create_session import CreateSession
-        from kingsec.application.use_cases.session_dto import CreateSessionRequest
-        from kingsec.domain.session import DeviceInfo
-
-        token_svc: TokenService = app.resolve(TokenService)
-        access_claims = token_svc.verify_access_token(result.access_token)
-        refresh_claims = token_svc.verify_refresh_token(result.refresh_token)
-
-        ip = request.client.host if request.client else ""
-        ua = request.headers.get("user-agent", "")
-
-        create_uc: CreateSession = app.resolve(CreateSession)
-        create_uc.execute(
-            CreateSessionRequest(
-                user_id=result.user_id,
-                jti=access_claims.jti,
-                refresh_jti=refresh_claims.jti,
-                client_ip=ip,
-                user_agent=ua,
-                device_info=DeviceInfo(device_name="", platform="", browser=""),
-            )
-        )
-    except Exception:
-        logger.warning("Failed to create session for login", exc_info=True)
 
 
 def _record_failed_login_audit(request: Request, username: str) -> None:
@@ -313,7 +295,7 @@ async def get_current_user_info(
 )
 async def change_own_password(
     body: schemas.ChangePasswordBody,
-    current_user: CurrentUser = Depends(require_viewer),
+    current_user: CurrentUser = Depends(require_viewer_jwt_only),
     request: Request = None,  # type: ignore[assignment]
 ) -> dict[str, str]:
     app: Application = request.app.state.kingsec_app
@@ -686,7 +668,7 @@ def _get_rotate_api_key_uc(request: Request) -> Any:
 )
 async def create_api_key(
     body: schemas.CreateApiKeyBody,
-    current_user: CurrentUser = Depends(require_permission(Permission.CREATE_API_KEY)),
+    current_user: CurrentUser = Depends(require_permission(Permission.CREATE_API_KEY, jwt_only=True)),
     create_uc: Any = Depends(_get_create_api_key_uc),
 ) -> schemas.CreateApiKeyResponse:
     from kingsec.application.dto import CreateApiKeyRequest
@@ -720,7 +702,7 @@ async def create_api_key(
 async def list_api_keys(
     limit: int = 50,
     offset: int = 0,
-    current_user: CurrentUser = Depends(require_permission(Permission.LIST_API_KEYS)),
+    current_user: CurrentUser = Depends(require_permission(Permission.LIST_API_KEYS, jwt_only=True)),
     list_uc: Any = Depends(_get_list_api_keys_uc),
 ) -> schemas.ApiKeyListResponse:
     from kingsec.application.dto import ListApiKeysRequest
@@ -799,7 +781,7 @@ async def get_current_api_key_info(
 )
 async def revoke_api_key(
     api_key_id: str,
-    current_user: CurrentUser = Depends(require_permission(Permission.DELETE_API_KEY)),
+    current_user: CurrentUser = Depends(require_permission(Permission.DELETE_API_KEY, jwt_only=True)),
     revoke_uc: Any = Depends(_get_revoke_api_key_uc),
 ) -> None:
     from kingsec.application.dto import RevokeApiKeyRequest
@@ -826,7 +808,7 @@ async def revoke_api_key(
 )
 async def rotate_api_key(
     api_key_id: str,
-    current_user: CurrentUser = Depends(require_permission(Permission.ROTATE_API_KEY)),
+    current_user: CurrentUser = Depends(require_permission(Permission.ROTATE_API_KEY, jwt_only=True)),
     rotate_uc: Any = Depends(_get_rotate_api_key_uc),
 ) -> schemas.RotateApiKeyResponse:
     from kingsec.application.dto import RotateApiKeyRequest
@@ -849,7 +831,7 @@ async def rotate_api_key(
     "/users",
     response_model=schemas.ListUsersResponse,
     tags=["auth"],
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_jwt_only)],
     summary="List users",
     description="Returns a paginated list of users. Requires Admin role.",
     responses={
@@ -907,7 +889,7 @@ async def list_users(
 async def assign_role(
     user_id: str,
     body: schemas.AssignRoleBody,
-    current_user: CurrentUser = Depends(require_admin),
+    current_user: CurrentUser = Depends(require_admin_jwt_only),
     assign_role_uc: Any = Depends(_get_assign_role_use_case),
 ) -> schemas.AssignRoleResponse:
     from kingsec.application.dto import AssignRoleRequest
@@ -1180,13 +1162,13 @@ def _get_reset_password_uc(request: Request) -> Any:
     "/users/{user_id}/deactivate",
     response_model=schemas.AdminUserActionResponse,
     tags=["auth"],
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_jwt_only)],
     summary="Deactivate user",
     description="Deactivate a user account. Requires Admin role.",
 )
 async def deactivate_user(
     user_id: str,
-    current_user: CurrentUser = Depends(require_admin),
+    current_user: CurrentUser = Depends(require_admin_jwt_only),
     deactivate_uc: Any = Depends(_get_deactivate_user_uc),
 ) -> schemas.AdminUserActionResponse:
     from kingsec.application.use_cases.admin_users import DeactivateUserRequest
@@ -1206,13 +1188,13 @@ async def deactivate_user(
     "/users/{user_id}/activate",
     response_model=schemas.AdminUserActionResponse,
     tags=["auth"],
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_jwt_only)],
     summary="Activate user",
     description="Activate a deactivated user account. Requires Admin role.",
 )
 async def activate_user(
     user_id: str,
-    current_user: CurrentUser = Depends(require_admin),
+    current_user: CurrentUser = Depends(require_admin_jwt_only),
     activate_uc: Any = Depends(_get_activate_user_uc),
 ) -> schemas.AdminUserActionResponse:
     from kingsec.application.use_cases.admin_users import ActivateUserRequest
@@ -1232,14 +1214,14 @@ async def activate_user(
     "/users/{user_id}/reset-password",
     response_model=schemas.AdminUserActionResponse,
     tags=["auth"],
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_jwt_only)],
     summary="Reset user password",
     description="Reset another user's password. Requires Admin role.",
 )
 async def reset_password(
     user_id: str,
     body: schemas.AdminResetPasswordBody,
-    current_user: CurrentUser = Depends(require_admin),
+    current_user: CurrentUser = Depends(require_admin_jwt_only),
     reset_uc: Any = Depends(_get_reset_password_uc),
 ) -> schemas.AdminUserActionResponse:
     from kingsec.application.use_cases.admin_users import ResetPasswordRequest
@@ -1263,7 +1245,7 @@ async def reset_password(
     "/users/search",
     response_model=schemas.ListUsersResponse,
     tags=["auth"],
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_jwt_only)],
     summary="Search users",
     description="Search users with filters. Requires Admin role.",
 )
@@ -1318,7 +1300,7 @@ async def search_users(
     "/roles",
     response_model=schemas.ListRolesResponse,
     tags=["auth"],
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_jwt_only)],
     summary="List roles",
     description="Return all roles with their descriptions and permissions.",
 )
