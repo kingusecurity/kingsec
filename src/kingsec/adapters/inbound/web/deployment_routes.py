@@ -64,7 +64,7 @@ def get_diagnostics(
     return _get_ops(request).collect_all()
 
 
-@router.get("/deployment/diagnostics/bundle")
+@router.post("/deployment/diagnostics/bundle")
 def download_diagnostics_bundle(
     request: Request,
     user: CurrentUser = Depends(get_current_user),

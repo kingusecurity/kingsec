@@ -95,6 +95,7 @@ export const deploymentApi = {
   downloadDiagnostics: async (): Promise<void> => {
     const token = getAccessToken()
     const res = await fetch(`${API_BASE}/deployment/diagnostics/bundle`, {
+      method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
     if (!res.ok) throw new Error('Diagnostics bundle download failed')

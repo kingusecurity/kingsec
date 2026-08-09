@@ -21,6 +21,9 @@ class QueueServicePort(ABC):
     def dequeue(self, entry_id: str) -> QueueEntry: ...
 
     @abstractmethod
+    def peek(self, entry_id: str) -> QueueEntry: ...
+
+    @abstractmethod
     def cancel(self, entry_id: str) -> None: ...
 
     @abstractmethod

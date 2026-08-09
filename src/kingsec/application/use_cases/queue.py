@@ -67,6 +67,21 @@ class DequeueJob:
         return entry
 
 
+class PeekJob:
+    """Look up a queue entry without removing it - the read-only counterpart to DequeueJob."""
+
+    def __init__(self, repo: QueueRepositoryPort) -> None:
+        self._repo = repo
+
+    def execute(self, entry_id: str) -> QueueEntry:
+        entry = self._repo.peek(entry_id)
+        if not entry:
+            from kingsec.application.errors import QueueEntryNotFoundError
+
+            raise QueueEntryNotFoundError(f"Queue entry '{entry_id}' not found")
+        return entry
+
+
 class CancelQueuedJob:
     def __init__(self, repo: QueueRepositoryPort) -> None:
         self._repo = repo
@@ -259,6 +274,13 @@ class AssignBestAgent:
 
 
 class GetNextJob:
+    """Preview what the scheduler would hand out next - read-only.
+
+    Does not promote a WAITING entry to READY: that transition is a real
+    state change and belongs to the actual dispatch path (AssignNextJob),
+    not to a preview endpoint. Reports the entry's real current state.
+    """
+
     def __init__(self, repo: QueueRepositoryPort, policy: SchedulerPolicyPort) -> None:
         self._repo = repo
         self._policy = policy
@@ -268,27 +290,5 @@ class GetNextJob:
         if not ready:
             ready_waiting = self._repo.find_waiting()
             if ready_waiting:
-                promoted = QueueEntry(
-                    entry_id=ready_waiting[0].entry_id,
-                    job_id=ready_waiting[0].job_id,
-                    priority=ready_waiting[0].priority,
-                    state=QueueState.READY,
-                    strategy=ready_waiting[0].strategy,
-                    payload=ready_waiting[0].payload,
-                    target=ready_waiting[0].target,
-                    scanner_ids=ready_waiting[0].scanner_ids,
-                    resource_requirements=ready_waiting[0].resource_requirements,
-                    concurrency_policy=ready_waiting[0].concurrency_policy,
-                    owner_user_id=ready_waiting[0].owner_user_id,
-                    assigned_agent_id=ready_waiting[0].assigned_agent_id,
-                    retry_count=ready_waiting[0].retry_count,
-                    max_retries=ready_waiting[0].max_retries,
-                    depend_on_entry_ids=ready_waiting[0].depend_on_entry_ids,
-                    created_at=ready_waiting[0].created_at,
-                    updated_at=ready_waiting[0].updated_at,
-                    position=ready_waiting[0].position,
-                    error_message="",
-                )
-                self._repo.update(promoted)
-                return promoted
+                return ready_waiting[0]
         return self._policy.select_next_job(ready)

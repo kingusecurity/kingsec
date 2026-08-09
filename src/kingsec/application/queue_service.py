@@ -15,6 +15,7 @@ from kingsec.application.use_cases.queue import (
     ListQueue,
     MoveQueuePosition,
     PauseQueue,
+    PeekJob,
     ResumeQueue,
 )
 from kingsec.domain.queue import QueueEntry, QueueStatistics
@@ -24,6 +25,7 @@ class QueueService(QueueServicePort):
     def __init__(self, repo: QueueRepositoryPort, policy: SchedulerPolicyPort, agent_repo: Any = None) -> None:
         self._enqueue_uc = EnqueueJob(repo)
         self._dequeue_uc = DequeueJob(repo)
+        self._peek_uc = PeekJob(repo)
         self._cancel_uc = CancelQueuedJob(repo)
         self._pause_uc = PauseQueue(repo)
         self._resume_uc = ResumeQueue(repo)
@@ -49,6 +51,9 @@ class QueueService(QueueServicePort):
 
     def dequeue(self, entry_id: str) -> QueueEntry:
         return self._dequeue_uc.execute(entry_id)
+
+    def peek(self, entry_id: str) -> QueueEntry:
+        return self._peek_uc.execute(entry_id)
 
     def cancel(self, entry_id: str) -> None:
         self._cancel_uc.execute(entry_id)

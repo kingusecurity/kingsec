@@ -72,7 +72,7 @@ async def get_entry(
     _require_admin(user)
     service = _get_service(request)
     try:
-        entry = service.dequeue(entry_id)
+        entry = service.peek(entry_id)
     except QueueEntryNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return {
