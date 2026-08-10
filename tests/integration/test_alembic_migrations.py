@@ -74,6 +74,7 @@ EXPECTED_TABLES = frozenset(
     {
         "account_links",
         "account_lockouts",
+        "ai_provider_config",
         "api_keys",
         "assessments",
         "asset_history",
