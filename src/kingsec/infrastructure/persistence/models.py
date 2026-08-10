@@ -80,6 +80,14 @@ class FindingORM(Base):
     severity: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False)
     discovered_at: Mapped[str] = mapped_column(String, nullable=False)  # ISO-8601
+    # CVE/CWE/CVSS: populated only for scanners that genuinely correlate to
+    # this data (Nuclei, Trivy). Comma-separated strings rather than a JSON
+    # column - consistent with this table's other plain-string columns, and
+    # these are short lists of short IDs, not structured objects.
+    cve_ids: Mapped[str | None] = mapped_column(String, nullable=True)
+    cwe_ids: Mapped[str | None] = mapped_column(String, nullable=True)
+    cvss_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cvss_vector: Mapped[str | None] = mapped_column(String, nullable=True)
 
     assessment: Mapped[AssessmentORM] = relationship(back_populates="findings")
     evidence: Mapped[list["EvidenceORM"]] = relationship(
