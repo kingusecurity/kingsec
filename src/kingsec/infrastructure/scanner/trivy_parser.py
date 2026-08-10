@@ -42,6 +42,37 @@ def _map_severity(trivy_severity: str) -> Severity:
     return _SEVERITY_MAP.get(trivy_severity.upper(), Severity.INFORMATIONAL)
 
 
+# Trivy reports CVSS from multiple vendor sources for the same CVE, which can
+# genuinely disagree (e.g. the same CVE scored 6.1 by one source and 5.4 by
+# another). Deterministic, single-value-per-finding for this pass, per
+# reviewed decision: NVD > RedHat > GHSA. Surfacing real cross-source
+# disagreement to the reader is a future enhancement, not this one.
+_CVSS_SOURCE_PREFERENCE = ("nvd", "redhat", "ghsa")
+
+
+def _select_cvss(cvss: object) -> tuple[float | None, str | None]:
+    """Pick one (score, vector) pair from Trivy's per-source CVSS dict.
+
+    Within a chosen source, CVSS 3.1 is preferred over 4.0 when both are
+    present (per reviewed decision) — 2.x is not considered: none of the
+    scanners this session has actually observed used it, and adding
+    handling for a version never seen in real output would be a guess, not
+    a fix. A source with neither field present is skipped in favor of the
+    next-preferred source rather than reported as a false zero.
+    """
+    if not isinstance(cvss, dict):
+        return None, None
+    for source in _CVSS_SOURCE_PREFERENCE:
+        entry = cvss.get(source)
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("V3Score") is not None and entry.get("V3Vector"):
+            return float(entry["V3Score"]), str(entry["V3Vector"])
+        if entry.get("V40Score") is not None and entry.get("V40Vector"):
+            return float(entry["V40Score"]), str(entry["V40Vector"])
+    return None, None
+
+
 def _parse_vulnerabilities(vulns: list[dict[str, Any]], target: str) -> list[Finding]:
     """Parse the Vulnerabilities array from a Trivy result."""
     findings: list[Finding] = []
@@ -54,6 +85,8 @@ def _parse_vulnerabilities(vulns: list[dict[str, Any]], target: str) -> list[Fin
         severity_str = vuln.get("Severity", "UNKNOWN")
         title = vuln.get("Title", "")
         description = vuln.get("Description", "")
+        cwe_ids = tuple(str(c) for c in (vuln.get("CweIDs") or []))
+        cvss_score, cvss_vector = _select_cvss(vuln.get("CVSS"))
 
         severity = _map_severity(severity_str)
 
@@ -69,6 +102,10 @@ def _parse_vulnerabilities(vulns: list[dict[str, Any]], target: str) -> list[Fin
             title=finding_title,
             description=finding_desc,
             severity=severity,
+            cve_ids=(vuln_id,) if vuln_id else (),
+            cwe_ids=cwe_ids,
+            cvss_score=cvss_score,
+            cvss_vector=cvss_vector,
         )
         finding.add_evidence(
             Evidence(

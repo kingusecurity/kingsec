@@ -100,6 +100,16 @@ from .models import (
 # --- domain -> ORM (for writing) ---------------------------------------------
 
 
+def _ids_to_column(ids: tuple[str, ...]) -> str | None:
+    """Comma-join a tuple of IDs for storage, or None if there are none -
+    keeps "no CVE data" genuinely absent (NULL) rather than an empty string."""
+    return ",".join(ids) if ids else None
+
+
+def _ids_from_column(value: str | None) -> tuple[str, ...]:
+    return tuple(value.split(",")) if value else ()
+
+
 def finding_to_orm(finding: Finding) -> FindingORM:
     """Build a FindingORM (with its children) from a domain Finding."""
     return FindingORM(
@@ -109,6 +119,10 @@ def finding_to_orm(finding: Finding) -> FindingORM:
         severity=finding.severity.name,
         status=finding.status.value,
         discovered_at=finding.discovered_at.isoformat(),
+        cve_ids=_ids_to_column(finding.cve_ids),
+        cwe_ids=_ids_to_column(finding.cwe_ids),
+        cvss_score=finding.cvss_score,
+        cvss_vector=finding.cvss_vector,
         evidence=[
             EvidenceORM(
                 summary=item.summary,
@@ -211,6 +225,10 @@ def report_to_orm(report: Report) -> ReportORM:
                     for r in entry.recommendations
                 ],
                 "ai_explanation": entry.ai_explanation,
+                "cve_ids": list(entry.cve_ids),
+                "cwe_ids": list(entry.cwe_ids),
+                "cvss_score": entry.cvss_score,
+                "cvss_vector": entry.cvss_vector,
             }
             for entry in report.entries
         ],
@@ -256,6 +274,10 @@ def finding_to_domain(orm: FindingORM) -> Finding:
         discovered_at=datetime.fromisoformat(orm.discovered_at),
         evidence=evidence,
         recommendations=recommendations,
+        cve_ids=_ids_from_column(orm.cve_ids),
+        cwe_ids=_ids_from_column(orm.cwe_ids),
+        cvss_score=orm.cvss_score,
+        cvss_vector=orm.cvss_vector,
     )
 
 
@@ -327,6 +349,10 @@ def _finding_summary_from_json(entry: dict[str, Any]) -> FindingSummary:
         evidence=evidence,
         recommendations=recommendations,
         ai_explanation=entry.get("ai_explanation"),
+        cve_ids=tuple(entry.get("cve_ids", ())),
+        cwe_ids=tuple(entry.get("cwe_ids", ())),
+        cvss_score=entry.get("cvss_score"),
+        cvss_vector=entry.get("cvss_vector"),
     )
 
 

@@ -36,6 +36,21 @@ def _map_severity(raw: str | None) -> Severity:
     return _SEVERITY_MAP.get((raw or "").strip().lower(), Severity.INFORMATIONAL)
 
 
+def _coerce_cvss_score(value: object) -> float | None:
+    """Nuclei's cvss-score is normally a float, but JSON/YAML round-tripping
+    can leave it as a string or int - coerce defensively rather than letting
+    a shape surprise from one template break the whole scan's parse."""
+    if value is None:
+        return None
+    try:
+        score = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    if not (0.0 <= score <= 10.0):
+        return None
+    return score
+
+
 def _extract_str_list(value: object) -> list[str]:
     """Normalise a field that may be a single string, a list of strings, or None."""
     if isinstance(value, list):
@@ -61,10 +76,16 @@ def _finding_from_record(record: dict[str, Any]) -> Finding | None:
     severity = _map_severity(info.get("severity"))
     description = info.get("description") or f"Matched by template '{template_id}'."
 
-    # Extract CVE / CWE identifiers from classification.
+    # Extract CVE / CWE identifiers and CVSS score/vector from classification.
+    # Nuclei populates this block from the template's own `info.classification`
+    # metadata for CVE-tagged templates - it's not present for every template
+    # (e.g. tech-detection, exposed-panel templates carry no CVE), so every
+    # field here is genuinely optional.
     classification = info.get("classification") or {}
-    cve_ids = _extract_str_list(classification.get("cve-id"))
-    cwe_ids = _extract_str_list(classification.get("cwe-id"))
+    cve_ids = tuple(_extract_str_list(classification.get("cve-id")))
+    cwe_ids = tuple(_extract_str_list(classification.get("cwe-id")))
+    cvss_score = _coerce_cvss_score(classification.get("cvss-score"))
+    cvss_vector = classification.get("cvss-metrics") or None
     extra = []
     if cve_ids:
         extra.append(f"CVE: {', '.join(cve_ids)}")
@@ -73,7 +94,15 @@ def _finding_from_record(record: dict[str, Any]) -> Finding | None:
     if extra:
         description = f"{description} ({'; '.join(extra)})"
 
-    finding = Finding.create(title=str(name), description=str(description), severity=severity)
+    finding = Finding.create(
+        title=str(name),
+        description=str(description),
+        severity=severity,
+        cve_ids=cve_ids,
+        cwe_ids=cwe_ids,
+        cvss_score=cvss_score,
+        cvss_vector=cvss_vector,
+    )
 
     # Evidence: where and how it matched. matched-at is the concrete locator.
     matched_at = record.get("matched-at") or record.get("host") or "unknown"

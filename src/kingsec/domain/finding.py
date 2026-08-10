@@ -22,6 +22,15 @@ from .errors import IllegalStateTransition, InvariantViolation
 from .evidence import Evidence, Recommendation
 from .identifiers import FindingId
 
+
+def _ensure_valid_cvss_score(score: float | None) -> None:
+    """CVSS scores are 0.0-10.0 by definition (both v3.x and v4.0). A value
+    outside that range means a parser bug upstream, not real scanner data -
+    fail loudly rather than carry a nonsensical score into a report."""
+    if score is not None and not (0.0 <= score <= 10.0):
+        raise InvariantViolation(f"cvss_score must be between 0.0 and 10.0, got {score!r}")
+
+
 # Which finding-status transitions are legal. An empty set means "terminal".
 _ALLOWED_FINDING_TRANSITIONS: dict[FindingStatus, set[FindingStatus]] = {
     FindingStatus.OPEN: {FindingStatus.CONFIRMED, FindingStatus.FALSE_POSITIVE},
@@ -42,6 +51,10 @@ class Finding:
         severity: Severity,
         *,
         discovered_at: datetime | None = None,
+        cve_ids: tuple[str, ...] = (),
+        cwe_ids: tuple[str, ...] = (),
+        cvss_score: float | None = None,
+        cvss_vector: str | None = None,
     ) -> None:
         if not isinstance(finding_id, FindingId):
             raise InvariantViolation("finding_id must be a FindingId")
@@ -49,6 +62,7 @@ class Finding:
             raise InvariantViolation("severity must be a Severity")
         ensure_non_empty(title, "Finding title")
         ensure_non_empty(description, "Finding description")
+        _ensure_valid_cvss_score(cvss_score)
 
         moment = discovered_at or datetime.now(UTC)
         ensure_timezone_aware(moment, "discovered_at")
@@ -61,12 +75,42 @@ class Finding:
         self._discovered_at = moment
         self._evidence: list[Evidence] = []
         self._recommendations: list[Recommendation] = []
+        self._cve_ids = tuple(cve_ids)
+        self._cwe_ids = tuple(cwe_ids)
+        self._cvss_score = cvss_score
+        self._cvss_vector = cvss_vector
 
     # --- factory -------------------------------------------------------------
     @classmethod
-    def create(cls, title: str, description: str, severity: Severity) -> Finding:
-        """Create a new OPEN finding with a freshly generated id."""
-        return cls(FindingId.generate(), title, description, severity)
+    def create(
+        cls,
+        title: str,
+        description: str,
+        severity: Severity,
+        *,
+        cve_ids: tuple[str, ...] = (),
+        cwe_ids: tuple[str, ...] = (),
+        cvss_score: float | None = None,
+        cvss_vector: str | None = None,
+    ) -> Finding:
+        """Create a new OPEN finding with a freshly generated id.
+
+        cve_ids/cwe_ids/cvss_score/cvss_vector are optional: only scanners
+        that genuinely correlate to CVE data (Nuclei, Trivy) pass them.
+        Scanners with no correlation source (e.g. Nmap's raw port/service
+        banners) simply omit them, and the finding carries no CVE data -
+        never fabricated, never guessed.
+        """
+        return cls(
+            FindingId.generate(),
+            title,
+            description,
+            severity,
+            cve_ids=cve_ids,
+            cwe_ids=cwe_ids,
+            cvss_score=cvss_score,
+            cvss_vector=cvss_vector,
+        )
 
     @classmethod
     def reconstitute(
@@ -80,6 +124,10 @@ class Finding:
         discovered_at: datetime,
         evidence: list[Evidence] | None = None,
         recommendations: list[Recommendation] | None = None,
+        cve_ids: tuple[str, ...] = (),
+        cwe_ids: tuple[str, ...] = (),
+        cvss_score: float | None = None,
+        cvss_vector: str | None = None,
     ) -> Finding:
         """Rebuild a Finding from stored state (persistence boundary).
 
@@ -90,6 +138,7 @@ class Finding:
         ensure_non_empty(title, "Finding title")
         ensure_non_empty(description, "Finding description")
         ensure_timezone_aware(discovered_at, "discovered_at")
+        _ensure_valid_cvss_score(cvss_score)
 
         f = cls.__new__(cls)
         f._id = finding_id
@@ -100,6 +149,10 @@ class Finding:
         f._discovered_at = discovered_at
         f._evidence = list(evidence) if evidence is not None else []
         f._recommendations = list(recommendations) if recommendations is not None else []
+        f._cve_ids = tuple(cve_ids)
+        f._cwe_ids = tuple(cwe_ids)
+        f._cvss_score = cvss_score
+        f._cvss_vector = cvss_vector
         return f
 
     # --- read-only accessors -------------------------------------------------
@@ -135,6 +188,25 @@ class Finding:
     @property
     def recommendations(self) -> tuple[Recommendation, ...]:
         return tuple(self._recommendations)
+
+    @property
+    def cve_ids(self) -> tuple[str, ...]:
+        """CVE identifiers, if the scanner that produced this finding
+        correlates to CVE data (Nuclei, Trivy). Empty when it doesn't
+        (e.g. Nmap's raw port/service findings) - never fabricated."""
+        return self._cve_ids
+
+    @property
+    def cwe_ids(self) -> tuple[str, ...]:
+        return self._cwe_ids
+
+    @property
+    def cvss_score(self) -> float | None:
+        return self._cvss_score
+
+    @property
+    def cvss_vector(self) -> str | None:
+        return self._cvss_vector
 
     # --- behaviour -----------------------------------------------------------
     def add_evidence(self, evidence: Evidence) -> None:

@@ -195,6 +195,25 @@ class TestLimitations:
         assert "does not correlate findings to specific CVE identifiers" in html
         assert "false negatives" in html and "false positives" in html
 
+    def test_when_cve_data_present_blanket_disclaimer_is_not_used(self) -> None:
+        """Regression test: a report with real CVE/CVSS data on at least one
+        finding (Nuclei/Trivy) must not claim, in Limitations, that it
+        "does not correlate findings to specific CVE identifiers" - that
+        was true when no scanner correlated to CVE data, and is simply
+        false once one does."""
+        report = build_report()
+        entries = report.entries
+        cve_entry = dataclasses.replace(
+            entries[0], cve_ids=("CVE-2026-53666",), cvss_score=6.1, cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
+        )
+        report = dataclasses.replace(report, entries=(cve_entry, *entries[1:]))
+
+        html = render_report_html(report)
+
+        assert "does not correlate findings to specific CVE identifiers" not in html
+        assert "CVE-2026-53666" in html
+        assert "6.1 (CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N)" in html
+
 
 class TestVisualElements:
     def test_severity_distribution_renders_svg_bars(self) -> None:

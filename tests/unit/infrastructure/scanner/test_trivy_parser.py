@@ -243,6 +243,115 @@ class TestEvidence:
         assert "none" in findings[0].description
 
 
+class TestCveCvss:
+    """CVE ID, CWE IDs, and CVSS score/vector on the resulting Finding.
+
+    Fixture shapes mirror real Trivy output captured live against this
+    repo's own frontend/ npm dependencies (react-router CVEs), including a
+    genuine cross-source CVSS disagreement, to make sure the preference
+    order is exercised against realistic data, not an invented shape.
+    """
+
+    def test_cve_id_becomes_structured_field(self) -> None:
+        output = json.dumps({"Results": [_make_vuln_result("/app", [_VULN_RECORD])]})
+        findings = parse_trivy_json(output)
+        assert findings[0].cve_ids == ("CVE-2024-1234",)
+
+    def test_no_vulnerability_id_means_no_cve_ids(self) -> None:
+        record = {k: v for k, v in _VULN_RECORD.items() if k != "VulnerabilityID"}
+        output = json.dumps({"Results": [_make_vuln_result("/app", [record])]})
+        findings = parse_trivy_json(output)
+        assert findings[0].cve_ids == ()
+
+    def test_cwe_ids_extracted(self) -> None:
+        record = {**_VULN_RECORD, "CweIDs": ["CWE-470"]}
+        output = json.dumps({"Results": [_make_vuln_result("/app", [record])]})
+        findings = parse_trivy_json(output)
+        assert findings[0].cwe_ids == ("CWE-470",)
+
+    def test_no_cwe_ids_field_means_empty_tuple(self) -> None:
+        output = json.dumps({"Results": [_make_vuln_result("/app", [_VULN_RECORD])]})
+        findings = parse_trivy_json(output)
+        assert findings[0].cwe_ids == ()
+
+    def test_misconfig_never_carries_cve_data(self) -> None:
+        """Misconfigurations (e.g. DS002) are not CVEs - Trivy doesn't shape
+        them that way, and this parser must not invent CVE data for them."""
+        output = json.dumps({"Results": [_make_misconfig_result("/app", [_MISCONFIG_RECORD])]})
+        findings = parse_trivy_json(output)
+        assert findings[0].cve_ids == ()
+        assert findings[0].cvss_score is None
+
+    def test_single_source_cvss_used_directly(self) -> None:
+        record = {
+            **_VULN_RECORD,
+            "CVSS": {"nvd": {"V3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N", "V3Score": 6.1}},
+        }
+        output = json.dumps({"Results": [_make_vuln_result("/app", [record])]})
+        findings = parse_trivy_json(output)
+        assert findings[0].cvss_score == 6.1
+        assert findings[0].cvss_vector == "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
+
+    def test_source_preference_nvd_over_redhat_over_ghsa(self) -> None:
+        """Real disagreement captured live: the same CVE scored 6.1 by NVD,
+        5.4 by RedHat, and (CVSS 4.0 only) 5.1 by GHSA. NVD must win."""
+        record = {
+            **_VULN_RECORD,
+            "CVSS": {
+                "ghsa": {"V40Vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:A/VC:N/VI:L/VA:N/SC:L/SI:L/SA:N", "V40Score": 5.1},
+                "nvd": {"V3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N", "V3Score": 6.1},
+                "redhat": {"V3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", "V3Score": 5.4},
+            },
+        }
+        output = json.dumps({"Results": [_make_vuln_result("/app", [record])]})
+        findings = parse_trivy_json(output)
+        assert findings[0].cvss_score == 6.1
+        assert findings[0].cvss_vector == "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
+
+    def test_falls_through_to_next_preferred_source_when_top_choice_absent(self) -> None:
+        """Only ghsa and redhat present (no nvd) - redhat must win, not ghsa,
+        per the NVD > RedHat > GHSA preference order."""
+        record = {
+            **_VULN_RECORD,
+            "CVSS": {
+                "ghsa": {"V3Vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:C/C:H/I:L/A:N", "V3Score": 6.9},
+                "redhat": {"V3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", "V3Score": 5.4},
+            },
+        }
+        output = json.dumps({"Results": [_make_vuln_result("/app", [record])]})
+        findings = parse_trivy_json(output)
+        assert findings[0].cvss_score == 5.4
+        assert findings[0].cvss_vector == "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N"
+
+    def test_cvss_31_preferred_over_40_within_same_source(self) -> None:
+        record = {
+            **_VULN_RECORD,
+            "CVSS": {
+                "nvd": {
+                    "V3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+                    "V3Score": 6.1,
+                    "V40Vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:A/VC:N/VI:L/VA:N/SC:L/SI:L/SA:N",
+                    "V40Score": 5.1,
+                },
+            },
+        }
+        output = json.dumps({"Results": [_make_vuln_result("/app", [record])]})
+        findings = parse_trivy_json(output)
+        assert findings[0].cvss_score == 6.1
+
+    def test_no_cvss_field_at_all_means_no_score(self) -> None:
+        output = json.dumps({"Results": [_make_vuln_result("/app", [_VULN_RECORD])]})
+        findings = parse_trivy_json(output)
+        assert findings[0].cvss_score is None
+        assert findings[0].cvss_vector is None
+
+    def test_malformed_cvss_shape_does_not_raise(self) -> None:
+        record = {**_VULN_RECORD, "CVSS": "not a dict"}
+        output = json.dumps({"Results": [_make_vuln_result("/app", [record])]})
+        findings = parse_trivy_json(output)
+        assert findings[0].cvss_score is None
+
+
 class TestRecommendations:
     """Resolution → Recommendation mapping for misconfigurations."""
 

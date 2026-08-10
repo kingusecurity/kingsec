@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from tests.unit.domain.conftest import make_finding
 
@@ -28,6 +30,58 @@ class TestConstruction:
     def test_requires_severity_type(self) -> None:
         with pytest.raises(InvariantViolation):
             Finding(FindingId.generate(), "t", "d", "high")  # type: ignore[arg-type]
+
+
+class TestCveCvssData:
+    def test_defaults_to_no_cve_data(self) -> None:
+        finding = Finding.create("Open port", "desc", Severity.LOW)
+        assert finding.cve_ids == ()
+        assert finding.cwe_ids == ()
+        assert finding.cvss_score is None
+        assert finding.cvss_vector is None
+
+    def test_carries_real_cve_cvss_data_when_given(self) -> None:
+        finding = Finding.create(
+            "CVE-2026-53666 — react-router",
+            "desc",
+            Severity.MEDIUM,
+            cve_ids=("CVE-2026-53666",),
+            cwe_ids=("CWE-470",),
+            cvss_score=6.1,
+            cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+        )
+        assert finding.cve_ids == ("CVE-2026-53666",)
+        assert finding.cwe_ids == ("CWE-470",)
+        assert finding.cvss_score == 6.1
+        assert finding.cvss_vector == "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
+
+    def test_rejects_cvss_score_above_ten(self) -> None:
+        with pytest.raises(InvariantViolation):
+            Finding.create("t", "d", Severity.LOW, cvss_score=10.1)
+
+    def test_rejects_negative_cvss_score(self) -> None:
+        with pytest.raises(InvariantViolation):
+            Finding.create("t", "d", Severity.LOW, cvss_score=-0.1)
+
+    def test_accepts_cvss_score_boundaries(self) -> None:
+        assert Finding.create("t", "d", Severity.LOW, cvss_score=0.0).cvss_score == 0.0
+        assert Finding.create("t", "d", Severity.LOW, cvss_score=10.0).cvss_score == 10.0
+
+    def test_reconstitute_round_trips_cve_data(self) -> None:
+        finding = Finding.reconstitute(
+            finding_id=FindingId.generate(),
+            title="t",
+            description="d",
+            severity=Severity.HIGH,
+            status=FindingStatus.OPEN,
+            discovered_at=datetime.now(UTC),
+            cve_ids=("CVE-2024-1",),
+            cwe_ids=("CWE-1",),
+            cvss_score=9.8,
+            cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+        )
+        assert finding.cve_ids == ("CVE-2024-1",)
+        assert finding.cvss_score == 9.8
 
 
 class TestIdentity:

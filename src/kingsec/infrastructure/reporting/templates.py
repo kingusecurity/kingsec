@@ -132,7 +132,32 @@ def _limitations(report: Report) -> str:
     Per-tool coverage detail (which scanners ran, which were skipped and why)
     is now tracked and rendered separately in Scanner Coverage - this section
     stays about what automated scanning as a method cannot guarantee, not
-    about which specific tools executed."""
+    about which specific tools executed.
+
+    The CVE/CVSS sentence is conditional: some scanners (Nuclei, Trivy)
+    genuinely correlate findings to CVE/CVSS data and it's rendered above
+    when present; others (e.g. Nmap's raw port/service banners) do not and
+    never will without separate correlation infrastructure this report
+    doesn't have. A blanket "this report does not correlate to CVE/CVSS"
+    statement would be false for the first case - say precisely what's true
+    for whichever this report actually contains.
+    """
+    if any(e.cve_ids or e.cvss_score is not None for e in report.entries):
+        cve_note = (
+            "Where a finding's scanner correlates to CVE/CVSS data (Nuclei, Trivy), that "
+            "identifier and score are shown above and sourced directly from the scanner's own "
+            "vulnerability database — they are not independently re-verified by KingSec. "
+            "Findings from scanners that do not correlate to CVE data (e.g. Nmap's raw "
+            "port/service banners) show no CVE/CVSS above; that detail would require separate "
+            "correlation and should be researched directly for the specific software/version "
+            "in use."
+        )
+    else:
+        cve_note = (
+            "This report does not correlate findings to specific CVE identifiers or CVSS "
+            "vectors; where that detail matters, it should be researched separately for the "
+            "specific software/version in use."
+        )
     return (
         '<section id="limitations">'
         "<h2>Limitations</h2>"
@@ -142,9 +167,7 @@ def _limitations(report: Report) -> str:
         "constitute a comprehensive security audit. Automated tools carry an inherent risk "
         "of false negatives (real issues not detected) and false positives (flagged issues "
         "that are not actually exploitable) — findings above should be independently verified "
-        "before remediation is prioritized on their basis alone. This report does not correlate "
-        "findings to specific CVE identifiers or CVSS vectors; where that detail matters, it "
-        "should be researched separately for the specific software/version in use. A change to "
+        f"before remediation is prioritized on their basis alone. {cve_note} A change to "
         "the target's configuration after this assessment invalidates these results.</p>"
         "</section>"
     )
@@ -515,13 +538,28 @@ def _technical_findings(report: Report, *, target: str) -> str:
     return f'<section id="technical-findings"><h2>Technical Findings</h2>{cards}</section>'
 
 
+_NOT_CORRELATED = "Not available — not correlated by the current scan"
+
+
+def _format_cve(entry: FindingSummary) -> str:
+    return ", ".join(entry.cve_ids) if entry.cve_ids else _NOT_CORRELATED
+
+
+def _format_cvss(entry: FindingSummary) -> str:
+    if entry.cvss_score is None:
+        return _NOT_CORRELATED
+    if entry.cvss_vector:
+        return f"{entry.cvss_score:.1f} ({entry.cvss_vector})"
+    return f"{entry.cvss_score:.1f}"
+
+
 def _technical_finding_card(entry: FindingSummary, *, target: str) -> str:
     facts = "".join(
         f"<tr><th>{escape(k)}</th><td>{escape(v)}</td></tr>"
         for k, v in (
             ("Affected Asset", target),
-            ("CVE", "Not available — not correlated by the current scan"),
-            ("CVSS Score / Vector", "Not available — not correlated by the current scan"),
+            ("CVE", _format_cve(entry)),
+            ("CVSS Score / Vector", _format_cvss(entry)),
         )
     )
     description = entry.description.strip() or "No technical description was recorded for this finding."

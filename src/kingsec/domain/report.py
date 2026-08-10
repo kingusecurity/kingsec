@@ -126,12 +126,15 @@ class FindingSummary:
     """An immutable snapshot of one finding, as it appears in a report.
 
     Carries the actual evidence and recommendation content (not just counts),
-    so the report can render real technical detail and remediation text. CVE
-    identifier, CVSS score/vector, and a specific affected-asset reference are
-    deliberately NOT modeled here: the current scanning pipeline does not
-    correlate a Finding to a CVE or a specific asset record, so there is no
-    real data to carry — the report renders an honest "not available" for
-    those facts rather than fabricating them.
+    so the report can render real technical detail and remediation text.
+
+    CVE/CWE identifiers and CVSS score/vector are populated when the scanner
+    that produced the underlying Finding genuinely correlates to that data
+    (Nuclei's template classification, Trivy's vulnerability database) - they
+    are empty/None otherwise (e.g. Nmap's raw port/service findings, which
+    carry no CVE data at all), never fabricated or guessed. A specific
+    affected-asset reference is still not modeled: the current pipeline has
+    no per-asset record to point to, only the assessment's single target.
     """
 
     finding_id: str
@@ -141,6 +144,10 @@ class FindingSummary:
     status: FindingStatus
     evidence: tuple[Evidence, ...]
     recommendations: tuple[Recommendation, ...]
+    cve_ids: tuple[str, ...] = ()
+    cwe_ids: tuple[str, ...] = ()
+    cvss_score: float | None = None
+    cvss_vector: str | None = None
     # Populated by the GenerateReport use case (an application-layer concern,
     # never here — this dataclass stays a pure data snapshot with no AI-port
     # dependency). None means "not attempted or the AI call failed for this
@@ -237,6 +244,10 @@ class Report:
                 status=f.status,
                 evidence=f.evidence,
                 recommendations=f.recommendations,
+                cve_ids=f.cve_ids,
+                cwe_ids=f.cwe_ids,
+                cvss_score=f.cvss_score,
+                cvss_vector=f.cvss_vector,
             )
             for f in ordered
         )

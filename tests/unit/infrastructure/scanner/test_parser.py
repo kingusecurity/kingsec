@@ -69,6 +69,48 @@ class TestCveCweReferences:
         assert "CVE-2021-12345" in findings[0].description
         assert "CVE-2021-67890" in findings[0].description
         assert "cve: CVE-2021-12345, CVE-2021-67890" in findings[0].evidence[0].detail
+        # Structured field, not just flattened text - this is the actual fix:
+        # the data now reaches a queryable field, not only free text.
+        assert findings[0].cve_ids == ("CVE-2021-12345", "CVE-2021-67890")
+
+    def test_cvss_score_and_vector_extracted(self) -> None:
+        """Nuclei's classification block also carries cvss-score/cvss-metrics
+        for CVE-tagged templates - previously not read at all."""
+        import json
+
+        record = {
+            "template-id": "cvss-test",
+            "matched-at": "http://10.0.0.5/test",
+            "info": {
+                "name": "Test CVSS",
+                "severity": "high",
+                "classification": {
+                    "cve-id": ["CVE-2021-99999"],
+                    "cvss-score": 7.5,
+                    "cvss-metrics": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+                },
+            },
+        }
+        findings = parse_nuclei_jsonl(json.dumps(record))
+        assert findings[0].cvss_score == 7.5
+        assert findings[0].cvss_vector == "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+
+    def test_out_of_range_cvss_score_is_dropped_not_raised(self) -> None:
+        """A malformed classification block (bad score) must degrade to no
+        score, not crash the whole scan's parse over one odd template."""
+        import json
+
+        record = {
+            "template-id": "bad-cvss",
+            "matched-at": "http://10.0.0.5/test",
+            "info": {
+                "name": "Bad CVSS",
+                "severity": "low",
+                "classification": {"cvss-score": 42.0},
+            },
+        }
+        findings = parse_nuclei_jsonl(json.dumps(record))
+        assert findings[0].cvss_score is None
 
     def test_cwe_in_description(self) -> None:
         import json
@@ -86,6 +128,7 @@ class TestCveCweReferences:
         assert "CWE-79" in findings[0].description
         assert "CWE-89" in findings[0].description
         assert "cwe: CWE-79, CWE-89" in findings[0].evidence[0].detail
+        assert findings[0].cwe_ids == ("CWE-79", "CWE-89")
 
     def test_references_in_evidence(self) -> None:
         import json
