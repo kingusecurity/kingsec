@@ -12,10 +12,16 @@ Security properties:
     * Deterministic: all content derives from the immutable ``Report`` (including
       its ``generated_at``); nothing is read from the clock at render time, and
       the domain already orders entries worst-first.
+
+Charts and the risk-score gauge are hand-rolled inline SVG rather than a
+charting library: WeasyPrint renders inline SVG natively (confirmed by
+rendering every chart in this module end-to-end through the real PDF
+pipeline), and it keeps this module's zero-dependency, pure-stdlib design.
 """
 
 from __future__ import annotations
 
+import math
 import re
 from html import escape
 
@@ -34,57 +40,114 @@ _SEVERITY_ORDER = (
     Severity.INFORMATIONAL,
 )
 
-# Minimal, self-contained stylesheet. System font stack only (no web fonts).
+# Self-contained stylesheet. System font stack only (no web fonts) — this
+# module stays pure-stdlib, and WeasyPrint's system-font resolution is more
+# predictable than shipping/embedding a face. Palette: navy (#0b3d63) as the
+# single brand accent throughout headings/rules/gauge track; severity colors
+# are the only other saturated colors on the page, reserved exclusively for
+# severity so they keep their meaning; everything else is ink/slate greys.
 _STYLESHEET = """
 @page {
-    size: A4; margin: 2cm;
-    @bottom-center { content: "Page " counter(page) " of " counter(pages); font-size: 9px; color: #777; }
+    size: A4; margin: 2cm 2cm 2.4cm;
+    @bottom-center { content: "Page " counter(page) " of " counter(pages);
+        font-size: 8.5px; letter-spacing: 0.03em; color: #94a3b8; }
 }
 @page :first {
-    @bottom-center { content: none; }
+    margin: 0; @bottom-center { content: none; }
 }
 * { box-sizing: border-box; }
-.cover-page { break-after: page; display: flex; flex-direction: column;
-     justify-content: center; height: 22cm; }
-.cover-page h1 { font-size: 32px; color: #0b3d63; margin: 0 0 8px; }
-.cover-page .subtitle { font-size: 14px; margin-bottom: 32px; }
-.cover-page table { width: auto; }
-.cover-page th { width: 160px; }
-.confidential-note { color: #777; font-size: 10px; margin-top: 24px; }
+
+/* ---- Cover page ------------------------------------------------------- */
+.cover-page { break-after: page; height: 29.7cm; position: relative; }
+.cover-accent { height: 6px; background: linear-gradient(to right, #1a6fb5, #0b3d63); }
+.cover-band { background: #0b3d63; color: #fff; padding: 3.4cm 2cm 2cm; position: relative; }
+.cover-shield { position: absolute; top: 1.6cm; right: 1.6cm; opacity: 0.14; }
+.cover-wordmark { display: flex; align-items: center; gap: 12px; }
+.cover-wordmark svg { flex-shrink: 0; }
+.cover-band h1 { font-size: 34px; margin: 0; letter-spacing: -0.01em; color: #fff; }
+.cover-band .cover-subtitle { font-size: 13px; margin: 6px 0 0; color: #b9cbdd;
+     text-transform: uppercase; letter-spacing: 0.12em; font-weight: 600; }
+.cover-body { padding: 1.6cm 2cm 0; }
+.cover-target-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em;
+     color: #64748b; font-weight: 700; margin: 0 0 6px; }
+.cover-target { font-size: 22px; font-weight: 700; color: #0b3d63; margin: 0 0 28px;
+     line-height: 1.3; }
+.cover-grid { display: flex; flex-wrap: wrap; gap: 18px 28px; }
+.cover-grid > div { flex: 0 0 46%; }
+.cover-grid > div.full { flex: 0 0 100%; }
+.cover-field-label { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.08em;
+     color: #94a3b8; font-weight: 700; margin: 0 0 3px; }
+.cover-field-value { font-size: 13px; color: #1e293b; font-weight: 600; margin: 0; }
+.cover-field-value.mono { font-family: "SF Mono", "Consolas", "Roboto Mono", monospace;
+     font-size: 11.5px; font-weight: 500; word-break: break-all; }
+.confidential-note { color: #94a3b8; font-size: 9.5px; margin: 40px 0 0; padding-top: 14px;
+     border-top: 1px solid #e2e8f0; position: absolute; bottom: 2cm; left: 2cm; right: 2cm; }
+
+/* ---- Body typography --------------------------------------------------- */
 body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-       color: #1a1a1a; font-size: 12px; line-height: 1.5; margin: 0; }
-h1 { font-size: 24px; margin: 0 0 4px; }
-h2 { font-size: 16px; border-bottom: 2px solid #0b3d63; padding-bottom: 4px;
-     margin: 24px 0 12px; color: #0b3d63; }
-h3 { font-size: 13px; margin: 12px 0 4px; }
-.report-header { border-bottom: 3px solid #0b3d63; padding-bottom: 12px; margin-bottom: 8px; }
+       color: #1e293b; font-size: 12px; line-height: 1.55; margin: 0; }
+h1 { font-size: 24px; margin: 0 0 4px; letter-spacing: -0.01em; }
+h2 { font-size: 15px; border-bottom: 2px solid #0b3d63; padding-bottom: 6px;
+     margin: 30px 0 14px; color: #0b3d63; letter-spacing: -0.005em; }
+section:first-of-type h2 { margin-top: 4px; }
+h3 { font-size: 13px; margin: 12px 0 4px; color: #1e293b; }
+h4 { font-size: 10.5px; }
+p { margin: 0 0 8px; }
+.report-header { border-bottom: 3px solid #0b3d63; padding-bottom: 12px; margin-bottom: 4px; }
 .brand { display: flex; align-items: center; gap: 12px; }
-.logo-placeholder { width: 56px; height: 56px; border: 2px dashed #0b3d63;
+.logo-placeholder { width: 40px; height: 40px; border-radius: 8px; background: #0b3d63;
      display: flex; align-items: center; justify-content: center; font-weight: 700;
-     color: #0b3d63; font-size: 11px; text-align: center; }
-.subtitle { color: #555; }
-table { width: 100%; border-collapse: collapse; margin: 8px 0; }
-th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
-th { background: #f2f5f8; }
-.badge { display: inline-block; padding: 2px 8px; border-radius: 3px; color: #fff;
-     font-weight: 700; font-size: 11px; }
+     color: #fff; font-size: 10px; text-align: center; }
+.report-header h1 { font-size: 18px; color: #0b3d63; }
+.subtitle { color: #64748b; }
+.report-header .subtitle { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em;
+     font-weight: 600; }
+
+/* ---- Tables ------------------------------------------------------------ */
+table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; font-size: 11.5px; }
+th, td { border-bottom: 1px solid #e2e8f0; padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: #f1f5f9; color: #475569; font-size: 10px; text-transform: uppercase;
+     letter-spacing: 0.05em; font-weight: 700; border-bottom: 2px solid #cbd5e1; }
+tbody tr:nth-child(even) { background: #f8fafc; }
+tr { page-break-inside: avoid; }
+#assessment-information, #risk-summary, #affected-assets { page-break-inside: avoid; }
+
+/* ---- Severity badges ---------------------------------------------------- */
+.badge { display: inline-block; padding: 3px 10px; border-radius: 10px; color: #fff;
+     font-weight: 700; font-size: 10px; letter-spacing: 0.02em; }
 .sev-critical { background: #b00020; }
 .sev-high { background: #e65100; }
 .sev-medium { background: #f9a825; color: #1a1a1a; }
 .sev-low { background: #2e7d32; }
 .sev-informational { background: #546e7a; }
-.callout { padding: 10px 12px; border-left: 4px solid #0b3d63; background: #f2f5f8; }
+
+/* ---- Callouts, cards ----------------------------------------------------- */
+.callout { padding: 12px 14px; border-radius: 6px; border-left: 4px solid #0b3d63; background: #f1f5f9; }
 .action-required { border-left-color: #b00020; background: #fdecea; }
-.finding-card { border: 1px solid #ddd; border-radius: 4px; padding: 10px 12px; margin: 12px 0;
-     page-break-inside: avoid; }
-.finding-card h3 { margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
-.finding-card h4 { margin: 10px 0 4px; font-size: 11px; color: #555; text-transform: uppercase; }
+.finding-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; margin: 14px 0;
+     page-break-inside: avoid; background: #fff; }
+.finding-card h3 { margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+.finding-card h4 { margin: 10px 0 4px; font-size: 10.5px; color: #64748b; text-transform: uppercase;
+     letter-spacing: 0.05em; }
+.finding-card table { margin: 6px 0 10px; }
 .evidence-item { margin: 4px 0 8px; }
-.evidence-item pre { background: #f7f7f7; border: 1px solid #eee; padding: 6px 8px;
-     white-space: pre-wrap; word-break: break-word; font-size: 10.5px; margin: 2px 0 0; }
-footer { margin-top: 32px; border-top: 1px solid #ddd; padding-top: 8px;
-     color: #777; font-size: 10px; }
+.evidence-item pre { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px;
+     padding: 8px 10px; white-space: pre-wrap; word-break: break-word; font-size: 10.5px; margin: 2px 0 0; }
+
+/* ---- Risk score gauge ---------------------------------------------------- */
+.score-panel { display: flex; align-items: center; gap: 20px; margin: 10px 0 14px;
+     padding: 14px 16px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fbfcfe; }
+.score-panel .score-copy { flex: 1; }
+.score-panel .score-copy p { margin: 0; }
+.score-band-label { display: inline-block; font-size: 10px; font-weight: 700;
+     text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 9px; border-radius: 10px;
+     margin-bottom: 6px; }
+
+footer { margin-top: 32px; border-top: 1px solid #e2e8f0; padding-top: 10px;
+     color: #94a3b8; font-size: 9.5px; }
 """
+
+_ACCENT = "#1a6fb5"
 
 
 def _sev_class(severity: Severity) -> str:
@@ -105,21 +168,127 @@ def _score_narrative(score: float) -> str:
     return "This indicates serious security exposure that warrants prompt attention."
 
 
+def _score_band(score: float) -> tuple[str, str]:
+    """Map a 0-100 score to (color, band label), aligned with _score_narrative's
+    thresholds and reusing the same severity palette used everywhere else in
+    the report so the color already carries meaning for the reader."""
+    if score >= 90:
+        return "#2e7d32", "Strong"
+    if score >= 70:
+        return "#f9a825", "Sound"
+    if score >= 40:
+        return "#e65100", "Needs Attention"
+    return "#b00020", "Critical Exposure"
+
+
+# Solid (not alpha-blended) light tints for the score-band pill background —
+# WeasyPrint's 8-digit #RRGGBBAA hex support is inconsistent across versions,
+# so this uses plain opaque hex rather than relying on it.
+_SCORE_BAND_TINTS: dict[str, str] = {
+    "#2e7d32": "#e6f2e8",
+    "#f9a825": "#fdf3dc",
+    "#e65100": "#fde6d8",
+    "#b00020": "#fbdde1",
+}
+
+
+def _risk_gauge(score: float) -> str:
+    """A hand-rolled inline SVG semicircular gauge for the 0-100 risk score.
+
+    Two concentric arcs sharing one center: a light grey track spanning the
+    full 0-100 range, and a colored arc spanning 0-score on top of it. Color
+    comes from _score_band so the gauge and the surrounding text narrative
+    always agree.
+    """
+    score = max(0.0, min(100.0, score))
+    color, _ = _score_band(score)
+    cx, cy, r, sw = 88, 84, 68, 15
+
+    def point(angle_deg: float) -> tuple[float, float]:
+        angle_rad = math.radians(angle_deg)
+        return cx + r * math.cos(angle_rad), cy - r * math.sin(angle_rad)
+
+    start_x, start_y = point(180.0)
+    end_x, end_y = point(0.0)
+    track = (
+        f'<path d="M {start_x:.1f} {start_y:.1f} A {r} {r} 0 0 1 {end_x:.1f} {end_y:.1f}" '
+        f'fill="none" stroke="#e2e8f0" stroke-width="{sw}" stroke-linecap="round" />'
+    )
+
+    fill = ""
+    if score > 0:
+        sweep_angle = 180.0 - (score / 100.0) * 180.0
+        cur_x, cur_y = point(sweep_angle)
+        fill = (
+            f'<path d="M {start_x:.1f} {start_y:.1f} A {r} {r} 0 0 1 {cur_x:.1f} {cur_y:.1f}" '
+            f'fill="none" stroke="{color}" stroke-width="{sw}" stroke-linecap="round" />'
+        )
+
+    svg_w, svg_h = cx * 2, cy + 14
+    return (
+        f'<svg viewBox="0 0 {svg_w} {svg_h}" width="{svg_w}" height="{svg_h}" '
+        'xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Risk score gauge">'
+        f"{track}{fill}"
+        f'<text x="{cx}" y="{cy - 6}" font-size="30" font-weight="700" text-anchor="middle" '
+        f'font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" '
+        f'fill="{color}">{score:.0f}</text>'
+        f'<text x="{cx}" y="{cy + 15}" font-size="10" text-anchor="middle" fill="#94a3b8" '
+        'font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">'
+        "out of 100</text>"
+        "</svg>"
+    )
+
+
+def _shield_icon(*, size: int = 96, color: str = "#ffffff") -> str:
+    """A simple hand-drawn shield outline — no icon library, just a path."""
+    return (
+        f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" '
+        f'xmlns="http://www.w3.org/2000/svg">'
+        f'<path d="M12 2 L21 5.5 V11 C21 16.5 17.2 20.7 12 22 C6.8 20.7 3 16.5 3 11 '
+        f'V5.5 Z" stroke="{color}" stroke-width="1.4" stroke-linejoin="round" />'
+        f'<path d="M8.3 12.2 L10.7 14.6 L15.7 9.4" stroke="{color}" stroke-width="1.4" '
+        f'stroke-linecap="round" stroke-linejoin="round" />'
+        "</svg>"
+    )
+
+
+def _cover_field(label: str, value: str, *, mono: bool = False, full: bool = False) -> str:
+    css = "cover-field-value mono" if mono else "cover-field-value"
+    wrapper_css = "full" if full else ""
+    return (
+        f'<div class="{wrapper_css}">'
+        f'<p class="cover-field-label">{escape(label)}</p>'
+        f'<p class="{css}">{escape(value)}</p>'
+        "</div>"
+    )
+
+
 def _cover_page(report: Report, *, brand_name: str) -> str:
     scan_date = report.generated_at.strftime("%Y-%m-%d")
-    rows = {
-        "Target": report.target,
-        "Assessment Date": scan_date,
-        "Scope": report.scope or "Not recorded",
-        "Authorized By": report.authorized_by or "Not recorded",
-        "Assessment ID": report.assessment_id,
-    }
-    body = "".join(f"<tr><th>{escape(k)}</th><td>{escape(str(v))}</td></tr>" for k, v in rows.items())
+    highest = report.verdict.highest_severity
+    band_color = _CHART_COLORS[highest] if highest is not None else "#546e7a"
+    fields = (
+        _cover_field("Assessment Date", scan_date)
+        + _cover_field("Authorized By", report.authorized_by or "Not recorded")
+        + _cover_field("Scope", report.scope or "Not recorded", full=True)
+        + _cover_field("Assessment ID", report.assessment_id, mono=True, full=True)
+    )
     return (
         '<section class="cover-page">'
+        f'<div class="cover-accent" style="background: linear-gradient(to right, {band_color}, #0b3d63);"></div>'
+        '<div class="cover-band">'
+        f'<div class="cover-shield">{_shield_icon(size=140)}</div>'
+        '<div class="cover-wordmark">'
+        f"{_shield_icon(size=40)}"
         f"<h1>{escape(brand_name)}</h1>"
-        '<div class="subtitle">Security Assessment Report</div>'
-        f"<table>{body}</table>"
+        "</div>"
+        '<p class="cover-subtitle">Security Assessment Report</p>'
+        "</div>"
+        '<div class="cover-body">'
+        '<p class="cover-target-label">Target</p>'
+        f'<p class="cover-target">{escape(report.target)}</p>'
+        f'<div class="cover-grid">{fields}</div>'
+        "</div>"
         '<p class="confidential-note">This report is confidential and prepared solely for the '
         "recipient named above. Point-in-time snapshot — see Limitations for scope and caveats.</p>"
         "</section>"
@@ -177,11 +346,26 @@ def _executive_summary(report: Report) -> str:
     verdict = report.verdict
     highest = verdict.highest_severity.label if verdict.highest_severity else "None"
     score = report.executive_score
+    band_color, band_label = _score_band(score)
     action = (
         '<p class="callout action-required"><strong>Action required.</strong> '
         "Remediation is recommended for the issues identified below.</p>"
         if verdict.action_required
         else '<p class="callout">No immediate action is required.</p>'
+    )
+    score_panel = (
+        '<div class="score-panel">'
+        f"{_risk_gauge(score)}"
+        '<div class="score-copy">'
+        f'<span class="score-band-label" style="background: {_SCORE_BAND_TINTS[band_color]}; color: {band_color};">'
+        f"{escape(band_label)}</span>"
+        f"<p>Overall Risk Score: <strong>{score:.1f} / 100</strong>. "
+        f"{escape(_score_narrative(score))} "
+        "This score deducts fixed points per finding by severity "
+        "(Critical 25, High 10, Medium 5, Low 2) from a 100-point baseline — "
+        "a simple, explainable measure, not a formal risk-modeling output.</p>"
+        "</div>"
+        "</div>"
     )
     return (
         '<section id="executive-summary">'
@@ -190,11 +374,7 @@ def _executive_summary(report: Report) -> str:
         f"{escape(report.generated_at.strftime('%Y-%m-%d'))}. {escape(verdict.headline)} "
         f"The assessment recorded <strong>{report.total_findings}</strong> finding(s) in total, "
         f"with a highest observed severity of <strong>{escape(highest)}</strong>.</p>"
-        f'<p>Overall Risk Score: <strong>{score:.1f} / 100</strong>. '
-        f"{escape(_score_narrative(score))} "
-        "This score deducts fixed points per finding by severity "
-        "(Critical 25, High 10, Medium 5, Low 2) from a 100-point baseline — "
-        "a simple, explainable measure, not a formal risk-modeling output.</p>"
+        f"{score_panel}"
         f"{action}"
         "</section>"
     )
@@ -265,30 +445,42 @@ _CHART_COLORS: dict[Severity, str] = {
 def _severity_distribution_chart(report: Report) -> str:
     """A hand-rolled inline SVG horizontal bar chart — no charting library,
     consistent with this module's pure-stdlib design (WeasyPrint renders
-    inline SVG natively)."""
+    inline SVG natively). Each bar sits on a full-width light track so the
+    proportion reads at a glance even for the smallest count, not just
+    relative to the longest bar."""
     counts = dict(report.severity_counts)
     present = [(sev, counts[sev]) for sev in _SEVERITY_ORDER if counts.get(sev, 0) > 0]
     if not present:
         return "<p>No findings to chart.</p>"
 
+    total = sum(count for _, count in present)
     max_count = max(count for _, count in present)
-    bar_height, gap, label_width, chart_width = 18, 8, 110, 260
+    bar_height, gap, label_width, chart_width = 20, 12, 112, 280
     row_height = bar_height + gap
-    svg_height = len(present) * row_height
+    svg_height = len(present) * row_height - gap + 6
     rows = []
     for i, (sev, count) in enumerate(present):
         y = i * row_height
-        width = max(2, round((count / max_count) * chart_width))
+        width = max(3, round((count / max_count) * chart_width))
         color = _CHART_COLORS[sev]
+        pct = round((count / total) * 100)
         rows.append(
-            f'<text x="0" y="{y + bar_height - 5}" font-size="11">{escape(sev.label)}</text>'
-            f'<rect x="{label_width}" y="{y}" width="{width}" height="{bar_height}" fill="{color}" />'
-            f'<text x="{label_width + width + 6}" y="{y + bar_height - 5}" font-size="11">{count}</text>'
+            f'<text x="0" y="{y + bar_height - 6}" font-size="11" font-weight="600" '
+            f'fill="#1e293b">{escape(sev.label)}</text>'
+            f'<rect x="{label_width}" y="{y}" width="{chart_width}" height="{bar_height}" '
+            f'rx="4" fill="#f1f5f9" />'
+            f'<rect x="{label_width}" y="{y}" width="{width}" height="{bar_height}" rx="4" fill="{color}" />'
+            f'<text x="{label_width + chart_width + 10}" y="{y + bar_height - 6}" font-size="11" '
+            f'font-weight="700" fill="#1e293b">{count}</text>'
+            f'<text x="{label_width + chart_width + 34}" y="{y + bar_height - 6}" font-size="9.5" '
+            f'fill="#94a3b8">({pct}%)</text>'
         )
-    svg_width = label_width + chart_width + 40
+    svg_width = label_width + chart_width + 70
     return (
+        f'<p class="subtitle" style="margin-bottom: 10px;">{total} finding(s) total.</p>'
         f'<svg viewBox="0 0 {svg_width} {svg_height}" width="{svg_width}" height="{svg_height}" '
-        'xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Severity distribution chart">'
+        'xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Severity distribution chart" '
+        'font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">'
         f"{''.join(rows)}"
         "</svg>"
     )
