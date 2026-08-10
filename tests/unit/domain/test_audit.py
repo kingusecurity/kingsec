@@ -80,6 +80,8 @@ class TestAuditAction:
             "integration_connected",
             "integration_disconnected",
             "integration_test_failed",
+            "ai_provider_configured",
+            "ai_provider_test_failed",
             "webhook_sent",
             "email_sent",
             "ticket_created",

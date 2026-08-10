@@ -119,6 +119,10 @@ class AuditAction(StrEnum):
     INTEGRATION_CONNECTED = "integration_connected"
     INTEGRATION_DISCONNECTED = "integration_disconnected"
     INTEGRATION_TEST_FAILED = "integration_test_failed"
+
+    # AI provider settings
+    AI_PROVIDER_CONFIGURED = "ai_provider_configured"
+    AI_PROVIDER_TEST_FAILED = "ai_provider_test_failed"
     WEBHOOK_SENT = "webhook_sent"
     EMAIL_SENT = "email_sent"
     TICKET_CREATED = "ticket_created"
