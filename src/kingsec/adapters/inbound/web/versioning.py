@@ -17,6 +17,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from .agent_routes import router as v1_agent_router
+from .ai_provider_routes import router as v1_ai_provider_router
 from .ai_routes import router as v1_ai_router
 from .asset_routes import router as v1_asset_router
 from .attack_surface_routes import router as v1_attack_surface_router
@@ -79,6 +80,7 @@ def register_versioned_routes(app: FastAPI) -> None:
     app.include_router(v1_scanner_discovery_router)
     app.include_router(v1_backup_router)
     app.include_router(v1_ai_router)
+    app.include_router(v1_ai_provider_router)
     app.include_router(v1_asset_router)
     app.include_router(v1_attack_surface_router)
     app.include_router(v1_health_router)
