@@ -5,6 +5,7 @@ from typing import Any
 from kingsec.application.ai.ports import AIQueryPort
 from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.infrastructure.ai.adapter import AIProviderAdapter
+from kingsec.infrastructure.ai.errors import AIAuthenticationError
 from kingsec.infrastructure.logging import get_logger
 
 _logger = get_logger("kingsec.infrastructure.ai")
@@ -18,36 +19,38 @@ class ExtendedAIAdapter(AIQueryPort):
         self._audit = audit
 
     def generate(self, system_prompt: str, user_prompt: str, **kwargs: Any) -> str:
-        api_key = self._adapter._require_api_key()
+        # Provider/key/model/base_url are resolved fresh per call (DB-saved
+        # settings override env-var AISettings) - the same resolver
+        # AIProviderAdapter._enrich() uses, so a Settings-page save takes
+        # effect here too without a restart.
+        resolved = self._adapter._config_resolver.resolve()
+        if resolved.api_key is None:
+            raise AIAuthenticationError("no AI API key configured")
         settings = self._adapter._settings
-        provider = self._adapter._provider
-        client = self._adapter._client
-        base_url = settings.base_url or provider.default_base_url
-        model = kwargs.get("model", settings.model)
+        base_url = resolved.base_url or resolved.provider.default_base_url
+        model = kwargs.get("model", resolved.model)
         temperature = kwargs.get("temperature", settings.temperature)
         max_tokens = kwargs.get("max_tokens", settings.max_tokens + 1024)
 
-        url = provider.build_endpoint(base_url, model)
-        headers = provider.build_headers(api_key)
-        payload = provider.build_payload(system_prompt, user_prompt, model, temperature, max_tokens)
+        url = resolved.provider.build_endpoint(base_url, model)
+        headers = resolved.provider.build_headers(resolved.api_key)
+        payload = resolved.provider.build_payload(system_prompt, user_prompt, model, temperature, max_tokens)
 
-        _logger.info("ai generate requested", provider=settings.provider, model=model)
-        response = client.post_json(url, headers, payload)
-        text = provider.extract_text(response)
-        self._audit_request(settings.provider, model, "generate")
+        _logger.info("ai generate requested", provider=resolved.provider.name, model=model)
+        response = self._adapter._client.post_json(url, headers, payload)
+        text = resolved.provider.extract_text(response)
+        self._audit_request(resolved.provider.name, model, "generate")
         return text
 
     def chat(self, messages: list[dict[str, str]], **kwargs: Any) -> str:
-        api_key = self._adapter._require_api_key()
+        resolved = self._adapter._config_resolver.resolve()
+        if resolved.api_key is None:
+            raise AIAuthenticationError("no AI API key configured")
         settings = self._adapter._settings
-        provider = self._adapter._provider
-        client = self._adapter._client
-        base_url = settings.base_url or provider.default_base_url
-        model = kwargs.get("model", settings.model)
+        base_url = resolved.base_url or resolved.provider.default_base_url
+        model = kwargs.get("model", resolved.model)
         temperature = kwargs.get("temperature", settings.temperature)
         max_tokens = kwargs.get("max_tokens", settings.max_tokens + 1024)
-
-        url = provider.build_endpoint(base_url, model)
 
         system = ""
         chat_messages = []
@@ -57,16 +60,18 @@ class ExtendedAIAdapter(AIQueryPort):
             else:
                 chat_messages.append(msg)
 
-        headers = provider.build_headers(api_key)
-        payload = provider.build_payload(system, chat_messages[-1]["content"] if chat_messages else "", model, temperature, max_tokens)
+        url = resolved.provider.build_endpoint(base_url, model)
+        headers = resolved.provider.build_headers(resolved.api_key)
+        payload = resolved.provider.build_payload(system, chat_messages[-1]["content"] if chat_messages else "", model, temperature, max_tokens)
 
-        _logger.info("ai chat requested", provider=settings.provider, model=model)
-        response = client.post_json(url, headers, payload)
-        text = provider.extract_text(response)
-        self._audit_request(settings.provider, model, "chat")
+        _logger.info("ai chat requested", provider=resolved.provider.name, model=model)
+        response = self._adapter._client.post_json(url, headers, payload)
+        text = resolved.provider.extract_text(response)
+        self._audit_request(resolved.provider.name, model, "chat")
         return text
 
     def health(self) -> dict[str, Any]:
+        resolved = self._adapter._config_resolver.resolve()
         try:
             result = self.generate("Respond with only the word OK.", "Status check", max_tokens=10)
             available = bool(result and result.strip())
@@ -74,13 +79,13 @@ class ExtendedAIAdapter(AIQueryPort):
             _logger.warning("ai health check failed", error=str(exc))
             return {
                 "available": False,
-                "provider": self._adapter._settings.provider,
+                "provider": resolved.provider.name,
                 "error": str(exc),
             }
         return {
             "available": available,
-            "provider": self._adapter._settings.provider,
-            "model": self._adapter._settings.model,
+            "provider": resolved.provider.name,
+            "model": resolved.model,
         }
 
     def _audit_request(self, provider: str, model: str, action: str) -> None:
