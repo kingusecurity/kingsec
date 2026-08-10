@@ -9,14 +9,18 @@ import pytest
 from pydantic import SecretStr
 
 from kingsec.application import AIPort
+from kingsec.application.ports.outbound.ai_provider_config_repository import (
+    AIProviderConfigRepository,
+)
+from kingsec.application.ports.outbound.encryption_service import EncryptionServicePort
 from kingsec.bootstrap import Container
 from kingsec.domain import Evidence, Finding, Severity
 from kingsec.infrastructure.ai import (
     AIClient,
     AIProviderAdapter,
     register_ai,
-    resolve_provider,
 )
+from kingsec.infrastructure.ai.config_resolver import AIConfigResolver
 from kingsec.infrastructure.ai.errors import AIAuthenticationError
 from kingsec.infrastructure.config import Settings
 from kingsec.infrastructure.config.models import AISettings
@@ -27,6 +31,35 @@ from tests.unit.infrastructure.ai.conftest import (
 )
 
 
+class _NoDbConfigRepository(AIProviderConfigRepository):
+    """Always reports "not configured in the DB" - these tests exercise
+    the env-var (AISettings) path only, same as before this adapter took
+    a resolver instead of fixed settings."""
+
+    def get(self):
+        return None
+
+    def save(self, record):
+        raise NotImplementedError
+
+
+class _UnusedEncryptionService(EncryptionServicePort):
+    """Never actually called: _NoDbConfigRepository never returns a
+    record, so the resolver never reaches decrypt()."""
+
+    def encrypt(self, plaintext):
+        raise NotImplementedError
+
+    def decrypt(self, ciphertext):
+        raise NotImplementedError
+
+    def rotate_key(self):
+        raise NotImplementedError
+
+    def can_decrypt(self, ciphertext):
+        raise NotImplementedError
+
+
 def _finding() -> Finding:
     f = Finding.create("SQLi", "injectable param", Severity.CRITICAL)
     f.add_evidence(Evidence.create("m", "matched http://10.0.0.5"))
@@ -35,7 +68,8 @@ def _finding() -> Finding:
 
 def _adapter(transport, settings: AISettings) -> AIProviderAdapter:
     client = AIClient(timeout=5, retry_count=0, retry_delay=0, transport=transport)
-    return AIProviderAdapter(settings=settings, provider=resolve_provider(settings.provider), client=client)
+    resolver = AIConfigResolver(settings, _NoDbConfigRepository(), _UnusedEncryptionService())
+    return AIProviderAdapter(settings=settings, config_resolver=resolver, client=client)
 
 
 class TestRecommend:
@@ -132,9 +166,17 @@ class TestProviderSelectionFromConfig:
         assert captured["key_header"] == "k"
 
 
+def _register_ai_test_deps(container: Container) -> None:
+    """register_ai() now resolves these two ports to build its config
+    resolver - a bare test Container needs them registered first."""
+    container.register_instance(AIProviderConfigRepository, _NoDbConfigRepository())
+    container.register_instance(EncryptionServicePort, _UnusedEncryptionService())
+
+
 class TestDependencyInjection:
     def test_register_ai_binds_port(self) -> None:
         container = Container()
+        _register_ai_test_deps(container)
         transport = transport_from(lambda r: openai_response(VALID_ENRICHMENT))
         settings = Settings(ai=AISettings(provider="openai", api_key=SecretStr("k"), base_url="http://t"))
 
@@ -147,6 +189,7 @@ class TestDependencyInjection:
 
     def test_register_ai_adds_shutdown_hook(self) -> None:
         container = Container()
+        _register_ai_test_deps(container)
         register_ai(
             container,
             Settings(ai=AISettings(provider="openai", api_key=SecretStr("k"))),

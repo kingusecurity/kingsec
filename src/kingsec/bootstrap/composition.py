@@ -276,6 +276,11 @@ def _register_adapters(
     # Secrets management infrastructure.
     register_secrets(container, settings, str(settings.storage.data_dir / "secrets.json"))
 
+    # AI provider settings store (DB-backed, overrides env-var AISettings
+    # when configured). Registered before register_ai() below, which
+    # resolves it to build the hot-reloadable config resolver.
+    _register_ai_provider_config_repository(container, session_factory)
+
     # Session management infrastructure.
     register_sessions(container, session_factory)
 
@@ -424,6 +429,18 @@ def _register_organization_repository(container: Container, session_factory: Any
         return SQLAlchemyOrganizationRepository(session_factory)
 
     container.register_factory(OrganizationRepository, _factory)
+
+
+def _register_ai_provider_config_repository(container: Container, session_factory: Any) -> None:
+    from kingsec.application.ports.outbound.ai_provider_config_repository import AIProviderConfigRepository
+    from kingsec.infrastructure.persistence.repositories.ai_provider_config import (
+        SQLAlchemyAIProviderConfigRepository,
+    )
+
+    def _factory(_c: Any) -> AIProviderConfigRepository:
+        return SQLAlchemyAIProviderConfigRepository(session_factory)
+
+    container.register_factory(AIProviderConfigRepository, _factory)
 
 
 def _register_license_infrastructure(container: Container, session_factory: Any) -> None:

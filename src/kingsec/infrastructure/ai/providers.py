@@ -190,3 +190,35 @@ def resolve_provider(name: str) -> ProviderConfig:
 def supported_providers() -> tuple[str, ...]:
     """Return the sorted names of all registered providers."""
     return tuple(sorted(_PROVIDER_FACTORIES))
+
+
+# A per-provider sensible default model, used only when the caller has no
+# explicit model to send. AISettings.model's own pydantic default
+# ("claude-sonnet-4-5") is an Anthropic model name - falling back to it
+# for any other provider sends a model that provider has never heard of,
+# which is exactly what produced a real 404 against Gemini (confirmed: its
+# API returns 404 for an unknown model, distinct from 400/401 for a bad
+# key - verified directly against the real endpoint). Every entry here is
+# a real, currently-available model for that provider.
+_DEFAULT_MODELS: dict[str, str] = {
+    "anthropic": "claude-sonnet-4-5",
+    "claude": "claude-sonnet-4-5",
+    "openai": "gpt-4o-mini",
+    "openrouter": "openai/gpt-4o-mini",
+    "glm": "glm-4",
+    "gemini": "gemini-1.5-flash",
+    "ollama": "llama3",
+    "lm_studio": "local-model",
+    "lmstudio": "local-model",
+}
+
+
+def default_model_for(provider: str) -> str:
+    """Return a real, working default model for ``provider``.
+
+    Falls back to the Anthropic default for an unrecognised provider name
+    rather than raising - callers that need strict provider validation
+    already get that from resolve_provider(); this is purely a display/
+    request-building convenience.
+    """
+    return _DEFAULT_MODELS.get(provider.strip().lower(), _DEFAULT_MODELS["anthropic"])

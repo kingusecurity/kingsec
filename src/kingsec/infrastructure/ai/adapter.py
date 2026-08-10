@@ -16,10 +16,10 @@ from kingsec.domain import Finding, Recommendation
 from kingsec.infrastructure.logging import get_logger
 
 from .client import AIClient
+from .config_resolver import AIConfigResolver
 from .errors import AIAuthenticationError
 from .parser import Enrichment, ResponseParser
 from .prompt import PromptBuilder
-from .providers import ProviderConfig
 
 if TYPE_CHECKING:  # typing only; no runtime import of config internals
     from kingsec.infrastructure.config.models import AISettings
@@ -28,13 +28,21 @@ _logger = get_logger("kingsec.infrastructure.ai")
 
 
 class AIProviderAdapter(AIPort):
-    """Enriches a finding with AI-generated remediation guidance."""
+    """Enriches a finding with AI-generated remediation guidance.
+
+    Provider/API key/model/base_url are resolved fresh on every call via
+    ``config_resolver`` (DB-saved settings override env-var ``AISettings``
+    when present) - a save from the Settings UI takes effect on the very
+    next call, no restart needed. Only the tuning knobs that stay env-only
+    by design (temperature, max_tokens) are read from the fixed ``settings``
+    captured at composition time; they were never meant to be user-editable.
+    """
 
     def __init__(
         self,
         *,
         settings: AISettings,
-        provider: ProviderConfig,
+        config_resolver: AIConfigResolver,
         client: AIClient,
         prompt_builder: PromptBuilder | None = None,
         parser: ResponseParser | None = None,
@@ -42,14 +50,17 @@ class AIProviderAdapter(AIPort):
         """Initialise the adapter.
 
         Args:
-            settings: The AI configuration (provider, model, key, tuning).
-            provider: The selected provider strategy.
+            settings: The env-var AI configuration - only its tuning knobs
+                (temperature, max_tokens) are used directly; provider/key/
+                model/base_url come from config_resolver instead.
+            config_resolver: Resolves the effective provider/key/model/
+                base_url fresh on every call.
             client: The HTTP client used to call the provider.
             prompt_builder: Builds sanitised prompts (defaulted).
             parser: Parses provider responses (defaulted).
         """
         self._settings = settings
-        self._provider = provider
+        self._config_resolver = config_resolver
         self._client = client
         self._prompt_builder = prompt_builder or PromptBuilder()
         self._parser = parser or ResponseParser()
@@ -92,14 +103,16 @@ class AIProviderAdapter(AIPort):
     def _enrich(self, finding: Finding) -> Enrichment:
         """Call the provider and parse its response for ``finding`` (shared by
         ``recommend()`` and ``explain_business_risk()``)."""
-        api_key = self._require_api_key()
-        base_url = self._settings.base_url or self._provider.default_base_url
-        model = self._settings.model
+        resolved = self._config_resolver.resolve()
+        if resolved.api_key is None:
+            raise AIAuthenticationError("no AI API key configured")
+        base_url = resolved.base_url or resolved.provider.default_base_url
+        model = resolved.model
 
         system_prompt, user_prompt = self._prompt_builder.build(finding)
-        url = self._provider.build_endpoint(base_url, model)
-        headers = self._provider.build_headers(api_key)
-        payload = self._provider.build_payload(
+        url = resolved.provider.build_endpoint(base_url, model)
+        headers = resolved.provider.build_headers(resolved.api_key)
+        payload = resolved.provider.build_payload(
             system_prompt,
             user_prompt,
             model,
@@ -108,21 +121,12 @@ class AIProviderAdapter(AIPort):
         )
 
         # Metadata only — never the key, never the prompt body.
-        _logger.info("ai enrichment requested", provider=self._settings.provider, model=model)
+        _logger.info("ai enrichment requested", provider=resolved.provider.name, model=model, source=resolved.source)
         response = self._client.post_json(url, headers, payload)
-        text = self._provider.extract_text(response)
+        text = resolved.provider.extract_text(response)
         enrichment = self._parser.parse(text)
         _logger.info("ai enrichment received", confidence=enrichment.confidence)
         return enrichment
-
-    def _require_api_key(self) -> str:
-        """Return the secret API key value, or raise if none is configured."""
-        api_key = self._settings.api_key
-        if api_key is None:
-            raise AIAuthenticationError("no AI API key configured")
-        # get_secret_value() is called only here, only to build headers; the
-        # value is never logged or placed in any error context.
-        return api_key.get_secret_value()
 
     def _to_recommendation(self, finding: Finding, enrichment: Enrichment) -> Recommendation:
         """Map an enrichment onto a domain Recommendation (severity preserved)."""

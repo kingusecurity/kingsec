@@ -31,6 +31,7 @@ from .parser import Enrichment, ResponseParser
 from .prompt import SYSTEM_PROMPT, PromptBuilder, sanitize
 from .providers import (
     ProviderConfig,
+    default_model_for,
     resolve_provider,
     supported_providers,
 )
@@ -50,6 +51,7 @@ __all__ = [
     "PromptBuilder",
     "ProviderConfig",
     "ResponseParser",
+    "default_model_for",
     "register_ai",
     "resolve_provider",
     "sanitize",

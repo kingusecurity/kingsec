@@ -13,12 +13,14 @@ from typing import TYPE_CHECKING
 import httpx
 
 from kingsec.application import AIPort
+from kingsec.application.ports.outbound.ai_provider_config_repository import AIProviderConfigRepository
+from kingsec.application.ports.outbound.encryption_service import EncryptionServicePort
 from kingsec.infrastructure._container import ContainerProtocol
 from kingsec.infrastructure.logging import get_logger
 
 from .adapter import AIProviderAdapter
 from .client import AIClient
-from .providers import resolve_provider
+from .config_resolver import AIConfigResolver
 
 if TYPE_CHECKING:  # typing only
     from kingsec.infrastructure.config import Settings
@@ -34,9 +36,18 @@ def register_ai(
 ) -> AIPort:
     """Build and register the AI enrichment adapter as ``AIPort``.
 
+    Provider/key/model/base_url are NOT baked in here at composition time -
+    they're resolved fresh on every call via ``AIConfigResolver`` (DB-saved
+    settings override ``settings.ai`` when present), which is what makes a
+    save from the Settings UI take effect without a restart. Only the
+    always-env-only tuning knobs (temperature, max_tokens, retry, timeout,
+    verify_ssl) are fixed at composition time - they were never meant to be
+    user-editable, and the client that carries them doesn't need to change
+    per call the way provider selection does.
+
     Args:
         container: The bootstrap DI container (duck-typed: needs
-            ``register_instance`` and ``add_shutdown_hook``).
+            ``resolve``, ``register_instance`` and ``add_shutdown_hook``).
         settings: Application settings (uses ``settings.ai``).
         transport: Optional httpx transport override (tests inject a mock).
 
@@ -44,7 +55,6 @@ def register_ai(
         The registered ``AIPort`` implementation.
     """
     ai_settings = settings.ai
-    provider = resolve_provider(ai_settings.provider)  # fails fast on bad provider
     client = AIClient(
         timeout=ai_settings.request_timeout_seconds,
         retry_count=ai_settings.retry_count,
@@ -52,7 +62,10 @@ def register_ai(
         verify_ssl=ai_settings.verify_ssl,
         transport=transport,
     )
-    adapter = AIProviderAdapter(settings=ai_settings, provider=provider, client=client)
+    config_repo = container.resolve(AIProviderConfigRepository)
+    encryption = container.resolve(EncryptionServicePort)
+    config_resolver = AIConfigResolver(ai_settings, config_repo, encryption)
+    adapter = AIProviderAdapter(settings=ai_settings, config_resolver=config_resolver, client=client)
 
     register = container.register_instance
     register(AIPort, adapter)

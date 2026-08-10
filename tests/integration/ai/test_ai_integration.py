@@ -17,12 +17,16 @@ from kingsec.application import (
     StartAssessment,
     StartAssessmentRequest,
 )
+from kingsec.application.ports.outbound.ai_provider_config_repository import (
+    AIProviderConfigRepository,
+)
+from kingsec.application.ports.outbound.encryption_service import EncryptionServicePort
 from kingsec.domain import Evidence, Finding, Severity, Target
 from kingsec.infrastructure.ai import (
     AIClient,
     AIProviderAdapter,
-    resolve_provider,
 )
+from kingsec.infrastructure.ai.config_resolver import AIConfigResolver
 from kingsec.infrastructure.ai.errors import AIError
 from kingsec.infrastructure.config.models import AISettings
 from kingsec.infrastructure.persistence import (
@@ -33,6 +37,31 @@ from kingsec.infrastructure.persistence import (
 )
 
 
+class _NoDbConfigRepository(AIProviderConfigRepository):
+    """These integration tests exercise the env-var (AISettings) path
+    only - no DB-saved config should override it."""
+
+    def get(self):
+        return None
+
+    def save(self, record):
+        raise NotImplementedError
+
+
+class _UnusedEncryptionService(EncryptionServicePort):
+    def encrypt(self, plaintext):
+        raise NotImplementedError
+
+    def decrypt(self, ciphertext):
+        raise NotImplementedError
+
+    def rotate_key(self):
+        raise NotImplementedError
+
+    def can_decrypt(self, ciphertext):
+        raise NotImplementedError
+
+
 def _adapter(base_url: str) -> AIProviderAdapter:
     settings = AISettings(provider="openai", api_key=SecretStr("test-key"), base_url=base_url, retry_count=1)
     client = AIClient(
@@ -41,7 +70,8 @@ def _adapter(base_url: str) -> AIProviderAdapter:
         retry_delay=0,
         verify_ssl=settings.verify_ssl,
     )
-    return AIProviderAdapter(settings=settings, provider=resolve_provider("openai"), client=client)
+    resolver = AIConfigResolver(settings, _NoDbConfigRepository(), _UnusedEncryptionService())
+    return AIProviderAdapter(settings=settings, config_resolver=resolver, client=client)
 
 
 def _finding() -> Finding:

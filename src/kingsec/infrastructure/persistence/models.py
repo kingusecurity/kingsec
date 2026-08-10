@@ -19,7 +19,7 @@ Storage decisions worth noting:
 
 from typing import Any
 
-from sqlalchemy import Boolean, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, Float, ForeignKey, Index, Integer, LargeBinary, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
 
@@ -630,6 +630,28 @@ class LicenseORM(Base):
     features: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     signature: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class AIProviderConfigORM(Base):
+    """Admin-configured AI provider settings, persisted so they survive a
+    restart and can be set from the UI instead of only via env vars.
+
+    Single-row table (fixed ``id="singleton"``) — there is exactly one
+    active AI provider configuration for the whole deployment, same
+    "one settings row" shape as ``LicenseORM``. ``api_key_encrypted`` is
+    Fernet ciphertext (via ``EncryptionServicePort``, keyed by
+    ``SecretsSettings.encryption_key``) — the plaintext key is never
+    persisted, only ever held in memory for the duration of a request.
+    """
+
+    __tablename__ = "ai_provider_config"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    provider: Mapped[str] = mapped_column(String, nullable=False)
+    api_key_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    model: Mapped[str | None] = mapped_column(String, nullable=True)
+    base_url: Mapped[str | None] = mapped_column(String, nullable=True)
     updated_at: Mapped[str] = mapped_column(String, nullable=False)
 
 

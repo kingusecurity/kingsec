@@ -10,6 +10,7 @@ from kingsec.infrastructure.ai.providers import (
     AnthropicProvider,
     GeminiProvider,
     OpenAICompatibleProvider,
+    default_model_for,
 )
 
 
@@ -62,3 +63,23 @@ class TestShaping:
     def test_malformed_response_shape_raises(self) -> None:
         with pytest.raises(AIResponseError):
             OpenAICompatibleProvider().extract_text({"unexpected": True})
+
+
+class TestDefaultModelFor:
+    """Every supported provider must default to a model it actually has -
+    this is what the Gemini 404 fix depends on (see config_resolver.py)."""
+
+    def test_every_supported_provider_has_its_own_default(self) -> None:
+        for provider in supported_providers():
+            model = default_model_for(provider)
+            assert isinstance(model, str) and model
+
+    def test_gemini_default_is_a_real_gemini_model_not_an_anthropic_one(self) -> None:
+        assert default_model_for("gemini") == "gemini-1.5-flash"
+        assert "claude" not in default_model_for("gemini")
+
+    def test_case_insensitive(self) -> None:
+        assert default_model_for("Gemini") == default_model_for("gemini")
+
+    def test_unrecognised_provider_falls_back_to_anthropic_default(self) -> None:
+        assert default_model_for("not-a-real-provider") == default_model_for("anthropic")

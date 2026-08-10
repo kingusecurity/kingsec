@@ -7,6 +7,7 @@ import { SecuritySection } from '@/components/features/settings/SecuritySection'
 import { ApiSettingsSection } from '@/components/features/settings/ApiSettingsSection'
 import { AboutSection } from '@/components/features/settings/AboutSection'
 import { IntegrationsSection } from '@/components/features/settings/IntegrationsSection'
+import { AiProviderSection } from '@/components/features/settings/AiProviderSection'
 import { LicenseSection } from '@/components/features/settings/LicenseSection'
 import { OrganizationSection } from '@/components/features/settings/OrganizationSection'
 
@@ -20,6 +21,7 @@ const tabs = [
   { value: 'license', label: 'License' },
   { value: 'organizations', label: 'Organizations' },
   { value: 'integrations', label: 'Integrations' },
+  { value: 'ai-provider', label: 'AI Provider' },
   { value: 'security', label: 'Security' },
   { value: 'api', label: 'API' },
   { value: 'about', label: 'About' },
@@ -42,6 +44,7 @@ export function SettingsPage() {
         <TabsContent value="license"><LicenseSection /></TabsContent>
         <TabsContent value="organizations"><OrganizationSection /></TabsContent>
         <TabsContent value="integrations"><IntegrationsSection /></TabsContent>
+        <TabsContent value="ai-provider"><AiProviderSection /></TabsContent>
         <TabsContent value="security"><SecuritySection /></TabsContent>
         <TabsContent value="api"><ApiSettingsSection /></TabsContent>
         <TabsContent value="about"><AboutSection /></TabsContent>
