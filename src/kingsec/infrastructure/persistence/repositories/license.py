@@ -28,6 +28,7 @@ class SQLAlchemyLicenseRepository(LicenseRepository):
             email=orm.email,
             max_users=orm.max_users,
             max_organizations=orm.max_organizations,
+            issued_at=orm.issued_at,
             expires_at=orm.expires_at,
             features=set(json.loads(orm.features) if orm.features else []),
             signature=orm.signature,
@@ -46,6 +47,7 @@ class SQLAlchemyLicenseRepository(LicenseRepository):
             email=license.email,
             max_users=license.max_users,
             max_organizations=license.max_organizations,
+            issued_at=license.issued_at,
             expires_at=license.expires_at,
             features=json.dumps(sorted(license.features)),
             signature=license.signature,
@@ -65,6 +67,7 @@ class SQLAlchemyLicenseRepository(LicenseRepository):
                 existing.email = license.email
                 existing.max_users = license.max_users
                 existing.max_organizations = license.max_organizations
+                existing.issued_at = license.issued_at
                 existing.expires_at = license.expires_at
                 existing.features = json.dumps(sorted(license.features))
                 existing.signature = license.signature

@@ -8,6 +8,7 @@ export interface LicenseInfo {
   issued_to?: string
   company?: string
   email?: string
+  issued_at?: string
   expires_at?: string
   features: string[]
   limits?: Record<string, number | null>
@@ -16,6 +17,9 @@ export interface LicenseInfo {
   max_organizations?: number | null
   max_api_keys?: number | null
   grace_days?: number
+  /** True for a license activated before real signature validation existed
+   * - it keeps working, but carries no cryptographic guarantee. */
+  is_legacy_activation?: boolean
 }
 
 export interface LicenseStatus {

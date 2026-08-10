@@ -39,6 +39,11 @@ function LicenseInfoCard({ license }: { license: LicenseInfo }) {
             <Badge variant={statusColors[license.status] || 'neutral'}>
               {license.status}
             </Badge>
+            {license.is_legacy_activation && (
+              <span title="Activated before real signature validation existed - this license carries no cryptographic guarantee of authenticity.">
+                <Badge variant="warning">Legacy activation — not cryptographically verified</Badge>
+              </span>
+            )}
           </div>
           <p className="text-sm text-gray-400">{license.issued_to}</p>
         </div>
@@ -132,7 +137,7 @@ function ActivateSection() {
           type="text"
           value={key}
           onChange={(e) => setKey(e.target.value)}
-          placeholder="Enter license key (KS-...)"
+          placeholder="Enter license key (KSL1...)"
           className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm"
         />
         <Button

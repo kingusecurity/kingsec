@@ -625,6 +625,7 @@ class LicenseORM(Base):
     email: Mapped[str] = mapped_column(String, nullable=False, default="")
     max_users: Mapped[int | None] = mapped_column(Integer, nullable=True)
     max_organizations: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    issued_at: Mapped[str] = mapped_column(String, nullable=False, default="")
     expires_at: Mapped[str] = mapped_column(String, nullable=False, default="")
     features: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     signature: Mapped[str] = mapped_column(Text, nullable=False, default="")

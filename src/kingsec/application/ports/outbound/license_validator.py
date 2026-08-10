@@ -21,6 +21,3 @@ class LicenseValidator(ABC):
 
     @abstractmethod
     def detect_clock_rollback(self, license: License) -> bool: ...
-
-    @abstractmethod
-    def compute_signature(self, license: License) -> str: ...

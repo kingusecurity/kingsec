@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
+from kingsec.application.services.license_key_codec import InvalidLicenseKeyError
 from kingsec.application.services.licensing import LicenseActivationService, LicenseGate
 
 from .auth import CurrentUser, get_current_user, require_admin
@@ -80,6 +81,13 @@ async def activate_license(
         raise HTTPException(status_code=400, detail="license_key is required")
     try:
         lic = service.activate(license_key, user_id=user.user_id)
+    except InvalidLicenseKeyError as e:
+        # Malformed key, or a signature that doesn't verify - a client
+        # input problem, not a conflict with existing state. A specific
+        # message here (not a generic 400/500) is the whole point: it's
+        # what tells someone their key is garbage instead of leaving them
+        # to guess.
+        raise HTTPException(status_code=400, detail=str(e)) from None
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e)) from None
     return {"id": str(lic.id), "edition": lic.edition.value, "status": lic.status.value}

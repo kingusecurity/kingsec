@@ -23,6 +23,11 @@ src/kingsec/adapters/inbound/web/static/
 .env.*
 !.env.example
 
+# License signing private key (holder-only; never shipped with the app,
+# never committed). See tools/issue_license.py and keys/README.md.
+keys/*.pem
+!keys/README.md
+
 # Test / type / lint caches
 .pytest_cache/
 .mypy_cache/

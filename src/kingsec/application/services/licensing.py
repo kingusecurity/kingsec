@@ -1,20 +1,33 @@
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from kingsec.application.ports.outbound.license_repository import LicenseRepository
 from kingsec.application.ports.outbound.license_validator import LicenseValidator
+from kingsec.application.services.license_key_codec import (
+    InvalidLicenseKeyError,
+    license_to_signed_payload,
+    parse_and_verify_license_key,
+    verify_stored_signature,
+)
 from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.domain.license import (
     EDITION_FEATURES,
     EDITION_LIMITS,
+    LICENSE_SIGNING_PUBLIC_KEY,
     License,
     LicenseEdition,
     LicenseId,
     LicenseStatus,
 )
+
+__all__ = [
+    "InvalidLicenseKeyError",
+    "LicenseActivationService",
+    "LicenseGate",
+    "LicenseValidatorImpl",
+]
 
 
 class LicenseGate:
@@ -115,10 +128,27 @@ class LicenseGate:
 
 
 class LicenseValidatorImpl(LicenseValidator):
-    """Validates licenses with offline signed file support, expiration,
-    feature flags, tamper detection, and clock rollback protection."""
+    """Validates licenses with offline signed-key verification, expiration,
+    feature flags, tamper detection, and clock rollback protection.
+
+    Signed (``KSL1.``) licenses get the real thing: ``verify_signature``
+    checks the stored signature against the license's *current* stored
+    fields using the embedded Ed25519 public key, so hand-editing any signed
+    column (e.g. flipping ``edition`` directly via SQL) is detected on the
+    next status check.
+
+    Legacy licenses (activated before real signing existed) carry no
+    cryptographic signature at all - there is nothing to verify - so they
+    get a time-boxing policy instead: Community is tolerated indefinitely
+    (there's nothing to protect there), Professional/Enterprise are honored
+    until their existing ``expires_at``, or a fixed grace window from
+    original activation if perpetual. This is deliberately more forgiving
+    than "reject immediately" - the point is not to silently break every
+    already-installed license the moment this ships.
+    """
 
     GRACE_DAYS = 30
+    LEGACY_PERPETUAL_GRACE_DAYS = 180
 
     def __init__(self, repo: LicenseRepository) -> None:
         self._repo = repo
@@ -126,6 +156,8 @@ class LicenseValidatorImpl(LicenseValidator):
     def validate(self, license: License) -> LicenseStatus:
         if license.status == LicenseStatus.REVOKED:
             return LicenseStatus.REVOKED
+        if license.is_legacy_activation:
+            return self._legacy_status(license)
         status = self.check_expiration(license)
         if status in (LicenseStatus.EXPIRED, LicenseStatus.GRACE_PERIOD):
             return status
@@ -136,14 +168,17 @@ class LicenseValidatorImpl(LicenseValidator):
         return LicenseStatus.ACTIVE
 
     def verify_signature(self, license: License) -> bool:
-        if not license.signature:
+        """Verify the stored signature against the license's current stored
+        fields - not a recompute-and-compare, a real cryptographic check.
+
+        Always False for a legacy license (there is no signature to
+        verify); ``validate()`` never reaches this for one, but a direct
+        caller gets an honest answer rather than a misleading pass.
+        """
+        if license.is_legacy_activation:
             return False
-        try:
-            expected = self.compute_signature(license)
-            result = license.signature == expected
-            return result
-        except Exception:
-            return False
+        payload = license_to_signed_payload(license)
+        return verify_stored_signature(payload, license.signature, LICENSE_SIGNING_PUBLIC_KEY)
 
     def check_expiration(self, license: License) -> LicenseStatus:
         if not license.expires_at:
@@ -159,6 +194,26 @@ class LicenseValidatorImpl(LicenseValidator):
             return LicenseStatus.GRACE_PERIOD
         return LicenseStatus.EXPIRED
 
+    def _legacy_status(self, license: License) -> LicenseStatus:
+        if license.edition == LicenseEdition.COMMUNITY:
+            return LicenseStatus.ACTIVE
+        if license.expires_at:
+            return self.check_expiration(license)
+        # Perpetual legacy Professional/Enterprise: a fixed grace window
+        # counted from original activation (created_at), not from "now" -
+        # a stable cutoff per license rather than one that keeps moving.
+        try:
+            activated = datetime.fromisoformat(license.created_at)
+        except (ValueError, TypeError):
+            return LicenseStatus.ACTIVE
+        now = datetime.now(UTC)
+        cutoff = activated + timedelta(days=self.LEGACY_PERPETUAL_GRACE_DAYS)
+        if now < cutoff:
+            return LicenseStatus.ACTIVE
+        if now < cutoff + timedelta(days=self.GRACE_DAYS):
+            return LicenseStatus.GRACE_PERIOD
+        return LicenseStatus.EXPIRED
+
     def has_feature(self, license: License, feature: str) -> bool:
         return feature in license.effective_features()
 
@@ -171,24 +226,6 @@ class LicenseValidatorImpl(LicenseValidator):
             return False
         now = datetime.now(UTC)
         return now < last_updated - timedelta(hours=1)
-
-    def compute_signature(self, license: License) -> str:
-        data = self._signature_data(license)
-        return str(hash(data))
-
-    def _signature_data(self, license: License) -> str:
-        return json.dumps({
-            "id": str(license.id),
-            "edition": license.edition.value,
-            "license_key": license.license_key,
-            "issued_to": license.issued_to,
-            "company": license.company,
-            "email": license.email,
-            "max_users": license.max_users,
-            "max_organizations": license.max_organizations,
-            "expires_at": license.expires_at,
-            "features": sorted(license.features),
-        }, sort_keys=True)
 
 
 class LicenseActivationService:
@@ -207,26 +244,43 @@ class LicenseActivationService:
         self._audit = audit
 
     def activate(self, license_key: str, user_id: str = "") -> License:
+        """Activate a real, signed license key.
+
+        Only ``KSL1.`` keys are accepted here - the parse step verifies the
+        Ed25519 signature against the embedded public key, so a garbage
+        string or a tampered payload is rejected outright, and the
+        edition/limits/features come from the *verified* payload, never
+        from a hardcoded default. Raises ``InvalidLicenseKeyError`` (a
+        ``ValueError`` subclass) for anything that fails to parse or verify.
+        """
         existing = self._repo.find_by_key(license_key)
         if existing:
             raise ValueError("License key already activated")
 
+        verified = parse_and_verify_license_key(license_key, LICENSE_SIGNING_PUBLIC_KEY)
+        payload = verified.payload
+
         lic = License(
-            id=LicenseId.generate(),
-            edition=LicenseEdition.PROFESSIONAL,
+            id=LicenseId(value=payload["license_id"]),
+            edition=LicenseEdition(payload["edition"]),
             status=LicenseStatus.ACTIVE,
             license_key=license_key,
-            issued_to="",
-            signature="",
+            issued_to=payload["issued_to"],
+            email=payload.get("email", ""),
+            max_users=payload.get("max_users"),
+            max_organizations=payload.get("max_organizations"),
+            issued_at=payload.get("issued_at", ""),
+            expires_at=payload.get("expires_at", ""),
+            features=set(payload.get("features", [])),
+            signature=verified.signature_b64,
         )
-        lic.signature = self._validator.compute_signature(lic)
         self._repo.save(lic)
         self._audit.record(AuditEntry(
             action=AuditAction.LICENSE_ACTIVATED,
             resource_type="license",
             resource_id=str(lic.id),
             user_id=user_id,
-            metadata={"edition": lic.edition.value, "license_key": license_key},
+            metadata={"edition": lic.edition.value, "license_key_suffix": license_key[-8:]},
         ))
         return lic
 
@@ -245,35 +299,22 @@ class LicenseActivationService:
 
     def renew(self, license_key: str, edition: str, expires_at: str, features: list[str] | None = None,
               user_id: str = "") -> License:
-        lic = self._repo.find_by_key(license_key)
-        if lic is None:
-            raise ValueError("License key not found")
+        """Not supported for either license format - kept only so a caller
+        gets a clear, actionable error instead of the method vanishing.
 
-        old_edition = lic.edition
-        lic.edition = LicenseEdition(edition)
-        lic.expires_at = expires_at
-        lic.status = LicenseStatus.ACTIVE
-        if features is not None:
-            lic.features = set(features)
-        lic.signature = self._validator.compute_signature(lic)
-        lic.updated_at = datetime.now(UTC).isoformat()
-        self._repo.save(lic)
-
-        if old_edition != lic.edition:
-            self._audit.record(AuditEntry(
-                action=AuditAction.EDITION_CHANGED,
-                resource_type="license",
-                resource_id=str(lic.id),
-                user_id=user_id,
-                metadata={"from": old_edition.value, "to": lic.edition.value},
-            ))
-        self._audit.record(AuditEntry(
-            action=AuditAction.LICENSE_RENEWED,
-            resource_type="license",
-            resource_id=str(lic.id),
-            user_id=user_id,
-        ))
-        return lic
+        A signed license's fields are cryptographically fixed by the
+        issuer; mutating them locally and re-signing with a self-computed
+        value is exactly the vulnerability this whole scheme replaces, so
+        there is no "renew in place" for a KSL1 license. A legacy license
+        is explicitly excluded from any renewal path by policy (see
+        LicenseValidatorImpl's time-boxing). Either way, the real fix is
+        the same: issue a new signed key (tools/issue_license.py) and
+        activate it - see LicenseActivationService.activate().
+        """
+        raise ValueError(
+            "License renewal by field mutation is not supported. "
+            "Issue a new signed license key and activate it instead."
+        )
 
     def get_status(self) -> dict[str, Any]:
         lic = self._gate.current_license()
@@ -304,9 +345,11 @@ class LicenseActivationService:
             "issued_to": lic.issued_to,
             "company": lic.company,
             "email": lic.email,
+            "issued_at": lic.issued_at,
             "expires_at": lic.expires_at,
             "features": sorted(lic.effective_features()),
             "limits": lic.effective_limits(),
             "has_license": True,
             "grace_days": LicenseValidatorImpl.GRACE_DAYS,
+            "is_legacy_activation": lic.is_legacy_activation,
         }
