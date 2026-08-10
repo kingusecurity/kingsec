@@ -40,12 +40,12 @@ export const licensingApi = {
   activate: (licenseKey: string) =>
     apiRequest<{ id: string; edition: string; status: string }>('/license/activate', {
       method: 'POST',
-      body: JSON.stringify({ license_key: licenseKey }),
+      body: { license_key: licenseKey },
     }),
 
   deactivate: (licenseId: string) =>
     apiRequest<{ status: string }>('/license/deactivate', {
       method: 'POST',
-      body: JSON.stringify({ license_id: licenseId }),
+      body: { license_id: licenseId },
     }),
 }

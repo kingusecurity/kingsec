@@ -116,6 +116,6 @@ export const deploymentApi = {
   runUpgrade: (targetVersion: string) =>
     apiRequest<{ status: string; message: string }>('/deployment/upgrade/run', {
       method: 'POST',
-      body: JSON.stringify({ target_version: targetVersion }),
+      body: { target_version: targetVersion },
     }),
 }

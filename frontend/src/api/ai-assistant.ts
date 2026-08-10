@@ -45,25 +45,25 @@ export const aiAssistantApi = {
   explainFinding: (findingId: string, assessmentId: string) =>
     apiRequest<ExplainFindingResult>('/ai/explain-finding', {
       method: 'POST',
-      body: JSON.stringify({ finding_id: findingId, assessment_id: assessmentId }),
+      body: { finding_id: findingId, assessment_id: assessmentId },
     }),
 
   executiveSummary: (assessmentId: string) =>
     apiRequest<ExecutiveSummaryResult>('/ai/executive-summary', {
       method: 'POST',
-      body: JSON.stringify({ assessment_id: assessmentId }),
+      body: { assessment_id: assessmentId },
     }),
 
   remediationPlan: (assessmentId: string) =>
     apiRequest<RemediationPlanResult>('/ai/remediation-plan', {
       method: 'POST',
-      body: JSON.stringify({ assessment_id: assessmentId }),
+      body: { assessment_id: assessmentId },
     }),
 
   chat: (question: string, history: Array<{ role: string; content: string }>, assessmentId?: string) =>
     apiRequest<ChatResult>('/ai/chat', {
       method: 'POST',
-      body: JSON.stringify({ question, history, assessment_id: assessmentId }),
+      body: { question, history, assessment_id: assessmentId },
     }),
 
   health: () =>

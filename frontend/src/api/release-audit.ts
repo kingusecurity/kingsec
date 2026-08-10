@@ -43,7 +43,7 @@ export const releaseAuditApi = {
   }) =>
     apiRequest<ReleaseEntry>('/deployment/release-audit/record', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: data,
     }),
 
   getTelemetrySummary: (days?: number) =>

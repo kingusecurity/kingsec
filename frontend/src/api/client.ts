@@ -171,10 +171,33 @@ export async function apiRequest<T>(
   return res.json()
 }
 
+// FastAPI's default 422 handler puts a list of {loc, msg} objects in
+// `detail` (one per invalid field), not a string — stringifying that
+// array directly renders as "[object Object],[object Object]".
+function formatValidationDetail(detail: unknown[]): string {
+  return detail
+    .map((entry) => {
+      if (entry && typeof entry === 'object' && 'msg' in entry) {
+        const loc = 'loc' in entry && Array.isArray((entry as { loc: unknown }).loc) ? (entry as { loc: unknown[] }).loc : []
+        const field = loc.filter((part) => part !== 'body').join('.')
+        const msg = String((entry as { msg: unknown }).msg)
+        return field ? `${field}: ${msg}` : msg
+      }
+      return String(entry)
+    })
+    .join('; ')
+}
+
 async function parseError(res: Response): Promise<ApiError> {
   try {
     const data = await res.json()
-    return new ApiError(res.status, data.message || 'Request failed', data.error_code)
+    // Two response shapes exist in this backend: the structured
+    // {error_code, message} used by registered exception handlers, and
+    // FastAPI's raw HTTPException {detail}. Check both so a route using
+    // either convention still surfaces its real message instead of a
+    // generic fallback.
+    const detail = Array.isArray(data.detail) ? formatValidationDetail(data.detail) : data.detail
+    return new ApiError(res.status, data.message || detail || 'Request failed', data.error_code)
   } catch {
     return new ApiError(res.status, `HTTP ${res.status}`)
   }
