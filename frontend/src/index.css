@@ -41,11 +41,42 @@
     --duration-normal: 200ms;
     --duration-slow: 300ms;
   }
+
+  /* Light theme: overrides the (default, dark) :root values above when
+     useAppearance() puts "light" on <html>. Without this block the theme
+     switch has nothing to change — the selector could toggle the class
+     correctly and the UI would still stay dark, because no CSS ever
+     consumed it. */
+  :root.light {
+    --color-surface: #ffffff;
+    --color-surface-secondary: #f3f4f6;
+    --color-surface-tertiary: #e5e7eb;
+    --color-surface-elevated: #ffffff;
+
+    --color-border: #e5e7eb;
+    --color-border-light: #d1d5db;
+
+    --color-text-primary: #111827;
+    --color-text-secondary: #4b5563;
+    --color-text-muted: #6b7280;
+
+    --color-accent: #10b981;
+    --color-accent-hover: #059669;
+    --color-accent-muted: rgba(16, 185, 129, 0.12);
+
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  }
 }
 
 @layer base {
   html {
     color-scheme: dark;
+  }
+
+  html.light {
+    color-scheme: light;
   }
 
   body {

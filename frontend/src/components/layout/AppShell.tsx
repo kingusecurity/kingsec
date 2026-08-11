@@ -4,7 +4,7 @@ import { Header } from './Header'
 
 export function AppShell() {
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-950">
+    <div className="flex h-screen overflow-hidden bg-surface">
       <Sidebar />
       <div className="flex flex-1 flex-col min-w-0">
         <Header />
