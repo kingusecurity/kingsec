@@ -249,6 +249,7 @@ class CreateAssessmentRequest:
     authorized_by: str
     scope: str
     owner_id: str = ""
+    requesting_username: str = ""
     # Which AssessmentProfile to plan this scan against. None means "no
     # profile" - execution runs every target-compatible scanner, exactly
     # as it always has.
@@ -422,6 +423,7 @@ class SubmitAssessmentRequest:
 
     assessment_id: str
     requesting_user: str = ""
+    requesting_username: str = ""
     is_admin: bool = False
 
 
@@ -440,6 +442,7 @@ class CancelAssessmentRequest:
 
     assessment_id: str
     requesting_user: str = ""
+    requesting_username: str = ""
     is_admin: bool = False
 
 
@@ -457,6 +460,7 @@ class DeleteAssessmentRequest:
 
     assessment_id: str
     requesting_user: str = ""
+    requesting_username: str = ""
     is_admin: bool = False
 
 
@@ -485,6 +489,7 @@ class GenerateReportRequest:
 
     assessment_id: str
     requesting_user: str = ""
+    requesting_username: str = ""
     is_admin: bool = False
 
 

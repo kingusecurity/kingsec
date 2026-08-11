@@ -95,6 +95,8 @@ class SubmitAssessment:
                 resource_type="assessment",
                 resource_id=str(assessment.id),
                 success=True,
+                user_id=request.requesting_user,
+                username=request.requesting_username,
             )
         )
 

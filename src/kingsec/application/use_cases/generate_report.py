@@ -78,6 +78,8 @@ class GenerateReport:
                 resource_type="report",
                 resource_id=report.assessment_id,
                 success=True,
+                user_id=request.requesting_user,
+                username=request.requesting_username,
                 metadata={"filename": rendered.filename},
             )
         )

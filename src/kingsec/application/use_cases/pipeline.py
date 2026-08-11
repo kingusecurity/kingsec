@@ -52,7 +52,7 @@ class StartPipeline:
                 resource_type="pipeline",
                 resource_id=pipeline_id.value,
                 success=True,
-                username=owner_user_id,
+                user_id=owner_user_id,
             )
         )
         return execution

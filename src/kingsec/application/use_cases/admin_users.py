@@ -10,12 +10,14 @@ from kingsec.domain.audit import AuditAction, AuditEntry
 class DeactivateUserRequest:
     user_id: str
     admin_user_id: str
+    admin_username: str = ""
 
 
 @dataclass(frozen=True)
 class ActivateUserRequest:
     user_id: str
     admin_user_id: str
+    admin_username: str = ""
 
 
 @dataclass(frozen=True)
@@ -23,6 +25,7 @@ class ResetPasswordRequest:
     user_id: str
     new_password: str
     admin_user_id: str
+    admin_username: str = ""
 
 
 @dataclass(frozen=True)
@@ -83,6 +86,8 @@ class DeactivateUser:
                 resource_type="user",
                 resource_id=request.user_id,
                 success=True,
+                user_id=request.admin_user_id,
+                username=request.admin_username,
             )
         )
         return AdminUserResponse(
@@ -113,6 +118,8 @@ class ActivateUser:
                 resource_type="user",
                 resource_id=request.user_id,
                 success=True,
+                user_id=request.admin_user_id,
+                username=request.admin_username,
             )
         )
         return AdminUserResponse(
@@ -144,6 +151,8 @@ class AdminResetPassword:
                 resource_type="user",
                 resource_id=request.user_id,
                 success=True,
+                user_id=request.admin_user_id,
+                username=request.admin_username,
             )
         )
         return AdminUserResponse(

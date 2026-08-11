@@ -62,6 +62,8 @@ class CreateAssessment:
                 resource_type="assessment",
                 resource_id=str(assessment.id),
                 success=True,
+                user_id=request.owner_id,
+                username=request.requesting_username,
                 metadata={"target": str(assessment.target), "authorized_by": request.authorized_by},
             )
         )

@@ -57,6 +57,8 @@ class DeleteAssessment:
                 resource_type="assessment",
                 resource_id=request.assessment_id,
                 success=True,
+                user_id=request.requesting_user,
+                username=request.requesting_username,
             )
         )
 

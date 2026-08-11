@@ -396,6 +396,7 @@ async def create_assessment(
         authorized_by=body.authorized_by,
         scope=body.scope,
         owner_id=current_user.user_id,
+        requesting_username=current_user.username,
         profile_id=body.profile_id,
     )
     result = service.create_assessment(request)
@@ -435,6 +436,7 @@ async def start_assessment(
     request = SubmitAssessmentRequest(
         assessment_id=assessment_id,
         requesting_user=current_user.user_id,
+        requesting_username=current_user.username,
         is_admin=_is_admin(current_user),
     )
     result = service.submit_assessment(request)
@@ -533,6 +535,7 @@ async def generate_report(
     request = GenerateReportRequest(
         assessment_id=assessment_id,
         requesting_user=current_user.user_id,
+        requesting_username=current_user.username,
         is_admin=_is_admin(current_user),
     )
     result = service.generate_report(request)
@@ -580,6 +583,7 @@ async def cancel_assessment(
     request = CancelAssessmentRequest(
         assessment_id=assessment_id,
         requesting_user=current_user.user_id,
+        requesting_username=current_user.username,
         is_admin=_is_admin(current_user),
     )
     result = service.cancel_assessment(request)
@@ -616,6 +620,7 @@ async def delete_assessment(
     request = DeleteAssessmentRequest(
         assessment_id=assessment_id,
         requesting_user=current_user.user_id,
+        requesting_username=current_user.username,
         is_admin=_is_admin(current_user),
     )
     service.delete_assessment(request)
@@ -1173,7 +1178,9 @@ async def deactivate_user(
 ) -> schemas.AdminUserActionResponse:
     from kingsec.application.use_cases.admin_users import DeactivateUserRequest
 
-    request = DeactivateUserRequest(user_id=user_id, admin_user_id=current_user.user_id)
+    request = DeactivateUserRequest(
+        user_id=user_id, admin_user_id=current_user.user_id, admin_username=current_user.username
+    )
     result = deactivate_uc.execute(request)
     return schemas.AdminUserActionResponse(
         user_id=result.user_id,
@@ -1199,7 +1206,9 @@ async def activate_user(
 ) -> schemas.AdminUserActionResponse:
     from kingsec.application.use_cases.admin_users import ActivateUserRequest
 
-    request = ActivateUserRequest(user_id=user_id, admin_user_id=current_user.user_id)
+    request = ActivateUserRequest(
+        user_id=user_id, admin_user_id=current_user.user_id, admin_username=current_user.username
+    )
     result = activate_uc.execute(request)
     return schemas.AdminUserActionResponse(
         user_id=result.user_id,
@@ -1230,6 +1239,7 @@ async def reset_password(
         user_id=user_id,
         new_password=body.new_password,
         admin_user_id=current_user.user_id,
+        admin_username=current_user.username,
     )
     result = reset_uc.execute(request)
     return schemas.AdminUserActionResponse(

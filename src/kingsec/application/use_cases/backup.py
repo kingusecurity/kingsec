@@ -100,7 +100,7 @@ class CreateBackup:
                     resource_type="backup",
                     resource_id=bid.value,
                     success=True,
-                    username=owner_user_id,
+                    user_id=owner_user_id,
                 )
             )
             self._audit.record(
@@ -109,7 +109,7 @@ class CreateBackup:
                     resource_type="backup",
                     resource_id=bid.value,
                     success=True,
-                    username=owner_user_id,
+                    user_id=owner_user_id,
                 )
             )
             return completed
@@ -129,7 +129,7 @@ class CreateBackup:
                     resource_id=bid.value,
                     success=False,
                     reason=str(exc),
-                    username=owner_user_id,
+                    user_id=owner_user_id,
                 )
             )
             return failed
@@ -561,7 +561,7 @@ class VerifyBackup:
                 resource_type="backup_verification",
                 resource_id=vid.value,
                 success=checksum_valid and archive_integrity,
-                username=verified_by,
+                user_id=verified_by,
             )
         )
         return verification
@@ -607,7 +607,7 @@ class CreateSchedule:
                 resource_type="backup_schedule",
                 resource_id=sid.value,
                 success=True,
-                username=schedule.created_by,
+                user_id=schedule.created_by,
             )
         )
         return created
@@ -717,7 +717,7 @@ class CreateRecoveryPlan:
                 resource_type="recovery_plan",
                 resource_id=pid.value,
                 success=True,
-                username=plan.created_by,
+                user_id=plan.created_by,
             )
         )
         return created
@@ -846,7 +846,7 @@ class RunRecoveryTest:
                 resource_type="recovery_test",
                 resource_id=tid.value,
                 success=True,
-                username=executed_by,
+                user_id=executed_by,
             )
         )
         return test
