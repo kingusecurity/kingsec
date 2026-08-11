@@ -79,6 +79,25 @@ class TestReleaseAuditService:
         assert report.total_releases == 0
         assert report.current_version == "unknown"
 
+    def test_generate_report_uses_fallback_version_when_file_never_written(self, tmp_path):
+        """Regression test: a fresh install (no .kingsec-version file ever
+        written - set_current_version() has no real caller in this
+        codebase) must show the real running app version, the same one
+        Diagnostics and UpgradeService already report, not the literal
+        string "unknown"."""
+        service = ReleaseAuditService(data_dir=tmp_path, fallback_version="2.0.0")
+        report = service.generate_report()
+        assert report.current_version == "2.0.0"
+
+    def test_explicit_set_current_version_still_wins_over_fallback(self, tmp_path):
+        """An explicit override must still take precedence over the
+        fallback - this is what distinguishes "installed version" from
+        "running code version" for deployments that want that distinction."""
+        service = ReleaseAuditService(data_dir=tmp_path, fallback_version="2.0.0")
+        service.set_current_version("2.0.0-rc1")
+        report = service.generate_report()
+        assert report.current_version == "2.0.0-rc1"
+
     def test_generate_report_with_data(self, tmp_path):
         """Test generating report with release data."""
         service = ReleaseAuditService(data_dir=tmp_path)

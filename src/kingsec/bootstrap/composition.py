@@ -1895,7 +1895,7 @@ def _register_deployment_services(container: Container, settings: Any) -> None:
     if not container.has(ReleaseAuditService):
         container.register_factory(
             ReleaseAuditService,
-            lambda c: ReleaseAuditService(data_dir=data_dir),
+            lambda c: ReleaseAuditService(data_dir=data_dir, fallback_version=app_version),
         )
 
     if not container.has(ProductTelemetry):

@@ -41,9 +41,24 @@ class ReleaseAuditReport:
 class ReleaseAuditService:
     """Manages release history and audit trail."""
 
-    def __init__(self, data_dir: Path) -> None:
+    def __init__(self, data_dir: Path, fallback_version: str | None = None) -> None:
+        """Initialise the service.
+
+        Args:
+            data_dir: Where release history and the version-override file
+                (``.kingsec-version``) are stored.
+            fallback_version: The actual running app version (same source
+                Diagnostics and UpgradeService already use). Used only when
+                ``.kingsec-version`` has never been written - i.e. every
+                fresh install - so the report shows the real version
+                instead of the literal string "unknown". An explicit
+                set_current_version() call still always takes precedence,
+                for deployments that want to track an installed version
+                distinct from the running code's own version.
+        """
         self._data_dir = data_dir
         self._releases_file = data_dir / "releases.json"
+        self._fallback_version = fallback_version
 
     def _load_releases(self) -> list[ReleaseEntry]:
         if not self._releases_file.is_file():
@@ -117,7 +132,7 @@ class ReleaseAuditService:
     def generate_report(self) -> ReleaseAuditReport:
         """Generate a complete release audit report."""
         releases = self._load_releases()
-        current = self.get_current_version() or "unknown"
+        current = self.get_current_version() or self._fallback_version or "unknown"
         installed_at = releases[0].released_at if releases else "unknown"
         upgrade_history = tuple(r for r in releases if r.release_type == "upgrade")
 
