@@ -61,7 +61,7 @@ function DiagnosticsSection() {
       <Card className="p-4">
         <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Health</h3>
         <div className="flex items-center gap-2">
-          <Badge variant={data.health.status === 'healthy' ? 'success' : 'danger'}>
+          <Badge variant={data.health.status === 'ok' ? 'success' : 'danger'}>
             {data.health.status}
           </Badge>
           {data.health.version && (
