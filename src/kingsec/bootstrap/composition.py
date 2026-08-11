@@ -394,22 +394,26 @@ def _register_integration_services(container: Container, settings: Any) -> None:
         TicketingPort,
         WebhookDeliveryPort,
     )
+    from kingsec.application.services.licensing import LicenseGate
     from kingsec.infrastructure.integrations.email_service import EmailNotificationService
     from kingsec.infrastructure.integrations.siem_service import SIEMExportService
     from kingsec.infrastructure.integrations.ticketing_service import TicketingService
     from kingsec.infrastructure.integrations.webhook_service import WebhookDeliveryService
 
+    def _gate(c: Any) -> Any:
+        return c.resolve(LicenseGate) if c.has(LicenseGate) else None
+
     def _make_webhook(c: Any) -> WebhookDeliveryService:
-        return WebhookDeliveryService(settings.integrations, c.resolve(AuditPublisher))
+        return WebhookDeliveryService(settings.integrations, c.resolve(AuditPublisher), _gate(c))
 
     def _make_email(c: Any) -> EmailNotificationService:
-        return EmailNotificationService(settings.integrations, c.resolve(AuditPublisher))
+        return EmailNotificationService(settings.integrations, c.resolve(AuditPublisher), _gate(c))
 
     def _make_ticketing(c: Any) -> TicketingService:
-        return TicketingService(settings.integrations, c.resolve(AuditPublisher))
+        return TicketingService(settings.integrations, c.resolve(AuditPublisher), _gate(c))
 
     def _make_siem(c: Any) -> SIEMExportService:
-        return SIEMExportService(settings.integrations, c.resolve(AuditPublisher))
+        return SIEMExportService(settings.integrations, c.resolve(AuditPublisher), _gate(c))
 
     container.register_factory(WebhookDeliveryService, _make_webhook)
     container.register_factory(EmailNotificationService, _make_email)
@@ -911,11 +915,14 @@ def _register_use_cases(app: Application) -> None:
     )
 
     # Scheduled scan use cases.
+    from kingsec.application.services.licensing import LicenseGate
+
     container.register_factory(
         CreateSchedule,
         lambda c: CreateSchedule(
             c.resolve(ScheduleRepositoryPort),
             c.resolve(AuditPublisher),
+            c.resolve(LicenseGate) if c.has(LicenseGate) else None,
         ),
     )
     container.register_factory(

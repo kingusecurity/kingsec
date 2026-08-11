@@ -8,7 +8,9 @@ from datetime import UTC, datetime
 from typing import Any
 from urllib.request import Request, urlopen
 
+from kingsec.application.errors import LicenseRequiredError
 from kingsec.application.ports.outbound import AuditPublisher, SIEMExportPort
+from kingsec.application.services.licensing import LicenseGate
 from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.domain.integration import IntegrationType, SIEMBatchResult
 from kingsec.infrastructure.config.models import IntegrationSettings
@@ -19,15 +21,24 @@ logger = get_logger("kingsec.infrastructure.integrations.siem")
 
 
 class SIEMExportService(SIEMExportPort):
-    def __init__(self, settings: IntegrationSettings, audit: AuditPublisher) -> None:
+    def __init__(
+        self,
+        settings: IntegrationSettings,
+        audit: AuditPublisher,
+        license_gate: LicenseGate | None = None,
+    ) -> None:
         self._settings = settings
         self._audit = audit
+        self._license_gate = license_gate
 
     def export_findings(
         self,
         findings: list[dict[str, Any]],
         target_systems: list[IntegrationType] | None = None,
     ) -> list[SIEMBatchResult]:
+        if self._license_gate is not None and not self._license_gate.can_use_integrations():
+            raise LicenseRequiredError("Integrations", self._license_gate.current_edition().value)
+
         results: list[SIEMBatchResult] = []
         systems = target_systems or [
             IntegrationType.SPLUNK,

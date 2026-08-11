@@ -8,7 +8,9 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+from kingsec.application.errors import LicenseRequiredError
 from kingsec.application.ports.outbound import AuditPublisher, WebhookDeliveryPort
+from kingsec.application.services.licensing import LicenseGate
 from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.domain.integration import (
     DeliveryRecord,
@@ -31,9 +33,11 @@ class WebhookDeliveryService(WebhookDeliveryPort):
         self,
         settings: IntegrationSettings,
         audit: AuditPublisher,
+        license_gate: LicenseGate | None = None,
     ) -> None:
         self._settings = settings
         self._audit = audit
+        self._license_gate = license_gate
         self._history: list[DeliveryRecord] = []
 
     def deliver(
@@ -41,6 +45,9 @@ class WebhookDeliveryService(WebhookDeliveryPort):
         event_type: WebhookEventType,
         payload: dict[str, Any],
     ) -> list[DeliveryRecord]:
+        if self._license_gate is not None and not self._license_gate.can_use_integrations():
+            raise LicenseRequiredError("Integrations", self._license_gate.current_edition().value)
+
         records: list[DeliveryRecord] = []
 
         targets = self._get_targets(event_type)

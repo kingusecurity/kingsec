@@ -9,6 +9,22 @@ class InputValidationError(ApplicationError):
     """A request DTO carried invalid or malformed input."""
 
 
+class LicenseRequiredError(ApplicationError):
+    """The requested action is gated behind a license edition the caller doesn't have.
+
+    Raised at the use-case layer (not just the route layer) so the check
+    cannot be bypassed by anything that calls the use case directly.
+    """
+
+    def __init__(self, feature: str, current_edition: str, required: str = "a paid") -> None:
+        self.feature = feature
+        self.current_edition = current_edition
+        super().__init__(
+            f"{feature} requires {required} edition; the current license edition "
+            f"({current_edition}) does not include it."
+        )
+
+
 class AssessmentNotFoundError(ApplicationError):
     """No assessment exists for the requested identifier."""
 

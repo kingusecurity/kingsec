@@ -46,6 +46,7 @@ from kingsec.application.errors import (
     JobLeaseNotFoundError,
     JobNotFoundError,
     JobQueueEntryNotFoundError,
+    LicenseRequiredError,
     MonitorEventNotFoundError,
     NotificationNotFoundError,
     PipelineNotFoundError,
@@ -182,6 +183,10 @@ async def handle_api_key_unauthorized(_request: Request, exc: ApiKeyUnauthorized
     return _error_response(403, ErrorCode.AUTHORIZATION, str(exc))
 
 
+async def handle_license_required(_request: Request, exc: LicenseRequiredError) -> JSONResponse:
+    return _error_response(403, ErrorCode.LICENSE_REQUIRED, str(exc))
+
+
 async def handle_domain_error(_request: Request, exc: DomainError) -> JSONResponse:
     return _error_response(
         409,
@@ -241,6 +246,7 @@ def register_error_handlers(app: object) -> None:
     app.exception_handler(InputValidationError)(handle_input_validation_error)
     app.exception_handler(AssessmentNotFoundError)(handle_assessment_not_found)
     app.exception_handler(ReportNotFoundError)(handle_report_not_found)
+    app.exception_handler(LicenseRequiredError)(handle_license_required)
 
     # Every other "resource not found" application error — same 404 contract,
     # previously unregistered and falling through to the generic 500 handler.

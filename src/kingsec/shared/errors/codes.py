@@ -33,3 +33,4 @@ class ErrorCode:
     EXTERNAL_TIMEOUT = "KS-EXT-002"  # a downstream/external dependency timed out
     SCANNER = "KS-SCAN-001"  # a scan/plugin could not complete
     PERSISTENCE = "KS-STORE-001"  # a storage/persistence operation failed
+    LICENSE_REQUIRED = "KS-LIC-001"  # action requires a higher license edition/tier

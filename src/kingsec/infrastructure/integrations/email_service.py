@@ -7,7 +7,9 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any
 
+from kingsec.application.errors import LicenseRequiredError
 from kingsec.application.ports.outbound import AuditPublisher, EmailNotificationPort
+from kingsec.application.services.licensing import LicenseGate
 from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.domain.integration import DeliveryRecord, DeliveryStatus, IntegrationType
 from kingsec.infrastructure.config.models import IntegrationSettings
@@ -67,10 +69,20 @@ PLAIN_TEMPLATES: dict[str, str] = {
 
 
 class EmailNotificationService(EmailNotificationPort):
-    def __init__(self, settings: IntegrationSettings, audit: AuditPublisher) -> None:
+    def __init__(
+        self,
+        settings: IntegrationSettings,
+        audit: AuditPublisher,
+        license_gate: LicenseGate | None = None,
+    ) -> None:
         self._settings = settings
         self._audit = audit
+        self._license_gate = license_gate
         self._history: list[DeliveryRecord] = []
+
+    def _require_license(self) -> None:
+        if self._license_gate is not None and not self._license_gate.can_use_integrations():
+            raise LicenseRequiredError("Integrations", self._license_gate.current_edition().value)
 
     def send_template(
         self,
@@ -78,6 +90,7 @@ class EmailNotificationService(EmailNotificationPort):
         to_addresses: list[str],
         variables: dict[str, Any],
     ) -> DeliveryRecord:
+        self._require_license()
         record_id = str(uuid.uuid4())
 
         if not self._settings.smtp_host:
@@ -102,6 +115,7 @@ class EmailNotificationService(EmailNotificationPort):
         html_body: str,
         plain_body: str | None = None,
     ) -> DeliveryRecord:
+        self._require_license()
         record_id = str(uuid.uuid4())
 
         if not self._settings.smtp_host:

@@ -5,8 +5,10 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from kingsec.application.errors import LicenseRequiredError
 from kingsec.application.ports.outbound.audit_publisher import AuditPublisher
 from kingsec.application.ports.outbound.schedule_repository import ScheduleRepositoryPort
+from kingsec.application.services.licensing import LicenseGate
 from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.domain.schedule import (
     RetryPolicy,
@@ -21,11 +23,20 @@ from .schedule_dto import CreateScheduleRequest, CreateScheduleResponse, Schedul
 
 
 class CreateSchedule:
-    def __init__(self, repository: ScheduleRepositoryPort, audit_publisher: AuditPublisher) -> None:
+    def __init__(
+        self,
+        repository: ScheduleRepositoryPort,
+        audit_publisher: AuditPublisher,
+        license_gate: LicenseGate | None = None,
+    ) -> None:
         self._repository = repository
         self._audit_publisher = audit_publisher
+        self._license_gate = license_gate
 
     def execute(self, request: CreateScheduleRequest) -> CreateScheduleResponse:
+        if self._license_gate is not None and not self._license_gate.can_use_scheduling():
+            raise LicenseRequiredError("Scheduling", self._license_gate.current_edition().value)
+
         try:
             stype = ScheduleType(request.schedule_type)
         except ValueError:

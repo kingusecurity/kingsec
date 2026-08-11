@@ -4,7 +4,9 @@ import json
 from typing import Any
 from urllib.request import Request, urlopen
 
+from kingsec.application.errors import LicenseRequiredError
 from kingsec.application.ports.outbound import AuditPublisher, TicketingPort
+from kingsec.application.services.licensing import LicenseGate
 from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.domain.integration import IntegrationType, TicketReference
 from kingsec.infrastructure.config.models import IntegrationSettings
@@ -15,9 +17,15 @@ logger = get_logger("kingsec.infrastructure.integrations.ticketing")
 
 
 class TicketingService(TicketingPort):
-    def __init__(self, settings: IntegrationSettings, audit: AuditPublisher) -> None:
+    def __init__(
+        self,
+        settings: IntegrationSettings,
+        audit: AuditPublisher,
+        license_gate: LicenseGate | None = None,
+    ) -> None:
         self._settings = settings
         self._audit = audit
+        self._license_gate = license_gate
         self._tickets: list[TicketReference] = []
 
     def create_ticket(
@@ -29,6 +37,9 @@ class TicketingService(TicketingPort):
         severity: str,
         assessment_target: str,
     ) -> TicketReference | None:
+        if self._license_gate is not None and not self._license_gate.can_use_integrations():
+            raise LicenseRequiredError("Integrations", self._license_gate.current_edition().value)
+
         if self._is_duplicate(finding_id, system):
             logger.info("Duplicate ticket skipped for finding %s on %s", finding_id, system.value)
             return None
