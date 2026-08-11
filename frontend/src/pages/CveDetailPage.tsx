@@ -102,10 +102,10 @@ export function CveDetailPage() {
             <div className="p-5">
               <h3 className="mb-3 text-sm font-semibold text-text-primary">Risk Assessment</h3>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-text-muted">Business Risk</span><span className="font-medium text-text-primary">{risk?.business_risk.toFixed(1) ?? '-'}</span></div>
-                <div className="flex justify-between"><span className="text-text-muted">Exploitability</span><span className="font-medium text-text-primary">{risk?.exploitability_score.toFixed(1) ?? '-'}</span></div>
-                <div className="flex justify-between"><span className="text-text-muted">Likelihood</span><span className="font-medium text-text-primary">{risk?.likelihood.toFixed(1) ?? '-'}</span></div>
-                <div className="flex justify-between border-t border-border-primary pt-2"><span className="text-text-muted">Overall</span><span className="font-bold text-text-primary">{risk?.overall_threat_score.toFixed(1) ?? '-'}</span></div>
+                <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Business Risk</span><span className="font-medium text-text-primary">{risk?.business_risk.toFixed(1) ?? '-'}</span></div>
+                <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Exploitability</span><span className="font-medium text-text-primary">{risk?.exploitability_score.toFixed(1) ?? '-'}</span></div>
+                <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Likelihood</span><span className="font-medium text-text-primary">{risk?.likelihood.toFixed(1) ?? '-'}</span></div>
+                <div className="flex items-start justify-between gap-4 border-t border-border-primary pt-2"><span className="shrink-0 text-text-muted">Overall</span><span className="font-bold text-text-primary">{risk?.overall_threat_score.toFixed(1) ?? '-'}</span></div>
               </div>
             </div>
           </Card>

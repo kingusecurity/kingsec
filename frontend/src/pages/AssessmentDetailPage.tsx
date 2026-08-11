@@ -181,9 +181,9 @@ export function AssessmentDetailPage() {
 
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex justify-between items-center">
-      <span className="text-sm text-text-secondary">{label}</span>
-      <span className="text-sm text-text-primary font-medium">{value}</span>
+    <div className="flex justify-between items-start gap-4">
+      <span className="shrink-0 text-sm text-text-secondary">{label}</span>
+      <span className="text-right text-sm text-text-primary font-medium break-all">{value}</span>
     </div>
   )
 }

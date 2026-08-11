@@ -82,11 +82,11 @@ export function RecoveryPlanDetailPage() {
           <div className="p-4">
             <h3 className="mb-3 text-sm font-semibold text-text-primary">Details</h3>
             <dl className="space-y-2 text-sm">
-              <div className="flex justify-between"><dt className="text-text-muted">Status</dt><dd><Badge variant={plan.status === 'active' ? 'success' : 'neutral'}>{plan.status}</Badge></dd></div>
-              <div className="flex justify-between"><dt className="text-text-muted">Estimated Downtime</dt><dd>{plan.estimated_downtime_minutes} min</dd></div>
-              <div className="flex justify-between"><dt className="text-text-muted">Last Tested</dt><dd>{plan.last_tested_at ? new Date(plan.last_tested_at).toLocaleString() : 'Never'}</dd></div>
-              <div className="flex justify-between"><dt className="text-text-muted">Created</dt><dd>{new Date(plan.created_at).toLocaleString()}</dd></div>
-              <div className="flex justify-between"><dt className="text-text-muted">Created By</dt><dd className="break-all text-right">{plan.created_by || '-'}</dd></div>
+              <div className="flex items-start justify-between gap-4"><dt className="shrink-0 text-text-muted">Status</dt><dd><Badge variant={plan.status === 'active' ? 'success' : 'neutral'}>{plan.status}</Badge></dd></div>
+              <div className="flex items-start justify-between gap-4"><dt className="shrink-0 text-text-muted">Estimated Downtime</dt><dd className="text-right">{plan.estimated_downtime_minutes} min</dd></div>
+              <div className="flex items-start justify-between gap-4"><dt className="shrink-0 text-text-muted">Last Tested</dt><dd className="text-right">{plan.last_tested_at ? new Date(plan.last_tested_at).toLocaleString() : 'Never'}</dd></div>
+              <div className="flex items-start justify-between gap-4"><dt className="shrink-0 text-text-muted">Created</dt><dd className="text-right">{new Date(plan.created_at).toLocaleString()}</dd></div>
+              <div className="flex items-start justify-between gap-4"><dt className="shrink-0 text-text-muted">Created By</dt><dd className="break-all text-right">{plan.created_by || '-'}</dd></div>
             </dl>
           </div>
         </Card>

@@ -140,22 +140,22 @@ export function IdentityProviderDetailPage() {
         <Card className="p-4 space-y-3">
           <h3 className="font-medium text-text-primary">Provider Info</h3>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-text-muted">Protocol</span><span>{protocolLabels[p.protocol]}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">Issuer</span><span className="truncate ml-4">{p.issuer || '-'}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">Domain Hint</span><span>{p.domain_hint || '-'}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">Organization</span><span>{p.organization_id || '-'}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">Created By</span><span>{p.created_by || '-'}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Protocol</span><span className="text-right">{protocolLabels[p.protocol]}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Issuer</span><span className="break-all text-right">{p.issuer || '-'}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Domain Hint</span><span className="break-all text-right">{p.domain_hint || '-'}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Organization</span><span className="break-all text-right">{p.organization_id || '-'}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Created By</span><span className="break-all text-right">{p.created_by || '-'}</span></div>
           </div>
         </Card>
 
         <Card className="p-4 space-y-3">
           <h3 className="font-medium text-text-primary">Features</h3>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-text-muted">JIT Provisioning</span><span>{p.jit_provisioning ? 'Enabled' : 'Disabled'}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">Auto-Link Users</span><span>{p.auto_link_users ? 'Enabled' : 'Disabled'}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">Enforce SSO</span><span>{p.enforce_sso ? 'Enabled' : 'Disabled'}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">Created</span><span>{p.created_at ? new Date(p.created_at).toLocaleDateString() : '-'}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">Updated</span><span>{p.updated_at ? new Date(p.updated_at).toLocaleDateString() : '-'}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">JIT Provisioning</span><span className="text-right">{p.jit_provisioning ? 'Enabled' : 'Disabled'}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Auto-Link Users</span><span className="text-right">{p.auto_link_users ? 'Enabled' : 'Disabled'}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Enforce SSO</span><span className="text-right">{p.enforce_sso ? 'Enabled' : 'Disabled'}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Created</span><span className="text-right">{p.created_at ? new Date(p.created_at).toLocaleDateString() : '-'}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Updated</span><span className="text-right">{p.updated_at ? new Date(p.updated_at).toLocaleDateString() : '-'}</span></div>
           </div>
         </Card>
       </div>
@@ -164,8 +164,8 @@ export function IdentityProviderDetailPage() {
         <h3 className="font-medium text-text-primary">Protocol Configuration</h3>
         <div className="space-y-2 text-sm">
           {configSummary().map((item) => (
-            <div key={item.label} className="flex justify-between">
-              <span className="text-text-muted">{item.label}</span>
+            <div key={item.label} className="flex items-start justify-between gap-4">
+              <span className="shrink-0 text-text-muted">{item.label}</span>
               <span className="truncate ml-4 max-w-xs text-right">{item.value || '-'}</span>
             </div>
           ))}

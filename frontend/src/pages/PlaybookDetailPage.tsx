@@ -155,12 +155,12 @@ export function PlaybookDetailPage() {
           <div className="p-4">
             <h3 className="mb-3 text-sm font-semibold text-text-primary">Details</h3>
             <dl className="space-y-2 text-sm">
-              <div className="flex justify-between"><dt className="text-text-muted">Category</dt><dd>{pb.category}</dd></div>
-              <div className="flex justify-between"><dt className="text-text-muted">Severity</dt><dd><Badge className={pb.severity === 'critical' ? 'bg-red-100 text-red-800' : pb.severity === 'high' ? 'bg-orange-100 text-orange-800' : 'bg-yellow-100 text-yellow-800'}>{pb.severity}</Badge></dd></div>
-              <div className="flex justify-between"><dt className="text-text-muted">Status</dt><dd>{pb.enabled ? <Badge className="bg-green-100 text-green-800">Enabled</Badge> : <Badge className="bg-gray-100 text-gray-600">Disabled</Badge>}</dd></div>
-              <div className="flex justify-between"><dt className="text-text-muted">Trigger</dt><dd>{triggerLabels[pb.trigger?.trigger_type] ?? pb.trigger?.trigger_type}</dd></div>
+              <div className="flex items-start justify-between gap-4"><dt className="shrink-0 text-text-muted">Category</dt><dd className="break-words text-right">{pb.category}</dd></div>
+              <div className="flex items-start justify-between gap-4"><dt className="shrink-0 text-text-muted">Severity</dt><dd><Badge className={pb.severity === 'critical' ? 'bg-red-100 text-red-800' : pb.severity === 'high' ? 'bg-orange-100 text-orange-800' : 'bg-yellow-100 text-yellow-800'}>{pb.severity}</Badge></dd></div>
+              <div className="flex items-start justify-between gap-4"><dt className="shrink-0 text-text-muted">Status</dt><dd>{pb.enabled ? <Badge className="bg-green-100 text-green-800">Enabled</Badge> : <Badge className="bg-gray-100 text-gray-600">Disabled</Badge>}</dd></div>
+              <div className="flex items-start justify-between gap-4"><dt className="shrink-0 text-text-muted">Trigger</dt><dd className="break-words text-right">{triggerLabels[pb.trigger?.trigger_type] ?? pb.trigger?.trigger_type}</dd></div>
               {pb.tags?.length > 0 && (
-                <div className="flex justify-between"><dt className="text-text-muted">Tags</dt><dd>{pb.tags.join(', ')}</dd></div>
+                <div className="flex items-start justify-between gap-4"><dt className="shrink-0 text-text-muted">Tags</dt><dd className="break-words text-right">{pb.tags.join(', ')}</dd></div>
               )}
             </dl>
           </div>

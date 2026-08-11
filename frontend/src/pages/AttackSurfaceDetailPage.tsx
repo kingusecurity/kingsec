@@ -161,9 +161,9 @@ export function AttackSurfaceDetailPage() {
               <CardHeader><CardTitle className="text-sm text-text-secondary">Details</CardTitle></CardHeader>
               <div className="divide-y divide-border px-5 pb-4">
                 {exposure.detail.map((d, i) => (
-                  <div key={i} className="flex justify-between py-2 text-sm">
-                    <span className="text-text-muted">{d.key}</span>
-                    <span className="text-text-primary">{d.value}</span>
+                  <div key={i} className="flex items-start justify-between gap-4 py-2 text-sm">
+                    <span className="shrink-0 text-text-muted">{d.key}</span>
+                    <span className="break-all text-right text-text-primary">{d.value}</span>
                   </div>
                 ))}
               </div>

@@ -53,20 +53,20 @@ export function WorkerDetailPage() {
         <Card className="p-4 space-y-3">
           <h3 className="font-medium text-text-primary">Status</h3>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-text-muted">Status</span><Badge variant={w.status === 'online' ? 'success' : w.status === 'offline' ? 'critical' : 'warning'}>{w.status}</Badge></div>
-            <div className="flex justify-between"><span className="text-text-muted">Health</span><span>{w.health}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">Last Heartbeat</span><span>{w.last_heartbeat ? new Date(w.last_heartbeat).toLocaleString() : 'never'}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">Active Jobs</span><span>{w.current_jobs.length}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Status</span><Badge variant={w.status === 'online' ? 'success' : w.status === 'offline' ? 'critical' : 'warning'}>{w.status}</Badge></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Health</span><span className="text-right">{w.health}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Last Heartbeat</span><span className="text-right">{w.last_heartbeat ? new Date(w.last_heartbeat).toLocaleString() : 'never'}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Active Jobs</span><span className="text-right">{w.current_jobs.length}</span></div>
           </div>
         </Card>
 
         <Card className="p-4 space-y-3">
           <h3 className="font-medium text-text-primary">System</h3>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-text-muted">OS</span><span>{w.os || '-'}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">CPU</span><span>{w.cpu || '-'}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">RAM</span><span>{w.ram_mb ? `${w.ram_mb} MB` : '-'}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">Registered</span><span>{new Date(w.created_at).toLocaleDateString()}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">OS</span><span className="break-all text-right">{w.os || '-'}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">CPU</span><span className="break-all text-right">{w.cpu || '-'}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">RAM</span><span className="text-right">{w.ram_mb ? `${w.ram_mb} MB` : '-'}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Registered</span><span className="text-right">{new Date(w.created_at).toLocaleDateString()}</span></div>
           </div>
         </Card>
       </div>

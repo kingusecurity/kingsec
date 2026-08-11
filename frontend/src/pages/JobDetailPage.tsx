@@ -46,20 +46,20 @@ export function JobDetailPage() {
         <Card className="p-4 space-y-3">
           <h3 className="font-medium text-text-primary">Details</h3>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-text-muted">State</span><Badge variant={stateColor(entry.state)}>{entry.state}</Badge></div>
-            <div className="flex justify-between"><span className="text-text-muted">Job ID</span><span className="font-mono">{entry.job_id}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">Target</span><span>{entry.target || '-'}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">Worker</span><span>{entry.assigned_worker_id || 'unassigned'}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">State</span><Badge variant={stateColor(entry.state)}>{entry.state}</Badge></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Job ID</span><span className="break-all text-right font-mono">{entry.job_id}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Target</span><span className="break-all text-right">{entry.target || '-'}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Worker</span><span className="break-all text-right">{entry.assigned_worker_id || 'unassigned'}</span></div>
           </div>
         </Card>
 
         <Card className="p-4 space-y-3">
           <h3 className="font-medium text-text-primary">Retry Info</h3>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-text-muted">Retries</span><span>{entry.retry_count}/{entry.max_retries}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">Created</span><span>{new Date(entry.created_at).toLocaleString()}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">Started</span><span>{entry.started_at ? new Date(entry.started_at).toLocaleString() : '-'}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">Completed</span><span>{entry.completed_at ? new Date(entry.completed_at).toLocaleString() : '-'}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Retries</span><span className="text-right">{entry.retry_count}/{entry.max_retries}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Created</span><span className="text-right">{new Date(entry.created_at).toLocaleString()}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Started</span><span className="text-right">{entry.started_at ? new Date(entry.started_at).toLocaleString() : '-'}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Completed</span><span className="text-right">{entry.completed_at ? new Date(entry.completed_at).toLocaleString() : '-'}</span></div>
           </div>
         </Card>
       </div>

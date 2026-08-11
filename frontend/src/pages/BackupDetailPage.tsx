@@ -69,20 +69,20 @@ export function BackupDetailPage() {
         <Card className="p-4 space-y-3">
           <h3 className="font-medium text-text-primary">Backup Info</h3>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-text-muted">Type</span><span>{backup.backup_type}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">Status</span><span>{backup.status}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">Size</span><span>{backup.size_bytes > 0 ? `${(backup.size_bytes / 1024).toFixed(1)} KB` : '-'}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">Encrypted</span><span>{backup.encrypted ? 'Yes' : 'No'}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">Compressed</span><span>{backup.compressed ? 'Yes' : 'No'}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Type</span><span className="text-right">{backup.backup_type}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Status</span><span className="text-right">{backup.status}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Size</span><span className="text-right">{backup.size_bytes > 0 ? `${(backup.size_bytes / 1024).toFixed(1)} KB` : '-'}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Encrypted</span><span className="text-right">{backup.encrypted ? 'Yes' : 'No'}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Compressed</span><span className="text-right">{backup.compressed ? 'Yes' : 'No'}</span></div>
           </div>
         </Card>
 
         <Card className="p-4 space-y-3">
           <h3 className="font-medium text-text-primary">Timestamps</h3>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-text-muted">Created</span><span>{new Date(backup.created_at).toLocaleString()}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">Completed</span><span>{backup.completed_at ? new Date(backup.completed_at).toLocaleString() : '-'}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">Owner</span><span>{backup.owner_user_id || '-'}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Created</span><span className="text-right">{new Date(backup.created_at).toLocaleString()}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Completed</span><span className="text-right">{backup.completed_at ? new Date(backup.completed_at).toLocaleString() : '-'}</span></div>
+            <div className="flex items-start justify-between gap-4"><span className="shrink-0 text-text-muted">Owner</span><span className="break-all text-right">{backup.owner_user_id || '-'}</span></div>
           </div>
         </Card>
       </div>
