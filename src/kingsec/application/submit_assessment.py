@@ -102,6 +102,21 @@ class SubmitAssessment:
 
         # Submit background work. The closure captures the ports it needs.
         job_id = str(assessment.id)
+
+        if self._execution_engine is not None:
+            # Create the tracked execution state synchronously, in this
+            # request thread, before the scan is even submitted to the
+            # background job runner. The real scanner list isn't known
+            # yet (it's computed inside the background job below via
+            # planner.plan()/compatible_scanners()) so this starts empty
+            # and _execute_scan() fills it in with set_scanner_plan()
+            # once it knows. Without this synchronous placeholder, a
+            # client polling GET .../execution/status right after this
+            # call returns could race the background thread's startup
+            # (thread-pool scheduling isn't instantaneous) and see a
+            # false 404 for an assessment that is genuinely running.
+            self._execution_engine.start_execution(job_id, {})
+
         background_fn = self._make_background_fn(
             assessment_id=assessment_id,
             assessments=self._assessments,
@@ -222,7 +237,7 @@ def _execute_scan(
             selected_names = scanner.compatible_scanners(assessment.target)
 
         if execution_engine is not None:
-            execution_engine.start_execution(tracking_id, selected_names)
+            execution_engine.set_scanner_plan(tracking_id, selected_names)
             execution_engine.transition_phase(tracking_id, ExecutionPhase.RUNNING_SCANNERS)
 
         if scanner_executor is not None:

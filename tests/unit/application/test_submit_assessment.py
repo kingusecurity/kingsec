@@ -401,6 +401,37 @@ class TestSubmitAssessmentExecutionEngineWiring:
         tracked_ids = {sp.scanner_id for sp in state.scanner_progress}
         assert tracked_ids == {"nmap", "nuclei"}
 
+    def test_execution_state_exists_before_background_job_runs(self) -> None:
+        """Regression test for a race that produced real, user-visible
+        "Failed to load execution status" errors: the client starts
+        polling GET .../execution/status as soon as it sees the submit
+        response, but the background job (which used to be the only
+        place calling start_execution()) isn't guaranteed to have been
+        scheduled by the thread pool yet. That poll used to 404 for an
+        assessment that was, in fact, running and would go on to
+        complete normally. Tracked state must exist synchronously, in
+        the request thread, before the job is even submitted."""
+        assessment = _make_assessment()
+        repo = FakeAssessmentRepository({str(assessment.id): assessment})
+        scanner = FakeScanner()
+        job_runner = RecordingJobRunner(run_inline=False)
+        engine = AssessmentExecutionEngine()
+
+        use_case = SubmitAssessment(
+            assessments=repo,
+            scanner=scanner,
+            job_runner=job_runner,
+            execution_engine=engine,
+        )
+
+        use_case.execute(SubmitAssessmentRequest(assessment_id="asmt-test-001", is_admin=True))
+
+        # The job was submitted but deliberately never run, simulating a
+        # client poll that lands before the thread pool schedules it.
+        state = engine.get_state("asmt-test-001")
+        assert state is not None
+        assert state.phase.value == "preparing"
+
     def test_phase_reaches_completed_with_real_mapping(self) -> None:
         assessment = _make_assessment()
         repo = FakeAssessmentRepository({str(assessment.id): assessment})

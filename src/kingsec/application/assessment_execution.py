@@ -136,6 +136,30 @@ class AssessmentExecutionEngine:
         with self._lock:
             self._states[assessment_id] = state
 
+    def set_scanner_plan(self, assessment_id: str, scanner_names: dict[str, str]) -> None:
+        """Populate the scanner list for an execution already started via
+        start_execution().
+
+        The scanner mapping often isn't known until after execution
+        begins (profile-based re-planning happens inside the background
+        job). Splitting this from start_execution() lets the caller create
+        the tracked state synchronously - in the request thread, before
+        the background job is even submitted - so a client polling
+        GET .../execution/status immediately after the submit response
+        can never race the background thread's startup and see a
+        spurious 404 for an assessment that is, in fact, running.
+
+        No-ops if start_execution() was never called for this id.
+        """
+        with self._lock:
+            state = self._states.get(assessment_id)
+            if state is None:
+                return
+            state.scanner_progress = {
+                sid: ScannerProgress(scanner_id=sid, name=name, status="pending")
+                for sid, name in scanner_names.items()
+            }
+
     def transition_phase(self, assessment_id: str, target: ExecutionPhase, message: str = "") -> None:
         """Transition the execution to a new phase."""
         with self._lock:
