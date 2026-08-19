@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from kingsec.application.distributed.ports import JobQueueRepositoryPort
 from kingsec.application.distributed.retry_manager import DeadLetterService, RetryManager
+from kingsec.domain import Role
 
 from .auth import CurrentUser, get_current_user
 from .dependencies import get_application
@@ -16,6 +17,19 @@ if TYPE_CHECKING:
     from kingsec.bootstrap.application import Application
 
 router = APIRouter(prefix="/api/v1/queue", tags=["distributed_queue"])
+
+ADMIN_ONLY = Role.ADMIN
+
+
+def _require_admin(user: CurrentUser) -> None:
+    """Same pattern as the sibling queue_routes.py (the other, already
+    correctly-secured queue implementation mounted at this same prefix):
+    mutating operations and single-entry detail reads (which carry
+    payload/target) require Admin. List/aggregate reads that carry no
+    payload stay open to any authenticated user, matching
+    queue_routes.py's own list_queue/get_statistics."""
+    if user.role != ADMIN_ONLY:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
 
 
 def _get_queue_repo(request: Request) -> JobQueueRepositoryPort:
@@ -94,6 +108,7 @@ async def retry_job(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
+    _require_admin(user)
     mgr = _get_retry_manager(request)
     try:
         entry = mgr.retry_job(entry_id)
@@ -115,6 +130,7 @@ async def cancel_job(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
+    _require_admin(user)
     mgr = _get_retry_manager(request)
     try:
         entry = mgr.cancel_job(entry_id)
@@ -158,6 +174,7 @@ async def requeue_dead_letter(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
+    _require_admin(user)
     svc = _get_dead_letter_service(request)
     try:
         entry = svc.requeue(entry_id)
@@ -178,6 +195,7 @@ async def get_queue_entry(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
+    _require_admin(user)
     repo = _get_queue_repo(request)
     entry = repo.get(entry_id)
     if not entry:
