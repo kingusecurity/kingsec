@@ -15,7 +15,7 @@ from kingsec.application import ScannerPort
 from kingsec.domain import Finding, Target
 from kingsec.infrastructure.logging import get_logger
 
-from .errors import ScannerExecutionError
+from .errors import NONZERO_EXIT_USER_MESSAGE, ScannerExecutionError
 from .nikto_parser import parse_nikto_output
 from .runner import CommandRunner, SubprocessCommandRunner
 
@@ -63,6 +63,7 @@ class NiktoScannerAdapter(ScannerPort):
                     "stderr": result.stderr.strip()[:500],
                     "target": target.value,
                 },
+                user_message=NONZERO_EXIT_USER_MESSAGE,
             )
         _logger.info(
             "nikto scan completed",

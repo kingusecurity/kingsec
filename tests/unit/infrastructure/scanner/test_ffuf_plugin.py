@@ -14,7 +14,7 @@ from kingsec.domain import (
     TargetType,
 )
 from kingsec.infrastructure.config.models import FfufSettings
-from kingsec.infrastructure.scanner.errors import ScannerExecutionError
+from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE, ScannerExecutionError
 from kingsec.infrastructure.scanner.plugins.ffuf import FfufPlugin
 from kingsec.infrastructure.scanner.runner import CommandResult
 from tests.unit.infrastructure.scanner.conftest import FakeRunner
@@ -119,7 +119,10 @@ class TestAvailability:
         avail = plugin.is_available()
         assert avail.available is False
         assert avail.reason is not None
-        assert "definitely-not-ffuf-xyz" in avail.reason
+        # Phase 08: deliberately replaced, not weakened - see nmap's
+        # equivalent test for the full reasoning.
+        assert "definitely-not-ffuf-xyz" not in avail.reason
+        assert avail.reason == BINARY_ABSENT_USER_MESSAGE
 
 
 # ===========================================================================

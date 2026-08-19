@@ -15,7 +15,7 @@ from kingsec.domain import (
     TargetType,
 )
 from kingsec.infrastructure.config.models import NmapSettings
-from kingsec.infrastructure.scanner.errors import ScannerExecutionError
+from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE, ScannerExecutionError
 from kingsec.infrastructure.scanner.plugins.nmap import NmapPlugin
 from kingsec.infrastructure.scanner.runner import CommandResult
 from tests.unit.infrastructure.scanner.conftest import FakeRunner
@@ -132,7 +132,14 @@ class TestAvailability:
         avail = plugin.is_available()
         assert avail.available is False
         assert avail.reason is not None
-        assert "definitely-not-nmap-xyz" in avail.reason
+        # Phase 08: this assertion previously checked that the configured
+        # binary path LEAKED into the reason string - itself the exact
+        # class of disclosure Phase 08 closes (§2's security constraint).
+        # Deliberately replaced, not weakened: the reason must NOT contain
+        # the configured value, and must be the shared safe message every
+        # scanner's binary-absent case now uses.
+        assert "definitely-not-nmap-xyz" not in avail.reason
+        assert avail.reason == BINARY_ABSENT_USER_MESSAGE
 
 
 # ===========================================================================

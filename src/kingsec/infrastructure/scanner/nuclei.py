@@ -15,7 +15,7 @@ from kingsec.application import ScannerPort
 from kingsec.domain import Finding, Target
 from kingsec.infrastructure.logging import get_logger
 
-from .errors import ScannerExecutionError
+from .errors import NONZERO_EXIT_USER_MESSAGE, ScannerExecutionError
 from .parser import parse_nuclei_jsonl
 from .runner import CommandRunner, SubprocessCommandRunner
 
@@ -86,6 +86,7 @@ class NucleiScannerAdapter(ScannerPort):
                     "stderr": result.stderr.strip()[:500],
                     "target": target.value,
                 },
+                user_message=NONZERO_EXIT_USER_MESSAGE,
             )
         _logger.info(
             "scan completed",
@@ -127,4 +128,8 @@ class NucleiScannerAdapter(ScannerPort):
             raise ScannerExecutionError(
                 f"configured templates directory does not exist: {templates_dir}",
                 context={"templates_dir": str(templates_dir)},
+                user_message=(
+                    "The scanner's configured templates directory could not be found. "
+                    "Check the scanner's configuration in the deployment environment."
+                ),
             )

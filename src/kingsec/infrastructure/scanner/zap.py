@@ -14,7 +14,7 @@ from kingsec.application import ScannerPort
 from kingsec.domain import Finding, Target
 from kingsec.infrastructure.logging import get_logger
 
-from .errors import ScannerExecutionError
+from .errors import NONZERO_EXIT_USER_MESSAGE, ScannerExecutionError
 from .runner import CommandRunner, SubprocessCommandRunner
 from .zap_parser import parse_zap_json
 
@@ -62,6 +62,7 @@ class ZapScannerAdapter(ScannerPort):
                     "stderr": result.stderr.strip()[:500],
                     "target": target.value,
                 },
+                user_message=NONZERO_EXIT_USER_MESSAGE,
             )
         _logger.info(
             "zap scan completed",

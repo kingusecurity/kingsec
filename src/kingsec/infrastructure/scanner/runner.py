@@ -17,7 +17,7 @@ from typing import Protocol
 
 from kingsec.infrastructure.logging import get_logger
 
-from .errors import ScannerExecutionError
+from .errors import BINARY_ABSENT_USER_MESSAGE, ScannerExecutionError
 
 _logger = get_logger("kingsec.infrastructure.scanner")
 
@@ -87,12 +87,24 @@ class SubprocessCommandRunner:
                 f"scanner binary not found: {argv[0]!r}",
                 context={"binary": argv[0]},
                 cause=exc,
+                user_message=BINARY_ABSENT_USER_MESSAGE,
             ) from exc
         except subprocess.TimeoutExpired as exc:
             raise ScannerExecutionError(
                 f"scan timed out after {timeout:.0f}s",
                 context={"timeout_seconds": timeout},
                 cause=exc,
+                # The configured timeout duration is product configuration,
+                # not infrastructure detail (unlike a path or hostname) - an
+                # admin-set number of seconds, safely interpolatable and
+                # directly actionable ("raise it if this target is
+                # legitimately slow"). See Phase 08 report §2/§6 for the
+                # full reasoning behind this specific judgement call.
+                user_message=(
+                    f"The scan did not complete within the configured {timeout:.0f}-second "
+                    "timeout. If this is expected for the target, increase the scanner's "
+                    "timeout in its configuration."
+                ),
             ) from exc
 
         duration = time.monotonic() - start

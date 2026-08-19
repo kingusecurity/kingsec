@@ -15,7 +15,7 @@ from kingsec.domain import Finding, Target
 from kingsec.infrastructure.logging import get_logger
 
 from .amass_parser import parse_amass_json
-from .errors import ScannerExecutionError
+from .errors import NONZERO_EXIT_USER_MESSAGE, ScannerExecutionError
 from .runner import CommandRunner, SubprocessCommandRunner
 
 if TYPE_CHECKING:
@@ -62,6 +62,7 @@ class AmassScannerAdapter(ScannerPort):
                     "stderr": result.stderr.strip()[:500],
                     "target": target.value,
                 },
+                user_message=NONZERO_EXIT_USER_MESSAGE,
             )
         _logger.info(
             "amass scan completed",

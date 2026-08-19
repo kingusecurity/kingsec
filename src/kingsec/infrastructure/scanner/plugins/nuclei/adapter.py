@@ -28,6 +28,7 @@ from kingsec.domain import (
     Target,
     TargetType,
 )
+from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE
 
 if TYPE_CHECKING:
     from kingsec.infrastructure.config.models import ScannerSettings
@@ -80,7 +81,7 @@ class NucleiPlugin(ScannerPluginPort):
         found = shutil.which(binary) is not None
         return PluginAvailability(
             available=found,
-            reason=None if found else f"nuclei binary not found: {binary!r}",
+            reason=None if found else BINARY_ABSENT_USER_MESSAGE,
             required_dependencies=(binary,),
         )
 
