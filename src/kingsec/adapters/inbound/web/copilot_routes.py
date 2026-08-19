@@ -22,17 +22,20 @@ def _is_admin(user: CurrentUser) -> bool:
 
 def _get_copilot(request: Request, _: CurrentUser = Depends(get_current_user)) -> CopilotService:
     app = get_application(request)
-    return app.resolve(CopilotService)
+    service: CopilotService = app.resolve(CopilotService)
+    return service
 
 
 def _get_notes(request: Request, _: CurrentUser = Depends(get_current_user)) -> InvestigationNotesService:
     app = get_application(request)
-    return app.resolve(InvestigationNotesService)
+    service: InvestigationNotesService = app.resolve(InvestigationNotesService)
+    return service
 
 
 def _get_export(request: Request, _: CurrentUser = Depends(get_current_user)) -> CopilotExportService:
     app = get_application(request)
-    return app.resolve(CopilotExportService)
+    service: CopilotExportService = app.resolve(CopilotExportService)
+    return service
 
 
 # --- Conversations ---

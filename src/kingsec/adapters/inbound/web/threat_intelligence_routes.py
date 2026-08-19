@@ -18,12 +18,14 @@ router = APIRouter(prefix="/api/v1", tags=["Threat Intelligence"])
 
 def _get_ti_service(request: Request, _: CurrentUser = Depends(get_current_user)) -> ThreatIntelligenceService:
     app = get_application(request)
-    return app.resolve(ThreatIntelligenceService)
+    service: ThreatIntelligenceService = app.resolve(ThreatIntelligenceService)
+    return service
 
 
 def _get_report_generator(request: Request, _: CurrentUser = Depends(get_current_user)) -> ThreatReportGenerator:
     app = get_application(request)
-    return app.resolve(ThreatReportGenerator)
+    generator: ThreatReportGenerator = app.resolve(ThreatReportGenerator)
+    return generator
 
 
 @router.get("/threat-intelligence/summary")

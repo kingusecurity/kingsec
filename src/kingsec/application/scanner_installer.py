@@ -410,9 +410,16 @@ def get_commands_for_current_platform(scanner_id: str) -> tuple[InstallCommand, 
         return guide.windows
     elif platform == "linux":
         return guide.linux
-    elif platform == "macos":
+    else:
+        # Platform is Literal["windows", "linux", "macos"] and
+        # detect_platform() is exhaustive by construction (its own
+        # unconditional trailing `return "macos"` means no fourth value is
+        # ever possible) - mypy proves the "macos" case is the only one
+        # left here, so a further elif + fallback return would be
+        # unreachable dead code, not a missed case or a disabled check
+        # (investigated and confirmed for Phase 12's mypy `unreachable`
+        # finding at this file's former line 415).
         return guide.macos
-    return ()
 
 
 def get_best_command(scanner_id: str) -> InstallCommand | None:

@@ -1828,7 +1828,7 @@ def _register_production_services(container: Container, session_factory: Any) ->
         db_check = DatabaseHealthCheck(session_factory=session_factory)
         container.register_factory(
             SystemMonitorPort,
-            lambda c, _db=db_check: SystemHealthMonitor(db_check=_db),
+            lambda c: SystemHealthMonitor(db_check=db_check),
         )
 
     if not container.has(MetricsCollectorPort):

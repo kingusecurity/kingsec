@@ -97,7 +97,10 @@ class DiagnosticsCollector:
             url = "http://127.0.0.1:8765/api/v1/health"
             req = urllib.request.Request(url, headers={"Accept": "application/json"})
             with urllib.request.urlopen(req, timeout=5) as resp:  # nosec B310
-                return json.loads(resp.read().decode())
+                parsed = json.loads(resp.read().decode())
+                if isinstance(parsed, dict):
+                    return parsed
+                return {"status": "unreachable", "error": "health endpoint returned non-object JSON"}
         except (urllib.error.URLError, OSError, json.JSONDecodeError, TimeoutError) as exc:
             return {"status": "unreachable", "error": str(exc)}
 

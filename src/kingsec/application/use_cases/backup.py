@@ -733,11 +733,15 @@ class UpdateRecoveryPlan:
         if not existing:
             from kingsec.application.errors import RecoveryPlanNotFoundError
             raise RecoveryPlanNotFoundError(f"Recovery plan '{plan_id}' not found")
+        raw_downtime = kwargs.get("estimated_downtime_minutes", existing.estimated_downtime_minutes)
+        estimated_downtime_minutes = (
+            int(raw_downtime) if isinstance(raw_downtime, str | int | float) else existing.estimated_downtime_minutes
+        )
         updated = DisasterRecoveryPlan(
             plan_id=existing.plan_id,
             name=str(kwargs.get("name", existing.name)),
             description=str(kwargs.get("description", existing.description)),
-            estimated_downtime_minutes=int(kwargs.get("estimated_downtime_minutes", existing.estimated_downtime_minutes)),  # type: ignore[arg-type]
+            estimated_downtime_minutes=estimated_downtime_minutes,
             checklist=kwargs.get("checklist", existing.checklist),  # type: ignore[arg-type]
             last_tested_at=existing.last_tested_at,
             status=str(kwargs.get("status", existing.status)),

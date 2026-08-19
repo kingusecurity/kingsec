@@ -39,7 +39,7 @@ def _get_repo(request: Request) -> Any:
 @router.post("/explain-finding")
 async def explain_finding(
     body: dict[str, Any],
-    request: Request,  # type: ignore[assignment]
+    request: Request,
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     svc: ExplainFindingService = _resolve(request, ExplainFindingService)
@@ -64,7 +64,7 @@ async def explain_finding(
 @router.post("/executive-summary")
 async def executive_summary(
     body: dict[str, Any],
-    request: Request,  # type: ignore[assignment]
+    request: Request,
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     svc: ExecutiveSummaryService = _resolve(request, ExecutiveSummaryService)
@@ -85,7 +85,7 @@ async def executive_summary(
 @router.post("/remediation-plan")
 async def remediation_plan(
     body: dict[str, Any],
-    request: Request,  # type: ignore[assignment]
+    request: Request,
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     svc: RemediationAssistantService = _resolve(request, RemediationAssistantService)
@@ -106,7 +106,7 @@ async def remediation_plan(
 @router.post("/chat")
 async def ai_chat(
     body: dict[str, Any],
-    request: Request,  # type: ignore[assignment]
+    request: Request,
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     svc: AIChatService = _resolve(request, AIChatService)
@@ -128,9 +128,9 @@ async def ai_chat(
 
 @router.get("/health")
 async def ai_health(
-    request: Request,  # type: ignore[assignment]
+    request: Request,
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     from kingsec.application.ai.ports import AIQueryPort
-    ai = _resolve(request, AIQueryPort)
+    ai: AIQueryPort = _resolve(request, AIQueryPort)
     return ai.health()

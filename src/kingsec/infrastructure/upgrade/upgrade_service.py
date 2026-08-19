@@ -266,5 +266,7 @@ class UpgradeService:
         """Load the version manifest from disk."""
         manifest_path = self._data_dir / "version-manifest.json"
         if manifest_path.is_file():
-            return json.loads(manifest_path.read_text(encoding="utf-8"))
+            loaded = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                return loaded
         return {}

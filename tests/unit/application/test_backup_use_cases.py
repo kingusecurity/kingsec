@@ -501,6 +501,30 @@ class TestUpdateRecoveryPlan:
         result = uc.execute("dr-1", name="New Plan")
         assert result.name == "New Plan"
 
+    def test_update_downtime_from_string(self, repo, audit) -> None:
+        """Phase 12 mypy fix: estimated_downtime_minutes=int(kwargs.get(...))
+        used to have a mismatched type: ignore comment that suppressed the
+        wrong error code, leaving int() called on a plain `object`-typed
+        value with no real narrowing. A caller-supplied string (the
+        realistic shape for a form-submitted value) must still coerce."""
+        existing = DisasterRecoveryPlan(plan_id=BackupId(value="dr-1"), name="Plan", estimated_downtime_minutes=10)
+        repo.find_recovery_plan_by_id.return_value = existing
+        uc = UpdateRecoveryPlan(repo, audit)
+        result = uc.execute("dr-1", estimated_downtime_minutes="45")
+        assert result.estimated_downtime_minutes == 45
+
+    def test_update_downtime_unparseable_falls_back_to_existing(self, repo, audit) -> None:
+        """A value that isn't str/int/float (e.g. a nested dict from a
+        malformed request) must not crash the use case - falls back to the
+        existing value rather than raising, matching this codebase's
+        fail-safe-not-fail-closed convention for non-security-relevant
+        input coercion."""
+        existing = DisasterRecoveryPlan(plan_id=BackupId(value="dr-1"), name="Plan", estimated_downtime_minutes=10)
+        repo.find_recovery_plan_by_id.return_value = existing
+        uc = UpdateRecoveryPlan(repo, audit)
+        result = uc.execute("dr-1", estimated_downtime_minutes={"bad": "shape"})
+        assert result.estimated_downtime_minutes == 10
+
     def test_update_not_found(self, repo, audit) -> None:
         repo.find_recovery_plan_by_id.return_value = None
         uc = UpdateRecoveryPlan(repo, audit)
