@@ -6,7 +6,7 @@ import json
 from base64 import b64encode
 from datetime import UTC, datetime
 from typing import Any
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from kingsec.application.errors import LicenseRequiredError
 from kingsec.application.ports.outbound import AuditPublisher, SIEMExportPort
@@ -15,7 +15,7 @@ from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.domain.integration import IntegrationType, SIEMBatchResult
 from kingsec.infrastructure.config.models import IntegrationSettings
 from kingsec.infrastructure.logging import get_logger
-from kingsec.infrastructure.notifications.url_validator import SSRFError, validate_url
+from kingsec.infrastructure.notifications.url_validator import SSRFError, open_validated
 
 logger = get_logger("kingsec.infrastructure.integrations.siem")
 
@@ -93,18 +93,16 @@ class SIEMExportService(SIEMExportPort):
         if not url or not token:
             raise RuntimeError("Splunk HEC not configured")
 
-        try:
-            validate_url(url)
-        except SSRFError as exc:
-            raise RuntimeError(f"Splunk HEC URL blocked by SSRF protection: {exc}") from exc
-
         events = self._build_events(findings)
         payload = json.dumps({"event": events}).encode()
         req = Request(url, data=payload, method="POST")
         req.add_header("Authorization", f"Splunk {token}")
         req.add_header("Content-Type", "application/json")
-        with urlopen(req, timeout=15):
-            pass
+        try:
+            with open_validated(req, timeout=15):
+                pass
+        except SSRFError as exc:
+            raise RuntimeError(f"Splunk HEC URL blocked by SSRF protection: {exc}") from exc
         return len(findings)
 
     def _sentinel_send(self, findings: list[dict[str, Any]]) -> int:
@@ -124,18 +122,16 @@ class SIEMExportService(SIEMExportPort):
         url = self._settings.sentinel_dce_url or f"https://{workspace_id}.ods.opinsights.azure.com"
         url = f"{url.rstrip('/')}/api/logs?api-version=2016-04-01"
 
-        try:
-            validate_url(url)
-        except SSRFError as exc:
-            raise RuntimeError(f"Sentinel URL blocked by SSRF protection: {exc}") from exc
-
         req = Request(url, data=body, method="POST")
         req.add_header("Content-Type", "application/json")
         req.add_header("Log-Type", "KingSec_Findings")
         req.add_header("x-ms-date", rfc1123)
         req.add_header("Authorization", f"SharedKey {workspace_id}:{signature}")
-        with urlopen(req, timeout=15):
-            pass
+        try:
+            with open_validated(req, timeout=15):
+                pass
+        except SSRFError as exc:
+            raise RuntimeError(f"Sentinel URL blocked by SSRF protection: {exc}") from exc
         return len(findings)
 
     def _elastic_send(self, findings: list[dict[str, Any]]) -> int:
@@ -147,11 +143,6 @@ class SIEMExportService(SIEMExportPort):
 
         endpoint = url or f"https://{cloud_id}.elastic.cloud"
         bulk_url = f"{endpoint.rstrip('/')}/_bulk"
-
-        try:
-            validate_url(bulk_url)
-        except SSRFError as exc:
-            raise RuntimeError(f"Elastic URL blocked by SSRF protection: {exc}") from exc
 
         lines: list[str] = []
         for f in findings:
@@ -165,8 +156,11 @@ class SIEMExportService(SIEMExportPort):
         req = Request(bulk_url, data=payload, method="POST")
         req.add_header("Authorization", f"ApiKey {api_key}")
         req.add_header("Content-Type", "application/x-ndjson")
-        with urlopen(req, timeout=15):
-            pass
+        try:
+            with open_validated(req, timeout=15):
+                pass
+        except SSRFError as exc:
+            raise RuntimeError(f"Elastic URL blocked by SSRF protection: {exc}") from exc
         return len(findings)
 
     def _audit_siem(self, result: SIEMBatchResult) -> None:

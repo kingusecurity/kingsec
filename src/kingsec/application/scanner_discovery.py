@@ -13,7 +13,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
-import subprocess
+import subprocess  # nosec B404 -- see _get_version()/_check_java() for the justification
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -335,7 +335,15 @@ def _get_version(path: str, args: tuple[str, ...], regex: str) -> str | None:
     a short timeout, and captures combined stdout+stderr.
     """
     try:
-        result = subprocess.run(
+        # path is a filesystem path resolved by _find_executable() via a
+        # fixed search over well-known install locations for a hardcoded
+        # binary name (from _SCANNER_MANIFEST, a static dict literal - see
+        # line 119); args is that same manifest entry's hardcoded
+        # version_args tuple (e.g. ("--version",)). Neither is ever derived
+        # from a scan target, request body, or other caller-supplied value -
+        # scanner_id only selects among the fixed manifest keys and cannot
+        # influence the command vector itself.
+        result = subprocess.run(  # nosec B603
             [path, *args],
             capture_output=True,
             text=True,
@@ -381,7 +389,11 @@ def _check_java() -> bool:
     if java is None:
         return False
     try:
-        result = subprocess.run(
+        # java is shutil.which("java")'s own resolved path (a fixed,
+        # hardcoded binary name), and "-version" is a literal. Same
+        # reasoning as _get_version() above: no caller-supplied value
+        # reaches this command vector.
+        result = subprocess.run(  # nosec B603
             [java, "-version"],
             capture_output=True,
             text=True,

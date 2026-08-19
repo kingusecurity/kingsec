@@ -9,6 +9,10 @@ from fastapi import FastAPI, Request, Response, status
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import JSONResponse
 
+from kingsec.infrastructure.logging import get_logger
+
+_logger = get_logger("kingsec.infrastructure.middleware.performance")
+
 
 class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
     """Reject requests exceeding the configured body size limit."""
@@ -111,8 +115,14 @@ class ResponseCacheMiddleware(BaseHTTPMiddleware):
                     status_code=200,
                     headers={"ETag": etag, "X-Cache": "MISS"},
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                # Caching is a best-effort optimization: if anything above
+                # fails, fall through to returning the original, uncached
+                # response rather than breaking the request. Logged (not
+                # silently swallowed) so a genuine bug in this path - e.g.
+                # a body_iterator API change - stays visible instead of
+                # permanently degrading to "never cached" with no trace.
+                _logger.warning("response caching failed (best-effort): %s", exc)
 
         return response
 

@@ -16,6 +16,7 @@ import httpx
 import pytest
 from pydantic import SecretStr
 
+import kingsec.infrastructure.ai.extended_adapter as extended_adapter_module
 from kingsec.infrastructure.ai import AIClient, AIProviderAdapter
 from kingsec.infrastructure.ai.config_resolver import AIConfigResolver
 from kingsec.infrastructure.ai.errors import AIAuthenticationError
@@ -120,3 +121,45 @@ class TestHealth:
         assert result["available"] is False
         assert result["provider"] == "openai"
         assert "error" in result
+
+
+class TestAuditRequestBestEffort:
+    """Phase 12 (bandit B110): _audit_request()'s except block used to be a
+    bare `except Exception: pass` - a genuine audit-write failure vanished
+    with zero trace. Now logs a warning instead of silently swallowing it."""
+
+    def test_audit_failure_is_logged_not_silently_swallowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class _FailingAudit:
+            def record(self, entry: object) -> None:
+                raise RuntimeError("audit sink unreachable")
+
+        adapter = _extended_adapter(
+            transport_from(lambda r: _openai_text_response("OK")),
+            AISettings(provider="openai", api_key=SecretStr("k"), base_url="http://t"),
+        )
+        adapter_with_audit = ExtendedAIAdapter(adapter._adapter, audit=_FailingAudit())
+
+        calls: list[str] = []
+
+        class _RecordingLogger:
+            def warning(self, msg: str, *args: object) -> None:
+                calls.append(msg % args if args else msg)
+
+        monkeypatch.setattr(extended_adapter_module, "_logger", _RecordingLogger())
+
+        # _audit_request() itself must not raise - the failure is contained.
+        adapter_with_audit._audit_request("openai", "gpt-4", "generate")
+
+        assert len(calls) == 1
+        assert "audit" in calls[0].lower()
+        assert "audit sink unreachable" in calls[0]
+
+    def test_no_audit_configured_is_a_silent_no_op(self) -> None:
+        """Unchanged behavior: when no audit publisher was wired at all
+        (the common case, per __init__'s audit: Any = None default), there
+        is nothing to fail, so no log line is expected either."""
+        adapter = _extended_adapter(
+            transport_from(lambda r: _openai_text_response("OK")),
+            AISettings(provider="openai", api_key=SecretStr("k"), base_url="http://t"),
+        )
+        adapter._audit_request("openai", "gpt-4", "generate")  # must not raise

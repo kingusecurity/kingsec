@@ -20,7 +20,7 @@ from kingsec.domain.integration import (
 )
 from kingsec.infrastructure.config.models import IntegrationSettings
 from kingsec.infrastructure.logging import get_logger
-from kingsec.infrastructure.notifications.url_validator import SSRFError, validate_url
+from kingsec.infrastructure.notifications.url_validator import SSRFError, open_validated
 
 logger = get_logger("kingsec.infrastructure.integrations.webhook")
 
@@ -77,7 +77,7 @@ class WebhookDeliveryService(WebhookDeliveryPort):
         url: str,
         payload: dict[str, Any],
     ) -> DeliveryRecord:
-        from urllib.request import Request, urlopen
+        from urllib.request import Request
 
         record_id = str(uuid.uuid4())
         attempt = 1
@@ -85,14 +85,13 @@ class WebhookDeliveryService(WebhookDeliveryPort):
 
         while attempt <= _MAX_ATTEMPTS:
             try:
-                validate_url(url)
                 body = self._build_body(integration_type, event_type, payload)
                 req = Request(url, data=body, method="POST")
                 req.add_header("Content-Type", "application/json")
                 if self._settings.webhook_secret.get_secret_value():
                     sig = self._sign(body, self._settings.webhook_secret.get_secret_value())
                     req.add_header("X-Signature-256", sig)
-                with urlopen(req, timeout=15):
+                with open_validated(req, timeout=15):
                     pass
                 record = DeliveryRecord(
                     id=record_id,

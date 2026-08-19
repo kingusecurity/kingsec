@@ -16,7 +16,9 @@ from __future__ import annotations
 
 import ipaddress
 import socket
+import urllib.request
 from collections.abc import Iterable
+from http.client import HTTPResponse
 from urllib.parse import urlparse
 
 from kingsec.application.ports import UnsafeURLError, URLValidationPort
@@ -100,6 +102,47 @@ def validate_url(url: str, *, allowlist: Iterable[str] | None = None) -> None:
             raise SSRFError(f"URL resolves to reserved address {raw_ip}: {url!r}")
         if ip.is_unspecified:
             raise SSRFError(f"URL resolves to unspecified address {raw_ip}: {url!r}")
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Refuses to follow any HTTP redirect.
+
+    ``validate_url()`` only validates the URL it is given - the *initial*
+    request target. ``urllib.request.urlopen()``'s default opener follows
+    redirects automatically, which would let a destination that has
+    already passed SSRF validation (or is later compromised) redirect the
+    connection to an unvalidated internal address, e.g. a cloud metadata
+    endpoint at a link-local address. Every outbound call this codebase
+    makes to an operator-configured or stored destination URL (SIEM,
+    ticketing, webhook, and playbook-webhook integrations) is a one-shot
+    POST to a specific API endpoint with no legitimate need to follow a
+    redirect, so the safe behavior is to refuse the redirect outright
+    rather than silently re-validate and follow it.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
+        raise SSRFError(f"refusing to follow redirect to {newurl!r} (from {req.full_url!r})")
+
+
+_NO_REDIRECT_OPENER = urllib.request.build_opener(_NoRedirectHandler)
+
+
+def open_validated(
+    req: urllib.request.Request,
+    *,
+    timeout: float,
+    allowlist: Iterable[str] | None = None,
+) -> HTTPResponse:
+    """Validate ``req``'s URL for SSRF, then open it without following redirects.
+
+    The single entry point every outbound HTTP call to an operator-
+    configured or stored destination URL should use in this codebase,
+    instead of calling ``validate_url()`` and ``urlopen()`` separately -
+    that pairing is exactly what a followed redirect can bypass (see
+    ``_NoRedirectHandler``).
+    """
+    validate_url(req.full_url, allowlist=allowlist)
+    return _NO_REDIRECT_OPENER.open(req, timeout=timeout)  # type: ignore[no-any-return]
 
 
 class SSRFURLValidator(URLValidationPort):

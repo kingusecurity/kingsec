@@ -98,5 +98,5 @@ class ExtendedAIAdapter(AIQueryPort):
                 success=True,
                 metadata={"provider": provider, "model": model, "action": action},
             ))
-        except Exception:
-            pass
+        except Exception as exc:
+            _logger.warning("AI request audit entry failed (best-effort): %s", exc)

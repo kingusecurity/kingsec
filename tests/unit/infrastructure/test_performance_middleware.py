@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from fastapi import FastAPI
+import pytest
+from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
+import kingsec.infrastructure.middleware.performance as performance_module
 from kingsec.infrastructure.middleware.performance import (
     MetricsMiddleware,
     RequestSizeLimitMiddleware,
@@ -118,6 +120,52 @@ class TestResponseCacheMiddleware:
             isinstance(m.cls, type) and issubclass(m.cls, ResponseCacheMiddleware)
             for m in app.user_middleware
         )
+
+    @pytest.mark.asyncio
+    async def test_caching_failure_is_logged_not_silently_swallowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Phase 12 (bandit B110): the caching try/except used to be a bare
+        `except Exception: pass`. A real failure while consuming the
+        response body (here: a chunk that isn't str or bytes, so
+        `body_bytes += chunk` raises TypeError) must fall through to
+        returning the original response AND be logged, not vanish.
+
+        Calls dispatch() directly with a stub call_next/response rather
+        than going through a real FastAPI/TestClient round-trip: the real
+        ASGI streaming pipeline consumes a StreamingResponse's
+        body_iterator a second time when actually sending the response,
+        which raises the same error again from framework code the
+        middleware never touches - not a useful way to isolate this
+        specific try/except.
+        """
+        calls: list[str] = []
+
+        class _RecordingLogger:
+            def warning(self, msg: str, *args: object) -> None:
+                calls.append(msg % args if args else msg)
+
+        monkeypatch.setattr(performance_module, "_logger", _RecordingLogger())
+
+        class _FakeResponse:
+            status_code = 200
+
+            async def _body_iterator(self):
+                yield 12345  # neither str nor bytes - triggers TypeError
+
+            body_iterator = property(lambda self: self._body_iterator())
+
+        request = Request(scope={"type": "http", "method": "GET", "path": "/test", "query_string": b"", "headers": []})
+        middleware = ResponseCacheMiddleware(app=FastAPI(), default_ttl=60)
+
+        async def _call_next(_request: Request) -> _FakeResponse:
+            return _FakeResponse()
+
+        result = await middleware.dispatch(request, _call_next)
+
+        # The request still succeeds - caching degrades gracefully.
+        assert isinstance(result, _FakeResponse)
+        # But the failure is now visible, not silently swallowed.
+        assert len(calls) == 1
+        assert "caching" in calls[0].lower()
 
 
 class TestMetricsMiddleware:

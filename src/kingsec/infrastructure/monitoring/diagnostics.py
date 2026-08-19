@@ -88,9 +88,15 @@ class DiagnosticsCollector:
         import urllib.request
 
         try:
+            # nosec B310 -- url is a hardcoded literal pointing at this same
+            # process's own health endpoint, not derived from any operator,
+            # user, or stored configuration value. There is no
+            # attacker-controlled input this could redirect an SSRF attack
+            # through (see Phase 12 report §4 for the full analysis of
+            # every urlopen() call site in this codebase).
             url = "http://127.0.0.1:8765/api/v1/health"
             req = urllib.request.Request(url, headers={"Accept": "application/json"})
-            with urllib.request.urlopen(req, timeout=5) as resp:
+            with urllib.request.urlopen(req, timeout=5) as resp:  # nosec B310
                 return json.loads(resp.read().decode())
         except (urllib.error.URLError, OSError, json.JSONDecodeError, TimeoutError) as exc:
             return {"status": "unreachable", "error": str(exc)}

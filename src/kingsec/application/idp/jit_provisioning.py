@@ -55,7 +55,15 @@ class JITProvisioningService:
             id=str(uuid4()),
             username=username or email.split("@")[0],
             email=email,
-            password_hash="__sso__placeholder__",
+            # Not a real credential: SSO-provisioned users authenticate
+            # only via the external identity provider, never via local
+            # password login. Argon2PasswordHasher.verify()
+            # (infrastructure/auth/password_hasher.py) only accepts hashes
+            # starting with "$argon2" or "pbkdf2:" and returns False for
+            # any other format, so this sentinel string can never
+            # authenticate a user under any password an attacker submits -
+            # confirmed by direct inspection of verify()'s own logic.
+            password_hash="__sso__placeholder__",  # nosec B106
             role=role,
             is_active=True,
         )

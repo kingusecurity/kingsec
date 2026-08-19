@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from typing import Any
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from kingsec.application.errors import LicenseRequiredError
 from kingsec.application.ports.outbound import AuditPublisher, TicketingPort
@@ -11,7 +11,7 @@ from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.domain.integration import IntegrationType, TicketReference
 from kingsec.infrastructure.config.models import IntegrationSettings
 from kingsec.infrastructure.logging import get_logger
-from kingsec.infrastructure.notifications.url_validator import SSRFError, validate_url
+from kingsec.infrastructure.notifications.url_validator import SSRFError, open_validated
 
 logger = get_logger("kingsec.infrastructure.integrations.ticketing")
 
@@ -83,10 +83,6 @@ class TicketingService(TicketingPort):
         if not self._settings.jira_url or not self._settings.jira_email or not jira_token:
             raise RuntimeError("Jira not configured")
         url = f"{self._settings.jira_url.rstrip('/')}/rest/api/2/issue"
-        try:
-            validate_url(url)
-        except SSRFError as exc:
-            raise RuntimeError(f"Jira URL blocked by SSRF protection: {exc}") from exc
         auth = f"{self._settings.jira_email}:{jira_token}"
         import base64
         encoded = base64.b64encode(auth.encode()).decode()
@@ -102,8 +98,11 @@ class TicketingService(TicketingPort):
         req = Request(url, data=body, method="POST")
         req.add_header("Authorization", f"Basic {encoded}")
         req.add_header("Content-Type", "application/json")
-        with urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode())
+        try:
+            with open_validated(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode())
+        except SSRFError as exc:
+            raise RuntimeError(f"Jira URL blocked by SSRF protection: {exc}") from exc
         key = data.get("key", "?")
         browse_url = f"{self._settings.jira_url.rstrip('/')}/browse/{key}"
         return key, browse_url
@@ -113,10 +112,6 @@ class TicketingService(TicketingPort):
         if not gh_token or not self._settings.github_repo:
             raise RuntimeError("GitHub not configured")
         url = f"https://api.github.com/repos/{self._settings.github_repo}/issues"
-        try:
-            validate_url(url)
-        except SSRFError as exc:
-            raise RuntimeError(f"GitHub URL blocked by SSRF protection: {exc}") from exc
         body = json.dumps({
             "title": f"[KingSec] {title}",
             "body": f"**Severity:** {severity}\n**Target:** {target}\n\n{description}\n\n---\n*Created by KingSec*",
@@ -126,8 +121,11 @@ class TicketingService(TicketingPort):
         req.add_header("Authorization", f"Bearer {gh_token}")
         req.add_header("Content-Type", "application/json")
         req.add_header("Accept", "application/vnd.github.v3+json")
-        with urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode())
+        try:
+            with open_validated(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode())
+        except SSRFError as exc:
+            raise RuntimeError(f"GitHub URL blocked by SSRF protection: {exc}") from exc
         return str(data.get("number", "")), data.get("html_url", "")
 
     def _gitlab_create(self, title: str, description: str, severity: str, target: str) -> tuple[str, str]:
@@ -136,10 +134,6 @@ class TicketingService(TicketingPort):
             raise RuntimeError("GitLab not configured")
         base_url = self._settings.gitlab_url.rstrip("/") or "https://gitlab.com"
         url = f"{base_url}/api/v4/projects/{self._settings.gitlab_project_id}/issues"
-        try:
-            validate_url(url)
-        except SSRFError as exc:
-            raise RuntimeError(f"GitLab URL blocked by SSRF protection: {exc}") from exc
         body = json.dumps({
             "title": f"[KingSec] {title}",
             "description": f"**Severity:** {severity}\n**Target:** {target}\n\n{description}\n\n---\n*Created by KingSec*",
@@ -148,8 +142,11 @@ class TicketingService(TicketingPort):
         req = Request(url, data=body, method="POST")
         req.add_header("PRIVATE-TOKEN", gl_token)
         req.add_header("Content-Type", "application/json")
-        with urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode())
+        try:
+            with open_validated(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode())
+        except SSRFError as exc:
+            raise RuntimeError(f"GitLab URL blocked by SSRF protection: {exc}") from exc
         return str(data.get("iid", "")), data.get("web_url", "")
 
     def get_tickets(self, finding_id: str | None = None) -> list[TicketReference]:

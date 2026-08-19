@@ -19,7 +19,18 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import xml.etree.ElementTree as ET
+    # nosec B405 -- this import never executes at runtime (TYPE_CHECKING is
+    # always False when Python actually runs this module); it exists only
+    # so type checkers resolve ET.Element/ET.ParseError annotations below
+    # against the stdlib's types, which defusedxml.ElementTree re-exports
+    # but doesn't re-declare for static analysis. The real runtime parser
+    # is defusedxml.ElementTree (the else branch), confirmed installed as
+    # a declared dependency (pyproject.toml: defusedxml>=0.7.1,<1) and
+    # confirmed importable. bandit's static pattern-match flags the mere
+    # text of this import regardless of the TYPE_CHECKING guard - it is
+    # not reachable code, so this is a false positive, not a real XXE
+    # exposure. See Phase 12 report §5 for the full verdict.
+    import xml.etree.ElementTree as ET  # nosec B405
 else:
     import defusedxml.ElementTree as ET
 
