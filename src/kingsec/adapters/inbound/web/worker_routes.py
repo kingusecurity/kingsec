@@ -9,13 +9,18 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from kingsec.application.distributed.worker_service import HeartbeatManager, WorkerRegistrationService
 from kingsec.application.errors import WorkerNotFoundError
 
-from .auth import CurrentUser, get_current_user
+from .auth import CurrentUser, get_current_user, require_admin
 from .dependencies import get_application
 
 if TYPE_CHECKING:
     from kingsec.bootstrap.application import Application
 
-router = APIRouter(prefix="/api/v1/workers", tags=["workers"])
+# Worker administration (registration, heartbeat, listing, deletion) is
+# infrastructure management, not user-facing data - every route here
+# requires Admin, matching the same router-level dependency pattern used
+# by secret_routes.py and the intended design already implemented (but
+# previously unenforced here) elsewhere in this codebase.
+router = APIRouter(prefix="/api/v1/workers", tags=["workers"], dependencies=[Depends(require_admin)])
 
 
 def _get_registration_service(request: Request) -> WorkerRegistrationService:
