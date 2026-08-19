@@ -64,7 +64,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy the wheel from builder
 COPY --from=builder /build/dist/*.whl /tmp/
-RUN pip install --no-cache-dir /tmp/*.whl && rm /tmp/*.whl
+# Upgrade pip before installing the wheel - the python:3.12-slim base image's
+# baked-in pip has been below the fixed version for several known CVEs
+# (PYSEC-2026-196, -1795, -1796, -2875, -2876); pip is a build-time tool
+# never imported or executed by the running application (Phase 11), but its
+# version is still what ends up baked into the shipped image's site-packages.
+RUN pip install --no-cache-dir --upgrade "pip>=26.1.2" && \
+    pip install --no-cache-dir /tmp/*.whl && rm /tmp/*.whl
 
 # Create data directory
 RUN mkdir -p /home/kingsec/.kingsec && chown kingsec:kingsec /home/kingsec/.kingsec
