@@ -51,6 +51,21 @@ def _check_owns_assessment(request: Request, assessment_id: str, current_user: C
 
 
 def _scanner_progress_to_dict(sp: Any) -> dict[str, Any]:
+    # Phase 06 added a blanket _sanitize_scanner_error() here because
+    # sp.error was recorded unsanitized (orchestrator.py's engine.fail_scanner
+    # call) and, by this layer, had already lost the original exception's
+    # type - the only fail-closed option left was to collapse every value to
+    # a generic string. Phase 07 sanitizes at that true source instead
+    # (ScannerOrchestrator.execute()'s wrapping), using
+    # safe_failure_message()'s existing three-branch split before the type
+    # information is lost - so sp.error is safe by construction by the time
+    # it reaches here, and re-collapsing it a second time would only destroy
+    # the specificity that fix restores (e.g. "The security scan could not
+    # be completed." collapsing further into "An unexpected error
+    # occurred..."). Removed, not kept as defence-in-depth: a second,
+    # blanket pass over an already-safe value has no security benefit here,
+    # only a usability cost - see the Phase 07 report §3.3 for the fuller
+    # reasoning, including why "keep it as defence-in-depth" was rejected.
     return {
         "scanner_id": sp.scanner_id,
         "name": sp.name,

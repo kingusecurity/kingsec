@@ -14,6 +14,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import cast
 
+from kingsec.application._support import safe_failure_message
 from kingsec.application.assessment_execution import AssessmentExecutionEngine
 from kingsec.application.errors import ScannerPluginError
 from kingsec.application.ports.scanner_executor import ScannerExecutor
@@ -57,8 +58,17 @@ class ScannerOrchestrator(ScannerPort, ScannerExecutor):
         2. Calls ``plugin.scan(target, config)``.
         3. Returns the ``ScannerResult``.
 
-        ``ScannerPluginError`` is propagated unchanged. Any other exception
-        is wrapped in ``ScannerPluginError`` with chaining.
+        ``ScannerPluginError`` is propagated unchanged (already a
+        deliberately-authored, safe-by-construction message - the same
+        convention ``safe_failure_message()`` applies elsewhere). Any other
+        exception is wrapped in ``ScannerPluginError``, but the ORIGINAL
+        exception's text never enters the wrapper's message verbatim: it is
+        sanitized here, at the one point the real exception type is still
+        available, via ``safe_failure_message()`` - the same three-branch
+        split (``KingSecError.user_message`` / safe ``ApplicationError`` text
+        / generic fallback) Phase 03 established. Doing it here, not at each
+        downstream consumer, is what lets a safe message stay informative
+        instead of every failure collapsing to one generic string.
         """
         try:
             p = cast(ScannerPluginPort, plugin)
@@ -68,7 +78,9 @@ class ScannerOrchestrator(ScannerPort, ScannerExecutor):
             raise
         except Exception as exc:
             p2 = cast(ScannerPluginPort, plugin)
-            raise ScannerPluginError(f"unexpected error in plugin {p2.metadata().id.value!r}: {exc}") from exc
+            raise ScannerPluginError(
+                f"unexpected error in plugin {p2.metadata().id.value!r}: {safe_failure_message(exc)}"
+            ) from exc
 
     def execute_all(
         self,
@@ -126,13 +138,22 @@ class ScannerOrchestrator(ScannerPort, ScannerExecutor):
                         warnings=result.warnings,
                     )
             except Exception as exc:
+                # `exc` here is the (now-sanitized, per execute()'s own
+                # wrapping above) ScannerPluginError. Its __cause__ is the
+                # real, original exception when execute() wrapped one - log
+                # THAT in full for operators (logging is unaffected by this
+                # phase's sanitization; the redaction processor is the
+                # correct, separate layer for secrets in log output), while
+                # the product-facing engine.fail_scanner() call only ever
+                # sees the already-sanitized wrapper text.
+                original = exc.__cause__ if exc.__cause__ is not None else exc
                 _logger.warning(
                     "scanner plugin failed, skipping",
                     plugin_id=str(plugin_id),
-                    error=str(exc),
+                    error=str(original),
                 )
                 if engine is not None and tid is not None:
-                    engine.fail_scanner(tid, plugin_id.value, str(exc))
+                    engine.fail_scanner(tid, plugin_id.value, safe_failure_message(exc))
 
         return tuple(results)
 
