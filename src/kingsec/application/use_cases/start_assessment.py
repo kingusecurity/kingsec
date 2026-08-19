@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 
-from kingsec.application._support import to_assessment_id
+from kingsec.application._support import safe_failure_message, to_assessment_id
 from kingsec.application.assessment_profiles import ExecutionPlanner
 from kingsec.application.dto import StartAssessmentRequest, StartAssessmentResponse
 from kingsec.application.errors import ExecutionPlanUnsatisfiedError
@@ -143,7 +143,7 @@ class StartAssessment:
         except Exception as exc:
             # Best-effort failure recording.
             try:
-                assessment.fail(str(exc))
+                assessment.fail(safe_failure_message(exc))
                 self._assessments.save(assessment)
 
                 self._publish_event(

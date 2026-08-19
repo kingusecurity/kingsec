@@ -504,6 +504,7 @@ async def get_assessment(
             )
             for s in result.scanner_summary
         ],
+        failure_reason=result.failure_reason,
     )
 
 

@@ -384,6 +384,7 @@ class AssessmentView:
     findings: tuple[FindingView, ...]
     profile_id: str | None = None
     scanner_summary: tuple[ScannerSummaryView, ...] = ()
+    failure_reason: str | None = None
 
     @classmethod
     def from_domain(cls, assessment: Assessment) -> AssessmentView:
@@ -397,6 +398,7 @@ class AssessmentView:
             findings=tuple(FindingView.from_domain(f) for f in assessment.findings),
             profile_id=assessment.profile_id,
             scanner_summary=tuple(ScannerSummaryView.from_domain(s) for s in assessment.scanner_summary),
+            failure_reason=assessment.failure_reason,
         )
 
 

@@ -169,6 +169,7 @@ class AssessmentResponse(BaseModel):
     findings: list[FindingResponse]
     profile_id: str | None = None
     scanner_summary: list[ScannerSummaryResponse] = Field(default_factory=list)
+    failure_reason: str | None = None
 
 
 class StartAssessmentResponse(BaseModel):
