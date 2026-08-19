@@ -10,6 +10,7 @@ from tests.unit.domain.conftest import make_finding
 from kingsec.domain import (
     IllegalStateTransition,
     Report,
+    ScannerRunSummary,
     Severity,
 )
 from kingsec.domain.report import compute_executive_score, generic_remediation_for
@@ -63,6 +64,179 @@ class TestVerdict:
         # ...but the honest counts still include the dismissed finding.
         assert report.count_for(Severity.CRITICAL) == 1
         assert report.total_findings == 2
+
+
+def _summary(scanner_id: str, name: str, status: str, findings_count: int = 0) -> ScannerRunSummary:
+    return ScannerRunSummary(scanner_id=scanner_id, name=name, status=status, findings_count=findings_count)
+
+
+# Phase 09 Scenario 3's exact live shape: one scanner completed with
+# informational findings, four failed with binary-absent (see Phase 09
+# report, docs/audits/KINGSEC-PHASE-09-CONSOLIDATION-VERIFICATION-REPORT.md
+# section 5, Scenario 3 - captured verbatim from the real deployed container).
+_SCENARIO_3_SUMMARY = (
+    _summary("nuclei", "Nuclei Scanner", "completed", findings_count=7),
+    _summary("nikto", "Nikto Scanner", "failed"),
+    _summary("ffuf", "ffuf Scanner", "failed"),
+    _summary("gobuster", "Gobuster Scanner", "failed"),
+    _summary("zap", "OWASP ZAP", "failed"),
+)
+
+
+class TestPartialCoverageVerdict:
+    """Phase 10: a partially-executed assessment must not present as an
+    unqualified clean result. See docs/audits/
+    KINGSEC-PHASE-10-PARTIAL-SCAN-HONESTY-REPORT.md.
+    """
+
+    def test_scenario_3_shape_no_longer_reads_as_unqualified_clean(self, running) -> None:
+        """The exact live defect from Phase 09 Scenario 3: one scanner
+        completed with 7 informational findings, four failed with
+        binary-absent - the verdict said "no action required" about a scan
+        that mostly didn't run."""
+        findings = [make_finding(Severity.INFORMATIONAL, title=f"Finding {i}") for i in range(7)]
+        for f in findings:
+            running.record_finding(f)
+        running.record_scanner_summary(_SCENARIO_3_SUMMARY)
+        running.complete()
+
+        report = Report.from_assessment(running)
+        assert report.verdict.action_required is True
+        assert "no action required" not in report.verdict.headline.lower()
+
+    def test_all_completed_zero_findings_stays_unqualified(self, running) -> None:
+        """The signal must be specific, not blanket: a genuinely clean,
+        fully-executed scan must still read as clean."""
+        running.record_scanner_summary(
+            (_summary("nuclei", "Nuclei Scanner", "completed"), _summary("nmap", "Nmap Scanner", "completed"))
+        )
+        running.complete()
+
+        report = Report.from_assessment(running)
+        assert report.verdict.action_required is False
+        assert report.verdict.headline == "No security issues identified."
+
+    def test_all_completed_findings_present_verdict_unchanged(self, running) -> None:
+        running.record_finding(make_finding(Severity.CRITICAL))
+        running.record_scanner_summary(
+            (_summary("nuclei", "Nuclei Scanner", "completed", findings_count=1),)
+        )
+        running.complete()
+
+        report = Report.from_assessment(running)
+        assert report.verdict.highest_severity is Severity.CRITICAL
+        assert report.verdict.action_required is True
+        assert "Critical" in report.verdict.headline
+        assert "did not complete" not in report.verdict.headline
+
+    def test_some_failed_findings_present_is_qualified(self, running) -> None:
+        running.record_finding(make_finding(Severity.HIGH))
+        running.record_scanner_summary(
+            (
+                _summary("nuclei", "Nuclei Scanner", "completed", findings_count=1),
+                _summary("nmap", "Nmap Scanner", "failed"),
+            )
+        )
+        running.complete()
+
+        report = Report.from_assessment(running)
+        assert report.verdict.action_required is True
+        assert "did not complete" in report.verdict.headline
+        assert "Nmap Scanner" in report.verdict.headline
+
+    def test_some_failed_zero_findings_is_qualified(self, running) -> None:
+        """The most dangerous case: no findings and no indication that most
+        of the scan didn't run."""
+        running.record_scanner_summary(
+            (
+                _summary("nuclei", "Nuclei Scanner", "completed"),
+                _summary("nmap", "Nmap Scanner", "failed"),
+                _summary("nikto", "Nikto Scanner", "failed"),
+            )
+        )
+        running.complete()
+
+        report = Report.from_assessment(running)
+        assert report.verdict.action_required is True
+        assert "did not complete" in report.verdict.headline
+        assert report.verdict.headline != "No security issues identified."
+
+    def test_non_applicable_scanners_only_not_qualified(self, running) -> None:
+        """A scanner that was never applicable to this target (absent from
+        scanner_summary entirely - Phase 09 Scenario 3's own observed
+        behavior for Amass/Trivy/Semgrep against a URL target) did not fail
+        to run, and must not count toward incompleteness."""
+        running.record_scanner_summary((_summary("nuclei", "Nuclei Scanner", "completed"),))
+        running.complete()
+
+        report = Report.from_assessment(running)
+        assert report.verdict.action_required is False
+        assert report.verdict.headline == "No security issues identified."
+
+    def test_preplanned_skip_not_qualified(self, running) -> None:
+        """A profile-driven pre-planned skip (status == "skipped") is not a
+        failure either - only status == "failed" counts."""
+        running.record_scanner_summary(
+            (
+                _summary("nuclei", "Nuclei Scanner", "completed"),
+                ScannerRunSummary(
+                    scanner_id="amass", name="Amass", status="skipped", skipped_reason="not applicable to this profile"
+                ),
+            )
+        )
+        running.complete()
+
+        report = Report.from_assessment(running)
+        assert report.verdict.action_required is False
+        assert report.verdict.headline == "No security issues identified."
+
+    def test_all_attempted_failed_stays_failed_no_report(self, running) -> None:
+        """Phase 06's policy is unchanged: an assessment where every
+        attempted scanner failed transitions to FAILED, not COMPLETED, and
+        a report can never be generated from it."""
+        running.record_scanner_summary(
+            (_summary("nuclei", "Nuclei Scanner", "failed"), _summary("nmap", "Nmap Scanner", "failed"))
+        )
+        running.fail("All 2 configured scanners failed to complete: Nuclei Scanner, Nmap Scanner.")
+
+        with pytest.raises(IllegalStateTransition, match="completed assessment"):
+            Report.from_assessment(running)
+
+    def test_qualified_headline_leaks_no_raw_exception_text(self, running) -> None:
+        """Mirrors Phase 08 §6's per-mode leak assertions: the new
+        coverage-caveat text interpolates only scanner display names and
+        counts (Phase 08 §2's explicit safe list) - never a path, binary
+        location, command line, internal hostname, or raw str(exc)."""
+        running.record_scanner_summary(
+            (
+                _summary("nuclei", "Nuclei Scanner", "completed"),
+                ScannerRunSummary(scanner_id="nmap", name="Nmap Scanner", status="failed", findings_count=0),
+            )
+        )
+        running.complete()
+
+        headline = Report.from_assessment(running).verdict.headline
+        assert "/" not in headline  # no filesystem paths
+        assert "Traceback" not in headline
+        assert "Exception" not in headline
+        assert "nmap exited with code" not in headline  # raw internal message text
+
+    def test_informational_findings_and_incomplete_does_not_say_no_action_required(self, running) -> None:
+        """Even when the only findings are Informational (which alone would
+        say 'no action required' today), incomplete coverage must still
+        flip action_required and drop that specific claim."""
+        running.record_finding(make_finding(Severity.INFORMATIONAL))
+        running.record_scanner_summary(
+            (
+                _summary("nuclei", "Nuclei Scanner", "completed", findings_count=1),
+                _summary("nmap", "Nmap Scanner", "failed"),
+            )
+        )
+        running.complete()
+
+        report = Report.from_assessment(running)
+        assert report.verdict.action_required is True
+        assert "no action required" not in report.verdict.headline.lower()
 
 
 class TestOrderingAndCounts:

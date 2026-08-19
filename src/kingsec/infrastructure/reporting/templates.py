@@ -26,7 +26,7 @@ import re
 from html import escape
 
 from kingsec.domain import HistoryPoint, Report, Severity
-from kingsec.domain.report import FindingSummary
+from kingsec.domain.report import FindingSummary, failed_scanners_in
 
 # Reports are only ever generated from a COMPLETED assessment (domain-enforced),
 # so the status shown is a safe constant rather than guesswork.
@@ -808,8 +808,18 @@ def _remediation_card(entry: FindingSummary) -> str:
 
 def _conclusion(report: Report) -> str:
     verdict = report.verdict
+    failed = failed_scanners_in(report.scanner_summary)
     if not report.entries:
-        text = "The assessment completed with no findings recorded."
+        if failed:
+            names = ", ".join(s.name for s in failed)
+            text = (
+                "The assessment completed with no findings recorded, but "
+                f"{len(failed)} of {len(report.scanner_summary)} configured scanners did not "
+                f"complete ({names}). This does not mean the target is clean — see Scanner "
+                "Coverage for details."
+            )
+        else:
+            text = "The assessment completed with no findings recorded."
     elif verdict.action_required:
         text = (
             "The assessment identified issues that warrant remediation. "

@@ -24,6 +24,10 @@ from .errors import IllegalStateTransition
 from .evidence import Evidence, Recommendation
 
 # Plain-language headlines keyed by the overall (highest actionable) severity.
+# Used only when scanner coverage was complete - see
+# _NO_ISSUES_HEADLINE_WHEN_INCOMPLETE / _INFORMATIONAL_HEADLINE_WHEN_INCOMPLETE
+# for the two variants substituted when it was not (both explicitly avoid
+# claiming "no action required" of a scan that didn't fully run).
 _VERDICT_HEADLINES: dict[Severity, str] = {
     Severity.CRITICAL: "Critical security issues found — immediate action required.",
     Severity.HIGH: "High-risk issues found — prompt remediation recommended.",
@@ -32,6 +36,40 @@ _VERDICT_HEADLINES: dict[Severity, str] = {
     Severity.INFORMATIONAL: "Informational observations only — no action required.",
 }
 _NO_ISSUES_HEADLINE = "No security issues identified."
+_NO_ISSUES_HEADLINE_WHEN_INCOMPLETE = "No actionable findings in the portion of the scan that completed."
+_INFORMATIONAL_HEADLINE_WHEN_INCOMPLETE = "Informational observations only in the portion of the scan that completed."
+
+
+def failed_scanners_in(scanner_summary: tuple[ScannerRunSummary, ...]) -> tuple[ScannerRunSummary, ...]:
+    """Scanners that were attempted and did not complete.
+
+    Phase 10: the only category that makes coverage incomplete. A scanner
+    absent from ``scanner_summary`` entirely (never applicable to this
+    target - confirmed live in Phase 09 §5 Scenario 3 for Amass/Trivy/
+    Semgrep against a URL target) did not fail to run. A scanner present
+    with ``status == "skipped"`` (a profile's pre-planned skip) was
+    deliberately not attempted, which is also not a failure. Getting this
+    wrong would mark almost every assessment partial and make the signal
+    useless - so only the literal ``"failed"`` status counts.
+    """
+    return tuple(s for s in scanner_summary if s.status == "failed")
+
+
+def _coverage_caveat(failed: tuple[ScannerRunSummary, ...], total_attempted: int) -> str:
+    """A safe, specific caveat naming which scanners didn't complete.
+
+    Only scanner display names (``ScannerRunSummary.name``) and counts are
+    interpolated - both are on Phase 08 §2's explicit safe list. Never a
+    path, binary location, command line, internal hostname, or raw
+    ``str(exc)`` - none of that is available on ``ScannerRunSummary`` at
+    all, so there is nothing unsafe here to accidentally include.
+    """
+    names = ", ".join(s.name for s in failed)
+    return (
+        f" Coverage was incomplete: {len(failed)} of {total_attempted} configured scanners "
+        f"did not complete ({names}). This verdict reflects only the scanners that ran — "
+        "see Scanner Coverage for details."
+    )
 
 # A deliberately simple, deterministic sizing heuristic keyed off severity —
 # not an estimate of actual engineering hours, which no data source here can
@@ -109,16 +147,43 @@ class Verdict:
     action_required: bool
 
     @classmethod
-    def from_findings(cls, findings: tuple[Any, ...]) -> Verdict:
-        """Derive the overall verdict, ignoring false positives."""
+    def from_findings(
+        cls,
+        findings: tuple[Any, ...],
+        scanner_summary: tuple[ScannerRunSummary, ...] = (),
+    ) -> Verdict:
+        """Derive the overall verdict, ignoring false positives.
+
+        Phase 10: ``scanner_summary`` is consulted only to detect
+        incomplete coverage (see ``failed_scanners_in``) - it never changes
+        ``highest_severity``, which stays driven purely by findings. A
+        partially-executed assessment must not present as an unqualified
+        clean result: incomplete coverage always forces
+        ``action_required=True`` and qualifies the headline, even when the
+        severity-only verdict would otherwise have been the generic "no
+        action required" text (Phase 09 §5 Scenario 3's exact live defect).
+        """
+        failed = failed_scanners_in(scanner_summary)
+        incomplete = bool(failed)
+
         actionable = [f for f in findings if f.status is not FindingStatus.FALSE_POSITIVE]
         if not actionable:
+            if incomplete:
+                headline = _NO_ISSUES_HEADLINE_WHEN_INCOMPLETE + _coverage_caveat(failed, len(scanner_summary))
+                return cls(None, headline, action_required=True)
             return cls(None, _NO_ISSUES_HEADLINE, action_required=False)
 
         highest = max(f.severity for f in actionable)
-        # Anything at LOW or above is worth acting on; informational is not.
-        action_required = highest >= Severity.LOW
-        return cls(highest, _VERDICT_HEADLINES[highest], action_required)
+        # Anything at LOW or above is worth acting on; informational is not
+        # -- unless coverage is incomplete, in which case following up on
+        # the scanners that didn't run is itself the required action.
+        action_required = highest >= Severity.LOW or incomplete
+        if incomplete:
+            base = _INFORMATIONAL_HEADLINE_WHEN_INCOMPLETE if highest is Severity.INFORMATIONAL else _VERDICT_HEADLINES[highest]
+            headline = base + _coverage_caveat(failed, len(scanner_summary))
+        else:
+            headline = _VERDICT_HEADLINES[highest]
+        return cls(highest, headline, action_required)
 
 
 @dataclass(frozen=True, slots=True)
@@ -263,7 +328,7 @@ class Report:
             assessment_id=str(assessment.id),
             target=str(assessment.target),
             generated_at=generated_at or datetime.now(UTC),
-            verdict=Verdict.from_findings(findings),
+            verdict=Verdict.from_findings(findings, assessment.scanner_summary),
             entries=entries,
             severity_counts=severity_counts,
             authorized_by=authorization.authorized_by if authorization else "",
