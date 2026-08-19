@@ -23,7 +23,12 @@ from collections.abc import Callable
 from kingsec.domain import AssessmentId, Finding, ScannerRunSummary
 from kingsec.domain.audit import AuditAction, AuditEntry
 
-from ._support import check_assessment_access, to_assessment_id
+from ._support import (
+    check_assessment_access,
+    compose_all_scanners_failed_message,
+    safe_failure_message,
+    to_assessment_id,
+)
 from .assessment_execution import AssessmentExecutionEngine, ExecutionPhase
 from .assessment_profiles import ExecutionPlanner
 from .dto import SubmitAssessmentRequest, SubmitAssessmentResponse
@@ -263,6 +268,11 @@ def _execute_scan(
             execution_engine.transition_phase(tracking_id, ExecutionPhase.CORRELATING)
             execution_engine.transition_phase(tracking_id, ExecutionPhase.REPORTING)
 
+        # Populated only when execution_engine is not None - the only path
+        # with per-scanner outcome data to check (Phase 06 §2.1: the
+        # scanner_executor-is-None fallback below never reaches this block
+        # at all, so it is unaffected by this check either way).
+        failed_scanners: tuple[ScannerRunSummary, ...] = ()
         if execution_engine is not None:
             state = execution_engine.get_state(tracking_id)
             ran_summaries = tuple(
@@ -279,9 +289,28 @@ def _execute_scan(
                 )
                 for p in (state.scanner_progress if state is not None else ())
             )
-            assessment.record_scanner_summary(ran_summaries + preplanned_skips)
+            all_summaries = ran_summaries + preplanned_skips
+            assessment.record_scanner_summary(all_summaries)
 
-        assessment.complete()
+            # "Attempted" excludes pre-planned and live-recorded skips - a
+            # scanner that was deliberately never run cannot have failed.
+            # Fails closed: only an exact "failed" status counts, so any
+            # non-terminal status (structurally unreachable here - Phase 06
+            # §2.2 confirmed execute_all()'s loop is synchronous with no
+            # early return, so every plugin has a terminal status by the
+            # time this runs) is treated as not-failed rather than guessed.
+            attempted = tuple(s for s in all_summaries if s.status != "skipped")
+            if attempted and all(s.status == "failed" for s in attempted):
+                # Guards the vacuous-truth case explicitly: an EMPTY
+                # attempted set (e.g. every scanner was pre-planned-skipped)
+                # never reaches here, because `attempted and ...` is False
+                # when `attempted` is empty.
+                failed_scanners = attempted
+
+        if failed_scanners:
+            assessment.fail(compose_all_scanners_failed_message(failed_scanners))
+        else:
+            assessment.complete()
         assessments.save(assessment)
 
         if execution_engine is not None:
@@ -302,7 +331,7 @@ def _execute_scan(
         if execution_engine is not None:
             execution_engine.fail_execution(tracking_id, str(exc))
         try:
-            assessment.fail(str(exc))
+            assessment.fail(safe_failure_message(exc))
             assessments.save(assessment)
 
             _publish_event(
