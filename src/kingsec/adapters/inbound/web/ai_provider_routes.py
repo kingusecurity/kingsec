@@ -32,11 +32,10 @@ from kingsec.application.ports.outbound.ai_provider_config_repository import (
     AIProviderConfigRecord,
     AIProviderConfigRepository,
 )
+from kingsec.application.ports.outbound.ai_provider_test import AIProviderTestPort
 from kingsec.application.ports.outbound.encryption_service import EncryptionServicePort
 from kingsec.domain.audit import AuditAction, AuditEntry
-from kingsec.infrastructure.ai.client import AIClient
-from kingsec.infrastructure.ai.errors import AIError
-from kingsec.infrastructure.ai.providers import default_model_for, resolve_provider
+from kingsec.shared.errors import ExternalServiceError
 
 from .auth import CurrentUser, require_admin
 from .dependencies import get_application
@@ -94,6 +93,7 @@ async def get_ai_provider_config(request: Request) -> dict[str, Any]:
     app: Application = get_application(request)
     repo: AIProviderConfigRepository = _resolve(request, AIProviderConfigRepository)
     encryption: EncryptionServicePort = _resolve(request, EncryptionServicePort)
+    tester: AIProviderTestPort = _resolve(request, AIProviderTestPort)
     env_settings = app.settings.ai
 
     record = repo.get()
@@ -107,7 +107,7 @@ async def get_ai_provider_config(request: Request) -> dict[str, Any]:
         return {
             "provider": record.provider,
             "model": record.model,
-            "effective_model": record.model or default_model_for(record.provider),
+            "effective_model": record.model or tester.default_model_for(record.provider),
             "base_url": record.base_url,
             "api_key_masked": masked_key,
             "source": "database",
@@ -117,11 +117,11 @@ async def get_ai_provider_config(request: Request) -> dict[str, Any]:
     env_key = env_settings.api_key
     effective_model = env_settings.model
     if (
-        effective_model == default_model_for("anthropic")
+        effective_model == tester.default_model_for("anthropic")
         and env_settings.provider.strip().lower() not in ("anthropic", "claude")
     ):
         # Same untouched-default heuristic as AIConfigResolver._from_env().
-        effective_model = default_model_for(env_settings.provider)
+        effective_model = tester.default_model_for(env_settings.provider)
     return {
         "provider": env_settings.provider,
         "model": env_settings.model,
@@ -142,10 +142,11 @@ async def save_ai_provider_config(
     repo: AIProviderConfigRepository = _resolve(request, AIProviderConfigRepository)
     encryption: EncryptionServicePort = _resolve(request, EncryptionServicePort)
     audit: AuditPublisher = _resolve(request, AuditPublisher)
+    tester: AIProviderTestPort = _resolve(request, AIProviderTestPort)
 
     try:
-        resolve_provider(body.provider)
-    except AIError:
+        tester.validate_provider(body.provider)
+    except ExternalServiceError:
         raise HTTPException(status_code=400, detail=f"Unsupported AI provider: {body.provider!r}") from None
 
     key_changed = bool(body.api_key)
@@ -197,30 +198,18 @@ async def test_ai_provider_config(
     back silently.
     """
     audit: AuditPublisher = _resolve(request, AuditPublisher)
+    tester: AIProviderTestPort = _resolve(request, AIProviderTestPort)
 
     try:
-        provider = resolve_provider(body.provider)
-    except AIError as exc:
+        tester.validate_provider(body.provider)
+    except ExternalServiceError as exc:
+        # Unsupported provider is not audited - it never attempted a real
+        # connectivity test, matching the pre-refactor behavior exactly.
         return {"success": False, "message": str(exc)}
 
-    # A blank model must default to something this specific provider
-    # actually has - app.settings.ai.model is an Anthropic model name and
-    # produces a real 404 against, e.g., Gemini when used unconditionally.
-    model = body.model or default_model_for(body.provider)
-    base_url = body.base_url or provider.default_base_url
-    client = AIClient(timeout=15, retry_count=0, retry_delay=0, verify_ssl=True)
     try:
-        url = provider.build_endpoint(base_url, model)
-        headers = provider.build_headers(body.api_key)
-        payload = provider.build_payload(
-            "You are a connectivity test. Reply with exactly one word.",
-            "Reply with the single word: OK",
-            model,
-            0.0,
-            8,
-        )
-        provider.extract_text(client.post_json(url, headers, payload))
-    except AIError as exc:
+        provider_name = tester.test_connection(body.provider, body.api_key, body.model, body.base_url)
+    except ExternalServiceError as exc:
         audit.record(
             AuditEntry(
                 action=AuditAction.AI_PROVIDER_TEST_FAILED,
@@ -233,7 +222,5 @@ async def test_ai_provider_config(
             )
         )
         return {"success": False, "message": str(exc)}
-    finally:
-        client.close()
 
-    return {"success": True, "message": f"Connected to {provider.name} successfully."}
+    return {"success": True, "message": f"Connected to {provider_name} successfully."}

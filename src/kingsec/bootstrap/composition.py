@@ -481,11 +481,16 @@ def _register_ai_services(container: Container) -> None:
     from kingsec.application.ai.cache import PromptCache
     from kingsec.application.ai.ports import AIQueryPort
     from kingsec.application.ai.redactor import Redactor
+    from kingsec.application.ports.outbound.ai_provider_test import AIProviderTestPort
     from kingsec.infrastructure.ai.adapter import AIProviderAdapter
     from kingsec.infrastructure.ai.extended_adapter import ExtendedAIAdapter
+    from kingsec.infrastructure.ai.provider_tester import AIProviderTester
 
     container.register_factory(Redactor, lambda c: Redactor())
     container.register_factory(PromptCache, lambda c: PromptCache())
+    # Stateless (no per-call config resolution) - a fresh instance costs
+    # nothing and needs no other resolved dependency, unlike AIQueryPort.
+    container.register_instance(AIProviderTestPort, AIProviderTester())
     # AIProviderAdapter is the concrete class; register it by resolving AIPort
     # (which register_ai binds to the same instance).
     container.register_factory(

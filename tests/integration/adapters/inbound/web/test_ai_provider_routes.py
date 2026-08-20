@@ -1,18 +1,26 @@
 """Integration tests for the AI Provider Settings routes.
 
 Covers config precedence, key masking, and the keep-existing-key-when-
-omitted save semantics through the real FastAPI routes. The /test
-endpoint's real outbound HTTP call (success/failure against a genuine
-provider) is deliberately NOT mocked here — it was live-verified manually
-against real anthropic endpoints with both a bad and a DB-saved placeholder
-key (see this session's verification notes), which is a stronger check
-than a mocked transport would be. This file only covers the parts that
-don't require a real network call: provider validation, precedence, and
-masking.
+omitted save semantics through the real FastAPI routes.
+
+Phase 13: the /test endpoint's real outbound HTTP call previously had zero
+automated coverage of its success/failure network-calling logic (the file's
+prior docstring said this was deliberately live-verified manually instead -
+see git history). That is exactly the code this phase moves behind a port,
+so TestTestConnectionAgainstRealServer below adds real characterization
+coverage BEFORE the refactor, using a real local HTTP server (matching
+tests/integration/ai/conftest.py's own established pattern) rather than a
+mock, so the real request-building/response-parsing path is exercised.
 """
 
 from __future__ import annotations
 
+import json
+import threading
+from collections.abc import Iterator
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+import pytest
 from cryptography.fernet import Fernet
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -25,8 +33,10 @@ from kingsec.application.ports.outbound.ai_provider_config_repository import (
     AIProviderConfigRecord,
     AIProviderConfigRepository,
 )
+from kingsec.application.ports.outbound.ai_provider_test import AIProviderTestPort
 from kingsec.application.ports.outbound.encryption_service import EncryptionServicePort
 from kingsec.domain import Role
+from kingsec.infrastructure.ai.provider_tester import AIProviderTester
 from kingsec.infrastructure.config import Settings
 from kingsec.infrastructure.config.models import AISettings
 from kingsec.infrastructure.secrets.fernet_encryption_service import FernetEncryptionService
@@ -55,6 +65,10 @@ def _build_app(*, ai_settings: AISettings | None = None):
     encryption = FernetEncryptionService(Fernet.generate_key())
     config_repo = _InMemoryConfigRepository()
     audit = _RecordingAuditPublisher()
+    # The real implementation, not a stub - these tests exist specifically
+    # to exercise the real provider-resolution/network-calling path (see
+    # module docstring), which is exactly what moved behind this port.
+    tester: AIProviderTestPort = AIProviderTester()
     settings = Settings(ai=ai_settings or AISettings(provider="anthropic"))
 
     app = FastAPI()
@@ -70,6 +84,8 @@ def _build_app(*, ai_settings: AISettings | None = None):
                 return encryption
             if service_type is AuditPublisher:
                 return audit
+            if service_type is AIProviderTestPort:
+                return tester
             raise ValueError(f"Unknown service: {service_type}")
 
     app.state.kingsec_app = _StubApp()  # type: ignore[attr-defined]
@@ -170,3 +186,107 @@ class TestTestConnection:
         assert resp.status_code == 200
         body = resp.json()
         assert body["success"] is False
+
+
+def _anthropic_handler(state: dict) -> type[BaseHTTPRequestHandler]:
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *_args) -> None:  # silence server logging
+            return
+
+        def do_POST(self) -> None:
+            state["path"] = self.path
+            state["headers"] = dict(self.headers)
+            length = int(self.headers.get("Content-Length", 0))
+            state["body"] = json.loads(self.rfile.read(length).decode())
+
+            if state["mode"] == "unauthorized":
+                self.send_response(401)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": {"message": "invalid x-api-key"}}).encode())
+                return
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"content": [{"type": "text", "text": "OK"}]}).encode())
+
+    return Handler
+
+
+@pytest.fixture
+def anthropic_stub_server() -> Iterator[tuple[str, dict]]:
+    """A real local server shaped like Anthropic's /v1/messages endpoint.
+
+    Phase 13: characterization coverage for test_ai_provider_config()'s
+    real network-calling path, written BEFORE the port refactor. Uses a
+    real socket server (this codebase's established pattern for AI-client
+    tests - see tests/integration/ai/conftest.py) rather than a mock, and
+    reaches it via the route's own body.base_url override - no monkeypatch
+    of AIClient or the route needed.
+    """
+    state: dict = {"mode": "ok"}
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _anthropic_handler(state))
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    host, port = server.server_address
+    try:
+        yield f"http://{host}:{port}", state
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+class TestTestConnectionAgainstRealServer:
+    """Characterization tests for the /test endpoint's real HTTP call,
+    written before Phase 13's port refactor. Exercises the actual
+    resolve_provider -> build_endpoint/headers/payload -> AIClient.post_json
+    -> extract_text path end to end against a real local server - the
+    exact code path this phase moves behind a port. Must pass, unmodified,
+    both before and after the refactor.
+    """
+
+    def test_successful_connection(self, anthropic_stub_server: tuple[str, dict]) -> None:
+        base_url, state = anthropic_stub_server
+        app, _repo, _audit = _build_app()
+        resp = _client(app).post(
+            "/api/v1/settings/ai-provider/test",
+            json={"provider": "anthropic", "api_key": "sk-ant-test-key", "base_url": base_url},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["success"] is True
+        assert "anthropic" in body["message"]
+        # Confirms the real request-building path ran: correct endpoint,
+        # correct auth header, api key never logged/echoed anywhere.
+        assert state["path"] == "/v1/messages"
+        assert state["headers"]["x-api-key"] == "sk-ant-test-key"
+        assert "sk-ant-test-key" not in resp.text
+
+    def test_failed_connection_reports_failure_without_500(self, anthropic_stub_server: tuple[str, dict]) -> None:
+        base_url, state = anthropic_stub_server
+        state["mode"] = "unauthorized"
+        app, _repo, audit = _build_app()
+        resp = _client(app).post(
+            "/api/v1/settings/ai-provider/test",
+            json={"provider": "anthropic", "api_key": "sk-ant-bad-key", "base_url": base_url},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["success"] is False
+        assert len(body["message"]) > 0
+        # A failed test is audited (AI_PROVIDER_TEST_FAILED), unlike the
+        # success path above which records nothing for /test.
+        assert len(audit.entries) == 1
+        assert audit.entries[0].action.value == "ai_provider_test_failed"
+
+    def test_default_model_used_when_body_omits_one(self, anthropic_stub_server: tuple[str, dict]) -> None:
+        base_url, state = anthropic_stub_server
+        app, _repo, _audit = _build_app()
+        resp = _client(app).post(
+            "/api/v1/settings/ai-provider/test",
+            json={"provider": "anthropic", "api_key": "sk-ant-test-key", "base_url": base_url},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+        assert state["body"]["model"] == "claude-sonnet-4-5"  # default_model_for("anthropic")
