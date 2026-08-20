@@ -293,7 +293,7 @@ def _register_adapters(
     # Capability adapters. AI adds its own http-client.close shutdown hook.
     register_scanner(container, settings)
     register_ai(container, settings)
-    _register_ai_services(container)
+    _register_ai_services(container, settings)
     register_reporting(container, output_format=report_format, brand_name=brand_name)
     register_jobs(container)
     register_events(container)
@@ -470,7 +470,7 @@ def _register_license_infrastructure(container: Container, session_factory: Any)
     )
 
 
-def _register_ai_services(container: Container) -> None:
+def _register_ai_services(container: Container, settings: Any) -> None:
     from kingsec.application.ai import (
         AIChatService,
         ExecutiveSummaryService,
@@ -485,12 +485,20 @@ def _register_ai_services(container: Container) -> None:
     from kingsec.infrastructure.ai.adapter import AIProviderAdapter
     from kingsec.infrastructure.ai.extended_adapter import ExtendedAIAdapter
     from kingsec.infrastructure.ai.provider_tester import AIProviderTester
+    from kingsec.infrastructure.notifications.url_validator import SSRFURLValidator
 
     container.register_factory(Redactor, lambda c: Redactor())
     container.register_factory(PromptCache, lambda c: PromptCache())
     # Stateless (no per-call config resolution) - a fresh instance costs
     # nothing and needs no other resolved dependency, unlike AIQueryPort.
-    container.register_instance(AIProviderTestPort, AIProviderTester())
+    # A dedicated SSRFURLValidator instance (not the shared webhook/SIEM/
+    # ticketing one at register_instance(URLValidationPort, ...) below):
+    # allow_private_base_url is AI-specific opt-in, matching the same flag
+    # register_ai() uses for the point-of-use path.
+    container.register_instance(
+        AIProviderTestPort,
+        AIProviderTester(SSRFURLValidator(allow_private=settings.ai.allow_private_base_url)),
+    )
     # AIProviderAdapter is the concrete class; register it by resolving AIPort
     # (which register_ai binds to the same instance).
     container.register_factory(

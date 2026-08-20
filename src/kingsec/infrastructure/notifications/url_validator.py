@@ -47,7 +47,7 @@ class SSRFError(ValueError):
     """Raised when a URL is blocked by SSRF validation."""
 
 
-def validate_url(url: str, *, allowlist: Iterable[str] | None = None) -> None:
+def validate_url(url: str, *, allowlist: Iterable[str] | None = None, allow_private: bool = False) -> None:
     """Validate *url* is safe to open.
 
     Raises:
@@ -58,6 +58,13 @@ def validate_url(url: str, *, allowlist: Iterable[str] | None = None) -> None:
         url: The URL to validate.
         allowlist: Optional iterable of hostnames to allow even if they
             resolve to private addresses.
+        allow_private: If True, permit loopback and RFC 1918 private
+            addresses (the range a local model server - Ollama, LM Studio,
+            an on-prem inference host - would live at). Link-local (e.g.
+            169.254.169.254, cloud instance metadata), multicast, and
+            reserved addresses are never permitted by this flag - they have
+            no legitimate local-server justification and remain blocked
+            unconditionally.
     """
     parsed = urlparse(url)
     hostname = parsed.hostname
@@ -90,9 +97,9 @@ def validate_url(url: str, *, allowlist: Iterable[str] | None = None) -> None:
         if hostname in allowlist_set:
             continue
 
-        if ip.is_loopback:
+        if ip.is_loopback and not allow_private:
             raise SSRFError(f"URL resolves to loopback address {raw_ip}: {url!r}")
-        if ip.is_private:
+        if ip.is_private and not allow_private:
             raise SSRFError(f"URL resolves to private address {raw_ip}: {url!r}")
         if ip.is_multicast:
             raise SSRFError(f"URL resolves to multicast address {raw_ip}: {url!r}")
@@ -132,6 +139,7 @@ def open_validated(
     *,
     timeout: float,
     allowlist: Iterable[str] | None = None,
+    allow_private: bool = False,
 ) -> HTTPResponse:
     """Validate ``req``'s URL for SSRF, then open it without following redirects.
 
@@ -141,7 +149,7 @@ def open_validated(
     that pairing is exactly what a followed redirect can bypass (see
     ``_NoRedirectHandler``).
     """
-    validate_url(req.full_url, allowlist=allowlist)
+    validate_url(req.full_url, allowlist=allowlist, allow_private=allow_private)
     return _NO_REDIRECT_OPENER.open(req, timeout=timeout)  # type: ignore[no-any-return]
 
 
@@ -153,12 +161,13 @@ class SSRFURLValidator(URLValidationPort):
     import anything from ``kingsec.infrastructure``.
     """
 
-    def __init__(self, *, allowlist: Iterable[str] | None = None) -> None:
+    def __init__(self, *, allowlist: Iterable[str] | None = None, allow_private: bool = False) -> None:
         self._allowlist = list(allowlist) if allowlist is not None else None
+        self._allow_private = allow_private
 
     def validate(self, url: str) -> None:
         try:
-            validate_url(url, allowlist=self._allowlist)
+            validate_url(url, allowlist=self._allowlist, allow_private=self._allow_private)
         except SSRFError as exc:
             raise UnsafeURLError(str(exc)) from exc
 
@@ -173,6 +182,6 @@ class SSRFURLValidator(URLValidationPort):
     ) -> None:
         req = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
         try:
-            open_validated(req, timeout=timeout, allowlist=self._allowlist)
+            open_validated(req, timeout=timeout, allowlist=self._allowlist, allow_private=self._allow_private)
         except SSRFError as exc:
             raise UnsafeURLError(str(exc)) from exc

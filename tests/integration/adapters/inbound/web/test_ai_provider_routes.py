@@ -39,6 +39,7 @@ from kingsec.domain import Role
 from kingsec.infrastructure.ai.provider_tester import AIProviderTester
 from kingsec.infrastructure.config import Settings
 from kingsec.infrastructure.config.models import AISettings
+from kingsec.infrastructure.notifications.url_validator import SSRFURLValidator
 from kingsec.infrastructure.secrets.fernet_encryption_service import FernetEncryptionService
 
 
@@ -68,7 +69,12 @@ def _build_app(*, ai_settings: AISettings | None = None):
     # The real implementation, not a stub - these tests exist specifically
     # to exercise the real provider-resolution/network-calling path (see
     # module docstring), which is exactly what moved behind this port.
-    tester: AIProviderTestPort = AIProviderTester()
+    # allow_private=True: these tests use a real local server on 127.0.0.1
+    # purely as a stand-in for a real provider endpoint (see
+    # anthropic_stub_server below) - they are not testing SSRF policy, which
+    # test_ai_provider_ssrf.py covers with the default (private-blocking)
+    # validator instead.
+    tester: AIProviderTestPort = AIProviderTester(SSRFURLValidator(allow_private=True))
     settings = Settings(ai=ai_settings or AISettings(provider="anthropic"))
 
     app = FastAPI()

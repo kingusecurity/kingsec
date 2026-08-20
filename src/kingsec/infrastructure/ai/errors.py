@@ -35,6 +35,10 @@ class AIResponseError(AIError):
     """The AI provider replied, but the body could not be parsed/used."""
 
 
+class AIUnsafeURLError(AIError):
+    """base_url failed SSRF validation before any request was attempted."""
+
+
 # HTTP status codes worth retrying (transient server/throttling conditions).
 RETRYABLE_STATUS_CODES: frozenset[int] = frozenset({429, 500, 502, 503, 504})
 

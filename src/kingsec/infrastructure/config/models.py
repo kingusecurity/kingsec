@@ -183,6 +183,14 @@ class AISettings(BaseModel):
     retry_delay: float = Field(default=0.5, ge=0.0)
     # TLS verification. Secure by default; only an explicit False disables it.
     verify_ssl: bool = True
+    # SSRF guard for base_url (Phase 14): private/loopback addresses (e.g. a
+    # local Ollama/LM Studio/vLLM server) are refused by default, since
+    # base_url can also arrive as request input via the Settings UI. A
+    # deliberate operator opt-in - deployment-time configuration, not a
+    # per-request field - is required to permit them. Cloud-metadata
+    # (link-local, e.g. 169.254.169.254), multicast, and reserved addresses
+    # stay blocked regardless of this flag.
+    allow_private_base_url: bool = False
 
     @field_validator("base_url")
     @classmethod
