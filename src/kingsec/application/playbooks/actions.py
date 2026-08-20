@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import urllib.request
 from typing import Any
 
 from kingsec.application.ports import UnsafeURLError, URLValidationPort
@@ -24,27 +23,6 @@ from .ports import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
-    """Refuses to follow any HTTP redirect.
-
-    ``URLValidationPort.validate()`` only validates the *initial* request
-    target; the default urllib opener follows redirects automatically,
-    which would let a webhook destination that has already passed SSRF
-    validation redirect the connection to an unvalidated internal address
-    after the fact. This webhook action is a one-shot POST with no
-    legitimate need to follow a redirect. (Mirrors
-    ``infrastructure/notifications/url_validator.py``'s identical handler -
-    duplicated here rather than imported because this is the application
-    layer, which does not import from ``kingsec.infrastructure``.)
-    """
-
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
-        raise UnsafeURLError(f"refusing to follow redirect to {newurl!r} (from {req.full_url!r})")
-
-
-_NO_REDIRECT_OPENER = urllib.request.build_opener(_NoRedirectHandler)
 
 
 class ActionExecutor:
@@ -227,10 +205,8 @@ class ActionExecutor:
         payload = config.get("payload", {}).copy()
         payload.update(ctx)
         data = json.dumps(payload).encode()
-        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
         try:
-            self._url_validator.validate(url)
-            _NO_REDIRECT_OPENER.open(req, timeout=30)
+            self._url_validator.open(url, method="POST", data=data, headers={"Content-Type": "application/json"}, timeout=30)
         except UnsafeURLError as exc:
             raise RuntimeError(f"Webhook URL blocked by SSRF protection: {exc}") from exc
         return f"Webhook sent to {url}"

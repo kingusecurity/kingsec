@@ -161,3 +161,18 @@ class SSRFURLValidator(URLValidationPort):
             validate_url(url, allowlist=self._allowlist)
         except SSRFError as exc:
             raise UnsafeURLError(str(exc)) from exc
+
+    def open(
+        self,
+        url: str,
+        *,
+        method: str = "GET",
+        data: bytes | None = None,
+        headers: dict[str, str] | None = None,
+        timeout: float,
+    ) -> None:
+        req = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
+        try:
+            open_validated(req, timeout=timeout, allowlist=self._allowlist)
+        except SSRFError as exc:
+            raise UnsafeURLError(str(exc)) from exc

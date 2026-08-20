@@ -8,7 +8,13 @@ from urllib.request import Request
 
 import pytest
 
-from kingsec.infrastructure.notifications.url_validator import SSRFError, open_validated, validate_url
+from kingsec.application.ports import UnsafeURLError
+from kingsec.infrastructure.notifications.url_validator import (
+    SSRFError,
+    SSRFURLValidator,
+    open_validated,
+    validate_url,
+)
 
 
 class TestSSRFValidation:
@@ -143,3 +149,34 @@ class TestOpenValidatedRefusesRedirects:
         req = Request(base_url, data=b"{}", method="POST")  # noqa: S310
         with pytest.raises(SSRFError, match="refusing to follow redirect"):
             open_validated(req, timeout=5, allowlist=[req.full_url.split("//")[1].split(":")[0]])
+
+
+class TestSSRFURLValidator:
+    """Direct coverage of the URLValidationPort implementation itself -
+    previously untested even for validate() (only the underlying
+    validate_url() function had direct tests). Phase 13 adds open(), the
+    single canonical implementation playbooks/actions.py now uses instead
+    of its own deleted duplicate handler, so both methods get covered here."""
+
+    def test_validate_translates_ssrf_error_to_port_error(self) -> None:
+        with pytest.raises(UnsafeURLError, match="loopback"):
+            SSRFURLValidator().validate("http://127.0.0.1/hook")
+
+    def test_validate_allows_public_url(self) -> None:
+        SSRFURLValidator().validate("http://93.184.216.34")
+
+    def test_open_translates_ssrf_error_to_port_error(self) -> None:
+        with pytest.raises(UnsafeURLError, match="loopback"):
+            SSRFURLValidator().open("http://127.0.0.1/hook", timeout=5)
+
+    def test_open_refuses_redirect_through_the_port(self, redirecting_server: tuple[str, list]) -> None:
+        """open() is the port's own method, not the bare open_validated()
+        function - confirms the redirect refusal (and UnsafeURLError
+        translation) both hold when called the way playbooks/actions.py
+        actually calls it."""
+        base_url, box = redirecting_server
+        box[0] = "http://example.com/unused"
+        with pytest.raises(UnsafeURLError, match="refusing to follow redirect"):
+            SSRFURLValidator(allowlist=[base_url.split("//")[1].split(":")[0]]).open(
+                base_url, method="POST", data=b"{}", timeout=5
+            )

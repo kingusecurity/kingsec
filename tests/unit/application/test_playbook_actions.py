@@ -4,6 +4,20 @@ Scoped to the webhook action specifically — this is the action that was
 previously importing kingsec.infrastructure.notifications.url_validator
 directly from the application layer (an import-linter violation). The rest
 of ActionExecutor's handlers are pre-existing and untouched by this change.
+
+Phase 13: URLValidationPort gained an open() method (validate + perform,
+refusing redirects) so this file's own previously-duplicated
+_NoRedirectHandler could be deleted in favour of the single canonical
+implementation in infrastructure/notifications/url_validator.py. The stub
+validators below now implement open() directly (mirroring what a real
+implementation does internally: validate, then either perform the request
+or raise) rather than testing a redirect-refusal mechanism that used to
+live in this module and no longer does - that mechanism's own correctness
+is covered end-to-end, against a real local server, in
+tests/unit/infrastructure/test_url_validator.py. This file's own redirect
+test now uses the REAL SSRFURLValidator (not a stub) to prove the unified
+path still works from ActionExecutor's perspective, per this phase's own
+requirement that this proof continue to exist in some form.
 """
 
 from __future__ import annotations
@@ -11,22 +25,40 @@ from __future__ import annotations
 import threading
 from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from unittest.mock import patch
 
 import pytest
 
 from kingsec.application.playbooks.actions import ActionExecutor
 from kingsec.application.ports import UnsafeURLError, URLValidationPort
 from kingsec.domain.playbook import PlaybookAction, PlaybookActionType
+from kingsec.infrastructure.notifications.url_validator import SSRFURLValidator
 
 
 class _AllowingValidator(URLValidationPort):
+    """A stub whose open() succeeds and records the call, without making a
+    real network request - proves _handle_webhook wires success through
+    correctly without needing a real server for every test."""
+
+    def __init__(self) -> None:
+        self.opened: list[dict[str, object]] = []
+
     def validate(self, url: str) -> None:
         return None
 
+    def open(self, url: str, *, method: str = "GET", data=None, headers=None, timeout: float) -> None:
+        self.opened.append({"url": url, "method": method, "data": data, "headers": headers, "timeout": timeout})
+
 
 class _BlockingValidator(URLValidationPort):
+    """A stub whose open() always raises - simulating a URL that fails
+    SSRF validation. From _handle_webhook's perspective, this and a
+    redirect refusal look identical: both are UnsafeURLError raised by
+    open()."""
+
     def validate(self, url: str) -> None:
+        raise UnsafeURLError(f"blocked: {url}")
+
+    def open(self, url: str, *, method: str = "GET", data=None, headers=None, timeout: float) -> None:
         raise UnsafeURLError(f"blocked: {url}")
 
 
@@ -88,33 +120,33 @@ class TestWebhookURLValidation:
         assert "blocked by SSRF protection" in log.error
 
     def test_allowed_url_proceeds_to_send(self) -> None:
-        # Phase 12: _handle_webhook no longer calls urllib.request.urlopen()
-        # directly - it opens through a module-level _NO_REDIRECT_OPENER
-        # that refuses to follow HTTP redirects (closing the gap where a
-        # destination already validated by URLValidationPort could redirect
-        # the connection to an unvalidated address). Patching the old
-        # target here would silently fall through to a REAL network call -
-        # confirmed live: the original assertion failed with a genuine
-        # HTTPError from example.com before this fix, not a passing mock.
-        executor = ActionExecutor(url_validator=_AllowingValidator())
-        with patch("kingsec.application.playbooks.actions._NO_REDIRECT_OPENER.open") as mock_open:
-            log = executor.execute(_webhook_action("https://example.com/hook"), {})
+        # Phase 13: _handle_webhook calls url_validator.open() (which
+        # validates AND performs the request, refusing redirects) instead
+        # of validate() + a separately-opened connection. The stub records
+        # the call rather than needing a patch target inside the module -
+        # there is no module-level opener object left to patch after
+        # unification onto the single canonical URLValidationPort.open().
+        validator = _AllowingValidator()
+        executor = ActionExecutor(url_validator=validator)
+        log = executor.execute(_webhook_action("https://example.com/hook"), {})
         assert log.status == "completed"
         assert log.output is not None
         assert "Webhook sent to https://example.com/hook" in log.output
-        mock_open.assert_called_once()
+        assert len(validator.opened) == 1
+        assert validator.opened[0]["url"] == "https://example.com/hook"
+        assert validator.opened[0]["method"] == "POST"
 
     def test_redirect_is_refused_not_followed(self, redirecting_webhook_server: tuple[str, list]) -> None:
-        """The gap Phase 12 closes: URLValidationPort only validates the
-        initial URL, so following a redirect without re-validating it would
-        let an already-validated webhook destination redirect the request
-        to an internal address. Exercises the real, local
-        _NO_REDIRECT_OPENER (application layer's own duplicated
-        _NoRedirectHandler, not infrastructure's) against a real HTTP 302,
-        not a mocked exception."""
+        """Phase 13: proves the unified path still refuses redirects from
+        ActionExecutor's perspective, per this phase's requirement that
+        this proof continue to exist after unification. Uses the REAL
+        SSRFURLValidator (not a stub) - the same class siem_service.py,
+        ticketing_service.py, and webhook_service.py are wired to - so this
+        is a genuine exercise of the single canonical implementation
+        through this layer's own port injection, not a mock."""
         base_url, box = redirecting_webhook_server
         box[0] = "http://169.254.169.254/latest/meta-data/"
-        executor = ActionExecutor(url_validator=_AllowingValidator())
+        executor = ActionExecutor(url_validator=SSRFURLValidator(allowlist=["127.0.0.1"]))
         log = executor.execute(_webhook_action(base_url), {})
         assert log.status == "failed"
         assert log.error is not None
