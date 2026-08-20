@@ -17,6 +17,7 @@ from kingsec.application.ports.outbound.ai_provider_config_repository import AIP
 from kingsec.application.ports.outbound.encryption_service import EncryptionServicePort
 from kingsec.infrastructure._container import ContainerProtocol
 from kingsec.infrastructure.logging import get_logger
+from kingsec.infrastructure.notifications.url_validator import SSRFURLValidator
 
 from .adapter import AIProviderAdapter
 from .client import AIClient
@@ -65,7 +66,16 @@ def register_ai(
     config_repo = container.resolve(AIProviderConfigRepository)
     encryption = container.resolve(EncryptionServicePort)
     config_resolver = AIConfigResolver(ai_settings, config_repo, encryption)
-    adapter = AIProviderAdapter(settings=ai_settings, config_resolver=config_resolver, client=client)
+    # Dedicated instance (not the shared webhook/SIEM/ticketing validator):
+    # allow_private_base_url is an AI-specific, operator-controlled opt-in,
+    # not something any other outbound integration should ever get.
+    url_validator = SSRFURLValidator(allow_private=ai_settings.allow_private_base_url)
+    adapter = AIProviderAdapter(
+        settings=ai_settings,
+        config_resolver=config_resolver,
+        client=client,
+        url_validator=url_validator,
+    )
 
     register = container.register_instance
     register(AIPort, adapter)

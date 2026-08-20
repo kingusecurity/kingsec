@@ -14,25 +14,33 @@ import json
 
 import httpx
 import pytest
+from cryptography.fernet import Fernet
 from pydantic import SecretStr
 
 import kingsec.infrastructure.ai.extended_adapter as extended_adapter_module
+from kingsec.application.ports.outbound.ai_provider_config_repository import AIProviderConfigRecord
 from kingsec.infrastructure.ai import AIClient, AIProviderAdapter
 from kingsec.infrastructure.ai.config_resolver import AIConfigResolver
-from kingsec.infrastructure.ai.errors import AIAuthenticationError
+from kingsec.infrastructure.ai.errors import AIAuthenticationError, AIUnsafeURLError
 from kingsec.infrastructure.ai.extended_adapter import ExtendedAIAdapter
 from kingsec.infrastructure.config.models import AISettings
+from kingsec.infrastructure.notifications.url_validator import SSRFURLValidator
+from kingsec.infrastructure.secrets.fernet_encryption_service import FernetEncryptionService
 from tests.unit.infrastructure.ai.conftest import transport_from
 from tests.unit.infrastructure.ai.test_adapter import (
+    _DbConfigRepository,
     _NoDbConfigRepository,
     _UnusedEncryptionService,
+    _UnusedURLValidator,
 )
 
 
 def _extended_adapter(transport: httpx.MockTransport, settings: AISettings) -> ExtendedAIAdapter:
     client = AIClient(timeout=5, retry_count=0, retry_delay=0, transport=transport)
     resolver = AIConfigResolver(settings, _NoDbConfigRepository(), _UnusedEncryptionService())
-    inner = AIProviderAdapter(settings=settings, config_resolver=resolver, client=client)
+    inner = AIProviderAdapter(
+        settings=settings, config_resolver=resolver, client=client, url_validator=_UnusedURLValidator()
+    )
     return ExtendedAIAdapter(inner)
 
 
@@ -163,3 +171,67 @@ class TestAuditRequestBestEffort:
             AISettings(provider="openai", api_key=SecretStr("k"), base_url="http://t"),
         )
         adapter._audit_request("openai", "gpt-4", "generate")  # must not raise
+
+
+def _db_backed_extended_adapter(transport: httpx.MockTransport, base_url: str) -> ExtendedAIAdapter:
+    """A DB-sourced (request-supplied-origin) base_url, reached via
+    ExtendedAIAdapter's own generate()/chat() call sites - a distinct wiring
+    point from AIProviderAdapter._enrich(), even though both delegate to the
+    same _validate_base_url()."""
+    encryption = FernetEncryptionService(Fernet.generate_key())
+    record = AIProviderConfigRecord(
+        provider="openai",
+        api_key_encrypted=encryption.encrypt("sk-the-real-provider-key"),
+        model="gpt-4",
+        base_url=base_url,
+        updated_at="2026-01-01T00:00:00Z",
+    )
+    client = AIClient(timeout=5, retry_count=0, retry_delay=0, transport=transport)
+    resolver = AIConfigResolver(AISettings(), _DbConfigRepository(record), encryption)
+    inner = AIProviderAdapter(
+        settings=AISettings(),
+        config_resolver=resolver,
+        client=client,
+        url_validator=SSRFURLValidator(),
+    )
+    return ExtendedAIAdapter(inner)
+
+
+class TestGenerateAndChatBaseUrlSSRFProtection:
+    """Phase 14 Sec 3.1: proves generate()'s and chat()'s own call sites
+    invoke base_url validation - not inferred from AIProviderAdapter's
+    coverage, since ExtendedAIAdapter reaches into the inner adapter's
+    resolver/client directly rather than sharing _enrich()."""
+
+    def test_generate_blocks_a_saved_private_base_url(self) -> None:
+        hit = {"called": False}
+        adapter = _db_backed_extended_adapter(
+            transport_from(lambda r: _mark_and_respond(r, hit)), "http://127.0.0.1:9/v1"
+        )
+        with pytest.raises(AIUnsafeURLError):
+            adapter.generate("system", "user")
+        assert hit["called"] is False
+
+    def test_chat_blocks_a_saved_private_base_url(self) -> None:
+        hit = {"called": False}
+        adapter = _db_backed_extended_adapter(
+            transport_from(lambda r: _mark_and_respond(r, hit)), "http://127.0.0.1:9/v1"
+        )
+        with pytest.raises(AIUnsafeURLError):
+            adapter.chat([{"role": "user", "content": "hi"}])
+        assert hit["called"] is False
+
+    def test_health_degrades_gracefully_instead_of_crashing(self) -> None:
+        """health() calls generate() internally and catches Exception - a
+        blocked base_url must degrade to unavailable, not propagate."""
+        adapter = _db_backed_extended_adapter(
+            transport_from(lambda r: _openai_text_response("unused")), "http://127.0.0.1:9/v1"
+        )
+        result = adapter.health()
+        assert result["available"] is False
+        assert "error" in result
+
+
+def _mark_and_respond(request: httpx.Request, hit: dict) -> httpx.Response:
+    hit["called"] = True
+    return _openai_text_response("unused")

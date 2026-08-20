@@ -12,12 +12,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from kingsec.application import AIPort
+from kingsec.application.ports import UnsafeURLError, URLValidationPort
 from kingsec.domain import Finding, Recommendation
 from kingsec.infrastructure.logging import get_logger
 
 from .client import AIClient
-from .config_resolver import AIConfigResolver
-from .errors import AIAuthenticationError
+from .config_resolver import AIConfigResolver, ResolvedAIConfig
+from .errors import AIAuthenticationError, AIUnsafeURLError
 from .parser import Enrichment, ResponseParser
 from .prompt import PromptBuilder
 
@@ -44,6 +45,7 @@ class AIProviderAdapter(AIPort):
         settings: AISettings,
         config_resolver: AIConfigResolver,
         client: AIClient,
+        url_validator: URLValidationPort,
         prompt_builder: PromptBuilder | None = None,
         parser: ResponseParser | None = None,
     ) -> None:
@@ -56,14 +58,39 @@ class AIProviderAdapter(AIPort):
             config_resolver: Resolves the effective provider/key/model/
                 base_url fresh on every call.
             client: The HTTP client used to call the provider.
+            url_validator: Validates a database-sourced base_url (i.e. one
+                that originated from a Settings-UI request body) before it
+                is used to build an outbound request. Environment-sourced
+                base_url is deployment configuration, not request input, and
+                is never passed to this validator - see _validate_base_url().
             prompt_builder: Builds sanitised prompts (defaulted).
             parser: Parses provider responses (defaulted).
         """
         self._settings = settings
         self._config_resolver = config_resolver
         self._client = client
+        self._url_validator = url_validator
         self._prompt_builder = prompt_builder or PromptBuilder()
         self._parser = parser or ResponseParser()
+
+    def _validate_base_url(self, resolved: ResolvedAIConfig) -> None:
+        """Validate a request-supplied base_url before it is used to build
+        an outbound request.
+
+        Only database-sourced base_url is validated: it originated from a
+        PUT /api/v1/settings/ai-provider request body, i.e. request input.
+        Environment-sourced base_url (KINGSEC_AI__BASE_URL) is operator
+        configuration set at deploy time - the same trust category as
+        diagnostics.py's hardcoded probe - and is intentionally never
+        validated here, so a local model server remains configurable via
+        the environment with no opt-in flag required.
+        """
+        if resolved.source != "database" or not resolved.base_url:
+            return
+        try:
+            self._url_validator.validate(resolved.base_url)
+        except UnsafeURLError as exc:
+            raise AIUnsafeURLError(f"AI base_url blocked by SSRF protection: {exc}") from exc
 
     def recommend(self, finding: Finding) -> Recommendation:
         """Return an AI-generated remediation recommendation for ``finding``.
@@ -106,6 +133,7 @@ class AIProviderAdapter(AIPort):
         resolved = self._config_resolver.resolve()
         if resolved.api_key is None:
             raise AIAuthenticationError("no AI API key configured")
+        self._validate_base_url(resolved)
         base_url = resolved.base_url or resolved.provider.default_base_url
         model = resolved.model
 

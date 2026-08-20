@@ -29,6 +29,7 @@ from kingsec.infrastructure.ai import (
 from kingsec.infrastructure.ai.config_resolver import AIConfigResolver
 from kingsec.infrastructure.ai.errors import AIError
 from kingsec.infrastructure.config.models import AISettings
+from kingsec.infrastructure.notifications.url_validator import SSRFURLValidator
 from kingsec.infrastructure.persistence import (
     LegacyAssessmentRepository,
     create_database_engine,
@@ -71,7 +72,12 @@ def _adapter(base_url: str) -> AIProviderAdapter:
         verify_ssl=settings.verify_ssl,
     )
     resolver = AIConfigResolver(settings, _NoDbConfigRepository(), _UnusedEncryptionService())
-    return AIProviderAdapter(settings=settings, config_resolver=resolver, client=client)
+    # source is always "environment" here (_NoDbConfigRepository never
+    # returns a record), so base_url validation never triggers - a real
+    # (not stub) validator just confirms that stays true.
+    return AIProviderAdapter(
+        settings=settings, config_resolver=resolver, client=client, url_validator=SSRFURLValidator()
+    )
 
 
 def _finding() -> Finding:

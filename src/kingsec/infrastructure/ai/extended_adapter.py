@@ -26,6 +26,7 @@ class ExtendedAIAdapter(AIQueryPort):
         resolved = self._adapter._config_resolver.resolve()
         if resolved.api_key is None:
             raise AIAuthenticationError("no AI API key configured")
+        self._adapter._validate_base_url(resolved)
         settings = self._adapter._settings
         base_url = resolved.base_url or resolved.provider.default_base_url
         model = kwargs.get("model", resolved.model)
@@ -46,6 +47,7 @@ class ExtendedAIAdapter(AIQueryPort):
         resolved = self._adapter._config_resolver.resolve()
         if resolved.api_key is None:
             raise AIAuthenticationError("no AI API key configured")
+        self._adapter._validate_base_url(resolved)
         settings = self._adapter._settings
         base_url = resolved.base_url or resolved.provider.default_base_url
         model = kwargs.get("model", resolved.model)

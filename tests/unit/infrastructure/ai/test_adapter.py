@@ -6,10 +6,13 @@ import json
 
 import httpx
 import pytest
+from cryptography.fernet import Fernet
 from pydantic import SecretStr
 
 from kingsec.application import AIPort
+from kingsec.application.ports import URLValidationPort
 from kingsec.application.ports.outbound.ai_provider_config_repository import (
+    AIProviderConfigRecord,
     AIProviderConfigRepository,
 )
 from kingsec.application.ports.outbound.encryption_service import EncryptionServicePort
@@ -21,9 +24,11 @@ from kingsec.infrastructure.ai import (
     register_ai,
 )
 from kingsec.infrastructure.ai.config_resolver import AIConfigResolver
-from kingsec.infrastructure.ai.errors import AIAuthenticationError
+from kingsec.infrastructure.ai.errors import AIAuthenticationError, AIUnsafeURLError
 from kingsec.infrastructure.config import Settings
 from kingsec.infrastructure.config.models import AISettings
+from kingsec.infrastructure.notifications.url_validator import SSRFURLValidator
+from kingsec.infrastructure.secrets.fernet_encryption_service import FernetEncryptionService
 from tests.unit.infrastructure.ai.conftest import (
     VALID_ENRICHMENT,
     openai_response,
@@ -60,6 +65,33 @@ class _UnusedEncryptionService(EncryptionServicePort):
         raise NotImplementedError
 
 
+class _UnusedURLValidator(URLValidationPort):
+    """Never actually called: these tests all use _NoDbConfigRepository, so
+    resolved.source is always "environment"/"none" and _validate_base_url()
+    returns early without calling this."""
+
+    def validate(self, url):
+        raise NotImplementedError
+
+    def open(self, url, *, method="GET", data=None, headers=None, timeout):
+        raise NotImplementedError
+
+
+class _DbConfigRepository(AIProviderConfigRepository):
+    """Reports a saved DB record - drives AIConfigResolver's
+    ``source == "database"`` branch, the request-supplied-origin path
+    Phase 14 validates (unlike ``_NoDbConfigRepository``'s env-only path)."""
+
+    def __init__(self, record: AIProviderConfigRecord) -> None:
+        self._record = record
+
+    def get(self):
+        return self._record
+
+    def save(self, record):
+        raise NotImplementedError
+
+
 def _finding() -> Finding:
     f = Finding.create("SQLi", "injectable param", Severity.CRITICAL)
     f.add_evidence(Evidence.create("m", "matched http://10.0.0.5"))
@@ -69,7 +101,9 @@ def _finding() -> Finding:
 def _adapter(transport, settings: AISettings) -> AIProviderAdapter:
     client = AIClient(timeout=5, retry_count=0, retry_delay=0, transport=transport)
     resolver = AIConfigResolver(settings, _NoDbConfigRepository(), _UnusedEncryptionService())
-    return AIProviderAdapter(settings=settings, config_resolver=resolver, client=client)
+    return AIProviderAdapter(
+        settings=settings, config_resolver=resolver, client=client, url_validator=_UnusedURLValidator()
+    )
 
 
 class TestRecommend:
@@ -197,3 +231,85 @@ class TestDependencyInjection:
         )
         # Should close the client pool without error.
         container.run_shutdown_hooks()
+
+
+def _db_backed_adapter(transport, base_url: str, *, allow_private: bool = False) -> AIProviderAdapter:
+    """An adapter whose config resolver reports source == "database" -
+    i.e. the base_url originated from a PUT /api/v1/settings/ai-provider
+    request body, not an environment variable."""
+    encryption = FernetEncryptionService(Fernet.generate_key())
+    record = AIProviderConfigRecord(
+        provider="openai",
+        api_key_encrypted=encryption.encrypt("sk-the-real-provider-key"),
+        model="gpt-4",
+        base_url=base_url,
+        updated_at="2026-01-01T00:00:00Z",
+    )
+    client = AIClient(timeout=5, retry_count=0, retry_delay=0, transport=transport)
+    resolver = AIConfigResolver(AISettings(), _DbConfigRepository(record), encryption)
+    return AIProviderAdapter(
+        settings=AISettings(),
+        config_resolver=resolver,
+        client=client,
+        url_validator=SSRFURLValidator(allow_private=allow_private),
+    )
+
+
+class TestDatabaseSourcedBaseUrlSSRFProtection:
+    """Phase 14 Sec 3.1: the vulnerable surface is not just the /test
+    endpoint - AIConfigResolver's DB-sourced base_url feeds every AI call
+    through AIProviderAdapter (recommend/explain_business_risk), not only
+    a one-shot test. Proven through the real recommend() path, not by
+    asserting on a validator directly."""
+
+    def test_saved_private_base_url_is_blocked_by_default(self) -> None:
+        hit = {"called": False}
+
+        def handler(request):
+            hit["called"] = True
+            return openai_response(VALID_ENRICHMENT)
+
+        adapter = _db_backed_adapter(transport_from(handler), "http://127.0.0.1:9/v1", allow_private=False)
+        with pytest.raises(AIUnsafeURLError):
+            adapter.recommend(_finding())
+
+        # The critical assertion: the request was never sent at all - the
+        # real API key was never transmitted (Phase 13 Sec 3.3's
+        # credential-exfiltration concern), not merely "the response was
+        # discarded".
+        assert hit["called"] is False
+
+    def test_saved_private_base_url_allowed_when_flag_enabled(self) -> None:
+        hit = {"called": False, "auth": None}
+
+        def handler(request):
+            hit["called"] = True
+            hit["auth"] = request.headers.get("authorization")
+            return openai_response(VALID_ENRICHMENT)
+
+        adapter = _db_backed_adapter(transport_from(handler), "http://127.0.0.1:9/v1", allow_private=True)
+        adapter.recommend(_finding())
+
+        assert hit["called"] is True
+        assert hit["auth"] == "Bearer sk-the-real-provider-key"
+
+
+class TestEnvironmentSourcedBaseUrlIsTrustedConfiguration:
+    """Phase 14 Sec 3.2: an environment-sourced base_url (KINGSEC_AI__BASE_URL)
+    is operator/deployment configuration, not request input - same category
+    as diagnostics.py's hardcoded probe. It must remain usable for a local
+    model server without any opt-in flag, both before and after the fix."""
+
+    def test_env_sourced_private_base_url_is_never_blocked(self) -> None:
+        hit = {"called": False}
+
+        def handler(request):
+            hit["called"] = True
+            return openai_response(VALID_ENRICHMENT)
+
+        adapter = _adapter(
+            transport_from(handler),
+            AISettings(provider="openai", api_key=SecretStr("k"), base_url="http://127.0.0.1:11434"),
+        )
+        adapter.recommend(_finding())
+        assert hit["called"] is True
