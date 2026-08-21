@@ -43,6 +43,19 @@ class AIProviderTestPort(ABC):
         """
 
     @abstractmethod
+    def effective_base_url(self, provider: str, base_url: str | None) -> str:
+        """Return the destination ``provider``/``base_url`` actually
+        resolves to: ``base_url`` if given, else that provider's own
+        default endpoint.
+
+        The single source of truth for "where does a call for this
+        provider/base_url combination go" - used to compare a stored
+        configuration's destination against a candidate one before
+        deciding whether a credential is being redirected, without
+        duplicating the resolution logic that lives in infrastructure.
+        """
+
+    @abstractmethod
     def test_connection(
         self,
         provider: str,

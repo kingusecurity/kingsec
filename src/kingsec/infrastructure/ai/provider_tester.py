@@ -15,6 +15,7 @@ from kingsec.application.ports.outbound.ai_provider_test import AIProviderTestPo
 from .client import AIClient
 from .errors import AIUnsafeURLError
 from .providers import default_model_for, resolve_provider
+from .providers import effective_base_url as _effective_base_url
 
 
 class AIProviderTester(AIProviderTestPort):
@@ -36,6 +37,9 @@ class AIProviderTester(AIProviderTestPort):
 
     def default_model_for(self, provider: str) -> str:
         return default_model_for(provider)
+
+    def effective_base_url(self, provider: str, base_url: str | None) -> str:
+        return _effective_base_url(provider, base_url)
 
     def test_connection(
         self,

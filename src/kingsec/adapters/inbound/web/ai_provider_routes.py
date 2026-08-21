@@ -151,24 +151,32 @@ async def save_ai_provider_config(
 
     existing = repo.get()
 
-    # Phase 21: a stored key must never be sent to a destination introduced
-    # by a save that never re-supplied it. The actor who changes base_url
-    # must also possess the credential for it - otherwise a second admin
-    # (or a compromised session on the first admin's account) can redirect
-    # a key they were never shown, since GET only ever returns a masked
-    # last-4. Only blocks the case that actually matters: an existing key
-    # is present, base_url is genuinely changing, and no fresh key came
-    # with it. A first-time save, an unchanged base_url, or a save that
-    # supplies both together are all unaffected.
+    # Phase 21/22: a stored key must never be sent to a destination
+    # introduced by a save that never re-supplied it. The actor who
+    # changes where the credential goes must also possess the credential
+    # for it - otherwise a second admin (or a compromised session on the
+    # first admin's account) can redirect a key they were never shown,
+    # since GET only ever returns a masked last-4. base_url is not the
+    # only field that determines the destination: a provider-only change
+    # (base_url left None both times) resolves to that provider's own
+    # default via effective_base_url() - the same fallback
+    # AIProviderAdapter._enrich() uses - so comparing the *resolved*
+    # destination catches that too, not just the raw base_url field.
+    # Only blocks the case that actually matters: an existing key is
+    # present, the destination is genuinely changing, and no fresh key
+    # came with it. A first-time save, an unchanged destination, or a
+    # save that supplies a fresh key alongside the change are all
+    # unaffected.
     if (
         existing is not None
         and existing.api_key_encrypted is not None
-        and body.base_url != existing.base_url
         and not body.api_key
+        and tester.effective_base_url(body.provider, body.base_url)
+        != tester.effective_base_url(existing.provider, existing.base_url)
     ):
         raise HTTPException(
             status_code=400,
-            detail="Changing base_url requires re-supplying api_key - "
+            detail="Changing the AI provider or base_url requires re-supplying api_key - "
             "the previously saved key is never sent to a new destination automatically.",
         )
 
