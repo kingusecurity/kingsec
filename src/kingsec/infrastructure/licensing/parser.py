@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import platform
+import sys
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -148,19 +149,26 @@ def compute_machine_id() -> str:
             components.append(f.read().strip())
     except (FileNotFoundError, PermissionError):
         pass
-    # Windows machine GUID
-    try:
+    # Windows machine GUID. Gated on sys.platform (not a bare try/import) so
+    # mypy's platform-aware narrowing - pinned to "linux" in pyproject.toml,
+    # matching the container this project ships in - can prove this branch
+    # unreachable there instead of resolving winreg's members against
+    # whatever OS happens to be running the type checker. That also means
+    # this branch is unchecked by mypy on every platform; see Phase 20's
+    # report for the tradeoff.
+    if sys.platform == "win32":
         import winreg
 
-        key = winreg.OpenKey(
-            winreg.HKEY_LOCAL_MACHINE,
-            r"SOFTWARE\Microsoft\Cryptography",
-        )
-        guid, _ = winreg.QueryValueEx(key, "MachineGuid")
-        components.append(str(guid))
-        winreg.CloseKey(key)
-    except (ImportError, OSError, FileNotFoundError):
-        pass
+        try:
+            key = winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SOFTWARE\Microsoft\Cryptography",
+            )
+            guid, _ = winreg.QueryValueEx(key, "MachineGuid")
+            components.append(str(guid))
+            winreg.CloseKey(key)
+        except OSError:
+            pass
 
     combined = "|".join(components)
     return hashlib.sha256(combined.encode()).hexdigest()

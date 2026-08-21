@@ -228,6 +228,14 @@ known-first-party = ["kingsec"]
 # =============================================================================
 [tool.mypy]
 python_version = "3.11"
+# Pinned to match CI (and the Linux container this project ships in) so a
+# local mypy run and a CI mypy run check the same code. Before this, mypy
+# resolved the sys.platform == "win32" branch in licensing/parser.py using
+# whatever OS the developer's machine happened to be, so a clean local run
+# on Windows meant nothing about what CI's Linux run would find (Phase 19
+# §8.3, Phase 20 §2). Cost: that branch is no longer type-checked, on any
+# platform, by this config alone. See docs/audits/KINGSEC-PHASE-20-CI-PIPELINE-REPORT.md.
+platform = "linux"
 mypy_path = "src"
 packages = ["kingsec"]
 strict = true
