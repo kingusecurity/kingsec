@@ -32,7 +32,7 @@ from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 class StripUntrackedAlembicVersionsHook(BuildHookInterface):  # type: ignore[type-arg]
     PLUGIN_NAME = "strip-untracked-alembic-versions"
 
-    def finalize(self, version: str, build_data: dict[str, Any], artifact_path: str) -> None:
+    def finalize(self, _version: str, _build_data: dict[str, Any], artifact_path: str) -> None:
         if not artifact_path.endswith(".whl"):
             return
 
@@ -70,7 +70,7 @@ class StripUntrackedAlembicVersionsHook(BuildHookInterface):  # type: ignore[typ
     def _tracked_alembic_version_basenames(self) -> set[str] | None:
         try:
             result = subprocess.run(  # nosec B603 B607 - fixed argv, no shell, build-time only
-                ["git", "ls-files", "src/kingsec/alembic/versions/"],
+                ["git", "ls-files", "src/kingsec/alembic/versions/"],  # noqa: S607
                 cwd=self.root,
                 capture_output=True,
                 text=True,
