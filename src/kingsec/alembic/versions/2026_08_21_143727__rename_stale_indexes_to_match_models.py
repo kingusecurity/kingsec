@@ -52,7 +52,7 @@ from typing import TYPE_CHECKING
 from alembic import op
 
 if TYPE_CHECKING:
-    from alembic.runtime.revision import MigratorCollection
+    pass
 
 
 # revision identifiers, used by Alembic.
