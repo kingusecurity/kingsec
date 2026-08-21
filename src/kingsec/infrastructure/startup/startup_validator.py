@@ -103,7 +103,14 @@ class StartupValidator:
             import sqlite3
 
             conn = sqlite3.connect(str(db_path), timeout=5)
-            cursor = conn.execute("SELECT 1")
+            # SELECT 1 is a constant literal - it never reads a page, so
+            # whether a corrupt/non-database file is caught here depends on
+            # the linked SQLite version's own header-validation eagerness
+            # (observed to differ between platforms: raises immediately on
+            # this dev machine's SQLite 3.50.4, silently "succeeds" against
+            # garbage bytes on CI's Linux runners - Phase 20 §4). Querying
+            # sqlite_master forces a real page read on every SQLite version.
+            cursor = conn.execute("SELECT count(*) FROM sqlite_master")
             cursor.fetchone()
             conn.close()
 
