@@ -168,8 +168,16 @@ def _run_binary_absent(tmp_path: Path):
 
 
 def _run_nonzero_exit():
+    # binary_path must resolve via shutil.which() (NmapPlugin.is_available())
+    # for the FakeRunner below to ever be reached at all - "nmap" (the
+    # NmapSettings default) is not installed on a bare CI runner, so this
+    # silently collapsed into the binary-absent path there while appearing
+    # to test the nonzero-exit path locally on a machine with a real nmap
+    # on PATH. "python" is guaranteed present (it's running this test) and
+    # is the same sentinel already used for this purpose in
+    # test_adapter.py, test_nmap_plugin.py, and test_nuclei_plugin.py.
     runner = FakeRunner(CommandResult(returncode=1, stdout="", stderr="", duration_seconds=0.1))
-    plugin = NmapPlugin(NmapSettings(), runner=runner)
+    plugin = NmapPlugin(NmapSettings(binary_path="python"), runner=runner)
     registry = InMemoryPluginRegistry()
     registry.register(plugin)
     registry.register(_AlwaysCleanPlugin())
