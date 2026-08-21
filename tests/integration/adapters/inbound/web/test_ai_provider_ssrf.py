@@ -26,7 +26,6 @@ import pytest
 from cryptography.fernet import Fernet
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from pydantic import SecretStr
 
 from kingsec.adapters.inbound.web.ai_provider_routes import router
 from kingsec.adapters.inbound.web.auth import CurrentUser, get_current_user
