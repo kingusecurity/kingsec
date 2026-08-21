@@ -192,6 +192,22 @@ def supported_providers() -> tuple[str, ...]:
     return tuple(sorted(_PROVIDER_FACTORIES))
 
 
+def effective_base_url(provider: str, base_url: str | None) -> str:
+    """The destination a call for ``provider``/``base_url`` actually goes
+    to: the stored value if present, else that provider's own default.
+
+    This is the single source of truth for "where does the request
+    resolve to" - AIProviderAdapter._enrich(), extended_adapter.py, and
+    AIProviderTester.test_connection() each computed
+    ``base_url or strategy.default_base_url`` inline (Phase 13 §2 flagged
+    exactly this shape of drift when a security-relevant computation
+    exists in more than one place). Callers that need to compare two
+    destinations - e.g. the save route's Phase 21/22 credential-redirect
+    guard - call this instead of recomputing the fallback themselves.
+    """
+    return base_url or resolve_provider(provider).default_base_url
+
+
 # A per-provider sensible default model, used only when the caller has no
 # explicit model to send. AISettings.model's own pydantic default
 # ("claude-sonnet-4-5") is an Anthropic model name - falling back to it
