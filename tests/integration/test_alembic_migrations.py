@@ -16,7 +16,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.exc import IntegrityError
 
 # Project root — three levels up from this test file (tests/integration/).
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -353,6 +354,133 @@ class TestMigrationAutogenerate:
             "autogenerate wrote into the real repository versions/ "
             f"directory: {real_versions_after - real_versions_before}"
         )
+
+
+class TestMigrationWithPopulatedUniqueConstrainedData:
+    """Phase 18 regression coverage: migration 91969658a556 adds/changes
+    three indexes to ``unique=True`` (``job_leases.job_id``,
+    ``cve_entries.cve_code``, ``account_links(provider_id,
+    external_user_id)``). Phase 17 verified this migration only against an
+    *empty* database — ``CREATE UNIQUE INDEX`` fails if the table already
+    holds duplicate values, and an empty table can never surface that.
+
+    Phase 18's investigation found the migration is safe: all three
+    columns have been protected by a table-level ``sa.UniqueConstraint``
+    since each table's *original* creation migration (2026-07-28/29),
+    predating 91969658a556 entirely - confirmed empirically by attempting
+    to insert a duplicate at the pre-migration head and getting a real
+    ``sqlite3.IntegrityError`` (see the Phase 18 report Sec 3). So no
+    duplicate-value migration failure is reachable today.
+
+    This test is the regression guard for that finding: it proves the
+    migration succeeds against realistically *populated* (not merely
+    empty) versions of all three tables, so a future change that weakens
+    or removes one of those underlying UniqueConstraints - the actual
+    thing standing between "safe" and "this migration can fail on real
+    data" - cannot silently regress this without a test noticing. Phase
+    16 demonstrated exactly this risk: the one test positioned to catch a
+    real problem had an assertion that could never fail.
+    """
+
+    def test_upgrade_succeeds_against_populated_tables(self, tmp_path: Path) -> None:
+        db_path = tmp_path / "test.db"
+        db_url = f"sqlite:///{db_path}"
+
+        result = _run_alembic("upgrade", "d1e2f3a4b5c6", database_url=db_url)
+        assert result.returncode == 0, result.stderr
+
+        engine = create_engine(db_url, future=True)
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO job_leases (lease_id, job_id, worker_id, acquired_at, expires_at, "
+                    "renewed_at, released_at) VALUES ('lease-1', 'job-1', 'worker-1', "
+                    "'2026-01-01T00:00:00Z', '2026-01-01T00:02:00Z', '', NULL)"
+                )
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO cve_entries (id, cve_code, description, severity, exploit_maturity, "
+                    "threat_score, exploitability_score, priority_score, is_kev, created_at, updated_at) "
+                    "VALUES ('cve-1', 'CVE-2024-0001', '', 'NONE', 'unknown', 0.0, 0.0, 0.0, 0, "
+                    "'2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')"
+                )
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO account_links (id, user_id, provider_id, external_user_id, "
+                    "external_username, external_email, linked_at) VALUES ('link-1', 'user-1', "
+                    "'provider-1', 'ext-1', '', '', '2026-01-01T00:00:00Z')"
+                )
+            )
+        engine.dispose()
+
+        result = _run_alembic("upgrade", "head", database_url=db_url)
+        assert result.returncode == 0, (
+            "migration 91969658a556 failed against populated (non-duplicate) data - "
+            f"a UniqueConstraint this test relies on may have been weakened: {result.stderr}"
+        )
+
+        job_lease_indexes = _get_indexes(db_url, "job_leases")
+        assert job_lease_indexes.get("ix_job_leases_job_id")
+
+        cve_indexes = _get_indexes(db_url, "cve_entries")
+        assert cve_indexes.get("ix_cve_entries_cve_code")
+
+        link_indexes = _get_indexes(db_url, "account_links")
+        assert link_indexes.get("ix_account_links_provider_user")
+
+        # The pre-existing rows survived the migration untouched.
+        engine = create_engine(db_url, future=True)
+        with engine.begin() as conn:
+            assert conn.execute(text("SELECT job_id FROM job_leases WHERE lease_id = 'lease-1'")).scalar() == "job-1"
+            assert conn.execute(text("SELECT cve_code FROM cve_entries WHERE id = 'cve-1'")).scalar() == "CVE-2024-0001"
+            assert conn.execute(text("SELECT provider_id FROM account_links WHERE id = 'link-1'")).scalar() == "provider-1"
+        engine.dispose()
+
+    def test_upgrade_fails_cleanly_if_duplicates_somehow_exist(self, tmp_path: Path) -> None:
+        """Belt-and-braces: even though duplicates cannot reach this point
+        through any real application path (Phase 18 Sec 3/4), prove
+        directly that IF a duplicate ever did exist at upgrade time, the
+        failure is the specific, attributable IntegrityError SQLite raises
+        - not a generic, unclear error - so an operator who somehow hits
+        this is not left guessing."""
+        db_path = tmp_path / "test.db"
+        db_url = f"sqlite:///{db_path}"
+
+        result = _run_alembic("upgrade", "d1e2f3a4b5c6", database_url=db_url)
+        assert result.returncode == 0, result.stderr
+
+        engine = create_engine(db_url, future=True)
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO job_leases (lease_id, job_id, worker_id, acquired_at, expires_at, "
+                    "renewed_at, released_at) VALUES ('lease-1', 'job-DUP', 'worker-1', "
+                    "'2026-01-01T00:00:00Z', '2026-01-01T00:02:00Z', '', NULL)"
+                )
+            )
+        engine.dispose()
+
+        # A second row with the same job_id cannot even be inserted - the
+        # UniqueConstraint from job_leases' original creation migration
+        # (2026_07_29_500000__add_distributed_workers.py) already forbids
+        # it, independent of anything 91969658a556 does.
+        engine = create_engine(db_url, future=True)
+        try:
+            with engine.begin() as conn:
+                conn.execute(
+                    text(
+                        "INSERT INTO job_leases (lease_id, job_id, worker_id, acquired_at, expires_at, "
+                        "renewed_at, released_at) VALUES ('lease-2', 'job-DUP', 'worker-2', "
+                        "'2026-01-01T00:00:01Z', '2026-01-01T00:02:01Z', '', NULL)"
+                    )
+                )
+            raise AssertionError("expected the duplicate insert to be rejected, but it succeeded")
+        except IntegrityError as exc:
+            assert "job_leases.job_id" in str(exc.orig)
+        finally:
+            engine.dispose()
 
 
 class TestMigrationMetadata:
