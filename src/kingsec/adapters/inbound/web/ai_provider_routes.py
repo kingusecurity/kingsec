@@ -149,6 +149,29 @@ async def save_ai_provider_config(
     except ExternalServiceError:
         raise HTTPException(status_code=400, detail=f"Unsupported AI provider: {body.provider!r}") from None
 
+    existing = repo.get()
+
+    # Phase 21: a stored key must never be sent to a destination introduced
+    # by a save that never re-supplied it. The actor who changes base_url
+    # must also possess the credential for it - otherwise a second admin
+    # (or a compromised session on the first admin's account) can redirect
+    # a key they were never shown, since GET only ever returns a masked
+    # last-4. Only blocks the case that actually matters: an existing key
+    # is present, base_url is genuinely changing, and no fresh key came
+    # with it. A first-time save, an unchanged base_url, or a save that
+    # supplies both together are all unaffected.
+    if (
+        existing is not None
+        and existing.api_key_encrypted is not None
+        and body.base_url != existing.base_url
+        and not body.api_key
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Changing base_url requires re-supplying api_key - "
+            "the previously saved key is never sent to a new destination automatically.",
+        )
+
     key_changed = bool(body.api_key)
     api_key_encrypted: bytes | None
     if body.api_key:
@@ -157,7 +180,6 @@ async def save_ai_provider_config(
         # No new key submitted - keep whatever is already saved. A "Change"
         # action in the UI retypes a key; leaving the masked field alone
         # must never silently clear a working one.
-        existing = repo.get()
         api_key_encrypted = existing.api_key_encrypted if existing is not None else None
 
     repo.save(
@@ -177,7 +199,7 @@ async def save_ai_provider_config(
             success=True,
             user_id=user.user_id,
             username=user.username,
-            metadata={"provider": body.provider, "key_changed": key_changed},
+            metadata={"provider": body.provider, "key_changed": key_changed, "base_url": body.base_url},
         )
     )
 
