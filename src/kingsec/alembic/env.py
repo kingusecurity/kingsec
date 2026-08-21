@@ -105,11 +105,25 @@ def _engine_from_settings(url: str | None = None) -> Engine:
     if resolved_url.startswith("sqlite"):
         engine = create_engine(
             resolved_url,
-            connect_args={"check_same_thread": False},
+            # isolation_level=None puts the DBAPI connection in true autocommit,
+            # disabling pysqlite's own implicit-BEGIN heuristic (which only
+            # fires before INSERT/UPDATE/DELETE/REPLACE, never before DDL —
+            # see http://bugs.python.org/issue10740, cited verbatim in
+            # alembic's own ddl/sqlite.py::SQLiteImpl.transactional_ddl).
+            # Without this, CREATE/DROP INDEX statements commit immediately
+            # regardless of any transaction Alembic or SQLAlchemy believe
+            # they are inside, so a failure partway through a migration
+            # leaves already-applied DDL permanently on disk. Paired with
+            # the "begin" listener below, which makes SQLAlchemy's own
+            # transaction boundaries real by issuing BEGIN explicitly —
+            # SQLite itself fully supports transactional DDL once pysqlite
+            # is out of the way. See docs/audits/KINGSEC-PHASE-19-MIGRATION-ATOMICITY-REPORT.md.
+            connect_args={"check_same_thread": False, "isolation_level": None},
             future=True,
         )
         # Enable foreign key enforcement for SQLite — matches the app engine.
         event.listen(engine, "connect", _enable_sqlite_foreign_keys)
+        event.listen(engine, "begin", _emit_explicit_begin)
         return engine
 
     # PostgreSQL or other database — no special connect_args needed.
@@ -121,6 +135,17 @@ def _enable_sqlite_foreign_keys(dbapi_connection: Any, _connection_record: Any) 
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
+
+
+def _emit_explicit_begin(conn: Any) -> None:
+    """Issue a real BEGIN so SQLite's transactional DDL support is actually used.
+
+    With isolation_level=None (set above), pysqlite never opens a transaction
+    on its own — SQLAlchemy's "begin" event is the only remaining place a
+    transaction boundary gets established, so this makes it real instead of
+    relying on pysqlite's DML-only implicit BEGIN.
+    """
+    conn.exec_driver_sql("BEGIN")
 
 
 # ---------------------------------------------------------------------------
