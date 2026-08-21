@@ -161,12 +161,28 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=metadata,
             compare_type=True,
+            process_revision_directives=_skip_empty_autogenerate_revision,
         )
 
         with context.begin_transaction():
             context.run_migrations()
 
     connectable.dispose()
+
+
+def _skip_empty_autogenerate_revision(ctx: Any, _rev: Any, directives: list[Any]) -> None:
+    """Suppress ``alembic revision --autogenerate`` when it finds no diff.
+
+    Without this, autogenerate always writes a revision file (with empty
+    upgrade()/downgrade() bodies) even when the target database's schema
+    already matches the ORM metadata exactly — the mechanism behind this
+    project's untracked ``*__no_changes.py`` accumulation.
+    """
+    if getattr(ctx.config.cmd_opts, "autogenerate", False):
+        script = directives[0]
+        if script.upgrade_ops.is_empty():
+            directives[:] = []
+            logger.info("no schema changes detected; skipping empty autogenerate revision")
 
 
 # ---------------------------------------------------------------------------
