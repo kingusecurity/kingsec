@@ -101,7 +101,7 @@ class PluginSandbox:
         try:
             import resource as _resource
 
-            usage = _resource.getrusage(_resource.RUSAGE_SELF)  # type: ignore[attr-defined]
+            usage = _resource.getrusage(_resource.RUSAGE_SELF)
             mem_mb = usage.ru_maxrss / 1024  # Linux: KB -> MB
             if mem_mb > self._memory_limit_mb:
                 raise MemoryLimitExceeded(
