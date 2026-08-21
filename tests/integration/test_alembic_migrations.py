@@ -16,7 +16,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
 from sqlalchemy import create_engine, inspect
 
 # Project root — three levels up from this test file (tests/integration/).
@@ -281,31 +280,6 @@ class TestMigrationRoundTrip:
 class TestMigrationAutogenerate:
     """Tests for ``alembic revision --autogenerate``."""
 
-    @pytest.mark.xfail(
-        reason=(
-            "Phase 16: this assertion is now correct and was never able to "
-            "fail before (see docstring) — it just found a genuine, "
-            "pre-existing schema drift that predates this fix: the tracked "
-            "migration chain (head d1e2f3a4b5c6) is missing a real revision "
-            "for a batch of index renames "
-            "(ix_account_links_provider -> ix_account_links_provider_id, "
-            "and 9 more across asset_history, asset_relationships, "
-            "cve_entries, dead_letter_entries, exposures, "
-            "identity_providers, job_leases, job_queue_entries, "
-            "sso_sessions) that models.py already reflects. This exact diff "
-            "is what the very first untracked *__no_changes.py file "
-            "captured back on 2026-08-19 (Phase 15 report §2) — it has "
-            "been silently true ever since, masked only by the no-op "
-            "assertion this phase repairs. Writing the missing migration "
-            "is a schema change, outside this phase's scope (stop the "
-            "generator, fix the assertion, make packaging deterministic, "
-            "remove pollution) — see Phase 16 report §3.2 and §12. "
-            "strict=True: this must start failing (not merely passing) the "
-            "moment a real migration closes the drift, so this marker gets "
-            "removed rather than forgotten."
-        ),
-        strict=True,
-    )
     def test_autogenerate_on_clean_state_produces_no_changes(self, tmp_path: Path) -> None:
         """After upgrade, autogenerate against an up-to-date database must
         write no new revision file anywhere — not in a scratch directory,
