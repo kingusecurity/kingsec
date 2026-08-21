@@ -108,6 +108,15 @@ include = ["src/kingsec/alembic/alembic.ini", "src/kingsec/alembic/script.py.mak
 # which case spa.py's register_spa() simply skips registering SPA routes.
 artifacts = ["src/kingsec/adapters/inbound/web/static/**/*"]
 
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
+# Phase 16: `include`'s versions/*.py glob (above) and .gitignore-derived
+# excludes are both filesystem-pattern-based and cannot distinguish a
+# tracked *__no_changes.py migration from an untracked one sharing the same
+# name — verified empirically. This hook checks the built wheel against
+# `git ls-files` directly and strips anything that isn't actually tracked,
+# regardless of what generated it or what it's named.
+
 # =============================================================================
 # Ruff - linting + formatting
 # =============================================================================

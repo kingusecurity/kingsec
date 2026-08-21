@@ -23,6 +23,7 @@ WORKDIR /build
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    git \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
     libgdk-pixbuf-2.0-0 \
@@ -32,11 +33,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install uv for fast dependency resolution
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Copy project metadata
-COPY pyproject.toml README.md LICENSE ./
-
-# Copy the application source
-COPY src/ ./src/
+# Extract exactly the committed source tree via `git archive`, not a raw
+# filesystem copy. A plain `COPY src/ ./src/` brings in whatever is
+# physically sitting in the build host's working tree, tracked or not -
+# this is how untracked Alembic autogenerate artifacts
+# (src/kingsec/alembic/versions/*__no_changes.py, Phase 15/16) ended up
+# baked into every wheel this project built. `git archive HEAD` reads only
+# what HEAD's commit actually contains, so the shipped artifact depends on
+# what is committed, never on what happens to be lying around. .git is
+# read here only - never copied into the runtime stage below.
+COPY .git ./.git
+RUN git archive HEAD | tar -x && rm -rf .git
 
 # Bundle the frontend build into the package before packaging - artifacts
 # in pyproject.toml's wheel target picks this up even though static/ is

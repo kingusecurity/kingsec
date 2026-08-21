@@ -1,5 +1,10 @@
 # Version control
-.git
+# .git is intentionally NOT excluded: the builder stage runs `git archive
+# HEAD` to select exactly the committed source tree, discarding anything
+# untracked regardless of name (Phase 16 - untracked alembic autogenerate
+# artifacts were previously baked into every wheel built from this repo).
+# It is only ever read inside the discarded builder stage, never copied
+# into the final runtime image.
 .gitignore
 
 # Python artifacts
