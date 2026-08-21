@@ -483,6 +483,142 @@ class TestMigrationWithPopulatedUniqueConstrainedData:
             engine.dispose()
 
 
+class TestMigrationAtomicity:
+    """Phase 19 regression coverage: Phase 18 §3 found that a migration
+    failing partway leaves already-applied DDL permanently on disk while
+    ``alembic_version`` stays at the old revision - a state no revision
+    describes. Root cause (Phase 19 §2): pysqlite does not open a
+    transaction before DDL statements by default - only before INSERT,
+    UPDATE, DELETE, and REPLACE (http://bugs.python.org/issue10740, cited
+    verbatim in Alembic's own ``ddl/sqlite.py::SQLiteImpl`` docstring) - so
+    CREATE/DROP INDEX commit immediately regardless of what Alembic or
+    SQLAlchemy believe they have wrapped. ``env.py`` now sets
+    ``isolation_level=None`` (true DBAPI-level autocommit, disabling
+    pysqlite's own implicit-BEGIN heuristic entirely) and emits ``BEGIN``
+    explicitly via a ``"begin"`` event listener, so SQLite's own
+    transactional DDL support - which pysqlite was defeating - is actually
+    exercised.
+
+    These tests force two independent failure points inside migration
+    91969658a556's ``upgrade()`` and confirm the whole revision rolls back
+    as one unit, not just the ``alembic_version`` bookkeeping - the exact
+    inverse of Phase 18 §3's demonstration.
+    """
+
+    def test_forced_failure_near_end_rolls_back_entire_migration(self, tmp_path: Path) -> None:
+        """Pre-create the index 91969658a556 itself creates near the end of
+        its op sequence (``ix_sso_sessions_provider_id``, operation 31 of
+        32) so upgrade head collides and fails there. Every prior operation
+        in the same revision - including the five index changes already
+        applied to account_links - must be rolled back too."""
+        db_path = tmp_path / "test.db"
+        db_url = f"sqlite:///{db_path}"
+
+        result = _run_alembic("upgrade", "d1e2f3a4b5c6", database_url=db_url)
+        assert result.returncode == 0, result.stderr
+
+        engine = create_engine(db_url, future=True)
+        with engine.begin() as conn:
+            conn.execute(text("CREATE INDEX ix_sso_sessions_provider_id ON sso_sessions (provider_id)"))
+        engine.dispose()
+
+        account_links_before = _get_indexes(db_url, "account_links")
+        sso_sessions_before = _get_indexes(db_url, "sso_sessions")
+
+        result = _run_alembic("upgrade", "head", database_url=db_url)
+        assert result.returncode != 0, "expected the pre-created colliding index to fail the migration"
+        assert "ix_sso_sessions_provider_id already exists" in result.stderr
+
+        engine = create_engine(db_url, future=True)
+        with engine.begin() as conn:
+            stamp = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
+        engine.dispose()
+        assert stamp == "d1e2f3a4b5c6", (
+            f"alembic_version moved to {stamp!r} despite the migration failing - partial application of a failed revision"
+        )
+
+        assert _get_indexes(db_url, "account_links") == account_links_before, (
+            "account_links' indexes changed even though the migration failed at "
+            "sso_sessions - DDL persisted outside the failed revision's rollback"
+        )
+        assert _get_indexes(db_url, "sso_sessions") == sso_sessions_before, (
+            "sso_sessions' indexes changed even though the migration failed"
+        )
+
+    def test_forced_failure_near_start_rolls_back_entire_migration(self, tmp_path: Path) -> None:
+        """A second, independent failure point and a different underlying
+        SQLite error - DROP of an index that no longer exists, rather than
+        CREATE of one that already does - at operation 2 of 32. Proves
+        rollback is complete there too, including the single DDL statement
+        (operation 1) that already succeeded before the failure. One data
+        point is a coincidence."""
+        db_path = tmp_path / "test.db"
+        db_url = f"sqlite:///{db_path}"
+
+        result = _run_alembic("upgrade", "d1e2f3a4b5c6", database_url=db_url)
+        assert result.returncode == 0, result.stderr
+
+        engine = create_engine(db_url, future=True)
+        with engine.begin() as conn:
+            conn.execute(text("DROP INDEX ix_account_links_user"))
+        engine.dispose()
+
+        account_links_before = _get_indexes(db_url, "account_links")
+
+        result = _run_alembic("upgrade", "head", database_url=db_url)
+        assert result.returncode != 0, "expected the pre-dropped index to fail the migration"
+        assert "no such index: ix_account_links_user" in result.stderr
+
+        engine = create_engine(db_url, future=True)
+        with engine.begin() as conn:
+            stamp = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
+        engine.dispose()
+        assert stamp == "d1e2f3a4b5c6"
+
+        assert _get_indexes(db_url, "account_links") == account_links_before, (
+            "operation 1 (dropping ix_account_links_provider) persisted even "
+            "though operation 2 failed in the same revision"
+        )
+
+    def test_upgrade_succeeds_cleanly_after_a_rolled_back_failure(self, tmp_path: Path) -> None:
+        """Recoverability, not just coherence: once the cause of a forced
+        failure is removed, upgrade head must succeed and produce exactly
+        the schema 91969658a556 defines - proving the rolled-back database
+        is genuinely re-runnable, not merely stuck in a valid-looking dead
+        end."""
+        db_path = tmp_path / "test.db"
+        db_url = f"sqlite:///{db_path}"
+
+        result = _run_alembic("upgrade", "d1e2f3a4b5c6", database_url=db_url)
+        assert result.returncode == 0, result.stderr
+
+        engine = create_engine(db_url, future=True)
+        with engine.begin() as conn:
+            conn.execute(text("CREATE INDEX ix_sso_sessions_provider_id ON sso_sessions (provider_id)"))
+        engine.dispose()
+
+        failed = _run_alembic("upgrade", "head", database_url=db_url)
+        assert failed.returncode != 0
+
+        engine = create_engine(db_url, future=True)
+        with engine.begin() as conn:
+            conn.execute(text("DROP INDEX ix_sso_sessions_provider_id"))
+        engine.dispose()
+
+        recovered = _run_alembic("upgrade", "head", database_url=db_url)
+        assert recovered.returncode == 0, f"upgrade head did not recover cleanly: {recovered.stderr}"
+
+        sso_sessions_indexes = _get_indexes(db_url, "sso_sessions")
+        assert "ix_sso_sessions_provider_id" in sso_sessions_indexes
+        assert "ix_sso_sessions_user_id" in sso_sessions_indexes
+
+        engine = create_engine(db_url, future=True)
+        with engine.begin() as conn:
+            stamp = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
+        engine.dispose()
+        assert stamp == "91969658a556"
+
+
 class TestMigrationMetadata:
     """Tests that Alembic's metadata matches the ORM models."""
 
