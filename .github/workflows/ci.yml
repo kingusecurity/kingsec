@@ -35,7 +35,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
+          # setuptools isn't a declared project dependency - it's whatever
+          # version the runner image's Python bundles - so leaving it
+          # unupgraded here left the 3.11 image's pre-installed setuptools
+          # 79.0.1 (PYSEC-2026-3447) sitting in the environment for
+          # pip-audit to find (Phase 20 §4).
+          python -m pip install --upgrade pip setuptools
           pip install -e ".[dev]"
 
       - name: Lint (Ruff)
