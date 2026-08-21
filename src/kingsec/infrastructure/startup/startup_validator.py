@@ -199,11 +199,11 @@ class StartupValidator:
         version = sys.version_info
         elapsed = (time.monotonic() - start) * 1000
 
-        if version < (3, 12):
+        if version < (3, 11):
             return StartupCheck(
                 name="python_version",
                 passed=False,
-                message=f"Python {version.major}.{version.minor} < 3.12 required",
+                message=f"Python {version.major}.{version.minor} < 3.11 required",
                 duration_ms=elapsed,
             )
         return StartupCheck(
