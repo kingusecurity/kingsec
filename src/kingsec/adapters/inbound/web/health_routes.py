@@ -92,12 +92,6 @@ def restart(request: Request) -> dict[str, Any]:
     return {"status": "restart_initiated"}
 
 
-@router.get("/health")
-def health_simple() -> dict[str, Any]:
-    """Simple liveness endpoint (no auth, no dependency checks)."""
-    return {"status": "healthy"}
-
-
 @router.get(
     "/healthz/performance", response_model=SystemMetrics, dependencies=[Depends(require_role(Role.ADMIN))]
 )

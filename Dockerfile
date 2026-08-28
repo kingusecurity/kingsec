@@ -8,10 +8,24 @@ FROM node:20-slim AS frontend-builder
 
 WORKDIR /frontend
 
-COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
+# Extract exactly the committed frontend/ subtree via `git archive`, not a
+# raw filesystem copy - mirrors Stage 2's identical, already-established
+# backend mechanism and closes the exact asymmetry it did not originally
+# cover: a plain `COPY frontend/ ./` brings in whatever is physically
+# sitting in the build context's frontend/ directory, uncommitted or not
+# (Phase 29/30 - empirically confirmed with a temporary, reverted marker
+# change). `git archive HEAD -- frontend` reads only what HEAD's commit
+# actually contains for that subtree; `--strip-components=1` drops the
+# leading `frontend/` prefix so the extracted files land directly in this
+# stage's `/frontend` WORKDIR, exactly as the prior `COPY frontend/ ./`
+# did. `.git` is read here only - never copied into the runtime stage.
+RUN apt-get update && apt-get install -y --no-install-recommends git && \
+    rm -rf /var/lib/apt/lists/*
 
-COPY frontend/ ./
+COPY .git ./.git
+RUN git archive HEAD -- frontend | tar -x --strip-components=1 && rm -rf .git
+
+RUN npm ci
 RUN npm run build
 
 # =============================================================================

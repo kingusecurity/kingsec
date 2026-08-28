@@ -213,6 +213,34 @@ class TestHealthEndpoint:
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
 
+    def test_only_one_router_defines_get_health(self) -> None:
+        # Phase 30: health_routes.py used to also define GET /health
+        # (health_simple(), returning {"status": "healthy"}) - unreachable
+        # dead code, shadowed only because versioning.py happens to include
+        # routes.py's router first. test_returns_200 above only proves the
+        # current *effective* response is correct; it would keep passing
+        # even with a shadowed duplicate reintroduced. This checks each
+        # APIRouter's own route list directly (not the fully-wired FastAPI
+        # app's internal, version-specific route-resolution machinery) so a
+        # future duplicate in either module fails here regardless of
+        # inclusion order.
+        from kingsec.adapters.inbound.web import health_routes
+        from kingsec.adapters.inbound.web import routes as routes_module
+
+        def defines_get(router: object, path: str) -> bool:
+            # Each router's own routes already carry its `prefix` baked
+            # into `.path` at registration time (both routers use
+            # prefix="/api/v1"), so the full path is checked here.
+            return any(
+                getattr(route, "path", None) == path and "GET" in getattr(route, "methods", set())
+                for route in router.routes  # type: ignore[attr-defined]
+            )
+
+        assert defines_get(routes_module.router, "/api/v1/health"), "routes.py must own GET /api/v1/health"
+        assert not defines_get(health_routes.router, "/api/v1/health"), (
+            "health_routes.py must not redefine GET /api/v1/health"
+        )
+
 
 class TestCreateAssessmentEndpoint:
     def test_returns_201(self, client: TestClient, stub_service: StubServiceAPI) -> None:
