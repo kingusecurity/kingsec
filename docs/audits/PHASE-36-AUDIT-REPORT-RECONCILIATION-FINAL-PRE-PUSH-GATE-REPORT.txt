@@ -1,0 +1,250 @@
+================================================================================
+KINGSEC — PHASE 36: AUDIT REPORT RECONCILIATION & FINAL PRE-PUSH GATE
+FINAL REPORT
+================================================================================
+
+Every factual statement is labeled [TESTED], [INFERRED], [NOT TESTED], or
+[CANNOT BE VERIFIED].
+
+--------------------------------------------------------------------------------
+1. STARTING HEAD
+--------------------------------------------------------------------------------
+[TESTED] Starting HEAD was 0258de522cae519fe1ae530f483f52277455487a, matching
+the value expected by the Phase 36 prompt exactly (verified via
+`git rev-parse HEAD` at the start of the phase, in the immediately preceding
+turn before this report's continuation began).
+
+--------------------------------------------------------------------------------
+2. STARTING WORKTREE CONTENTS
+--------------------------------------------------------------------------------
+[TESTED] The only untracked items present at the start of Phase 36 were the
+three phase report files at repository root:
+  - PHASE-33-WORKTREE-HYGIENE-PHASE24-29-FINALIZATION-CLEAN-COMMIT-REPRODUCTION-REPORT.txt
+  - PHASE-34-PRE-PUSH-FINAL-GATE-REMOTE-SYNCHRONIZATION-REPORT.txt
+    (actual filename omitted "-FINAL-" relative to the prompt's guessed name,
+    exactly as the prompt anticipated might happen)
+  - PHASE-35-RESOLVE-PHASE34-WORKTREE-BLOCKER-RE-RUN-FINAL-PUSH-GATE-REPORT.txt
+No other modified or untracked items existed.
+
+--------------------------------------------------------------------------------
+3. WHY THE THREE FILES WERE THE EXPECTED BLOCKERS
+--------------------------------------------------------------------------------
+[TESTED] Each of these three files was the final report of its own phase
+(Phase 33, 34, 35), written directly to the project root per the standing
+convention established after Phase 32 ("always write the final report in
+root project"). Because each phase's own final-report write happened after
+that phase's own worktree-cleanliness checks ran, each report necessarily
+appeared as a fresh untracked item for the NEXT phase's gate — this is the
+self-referential cycle Phase 34 and Phase 35 each correctly detected and
+stopped on rather than rationalizing past. Phase 36 was explicitly authorized
+to resolve all three accumulated instances in a single documentation-only
+commit.
+
+--------------------------------------------------------------------------------
+4. INSPECTION RESULT FOR ALL THREE REPORTS
+--------------------------------------------------------------------------------
+[TESTED] All three reports were read in full in the preceding turn (prior to
+this continuation). Each was confirmed to be: a legitimate KingSec
+audit/reproduction report; documentation only (plain text, no executable
+content); free of production credentials; not application code; not a
+generated build artifact; appropriate for permanent placement under
+`docs/audits/`.
+
+[TESTED] A supplemental automated scan (grep for password/secret/api-key
+assignment patterns, PEM private-key headers, and AWS access-key-ID shapes)
+was run across all three relocated files as an additional check during this
+continuation. The only match was a single line of prose in the Phase 33
+report describing its own scan methodology (the string "password =" appearing
+inside a sentence, not as an actual assignment or credential). No genuine
+secret material was found in any of the three files.
+
+--------------------------------------------------------------------------------
+5. EXACT FINAL PATHS
+--------------------------------------------------------------------------------
+[TESTED]
+  docs/audits/PHASE-33-WORKTREE-HYGIENE-PHASE24-29-FINALIZATION-CLEAN-COMMIT-REPRODUCTION-REPORT.txt
+  docs/audits/PHASE-34-PRE-PUSH-FINAL-GATE-REMOTE-SYNCHRONIZATION-REPORT.txt
+  docs/audits/PHASE-35-RESOLVE-PHASE34-WORKTREE-BLOCKER-RE-RUN-FINAL-PUSH-GATE-REPORT.txt
+Filenames were kept unchanged from their root-level originals, only the
+directory changed. `git mv` was attempted first but failed with
+"fatal: not under version control" (expected, since these files were
+untracked); a plain filesystem `mv` was used instead, followed by explicit
+`git add --` of the three new paths, which is functionally equivalent for
+untracked files and was explicitly anticipated as acceptable by the phase
+prompt itself.
+
+--------------------------------------------------------------------------------
+6. NEW COMMIT HASH
+--------------------------------------------------------------------------------
+[TESTED] 966bcadf2bca89b987bb4cf1ddb2e01dbe347fea
+
+--------------------------------------------------------------------------------
+7. NEW COMMIT CONTENTS
+--------------------------------------------------------------------------------
+[TESTED] Commit message: "docs: consolidate Phase 33-35 audit reports"
+[TESTED] `git show --stat --oneline HEAD` confirmed exactly 3 files changed,
+1088 insertions(+), 0 deletions(-):
+  - docs/audits/PHASE-33-...-REPORT.txt (new file, 647 lines)
+  - docs/audits/PHASE-34-...-REPORT.txt (new file, 202 lines)
+  - docs/audits/PHASE-35-...-REPORT.txt (new file, 239 lines)
+No other file was staged or committed. `git add -- <three explicit paths>`
+was used; `git add .` / `git add -A` were never invoked.
+
+--------------------------------------------------------------------------------
+8. EXISTING-HISTORY PRESERVATION
+--------------------------------------------------------------------------------
+[TESTED] `git rev-parse HEAD^` returned 0258de522cae519fe1ae530f483f52277455487a,
+confirming the new commit's direct parent is exactly the pre-Phase-36 HEAD.
+[TESTED] `git log --oneline --decorate -10` showed, in order, with no
+rewriting:
+  966bcad (HEAD -> main) docs: consolidate Phase 33-35 audit reports
+  0258de5 docs: add Phase 25-32 audit reports, ...
+  96ae000 phase 29: add CI Docker build validation job
+  8e6d229 phase 24-28: secret rotation correctness, ...
+  5be975a phase 30: harden docker reproducibility and remove duplicate health route
+  ab3a037 (origin/main, at fetch time before push) docs: add Phase 22 ...
+  baaba03 test(ai): regression coverage for provider-change credential redirection
+  756efd5 fix(ai): extend the credential-redirect guard to provider changes
+  b331658 feat(ai): add effective_base_url() as the single destination-resolution helper
+  237d4f4 docs: add Phase 21 AI credential exfiltration report
+All previously-verified commit hashes (5be975a, 8e6d229, 96ae000, 0258de5)
+are present unchanged. No amend, reset, squash, or rebase was performed.
+
+--------------------------------------------------------------------------------
+9. FRESH origin/main VALUE
+--------------------------------------------------------------------------------
+[TESTED] Before push (after a fresh `git fetch origin`): origin/main =
+ab3a037cb3deaeac9f45ff3fc4c472c8bb610cff.
+[TESTED] After push (after a second fresh `git fetch origin`): origin/main =
+966bcadf2bca89b987bb4cf1ddb2e01dbe347fea.
+
+--------------------------------------------------------------------------------
+10. FINAL HEAD VALUE
+--------------------------------------------------------------------------------
+[TESTED] 966bcadf2bca89b987bb4cf1ddb2e01dbe347fea (unchanged by the push
+itself, as expected for a fast-forward push).
+
+--------------------------------------------------------------------------------
+11. AHEAD/BEHIND COUNT
+--------------------------------------------------------------------------------
+[TESTED] Before push: `git rev-list --left-right --count origin/main...HEAD`
+= "0  5" (origin/main 0 ahead, HEAD 5 ahead) — non-divergent, origin/main an
+ancestor of HEAD.
+[TESTED] After push: "0  0" — fully synchronized.
+
+--------------------------------------------------------------------------------
+12. REMOTE-TO-LOCAL DIFF REVIEW
+--------------------------------------------------------------------------------
+[TESTED] `git diff --check origin/main..HEAD` exited 0 (no whitespace errors)
+prior to push.
+[TESTED] `git diff --stat origin/main..HEAD` showed 38 files changed, 8344
+insertions(+), 48 deletions(-), consisting entirely of already-reviewed
+Phase 24-36 work: Dockerfile/health_routes/test_routes (Phase 30), rotate
+secrets/provisioning/config files and their tests (Phase 24-26), .env.example/
+README/INSTALL docs (Phase 27), deployment-contract test (Phase 28), CI
+workflow (Phase 29), .gitignore + rebuild-frontend.ps1 + relocated Phase
+09/25-32 audit docs (Phase 33), and the three newly relocated Phase 33-35
+reports (Phase 36 itself). No accidental source-code changes, no deletions
+outside the intended health_routes.py removal, no credentials, no `.env`
+file, no private keys, no generated build artifacts, and no unexpected files
+were present in the diff.
+
+--------------------------------------------------------------------------------
+13. SECRET TRACKING RESULT
+--------------------------------------------------------------------------------
+[TESTED] `git ls-files .env` returned empty (not tracked).
+[TESTED] `git ls-files '*.pem'` returned empty (not tracked).
+[TESTED] `git ls-files '*.key'` returned empty (not tracked).
+[TESTED] `git status --ignored --short` confirmed `.env` and
+`keys/license_signing_key.pem` are present on disk but correctly gitignored
+and untracked, alongside expected build/cache directories (`.venv`,
+`__pycache__`, `dist`, `frontend/node_modules`, `frontend/dist`,
+`kingsec-image.tar`, `docker-build-log.txt`, etc.). No secret value was
+opened or printed.
+
+--------------------------------------------------------------------------------
+14. RUFF RESULT
+--------------------------------------------------------------------------------
+[TESTED] `ruff check .` exited 0 with output "All checks passed!" — full
+repository scope, per the established gate-scope convention.
+
+--------------------------------------------------------------------------------
+15. MYPY RESULT
+--------------------------------------------------------------------------------
+[TESTED] `mypy src` exited 0 with output "Success: no issues found in 585
+source files".
+
+--------------------------------------------------------------------------------
+16. PYTEST RESULT
+--------------------------------------------------------------------------------
+[TESTED] `pytest tests/ -q --color=no` exited 0. Captured output showed only
+dot characters (no F or E markers) across the full run, followed by a
+warnings summary (3 pre-existing, unrelated deprecation/security warnings
+already seen in prior phases: httpx/starlette TestClient deprecation, JWT
+HMAC key length, HTTP_413 deprecation).
+[CANNOT BE VERIFIED] The exact final numeric summary line ("N passed in
+Xs") was once again not present in captured output — the same environment
+limitation observed consistently across roughly the last 10 phases. Exit
+code 0 combined with the complete absence of F/E markers is strong evidence
+of a fully passing suite, but the precise test count is not independently
+confirmable from this output and is not fabricated here.
+
+--------------------------------------------------------------------------------
+17. PUSH RESULT
+--------------------------------------------------------------------------------
+[TESTED] `git push origin main` succeeded, reporting:
+  "ab3a037..966bcad  main -> main"
+A standard fast-forward push. `--force` and `--force-with-lease` were never
+used or needed.
+
+--------------------------------------------------------------------------------
+18. POST-PUSH HEAD/ORIGIN SYNCHRONIZATION
+--------------------------------------------------------------------------------
+[TESTED] After a fresh `git fetch origin` post-push: HEAD =
+966bcadf2bca89b987bb4cf1ddb2e01dbe347fea, origin/main =
+966bcadf2bca89b987bb4cf1ddb2e01dbe347fea (identical). Ahead/behind = "0  0".
+
+--------------------------------------------------------------------------------
+19. FINAL WORKTREE STATE
+--------------------------------------------------------------------------------
+[TESTED] `git status --short` returned completely empty both immediately
+before push (Step 13) and immediately after post-push verification (Step 15).
+
+--------------------------------------------------------------------------------
+20. PRODUCTION-SAFETY RESULT
+--------------------------------------------------------------------------------
+[TESTED] None of the following occurred during Phase 36: Cloudflare access,
+Turso access, Resend access, Gmail access, production database access,
+production container access, production volume access, production `.env`
+access, production credential access, Docker build, Docker container
+execution, or destructive Git cleanup (no `git reset --hard`, `git clean`,
+or `git stash` was used). All operations were local git commands (mv, add,
+commit, fetch, push, log, diff, status, rev-parse, rev-list, ls-files) plus
+the three local quality-gate tools (ruff, mypy, pytest) run against the
+project's own `.venv`.
+
+--------------------------------------------------------------------------------
+21. ANY REMAINING LIMITATIONS
+--------------------------------------------------------------------------------
+[CANNOT BE VERIFIED] The exact pytest pass count, for the reason stated in
+Section 16 (a recurring, environment-level output-capture limitation, not a
+test failure indicator).
+[TESTED] No other limitations were encountered; every other checklist item
+in the Phase 36 push-authorization gate was independently verified true
+before the push was executed.
+
+--------------------------------------------------------------------------------
+22. FINAL RELEASE DECISION
+--------------------------------------------------------------------------------
+READY — PUSH COMPLETED
+
+All 17 push-authorization checklist items were verified true. The
+recurring "new audit report becomes the next phase's worktree blocker"
+cycle has been broken: the repository root is now clear of untracked phase
+reports, all Phase 24-36 work is committed and pushed, and local `main` is
+fully synchronized with `origin/main` at commit
+966bcadf2bca89b987bb4cf1ddb2e01dbe347fea.
+
+================================================================================
+END OF REPORT
+================================================================================
