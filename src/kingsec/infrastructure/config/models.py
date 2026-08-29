@@ -49,6 +49,15 @@ _FROZEN = ConfigDict(frozen=True, extra="forbid")
 # is loopback-by-default, so these require an explicit, deliberate opt-in.
 _WILDCARD_HOSTS = frozenset({"0.0.0.0", "::", "*"})  # nosec B104 — set of hosts to validate against, not a binding address
 
+# Shared insecure-default sentinel for cryptographic secret fields (JWT
+# signing key, API key pepper). Centralised so every place that needs to
+# recognise "this is still the example placeholder, not a real secret" -
+# the production-only length/placeholder guard in ``settings.py`` and the
+# environment-independent placeholder guard in ``infrastructure.auth.provisioning``
+# - checks against exactly one literal instead of several independently
+# maintained copies.
+DEFAULT_SECRET_PLACEHOLDER = "CHANGE-ME-IN-PRODUCTION-DO-NOT-USE-DEFAULT"
+
 
 class AppSettings(BaseModel):
     """Identity and mode of the running application."""
@@ -131,7 +140,7 @@ class JWTSettings(BaseModel):
     model_config = _FROZEN
 
     # HMAC signing secret. Default is INSECURE — production MUST override.
-    secret_key: SecretStr = SecretStr("CHANGE-ME-IN-PRODUCTION-DO-NOT-USE-DEFAULT")
+    secret_key: SecretStr = SecretStr(DEFAULT_SECRET_PLACEHOLDER)
     # Algorithm: HS256 is sufficient for HMAC-signed local-first tokens.
     algorithm: str = "HS256"
     # Access token lifetime in minutes.
@@ -546,7 +555,7 @@ class SecretsSettings(BaseModel):
     model_config = _FROZEN
 
     # HMAC pepper for API key hashing. MUST be overridden in production.
-    api_key_pepper: SecretStr = SecretStr("CHANGE-ME-IN-PRODUCTION-DO-NOT-USE-DEFAULT")
+    api_key_pepper: SecretStr = SecretStr(DEFAULT_SECRET_PLACEHOLDER)
     # Fernet symmetric encryption key (base64-urlsafe-encoded, 32 bytes).
     # REQUIRED for secret persistence. Startup fails if absent.
     encryption_key: SecretStr | None = None

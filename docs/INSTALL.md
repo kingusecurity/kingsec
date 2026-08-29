@@ -388,14 +388,14 @@ verified against the running application in this audit:
 | Variable | Required? | Verified behavior if unset |
 |---|---|---|
 | `KINGSEC_SECRETS__ENCRYPTION_KEY` | **Always required** | Server raises `ConfigError` and exits immediately on startup, in every environment including local development. There is no "disabled" mode. |
-| `KINGSEC_JWT__SECRET_KEY` | Required for production | Has an insecure built-in default; the server starts without it, but must not be run that way in production. |
-| `KINGSEC_SECRETS__API_KEY_PEPPER` | Required for production | Same as above — has an insecure default (`CHANGE-ME-IN-PRODUCTION-DO-NOT-USE-DEFAULT`). |
+| `KINGSEC_JWT__SECRET_KEY` | **Effectively always required** | Has an insecure built-in default (the placeholder string), but the server rejects both that placeholder and an empty value at startup in every environment, not just production. A short non-empty value is still accepted outside production. |
+| `KINGSEC_SECRETS__API_KEY_PEPPER` | **Effectively always required** | Same rejection rule as above — the placeholder (`CHANGE-ME-IN-PRODUCTION-DO-NOT-USE-DEFAULT`) and an empty value are both rejected in every environment. |
 | `KINGSEC_SERVER__HOST` | Optional | Defaults to `127.0.0.1` (loopback-only). |
 | `KINGSEC_SERVER__PORT` | Optional | Defaults to `8765`. |
 | `KINGSEC_SERVER__ALLOW_EXTERNAL_BIND` | Optional | Must be `true` to bind to `0.0.0.0`; otherwise the server raises a startup error rather than silently exposing itself. |
-| `KINGSEC_STORAGE__DATA_DIR` | Optional | Defaults to `~/.kingsec` (SQLite). |
-| `KINGSEC_STORAGE__DATABASE_URL` | Optional | Overrides `DATA_DIR` for PostgreSQL or an external database. |
-| `ALEMBIC_DATABASE_URL` | Optional | Overrides the database URL for `kingsec-migrate` specifically; defaults to the same database the app uses. |
+| `KINGSEC_STORAGE__DATA_DIR` | Optional | Defaults to `~/.kingsec` (SQLite). Used by **both** migrations and the running server. |
+| `KINGSEC_STORAGE__DATABASE_URL` | **Migration-only — do not set expecting it to affect the server** | Read only by the Alembic CLI (`env.py`, direct `os.environ` access), not by `Settings`. Setting it makes the running server (`kingsec` / `python -m kingsec`) refuse to start with `ConfigError: ... Extra inputs are not permitted`. |
+| `ALEMBIC_DATABASE_URL` | Optional, migration-only | Highest-precedence override for `kingsec-migrate` specifically. When unset, migrations fall back to `KINGSEC_STORAGE__DATABASE_URL` if set, otherwise the same SQLite file the server uses. |
 
 Generate the two secret values with:
 ```bash

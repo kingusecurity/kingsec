@@ -40,6 +40,13 @@ from tests.integration.conftest import needs_weasyprint
 _SRC = pathlib.Path(__file__).resolve().parents[3] / "src" / "kingsec"
 
 _TEST_FERNET_KEY = Fernet.generate_key().decode()
+# Phase 25: register_auth()/register_api_key_auth() now reject the literal
+# placeholder JWT secret/pepper unconditionally (not just in production - see
+# infrastructure.auth.provisioning). create_wired_application() is real
+# serving-path code, so these fixtures must supply real generated values
+# instead of relying on the (now-rejected) JWTSettings/SecretsSettings default.
+_TEST_JWT_SECRET = "test-jwt-secret-" + Fernet.generate_key().decode()
+_TEST_PEPPER = "test-pepper-" + Fernet.generate_key().decode()
 
 
 @pytest.fixture
@@ -47,6 +54,8 @@ def wired_app(tmp_path, monkeypatch) -> Application:
     # Point persistence at a temp DB and keep logs out of the console.
     monkeypatch.setenv("KINGSEC_STORAGE__DATA_DIR", str(tmp_path))
     monkeypatch.setenv("KINGSEC_SECRETS__ENCRYPTION_KEY", _TEST_FERNET_KEY)
+    monkeypatch.setenv("KINGSEC_JWT__SECRET_KEY", _TEST_JWT_SECRET)
+    monkeypatch.setenv("KINGSEC_SECRETS__API_KEY_PEPPER", _TEST_PEPPER)
     # Create the schema so the app can operate without Alembic migrations.
     engine = create_database_engine(url=f"sqlite:///{tmp_path / 'kingsec.db'}")
     create_schema(engine)
@@ -150,6 +159,8 @@ class TestShutdown:
         monkeypatch.setattr(httpx.Client, "close", spy_close)
         monkeypatch.setenv("KINGSEC_STORAGE__DATA_DIR", str(tmp_path))
         monkeypatch.setenv("KINGSEC_SECRETS__ENCRYPTION_KEY", _TEST_FERNET_KEY)
+        monkeypatch.setenv("KINGSEC_JWT__SECRET_KEY", _TEST_JWT_SECRET)
+        monkeypatch.setenv("KINGSEC_SECRETS__API_KEY_PEPPER", _TEST_PEPPER)
 
         # Create the schema so the app can operate without Alembic migrations.
         engine = create_database_engine(url=f"sqlite:///{tmp_path / 'kingsec.db'}")

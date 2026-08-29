@@ -28,6 +28,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .enums import Environment
 from .models import (
+    DEFAULT_SECRET_PLACEHOLDER,
     AISettings,
     AmassSettings,
     AppSettings,
@@ -108,9 +109,8 @@ class Settings(BaseSettings):
     def _guard_default_secrets_in_production(self) -> Settings:
         if self.app.environment is not Environment.PRODUCTION:
             return self
-        _default = "CHANGE-ME-IN-PRODUCTION-DO-NOT-USE-DEFAULT"
         jwt_secret = self.jwt.secret_key.get_secret_value()
-        if jwt_secret == _default:
+        if jwt_secret == DEFAULT_SECRET_PLACEHOLDER:
             raise ValueError(
                 "KINGSEC_JWT__SECRET_KEY is still set to the insecure default. "
                 "Set it to a unique random value in production."
@@ -121,7 +121,7 @@ class Settings(BaseSettings):
                 'Generate one with: python -c "import secrets; print(secrets.token_hex(32))"'
             )
         pepper = self.secrets.api_key_pepper.get_secret_value()
-        if pepper == _default:
+        if pepper == DEFAULT_SECRET_PLACEHOLDER:
             raise ValueError(
                 "KINGSEC_SECRETS__API_KEY_PEPPER is still set to the insecure default. "
                 "Set it to a unique random value in production."

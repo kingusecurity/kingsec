@@ -24,6 +24,12 @@ from kingsec.domain import Finding, Role, Severity, Target
 from kingsec.infrastructure.persistence import create_database_engine, create_schema
 
 _TEST_FERNET_KEY = Fernet.generate_key().decode()
+# Phase 25: register_auth()/register_api_key_auth() now reject the literal
+# placeholder JWT secret/pepper unconditionally (see
+# infrastructure.auth.provisioning), so this fixture must supply real
+# generated values instead of relying on the (now-rejected) default.
+_TEST_JWT_SECRET = "test-jwt-secret-" + Fernet.generate_key().decode()
+_TEST_PEPPER = "test-pepper-" + Fernet.generate_key().decode()
 
 
 def _make_fake_user() -> CurrentUser:
@@ -58,6 +64,8 @@ class _StubScanner(ScannerPort):
 def wired_app(tmp_path, monkeypatch) -> Application:
     monkeypatch.setenv("KINGSEC_STORAGE__DATA_DIR", str(tmp_path))
     monkeypatch.setenv("KINGSEC_SECRETS__ENCRYPTION_KEY", _TEST_FERNET_KEY)
+    monkeypatch.setenv("KINGSEC_JWT__SECRET_KEY", _TEST_JWT_SECRET)
+    monkeypatch.setenv("KINGSEC_SECRETS__API_KEY_PEPPER", _TEST_PEPPER)
     app = create_wired_application(log_stream=io.StringIO(), ensure_directories=False, validate_migrations=False)
     # Create schema on a separate engine so tables exist for the app's engine.
     engine = create_database_engine(settings=app.settings)

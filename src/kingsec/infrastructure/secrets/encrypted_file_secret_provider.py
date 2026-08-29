@@ -1,8 +1,20 @@
-"""Secret provider that stores encrypted secrets in a local file.
+"""Secret provider that stores opaque string values in a local file.
 
-Secrets are hex-encoded ciphertexts stored as JSON. This provider is
-intended for single-threaded use only; no file-level locking is implemented.
-Concurrent writes from multiple threads or processes will corrupt the file.
+This provider does not encrypt or decrypt anything itself - ``get()``/
+``set()`` store and return whatever string a caller gives them, verbatim.
+Callers (``StoreSecret``, ``RetrieveSecret``, ``RotateSecrets``, etc.) own
+encryption entirely: they call ``EncryptionServicePort.encrypt()`` and pass
+the resulting hex-encoded ciphertext to ``set()``, and call
+``EncryptionServicePort.decrypt()`` on whatever ``get()`` hands back. This
+class's own name is a description of what the *file's contents* are
+(encrypted), not a claim that this class performs encryption - confusing
+the two is exactly what previously caused ``set()`` to encrypt a value
+that its only real caller (``StoreSecret``) had already encrypted, and
+``RotateSecrets`` to treat undecrypted ciphertext as if it were plaintext.
+
+This provider is intended for single-threaded use only; no file-level
+locking is implemented. Concurrent writes from multiple threads or
+processes will corrupt the file.
 """
 
 from __future__ import annotations
@@ -42,8 +54,7 @@ class EncryptedFileSecretProvider(SecretProviderPort):
         return self._data.get(name)
 
     def set(self, name: str, value: str) -> None:
-        ciphertext = self._encryption_service.encrypt(value)
-        self._data[name] = ciphertext.hex()
+        self._data[name] = value
         self._save()
 
     def exists(self, name: str) -> bool:

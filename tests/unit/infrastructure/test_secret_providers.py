@@ -71,7 +71,11 @@ class TestEncryptedFileSecretProvider:
             prov = EncryptedFileSecretProvider(enc, str(path))
             prov.set("db_pass", "s3cret!")
             assert prov.exists("db_pass")
-            assert prov.get("db_pass") is not None
+            # Phase 24: strengthened from `is not None`, which passed even
+            # when the provider was corrupting every stored value - the
+            # provider is a dumb verbatim store (see its own docstring);
+            # get() must return exactly what set() was given.
+            assert prov.get("db_pass") == "s3cret!"
             names = prov.list()
             assert "db_pass" in names
         finally:

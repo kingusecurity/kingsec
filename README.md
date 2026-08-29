@@ -322,11 +322,19 @@ alembic revision -m "description of changes"
 ```
 
 ### Environment variables
+These two variables affect **migrations only** (read directly by `env.py`,
+independent of the running server's own `Settings`). The running application
+(`kingsec` / `python -m kingsec`) always uses SQLite at
+`KINGSEC_STORAGE__DATA_DIR` — setting either of these does not change what
+database the server itself connects to, and `KINGSEC_STORAGE__DATABASE_URL`
+is not a recognized `Settings` field, so setting it will make the server
+refuse to start (`ConfigError: ... Extra inputs are not permitted`).
+
 | Variable | Purpose |
 |---|---|
-| `ALEMBIC_DATABASE_URL` | Override database URL (highest precedence) |
-| `KINGSEC_STORAGE__DATABASE_URL` | PostgreSQL / external database URL |
-| `KINGSEC_STORAGE__DATA_DIR` | SQLite data directory (default: `~/.kingsec`) |
+| `ALEMBIC_DATABASE_URL` | Migration-only database URL override (highest precedence for `alembic`/`kingsec-migrate`) |
+| `KINGSEC_STORAGE__DATABASE_URL` | Migration-only PostgreSQL/external database URL, read only by the Alembic CLI — **not** honoured by the running server |
+| `KINGSEC_STORAGE__DATA_DIR` | SQLite data directory used by both migrations and the running server (default: `~/.kingsec`) |
 
 ### Troubleshooting
 - **"No 'script_location' key found"**: Run commands from the project root (`kingsec/`) or use `kingsec-migrate` if installed via pip.
