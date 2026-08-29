@@ -59,6 +59,16 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 COPY .git ./.git
 RUN git archive HEAD | tar -x && rm -rf .git
 
+# Export the committed uv.lock into a hash-pinned, dev-excluded requirements
+# file (Phase 40). Without this, the runtime stage's `pip install <wheel>`
+# resolves the wheel's declared range constraints (e.g. fastapi>=0.115,<1)
+# against whatever is current on PyPI at image-build time - two builds of
+# the identical commit, weeks apart, could silently pick up different
+# transitive dependency versions. `--frozen` uses uv.lock exactly as
+# committed (no re-resolution, no network drift); `--no-emit-project`
+# excludes kingsec itself, which the wheel below supplies.
+RUN uv export --frozen --no-dev --no-emit-project -o /build/requirements.lock.txt
+
 # Bundle the frontend build into the package before packaging - artifacts
 # in pyproject.toml's wheel target picks this up even though static/ is
 # gitignored (it's generated, not committed).
@@ -83,15 +93,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgdk-pixbuf-2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the wheel from builder
+# Copy the locked, hash-pinned dependency set and the wheel from builder.
+COPY --from=builder /build/requirements.lock.txt /tmp/
 COPY --from=builder /build/dist/*.whl /tmp/
-# Upgrade pip before installing the wheel - the python:3.12-slim base image's
+# Upgrade pip before installing - the python:3.12-slim base image's
 # baked-in pip has been below the fixed version for several known CVEs
 # (PYSEC-2026-196, -1795, -1796, -2875, -2876); pip is a build-time tool
 # never imported or executed by the running application (Phase 11), but its
 # version is still what ends up baked into the shipped image's site-packages.
+# Dependencies install first from the hash-verified lock (Phase 40 -
+# reproducible, tamper-evident versions instead of a live PyPI resolve);
+# the wheel then installs with --no-deps since its dependencies are already
+# satisfied exactly by the step above.
 RUN pip install --no-cache-dir --upgrade "pip>=26.1.2" && \
-    pip install --no-cache-dir /tmp/*.whl && rm /tmp/*.whl
+    pip install --no-cache-dir --require-hashes -r /tmp/requirements.lock.txt && \
+    pip install --no-cache-dir --no-deps /tmp/*.whl && \
+    rm /tmp/requirements.lock.txt /tmp/*.whl
 
 # Create data directory
 RUN mkdir -p /home/kingsec/.kingsec && chown kingsec:kingsec /home/kingsec/.kingsec
