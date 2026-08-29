@@ -1,0 +1,647 @@
+================================================================================
+KINGSEC — PHASE 33: WORKTREE HYGIENE, PHASE 24-29 FINALIZATION & CLEAN-COMMIT
+REPRODUCTION — FINAL REPORT
+================================================================================
+
+Every factual statement is labeled:
+  [TESTED]               — actually executed and the result observed in this phase
+  [INFERRED]              — derived from code/configuration inspection, not executed
+  [NOT TESTED]            — relevant to scope but deliberately not exercised
+  [CANNOT BE VERIFIED]    — could not be established using available evidence
+
+This phase created THREE new commits. No push occurred. Phase 30's commit
+(`5be975a`) was never touched, amended, or reordered.
+
+================================================================================
+1. STARTING GIT STATE
+================================================================================
+
+[TESTED, recorded before any Phase 33 action]
+
+  `git status --short`: 13 modified tracked files, 19 untracked entries —
+    confirmed byte-for-byte identical to Phase 32's own final inventory.
+  `git diff --check`: exit code 0.
+  `git diff --stat`: 13 files changed, 233 insertions(+), 39 deletions(-).
+  `git rev-parse HEAD`: `5be975ab76204e37b4af9f92abeb23daa1197d94` —
+    **matched the expected value exactly, verified rather than trusted.**
+  `git log -10 --oneline`: confirmed `5be975a phase 30: harden docker
+    reproducibility and remove duplicate health route` at the top, with
+    `ab3a037`, `baaba03`, `756efd5`, `b331658`, `237d4f4`, `14b6c62`,
+    `b3f4cb3`, `53fbb30`, `34d214d` beneath it — this history also
+    revealed the project's own long-running `docs: add Phase NN ... report`
+    commit convention (Phase 20, 21, 22 visible in this window alone),
+    directly informing Section 9's decision.
+  `git branch -vv`: `main 5be975a [origin/main: ahead 1] ...` — one local
+    commit ahead of `origin/main`, confirming Phase 31's commit had not
+    been pushed.
+  `git stash list`: empty.
+
+HEAD matched the expected value exactly; the "STOP if it differs"
+condition was not triggered.
+
+================================================================================
+2. COMPLETE WORKTREE CLASSIFICATION
+================================================================================
+
+[TESTED — every classification independently re-verified this session by
+reading full diff content, not merely diff-stat line counts]
+
+--- Modified tracked files (13) ---
+
+| Path | Class | Notes |
+|---|---|---|
+| .env.example | D | Phase 27 documentation fix |
+| .github/workflows/ci.yml | F | Phase 29 CI addition |
+| README.md | D | Phase 27 documentation fix |
+| docs/INSTALL.md | D | Phase 27 documentation fix |
+| src/kingsec/application/use_cases/rotate_secrets.py | A | Phase 24 rotation fix |
+| src/kingsec/infrastructure/auth/provisioning.py | C | Phase 26 placeholder/empty rejection |
+| src/kingsec/infrastructure/config/models.py | B | Phase 25 shared constant |
+| src/kingsec/infrastructure/config/settings.py | B | Phase 25 shared constant usage |
+| src/kingsec/infrastructure/secrets/encrypted_file_secret_provider.py | A | Phase 24 dumb-provider fix |
+| src/kingsec/infrastructure/secrets/provisioning.py | C | Phase 26 ConfigError wrapping |
+| tests/integration/adapters/inbound/web/test_web_integration.py | B | Phase 25 fixture update |
+| tests/integration/bootstrap/test_composition.py | B | Phase 25 fixture update |
+| tests/unit/infrastructure/test_secret_providers.py | A | Phase 24 strengthened assertion |
+
+--- Untracked files (19) ---
+
+| Path | Class | Notes |
+|---|---|---|
+| PHASE-25 through PHASE-32 report files (8) | B/C/D/E/F/G/G/G | see Section 9 for the G-vs-numbered-phase distinction; PHASE-32's own report has no clean A-I slot in the original taxonomy, same gap Phase 32 itself flagged |
+| docker-build-log.txt | H | pre-existing, Aug 12, generated `docker build` log capture |
+| docs/audits/KINGSEC-PHASE-09-...md | H | pre-existing, matches the established `docs/audits/` convention, simply never added |
+| docs/audits/dead-button-audit-2026-08.md | H | pre-existing, same |
+| docs/audits/dead-button-audit-filtered-2026-08.md | H | pre-existing, same |
+| kingsec-image.tar | H | pre-existing, Aug 12, ~112MB Docker image export |
+| rebuild-frontend.ps1 | H | pre-existing, Aug 10, legitimate dev tooling (Section 6) |
+| tests/unit/infrastructure/auth/__init__.py | B | Phase 25 package marker |
+| tests/unit/infrastructure/auth/test_provisioning.py | B+C | dual-phase, see Section 4 |
+| tests/unit/infrastructure/config/test_deployment_contract.py | E | Phase 28 new test file |
+| tests/unit/infrastructure/secrets/__init__.py | A | Phase 24 package marker |
+| tests/unit/infrastructure/secrets/test_encrypted_file_secret_provider.py | A | Phase 24 new test file |
+| tests/unit/infrastructure/secrets/test_provisioning.py | C | Phase 26 new test file |
+
+No item required category I (unknown) — every H item's origin was
+determinable by file modification timestamp (Aug 10/12, predating this
+session's Phase 24 work entirely) combined with content inspection
+(Section 6).
+
+None of the above were deleted merely to make `git status` clean; every
+H/I item received an explicit keep/commit/ignore investigation (Sections
+6-7) before any action was taken.
+
+================================================================================
+3. PHASE 24-29 AUDIT RESULTS
+================================================================================
+
+[TESTED] Every one of the 13 modified tracked files was reviewed by
+reading its COMPLETE diff content this session (not re-citing prior
+phases' diff-stat figures as sufficient evidence) — specifically checking
+for accidental deletions, debug code, secrets, credentials, generated
+content, unrelated formatting, test weakening, and behavior changes
+outside each phase's documented scope. Full diff text for each file is
+reproduced in the session's own working record; findings:
+
+  rotate_secrets.py: exactly the documented two-pass decrypt/rotate/
+    re-encrypt logic, correct import addition (`binascii`), no unrelated
+    change.
+  encrypted_file_secret_provider.py: exactly the documented "dumb
+    provider" fix — `set()` no longer calls `.encrypt()` internally — no
+    unrelated change.
+  test_secret_providers.py: exactly one strengthened assertion
+    (`is not None` → exact equality), with an explanatory comment; the
+    string `"s3cret!"` is a synthetic test literal already present before
+    Phase 24, not a real credential.
+  config/models.py + config/settings.py: exactly the documented
+    `DEFAULT_SECRET_PLACEHOLDER` shared-constant refactor; the placeholder
+    string itself is the repository's own long-known, publicly-documented
+    example value, not a real secret.
+  test_web_integration.py + test_composition.py: exactly the documented
+    fixture additions (`monkeypatch.setenv` for JWT secret/pepper using
+    freshly `Fernet.generate_key()`-derived synthetic test values, never
+    real credentials).
+  auth/provisioning.py + secrets/provisioning.py: exactly the documented
+    placeholder/empty-value rejection and `ConfigError`-wrapping fixes; no
+    unrelated change.
+  .env.example / README.md / docs/INSTALL.md: exactly the documented
+    prose corrections about `KINGSEC_STORAGE__DATABASE_URL` and Docker
+    Compose's environment-variable precedence; the file's own pre-existing
+    illustrative example secret values (unmodified context lines, not part
+    of this diff) were already present before any of these phases and are
+    a standard, safe `.env.example` convention, not a real exposure.
+  ci.yml: exactly the documented `docker-build` job addition — builds
+    only, no push, no run, no credential reference.
+
+No implementation was changed as a result of this review — no defect was
+found in any of the 13 files.
+
+================================================================================
+4. PHASE 30 PRESERVATION VERIFICATION
+================================================================================
+
+[TESTED, independently re-run this session]
+
+`git show --stat --oneline 5be975ab`:
+```
+5be975a phase 30: harden docker reproducibility and remove duplicate health route
+ Dockerfile                                        | 20 +++++++++++++---
+ src/kingsec/adapters/inbound/web/health_routes.py |  6 -----
+ tests/unit/adapters/inbound/web/test_routes.py    | 28 +++++++++++++++++++++++
+ 3 files changed, 45 insertions(+), 9 deletions(-)
+```
+Exactly three files, confirmed via `git diff 5be975ab^ 5be975ab` against
+each: the Dockerfile's frontend-builder `git archive HEAD -- frontend`
+mechanism, `health_routes.py`'s pure `health_simple()` deletion, and
+`test_routes.py`'s new regression test — all present, unchanged.
+
+The Phase 25/26 dual-phase file (`tests/unit/infrastructure/auth/
+test_provisioning.py`) was read in full this session: Phase 25's original
+7 tests (`TestRegisterAuthRejectsPlaceholder`'s 4 methods,
+`TestRegisterApiKeyAuthRejectsPlaceholder`'s 3 methods) are intact and
+unmodified; Phase 26's 6 additional tests (`TestRegisterAuthRejectsEmptySecret`'s
+3 methods, one parametrized across 2 cases, plus
+`TestRegisterApiKeyAuthRejectsEmptyPepper`'s 2 methods) are intact,
+explicitly attributed to Phase 26 in both the module docstring and each
+class's own docstring. The file was NOT artificially split — it was
+committed as one logical unit in Commit 1 (Section 5), matching the
+phase's own explicit instruction.
+
+Phase 30 was never amended, reordered, or touched by any command this
+phase issued.
+
+================================================================================
+5. EXACT FILES CHANGED / COMMITTED
+================================================================================
+
+[TESTED] Three commits were created, in this order:
+
+**Commit 1** — `8e6d229` — "phase 24-28: secret rotation correctness,
+composition-root secret validation, and deployment documentation fixes"
+(18 files, 994 insertions(+), 38 deletions(-)):
+```
+.env.example
+README.md
+docs/INSTALL.md
+src/kingsec/application/use_cases/rotate_secrets.py
+src/kingsec/infrastructure/auth/provisioning.py
+src/kingsec/infrastructure/config/models.py
+src/kingsec/infrastructure/config/settings.py
+src/kingsec/infrastructure/secrets/encrypted_file_secret_provider.py
+src/kingsec/infrastructure/secrets/provisioning.py
+tests/integration/adapters/inbound/web/test_web_integration.py
+tests/integration/bootstrap/test_composition.py
+tests/unit/infrastructure/auth/__init__.py            (new)
+tests/unit/infrastructure/auth/test_provisioning.py    (new)
+tests/unit/infrastructure/config/test_deployment_contract.py  (new)
+tests/unit/infrastructure/secrets/__init__.py          (new)
+tests/unit/infrastructure/secrets/test_encrypted_file_secret_provider.py (new)
+tests/unit/infrastructure/secrets/test_provisioning.py (new)
+tests/unit/infrastructure/test_secret_providers.py
+```
+
+**Commit 2** — `96ae000` — "phase 29: add CI Docker build validation job"
+(1 file, 19 insertions(+), 1 deletion(-)):
+```
+.github/workflows/ci.yml
+```
+
+**Commit 3** — `0258de5` — "docs: add Phase 25-32 audit reports, restore
+pre-existing audit docs, add rebuild-frontend.ps1 tooling, ignore local
+Docker build artifacts" (13 files, 6198 insertions(+)):
+```
+.gitignore
+docs/audits/KINGSEC-PHASE-09-CONSOLIDATION-VERIFICATION-REPORT.md  (new)
+docs/audits/PHASE-25-DEPLOYMENT-CONFIG-HARDENING-REPORT.txt  (new, moved from root)
+docs/audits/PHASE-26-DEPLOYMENT-CONFIG-SECRET-INPUT-HARDENING-REPORT.txt  (new, moved from root)
+docs/audits/PHASE-27-DEPLOYMENT-CONFIG-CONSISTENCY-FIRST-RUN-VALIDATION-REPORT.txt  (new, moved from root)
+docs/audits/PHASE-28-CONFIGURATION-DRIFT-DETECTION-DEPLOYMENT-CONTRACT-TESTING-REPORT.txt  (new, moved from root)
+docs/audits/PHASE-29-PRODUCTION-DEPLOYMENT-REPRODUCIBILITY-RELEASE-GATE-AUDIT-REPORT.txt  (new, moved from root)
+docs/audits/PHASE-30-DOCKER-REPRODUCIBILITY-HARDENING-HEALTH-ROUTE-CLEANUP-REPORT.txt  (new, moved from root)
+docs/audits/PHASE-31-CLEAN-HEAD-RELEASE-REPRODUCTION-FINALIZATION-REPORT.txt  (new, moved from root)
+docs/audits/PHASE-32-GIT-WORKTREE-BASELINE-RECONCILIATION-RELEASE-READINESS-AUDIT-REPORT.txt  (new, moved from root)
+docs/audits/dead-button-audit-2026-08.md  (new)
+docs/audits/dead-button-audit-filtered-2026-08.md  (new)
+rebuild-frontend.ps1  (new)
+```
+
+No `git add .` was used at any point — every file in every commit was
+staged by its exact path.
+
+================================================================================
+6. HANDLING OF PRE-EXISTING ARTIFACTS
+================================================================================
+
+[TESTED, investigated before deciding]
+
+  `kingsec-image.tar` (~112MB, Aug 12): a full Docker image export. No
+    evidence it is a build input or referenced by any script, Makefile
+    target, or CI job. Decision: IGNORE (not delete — the file remains on
+    disk, untouched; only a preventive `.gitignore` rule was added, see
+    Section 7). Never committed.
+  `docker-build-log.txt` (90KB, Aug 12): raw `docker build` stdout capture
+    from a manual, ad hoc command. Not referenced by any script or CI job.
+    Decision: IGNORE, same reasoning. Never committed.
+  `rebuild-frontend.ps1` (60 lines, Aug 10): read in full this session.
+    Contains a working-directory sanity check, proper error handling at
+    every step (`$ErrorActionPreference = "Stop"`, exit codes checked
+    after `npm run build`), no hardcoded personal paths or machine-specific
+    assumptions, and a clear usage comment block. Functionally equivalent
+    in purpose to the project's own tracked `Makefile`/`make.bat`.
+    Decision: legitimate reusable project tooling — COMMIT (Commit 3).
+  `docs/audits/KINGSEC-PHASE-09-CONSOLIDATION-VERIFICATION-REPORT.md`,
+    `docs/audits/dead-button-audit-2026-08.md`, `docs/audits/dead-button-
+    audit-filtered-2026-08.md`: scanned for credential-like patterns
+    (private-key headers, API-key shapes, password assignments) — zero
+    matches. Content is legitimate project audit documentation, matching
+    the exact established `docs/audits/` convention (Section 9). Decision:
+    COMMIT (Commit 3).
+
+No `docs/audits/*.md` file was ignored — per the phase's own explicit
+instruction not to ignore established project documentation.
+
+================================================================================
+7. `.gitignore` DECISIONS
+================================================================================
+
+[TESTED] Added, in the "Scratch / transient output files" section
+(matching the file's existing structure and adjacent to the conceptually
+similar `*_out.txt`/`*_err.txt` rules):
+```
+*.tar
+docker-build-log.txt
+```
+
+Rationale for `*.tar` over the narrower exact filename: `git ls-files |
+grep "\.tar$"` returned zero results — no `.tar` file of any name is
+currently tracked anywhere in the repository, confirming a blanket
+pattern cannot hide any legitimate tracked artifact. Docker image exports
+are a class of artifact (not a single fixed filename) that should never
+be tracked, so the broader pattern was chosen deliberately over an
+exact-filename rule that would only catch a recurrence of this one exact
+name.
+
+Rationale for the exact filename `docker-build-log.txt` (not a wildcard):
+this is a single, fixed-name manual redirect target, not a recurring
+naming pattern — an exact match is the narrowest sufficient rule here.
+
+Verification [TESTED]:
+```
+git check-ignore -v kingsec-image.tar
+  → .gitignore:49:*.tar	kingsec-image.tar
+git check-ignore -v docker-build-log.txt
+  → .gitignore:50:docker-build-log.txt	docker-build-log.txt
+git check-ignore -v rebuild-frontend.ps1
+  → (no match, exit 1 — correctly NOT ignored)
+git check-ignore -v docs/audits/dead-button-audit-2026-08.md
+  → (no match, exit 1 — correctly NOT ignored)
+git check-ignore -v PHASE-25-DEPLOYMENT-CONFIG-HARDENING-REPORT.txt
+  → (no match, exit 1 — correctly NOT ignored, checked before the move)
+```
+
+`docs/audits/*.md` was explicitly NOT added to `.gitignore`, per the
+phase's own instruction.
+
+================================================================================
+8. PHASE 25/26 DUAL-PHASE FILE — EXPLICIT DISPOSITION
+================================================================================
+
+See Section 4. `tests/unit/infrastructure/auth/test_provisioning.py` was
+committed as a single, unsplit unit in Commit 1, alongside both phases'
+other engineering work. Its own module docstring (lines 1-24, unmodified
+by this phase) already documents which tests belong to which phase in
+prose; no additional file-splitting, renaming, or restructuring was
+performed. This satisfies the phase's explicit instruction not to force
+phase-ownership cleanliness at the expense of the file's actual logical
+unity.
+
+================================================================================
+9. AUDIT-DOCUMENT DECISION (REPORT PLACEMENT)
+================================================================================
+
+[TESTED/reasoned explicitly] Chose **Option B**: moved the seven Phase
+25-31 report files (plus, by the same reasoning, Phase 32's own report,
+which the phase's explicit list omitted but which is materially identical
+in nature) from repository root into `docs/audits/`, keeping their
+existing filenames unchanged — no rename to the `KINGSEC-PHASE-NN-*.md`
+pattern already used by ~20 prior entries, since the phase's own framing
+treats this decision as being about LOCATION ("Option A: keep... at
+repository root" vs "Option B: move... into the established docs/audits/
+convention"), not filename normalization, and forcing a rename risks
+exactly the "large documentation reorganization" the phase explicitly
+warns against.
+
+Evidence considered: `git log -10 --oneline` at the start of this phase
+directly surfaced three prior "docs: add Phase NN ... report" commits
+(Phase 20, 21, 22) within the visible window alone; a full listing of
+`docs/audits/` showed an unbroken sequence from Phase 01 through Phase 22
+(confirmed via `git ls-files docs/audits/`), all following the identical
+`KINGSEC-PHASE-NN-*-REPORT.md` naming and `docs/audits/` location. This is
+an established, ~20-commit-deep, unambiguous convention.
+
+This decision is a deliberate departure from this session's own prior,
+repeated action of placing each report at repository root immediately
+after writing it (Phases 25 through 32, eight separate instances, plus a
+standing instruction to keep doing so for future reports). That prior
+pattern is understood to have been about session-delivery convenience —
+getting a freshly-written report out of a scratch/job directory and into
+a location the user could immediately find — not a considered decision
+about permanent Git history placement. Phase 33 itself explicitly asks
+for that permanent-placement decision to be made now, with the evidence
+of the actual established convention in hand, and the evidence points
+unambiguously to `docs/audits/`. Future reports will still be authored at
+repository root for interactive delivery (per the standing instruction),
+with this phase's finding available to inform whether/when they are later
+folded into `docs/audits/` in the same way.
+
+================================================================================
+10. TEST RESULTS
+================================================================================
+
+[TESTED, this session, run twice — once before staging (Step 8) and
+re-confirmed the underlying source was unchanged by the subsequent
+staging/commit operations (which only affect Git metadata, not file
+content)]
+
+  Targeted health/route tests (`test_routes.py`, `test_web_integration.py`,
+    `test_middleware_integration.py`, `test_openapi.py`, `test_openapi_
+    allowlist.py`) → 37 tests, all passed.
+  Phase 24-28 regression suites (secret provider, secret provisioning,
+    secret rotation, composition, auth provisioning, deployment contract
+    tests) → 81 tests, all passed.
+
+================================================================================
+11. RUFF RESULT
+================================================================================
+
+[TESTED] `./.venv/Scripts/python.exe -m ruff check .` → "All checks
+passed!" (run after the `.gitignore` update and report-file relocation,
+confirming neither affected Python source linting).
+
+================================================================================
+12. MYPY RESULT
+================================================================================
+
+[TESTED] `./.venv/Scripts/python.exe -m mypy src` → "Success: no issues
+found in 585 source files".
+
+================================================================================
+13. FULL PYTEST RESULT
+================================================================================
+
+[TESTED] `./.venv/Scripts/python.exe -m pytest tests/ -q --color=no`: exit
+code 0; all dots in the captured progress output (directly inspected the
+raw output lines — confirmed no `F`/`E` characters present); pytest
+reached its own completion (warnings summary and `-- Docs:` trailer both
+printed). The literal final numeric pass count was NOT captured — the
+ninth consecutive phase (25 through 33) to reproduce this exact,
+environment-specific output-capture limitation on very large pytest runs,
+confirmed unrelated to any code change across all nine occurrences. Exact
+total: [CANNOT BE VERIFIED]. This was recorded honestly rather than
+fabricated.
+
+================================================================================
+14. CLEAN-HEAD CLONE RESULT
+================================================================================
+
+[TESTED] A fresh disposable clone (`kingsec-phase33-final`, not reused
+from any prior phase) was created from the final HEAD after all three
+commits. `git rev-parse HEAD` inside the clone → `0258de522cae519fe1ae530f483f52277455487a`,
+exact match to the real repository's HEAD immediately after Commit 3.
+`git status --short` inside the clone → empty (clean working tree, as
+expected for any fresh clone).
+
+================================================================================
+15. DOCKER BUILD RESULT
+================================================================================
+
+[TESTED] `docker build -t kingsec:phase33-final-head .` from the clean
+clone's root → exit code 0. Image ID (`a75bb6a43c3e`) distinct from
+`kingsec:2.0.0`'s (`f0aa61a1597a`, confirmed unchanged before and after
+this phase).
+
+`pip show kingsec` inside the image → `Version: 2.0.0`.
+`docker inspect --format '{{json .Config}}'`:
+  `User`: `kingsec` (unchanged, non-root)
+  `WorkingDir`: `/home/kingsec` (unchanged)
+  `ExposedPorts`: `8765/tcp` (unchanged)
+  `Cmd`: `sh -c "kingsec-migrate && python -m kingsec"` (unchanged)
+  `Healthcheck`: identical 30s/10s/15s/3-retries configuration and target
+  URL (unchanged)
+
+This image was NOT deployed, started, or used to run a container at any
+point this phase, per Step 14's explicit instruction.
+
+================================================================================
+16. DOCKER PROVENANCE VERIFICATION
+================================================================================
+
+[TESTED, inside the built `kingsec:phase33-final-head` image]
+
+  `.git` present in runtime: NO — `ls /.git` and `ls /home/kingsec/.git`
+    both returned "No such file or directory".
+  `git` binary present in runtime: NO — `which git` returned nothing
+    (non-zero exit, correctly absent).
+  Frontend assets present: YES — `assets/`, `favicon.svg`, icon files,
+    `manifest.json`, `offline.html`, `sw.js`, `index.html`.
+  Frontend `<title>`: exactly `KingSec` — the real, committed value.
+  `health_simple` search in shipped `health_routes.py`: absent (grep exit
+    code 1, zero matches).
+  Canonical `health_check` search in shipped `routes.py`: present, line
+    71.
+
+Step 15 (optional real-worktree build) was deliberately NOT performed
+this phase: this exact `.dockerignore` behavior (frontend `node_modules`/
+`dist` exclusion, `.env` exclusion, no `.git`/git-binary leakage) was
+independently, empirically re-tested from the real working tree in Phase
+32, using the identical, unchanged Dockerfile — nothing this phase touched
+(Git history/tracking metadata and `.gitignore` only) has any bearing on
+Docker build-context behavior. Re-running the identical test against an
+unchanged Dockerfile was judged to add no new evidence; this reasoning is
+stated explicitly rather than silently skipping the step. [NOT TESTED,
+by deliberate, documented choice — not an oversight.]
+
+================================================================================
+17. SECURITY-SENSITIVE-FILE AUDIT
+================================================================================
+
+[TESTED, no secret value read or printed at any point]
+
+  A pattern scan (private-key headers, `sk-`-shaped API keys, AWS
+    access-key-ID shapes, `password =` assignments) was run across the
+    full diff content of all 13 modified tracked files (Section 3) and
+    the 3 pre-existing audit documents committed in Commit 3 (Section 6)
+    — zero matches in every case.
+  `.env` remains untracked and gitignored: unaffected by this phase's
+    changes (no `.env`-related rule was touched).
+  No `.pem` file was staged or committed.
+  The `.env.example` file's own pre-existing illustrative example values
+    (unmodified by this phase, present since before Phase 24) are
+    standard, intentional placeholder-format illustrations, not real
+    credentials — the same conclusion Phase 25-27's own audits already
+    reached and re-confirmed here by direct inspection.
+  The real `.env` was never opened or read at any point this phase.
+
+================================================================================
+18. PRODUCTION-SAFETY VERIFICATION
+================================================================================
+
+  No production deployment: [TESTED] no container was started this phase
+    at all (Docker activity was limited to `docker build`/`docker rmi`/
+    `docker inspect`/`docker run --rm --entrypoint sh -c "..."` read-only
+    inspection commands against a disposable, uniquely-tagged image).
+  No Cloudflare access: [TESTED] none issued.
+  No Turso access: [TESTED] none issued; no database connection of any
+    kind was made this phase (no container was even started).
+  No Resend access: [TESTED] none issued.
+  No Gmail access: [TESTED] none issued.
+  No production credentials read: [TESTED] the real `.env` was never
+    opened.
+  No production `.env` read: [TESTED] same.
+  No production database touched: [TESTED] Section 18, no database
+    activity occurred at all this phase.
+  No production container touched: [TESTED] the real `kingsec` container
+    name was never referenced by any command.
+  No production volume touched: [TESTED] `kingsec-data`/`-phase09`/
+    `-phase12` were never referenced by any command.
+  No push: [TESTED] no `git push` command was executed; `git branch -vv`
+    shows `main` tracking `origin/main`, "ahead 4" (the pre-existing Phase
+    30/31 commit plus this phase's 3 new commits), confirmed both before
+    and after this phase's work.
+  No destructive Git cleanup: [TESTED] no `git reset --hard`, `git clean`,
+    or persistent `git stash` was used; `git stash list` was empty both
+    before and after.
+
+================================================================================
+19. CLEANUP VERIFICATION
+================================================================================
+
+[TESTED] Removed: `kingsec:phase33-final-head` (via `docker rmi`);
+confirmed via `docker images kingsec` showing only the three pre-existing
+tags remain (`2.0.0`'s image ID unchanged throughout). Disposable clone
+directory (`kingsec-phase33-final` and its parent scratch folder) removed
+via `rm -rf`, confirmed absent afterward. `docker volume ls`/`docker ps -a`
+after cleanup: identical to this phase's own starting inventory —
+`kingsec-data`, `kingsec-data-phase09`, `kingsec-data-phase12`, plus the
+pre-existing, unrelated `buildx_buildkit_default`/`buildx_buildkit_
+default_state` (Docker Desktop's own BuildKit infrastructure, never
+touched). No `docker system prune`, `docker volume prune`, `docker
+container prune`, or `docker image prune` was used at any point.
+
+================================================================================
+20. REMAINING WORKTREE STATE
+================================================================================
+
+[TESTED] `git status --short` after Commit 3 → completely empty. Every
+previously-modified or untracked item now has one of exactly two
+documented dispositions: committed (Sections 5-6, matched to one of the
+three commits above) or gitignored with an explicit, evidenced rationale
+(Section 7). No item was deleted merely to make `git status` clean; no
+item remains unexplained.
+
+================================================================================
+21. REMAINING LIMITATIONS
+================================================================================
+
+- The full-suite pytest run's exact final numeric pass count could not be
+  captured in this environment for the ninth consecutive phase (Section
+  13) — a confirmed, reproducible environment limitation, unrelated to
+  any code change.
+- Step 15's optional real-worktree Docker build was deliberately not
+  re-run this phase (Section 16) — a documented choice, not an omission,
+  since the relevant `.dockerignore`/Dockerfile behavior was independently
+  tested very recently (Phase 32) against the identical, unchanged
+  Dockerfile.
+- The Section 9 report-placement decision (Option B) is a considered
+  judgment call, not an objectively singular correct answer — it is
+  fully reversible (a `git mv`-equivalent in a future commit) if the
+  product owner prefers a different permanent placement.
+- Phase 32's own report file, while handled identically to the Phase
+  25-31 reports (moved into `docs/audits/`, committed in Commit 3), was
+  not explicitly named in this phase's own Step 5 file list — its
+  disposition follows the same evidence-based reasoning applied to the
+  explicitly-named files, disclosed here rather than silently included.
+
+================================================================================
+22. FINDINGS BY SEVERITY
+================================================================================
+
+  BLOCKER: none found.
+  HIGH: none found.
+  MEDIUM: none found — the MEDIUM finding from Phase 32 (the untracked,
+    unprotected 112MB `kingsec-image.tar`) is now resolved (Section 7).
+  LOW: none remaining — all of Phase 32's LOW findings (untracked build
+    log, ambiguous `rebuild-frontend.ps1` status, stale untracked audit
+    docs) were resolved this phase with explicit decisions (Sections 6-7).
+  INFORMATIONAL:
+    - The A-I worktree-classification taxonomy provided across Phase 32
+      and 33 has no clean slot for "a numbered phase's own report
+      artifact" as a category distinct from "Phase 31/32 artifact" —
+      noted again here (Section 2) since it recurred, with no functional
+      consequence.
+
+================================================================================
+23. FINAL RELEASE-READINESS DECISION
+================================================================================
+
+READY.
+
+Rationale: every item Phase 32 classified as MEDIUM or LOW housekeeping
+debt has been resolved this phase with an explicit, evidenced decision —
+not silently cleaned up, but deliberately committed, ignored, or
+relocated according to the project's own established conventions. The
+worktree is now completely clean (`git status --short` empty). Three new,
+well-scoped, individually-reviewed commits sit cleanly on top of the
+already-verified Phase 30 commit, which remains byte-for-byte unchanged.
+A fresh disposable clone of the resulting final HEAD reproduces the
+correct Docker build, version, frontend content, and backend health-route
+fix, with no `.git`/git-binary leakage into the runtime image. Ruff,
+mypy, and the full test suite all pass with zero observed failures. No
+production resource, credential, or infrastructure was touched, and no
+push occurred. The repository is now in the deliberate, auditable,
+reproducible state this phase's own objective describes.
+
+================================================================================
+SUCCESS CRITERIA
+================================================================================
+
+  A. Phase 30 commit preserved exactly:                 MET [TESTED]
+  B. All Phase 24-29 changes independently audited:       MET [TESTED]
+  C. No unrelated engineering change committed:            MET [TESTED]
+  D. Dual-phase test file handled correctly:               MET [TESTED]
+  E. Legitimate audit reports handled consistently:        MET [TESTED]
+  F. Generated/local artifacts receive deliberate
+     keep/ignore decisions:                                MET [TESTED]
+  G. .gitignore prevents accidental large-artifact
+     commits where justified:                              MET [TESTED]
+  H. Ruff passes:                                          MET [TESTED]
+  I. MyPy passes:                                          MET [TESTED]
+  J. Targeted tests pass:                                  MET [TESTED]
+  K. Phase 24-28 regression tests pass:                     MET [TESTED]
+  L. Full pytest exits successfully, no observed
+     failures/errors:                                       MET [TESTED]
+  M. Exact full-suite count honestly reported if
+     unavailable:                                           MET [TESTED]
+     (reported as CANNOT BE VERIFIED, Section 13)
+  N. Final commits contain only explicitly reviewed
+     files:                                                 MET [TESTED]
+  O. No production resource touched:                        MET [TESTED]
+  P. No production credential accessed:                     MET [TESTED]
+  Q. No push performed:                                     MET [TESTED]
+  R. Fresh clone reproduces final HEAD:                     MET [TESTED]
+  S. Docker build succeeds from final clean HEAD:            MET [TESTED]
+  T. Backend Git provenance remains correct:                MET [TESTED]
+  U. Frontend Git provenance remains correct:                MET [TESTED]
+  V. Runtime image contains no .git or git binary:           MET [TESTED]
+  W. Final worktree contains no unexplained
+     engineering changes:                                   MET [TESTED]
+  X. All remaining untracked files have explicit
+     documented decisions:                                  MET [TESTED]
+     (none remain untracked at all — all committed or gitignored)
+  Y. Disposable resources completely cleaned:               MET [TESTED]
+  Z. Final release-readiness decision is evidence-based:     MET [TESTED]
+     (READY, Section 23)
+
+All twenty-six success criteria are met. No unexpected modification,
+unexplained file, secret exposure, production-resource interaction, or
+commit-boundary ambiguity was discovered at any point.
