@@ -4,7 +4,15 @@
 # Runs on every push and pull request to main/develop branches.
 # Standard Python OSS pattern: setup-python → pip install → run tools.
 # The frontend job mirrors that shape for the Node side: setup-node →
-# npm ci → run tools. Both jobs run in parallel and both block merge.
+# npm ci → run tools. All three jobs run in parallel and all block merge.
+#
+# docker-build (Phase 29): before this job existed, nothing in CI ever ran
+# `docker build` - a broken Dockerfile (including a broken `git archive
+# HEAD` build step, see Dockerfile's own comment) could reach `main` or
+# even a tagged release without any automated check ever catching it. This
+# job only builds the image (no push, no run) to catch exactly that class
+# of regression; it intentionally does not replace the manual/disposable
+# Docker Compose verification documented in the deployment audits.
 
 name: CI
 
@@ -96,3 +104,13 @@ jobs:
       - name: Test (vitest)
         working-directory: frontend
         run: npm test
+
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image (no push, no run)
+        run: docker build -t kingsec:ci-build .
