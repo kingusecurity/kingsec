@@ -56,7 +56,7 @@ _WILDCARD_HOSTS = frozenset({"0.0.0.0", "::", "*"})  # nosec B104 — set of hos
 # environment-independent placeholder guard in ``infrastructure.auth.provisioning``
 # - checks against exactly one literal instead of several independently
 # maintained copies.
-DEFAULT_SECRET_PLACEHOLDER = "CHANGE-ME-IN-PRODUCTION-DO-NOT-USE-DEFAULT"
+DEFAULT_SECRET_PLACEHOLDER = "CHANGE-ME-IN-PRODUCTION-DO-NOT-USE-DEFAULT"  # nosec B105 — sentinel value, not a credential
 
 
 class AppSettings(BaseModel):
