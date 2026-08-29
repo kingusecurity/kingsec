@@ -1,0 +1,550 @@
+================================================================================
+KINGSEC — PHASE 27: DEPLOYMENT CONFIGURATION CONSISTENCY & FIRST-RUN VALIDATION
+FINAL REPORT
+================================================================================
+
+Every factual claim is labeled:
+  [TESTED]               — actually executed and the result observed in this phase
+  [INFERRED]              — derived from reading code/config, not executed
+  [NOT TESTED]            — in scope but not exercised in this phase
+  [CANNOT BE VERIFIED]    — cannot be determined by available means
+
+No commit, staging, push, or deployment occurred (Section 16). No real
+credentials, Turso, Cloudflare, Resend, Gmail, or production infrastructure
+were touched or read. No secret value was ever printed, logged, or included
+in this report.
+
+================================================================================
+1. EXACT FILES MODIFIED
+================================================================================
+
+Modified (tracked, uncommitted — Phase 27's own changes, documentation only,
+no code):
+  - .env.example       (extended Phase 26's own edit further — see Section 9)
+  - README.md           (new this phase)
+  - docs/INSTALL.md      (new this phase)
+
+Left exactly as Phase 26 delivered them (confirmed byte-identical, Section 3):
+  - src/kingsec/infrastructure/auth/provisioning.py
+  - src/kingsec/infrastructure/secrets/provisioning.py
+
+Left exactly as Phase 25 delivered them (confirmed byte-identical, Section 3):
+  - src/kingsec/infrastructure/config/models.py
+  - src/kingsec/infrastructure/config/settings.py
+  - tests/integration/bootstrap/test_composition.py
+  - tests/integration/adapters/inbound/web/test_web_integration.py
+
+Left exactly as Phase 24 delivered them (confirmed byte-identical, Section 3):
+  - src/kingsec/application/use_cases/rotate_secrets.py
+  - src/kingsec/infrastructure/secrets/encrypted_file_secret_provider.py
+  - tests/unit/infrastructure/test_secret_providers.py
+  - tests/unit/infrastructure/secrets/test_encrypted_file_secret_provider.py
+
+No test file was added or modified this phase (Section 10 explains why: no
+code behavior changed).
+
+Pre-existing untracked files from earlier phases, left untouched:
+  PHASE-25-DEPLOYMENT-CONFIG-HARDENING-REPORT.txt,
+  PHASE-26-DEPLOYMENT-CONFIG-SECRET-INPUT-HARDENING-REPORT.txt,
+  docker-build-log.txt, 3 docs/audits/*.md files, kingsec-image.tar,
+  rebuild-frontend.ps1, tests/unit/infrastructure/auth/ (Phase 25/26's test
+  files), tests/unit/infrastructure/secrets/ (Phase 24/26's test files).
+
+[TESTED — confirmed via `git status --short`/`git diff --stat` before and
+after, Sections 2 and 15.]
+
+================================================================================
+2. STARTING GIT STATE
+================================================================================
+
+[TESTED, recorded before any Phase 27 change]
+
+  HEAD:          ab3a037cb3deaeac9f45ff3fc4c472c8bb610cff
+  Branch:        main
+  Ahead/behind:  up to date with origin/main
+
+  Modified tracked files (10): .env.example, rotate_secrets.py (Phase 24),
+    infrastructure/auth/provisioning.py (Phase 26), config/models.py
+    (Phase 25), config/settings.py (Phase 25), encrypted_file_secret_provider.py
+    (Phase 24), infrastructure/secrets/provisioning.py (Phase 26),
+    test_web_integration.py (Phase 25), test_composition.py (Phase 25),
+    test_secret_providers.py (Phase 24).
+
+  Untracked (10): PHASE-25 report, PHASE-26 report, docker-build-log.txt, 3
+    docs/audits/*.md files, kingsec-image.tar, rebuild-frontend.ps1,
+    tests/unit/infrastructure/auth/ (Phase 25/26), tests/unit/infrastructure/
+    secrets/ (Phase 24/26).
+
+  No unexpected modification found — every entry matches exactly Phase 26's
+  own final report, plus the two report files delivered as files in prior
+  turns (known, intentional artifacts).
+
+================================================================================
+3. PHASE 24/25/26 BASELINE VERIFICATION
+================================================================================
+
+[TESTED] `git diff --stat` per file, before any Phase 27 edit:
+  Phase 24 (rotate_secrets.py / encrypted_file_secret_provider.py /
+    test_secret_providers.py): 43 / 23 / 6 changed lines — 3 files changed,
+    56 insertions(+), 16 deletions(-). Identical to every prior phase's own
+    record.
+  Phase 25 (config/models.py / config/settings.py / test_composition.py /
+    test_web_integration.py): 13 / 6 / 11 / 8 changed lines — 4 files
+    changed, 33 insertions(+), 5 deletions(-). Identical to Phase 26's
+    record.
+  Phase 26 (infrastructure/auth/provisioning.py / infrastructure/secrets/
+    provisioning.py): 62 / 21 changed lines — 2 files changed, 79
+    insertions(+), 4 deletions(-). Identical to Phase 26's own final record.
+
+Re-checked again at the end of this phase (Section 15): identical, byte-for-
+byte unchanged in every one of the above 9 files. None of Phase 24/25/26's
+code or tests were modified this phase.
+
+================================================================================
+4. CONFIGURATION AUDIT RESULTS
+================================================================================
+
+Read and cross-referenced, this phase: `.env.example`, `infrastructure/
+config/models.py`, `infrastructure/config/settings.py`, `infrastructure/
+config/enums.py`, `docker-compose.yml`, `Dockerfile`, `kingsec/alembic/
+env.py`, `infrastructure/persistence/database.py` and `provisioning.py`,
+`README.md`, `docs/INSTALL.md`, `docs/TROUBLESHOOTING.md`.
+
+Documented-variable → real-field mapping [TESTED, via `Settings.model_fields`
+introspection, same technique Phase 26 used, re-run fresh this phase and
+confirmed identical]: of the ~64 `KINGSEC_*` variable names mentioned in
+`.env.example`, exactly one (`KINGSEC_STORAGE__DATABASE_URL`) is not a real
+`Settings`/`StorageSettings` field — this was already found and fixed in
+`.env.example` by Phase 26. No new mismatch, typo, or renamed-but-still-
+documented variable was found. ~70 real, accepted field paths (mostly
+`integrations.*`, `performance.*`) remain undocumented in `.env.example` —
+a completeness gap, not a correctness defect, left alone per this phase's
+"do not add broad configuration documentation for every optional field"
+instruction.
+
+Precedence chain [TESTED]: `docker compose config` was run against a
+synthetic `.env` setting `KINGSEC_APP__ENVIRONMENT=development` while
+`docker-compose.yml`'s own `environment:` block hardcodes
+`KINGSEC_APP__ENVIRONMENT=production`. The rendered effective configuration
+showed `production` — Compose's `environment:` block always wins over
+`env_file:` for the same key, confirmed empirically, not merely inferred
+from documentation. This is the actual precedence: (highest) explicit
+`Settings()` init args > process environment variables (including anything
+Compose's `environment:` block injects) > `.env` file (including anything
+Compose's `env_file:` block injects, at the same environment-variable layer
+docker-compose itself resolves before the container ever starts) > model
+defaults. Inside a container, pydantic-settings' own dotenv-file loading
+(`env_file=".env"` in `Settings.model_config`) finds nothing, because no
+literal `.env` file exists inside the image (`git archive HEAD` never
+includes a gitignored file) — every value reaching `Settings` inside Docker
+arrives as a real process environment variable, already resolved by Compose.
+
+Docker/server/migration consistency: see Section 5.
+
+Result: no NEW code-level configuration-acceptance mismatch was found beyond
+what Phase 26 already fixed. The confirmed findings this phase (Section 7)
+are entirely in documentation that had not yet been brought in line with
+that fix, plus one additional, previously-undocumented silent-override
+behavior (Compose's `environment:` forcing `production` regardless of
+`.env`).
+
+================================================================================
+5. DATABASE / MIGRATION CONSISTENCY RESULTS
+================================================================================
+
+A. Running server's database selection [TESTED via code reading,
+   `build_sqlite_url()`/`create_database_engine()` in `persistence/
+   database.py`]: always SQLite at `<settings.storage.data_dir>/kingsec.db`.
+   No other source is ever consulted by the running server.
+
+B. Alembic's migration database selection [TESTED via code reading,
+   `_resolve_database_url()` in `kingsec/alembic/env.py`]: precedence is
+   (1) `ALEMBIC_DATABASE_URL` env var, (2) `KINGSEC_STORAGE__DATABASE_URL`
+   env var, (3) the same SQLite path the server would use, derived via
+   `load_settings()`.
+
+C. Docker Compose's database configuration: `docker-compose.yml` sets no
+   database-related variable in its own `environment:` block at all — the
+   database URL variables (if used) must come from the operator's own
+   `.env` via `env_file:`.
+
+D. `.env.example`'s description: BEFORE this phase (Phase 26's fix): stated
+   `KINGSEC_STORAGE__DATABASE_URL` is migration-only and not honoured by the
+   server. Confirmed still present and unmodified by Phase 27 in this file.
+   README.md and docs/INSTALL.md, however, still described it as if it
+   configured the running server generally — this phase's confirmed finding
+   (Section 7, Finding 1).
+
+E. Interpretation, reproduced live this phase [TESTED, Docker Scenario D,
+   Section 6]: with a valid disposable `.env` (real JWT secret, pepper,
+   encryption key) plus `KINGSEC_STORAGE__DATABASE_URL` set to a second,
+   different SQLite path, `kingsec-migrate` ran all 30 migrations
+   successfully against that second database, and the subsequent
+   `python -m kingsec` step then failed immediately with `ConfigError:
+   storage.database_url ... Extra inputs are not permitted`.
+
+Answer to Step 3's central question — "can migrations target Database A
+while the server connects to Database B without being explicitly warned?"
+[TESTED]: Not quite as originally framed. The reproducible outcome is not
+silent divergence (the server does not quietly connect to Database B) — it
+is that the server refuses to start at all after migrations against
+Database A succeed. This is still a genuine first-run trap (an operator
+could reasonably believe they had configured both to use the same external
+database and be confused why the server won't start after migrations
+clearly worked), and it was undocumented anywhere outside `.env.example`
+before this phase — README.md and docs/INSTALL.md both actively suggested
+the opposite. Classified as a documentation defect, not a database-
+architecture defect, and fixed accordingly (Section 9) — no code or
+architecture change was made or is warranted; `Settings`'s own
+`extra="forbid"` behavior is the correct, existing fail-closed guardrail
+that makes this loud rather than silent.
+
+================================================================================
+6. FIRST-RUN WORKFLOW RESULTS
+================================================================================
+
+All scenarios run in a freshly isolated Compose project (container
+`kingsec-phase27-test`, volume `kingsec-data-phase27`, network
+`phase27_docker_default`, host port 18767 — distinct from every prior
+phase's names and from the real `kingsec`/`kingsec-data` resources), using
+the existing local `kingsec:2.0.0` image (no rebuild — see Section 14).
+
+  Scenario A — missing `.env`:
+    Command: `docker compose up`
+    [TESTED] Exit code 1. `env file ...\.env not found: GetFileAttributesEx
+    ...: The system cannot find the file specified.` No container created.
+    Container started: NO. Migration ran: NO. Application started: NO.
+    Health endpoint: N/A. Matches "clean fail with understandable
+    remediation" — CONFIRMED.
+
+  Scenario B — `.env.example` copied unchanged:
+    Command: `docker compose up`
+    [TESTED] Exit code 0 (compose itself), container exit code 1. Container
+    started: YES. Migration ran: NO (fails before reaching the DB — the
+    JWT-placeholder `ConfigError` fires inside `_resolve_database_url()`'s
+    own `load_settings()` call, before any migration statement executes).
+    Application started: NO. Health endpoint: N/A ("fail closed because
+    placeholders are present" — CONFIRMED).
+
+  Scenario C — correctly generated disposable secrets, default database
+  configuration:
+    Command: `docker compose up -d`
+    [TESTED] Exit code 0. Container started: YES, reached "healthy" within
+    ~20s. Migration ran: YES (all 30 migrations). Application started: YES.
+    Health endpoint: `GET /api/v1/health` → HTTP 200 from the host. No
+    secret-labeled content observed in container logs.
+
+  Scenario D — documented external/migration database configuration:
+    Command: same valid `.env` as Scenario C, plus
+    `KINGSEC_STORAGE__DATABASE_URL=sqlite:////home/kingsec/.kingsec/
+    alt-migration-target.db` appended.
+    [TESTED] Exit code 0 (compose), container exit code 1. Container
+    started: YES. Migration ran: YES — all 30 migrations completed
+    successfully against the alternate database path. Application started:
+    NO — crashed immediately with `ConfigError: storage.database_url ...
+    Extra inputs are not permitted`. Health endpoint: N/A. Directly confirms
+    Section 5's analysis with fresh, this-phase evidence: migration and
+    server targets CAN diverge in configuration intent, and the server's
+    `extra="forbid"` guardrail turns that into a loud failure rather than a
+    silent one.
+
+  Scenario E — unknown/misnamed environment variable from `.env.example`:
+    [TESTED via Section 4's introspection sweep] The only such variable
+    found in the entire `.env.example` file is `KINGSEC_STORAGE__DATABASE_URL`
+    itself — already reproduced in full in Scenario D above. No second,
+    distinct unknown/misnamed variable exists to test separately. Classified:
+    a real, confirmed operational trap for an operator attempting external-
+    database migration configuration; not a trap for any other documented
+    variable.
+
+  All Phase-27 Docker resources (container, volume, network) were torn down
+  (`docker compose down -v`) after every scenario; confirmed via
+  `docker ps -a`/`docker volume ls` that only the three pre-existing,
+  untouched volumes (`kingsec-data`, `kingsec-data-phase09`,
+  `kingsec-data-phase12`) remain throughout and at the end. [TESTED]
+
+================================================================================
+7. FINDINGS
+================================================================================
+
+Finding 1 [TESTED, CONFIRMED — documentation defect, first-run/reliability
+category, not security]: `README.md`'s "Database Migrations (Alembic)"
+environment-variable table and `docs/INSTALL.md`'s "Environment Variables"
+table (the latter explicitly claiming to be "verified against the running
+application in this audit") both described `KINGSEC_STORAGE__DATABASE_URL`
+as a general PostgreSQL/external-database override, with no indication that
+it is migration-only and that setting it makes the running server refuse to
+start. This is the same underlying defect Phase 26 already found and fixed
+in `.env.example`, propagated to two further, more prominent locations (the
+top-level README and the primary installation guide) that Phase 26 did not
+audit. Reproduced live this phase (Section 6, Scenario D).
+
+Finding 2 [TESTED, CONFIRMED — documentation defect, first-run category, not
+security]: `.env.example`'s `KINGSEC_APP__ENVIRONMENT` comment gave no
+indication that the provided `docker-compose.yml` (explicitly a production
+deployment file, per its own header comment) hardcodes
+`KINGSEC_APP__ENVIRONMENT=production` in its `environment:` block, which
+always overrides whatever `.env` sets for the same key. An operator editing
+`.env` to try `development` or `testing` via `docker compose up` would have
+that choice silently ignored with no explanation anywhere in the documented
+first-run workflow. Reproduced live this phase via `docker compose config`
+(Section 4).
+
+Finding 3 [TESTED, CONFIRMED — documentation staleness, not security]:
+`docs/INSTALL.md`'s environment-variable table described
+`KINGSEC_JWT__SECRET_KEY`/`KINGSEC_SECRETS__API_KEY_PEPPER` as "Required for
+production" with the server "starts without it" outside production. This
+was accurate before Phase 25/26's own fixes and is no longer accurate: both
+are now rejected (placeholder and empty value) in every environment, not
+just production. Left uncorrected, this table would actively mislead a
+reader into believing non-production behavior is more permissive than it
+now is.
+
+No authentication, encryption, or database-architecture defect was found
+this phase beyond what Phases 25/26 already identified and fixed. No new
+code-level acceptance/rejection mismatch was found. All three findings are
+documentation-only; per the phase's own instruction, none was inflated into
+a security vulnerability, and no arbitrary new security policy was
+introduced.
+
+================================================================================
+8. EXACT ROOT CAUSES
+================================================================================
+
+Findings 1 and 3 share a root cause: `.env.example`, `README.md`, and
+`docs/INSTALL.md` are three independently-maintained descriptions of the
+same configuration surface, with no single source of truth and no automated
+cross-check between them. Phase 26 corrected `.env.example` in isolation
+(its own explicitly stated scope) without auditing the other two documents
+that describe the identical variables — a natural, narrow-scope gap in a
+multi-file documentation set, not a code defect. [INFERRED, from the fact
+that all three files described `KINGSEC_STORAGE__DATABASE_URL` identically
+until Phase 26 changed only one of them, and from Phase 26's own final
+report explicitly not mentioning README.md or docs/INSTALL.md.]
+
+Finding 2's root cause: `docker-compose.yml`'s hardcoded
+`KINGSEC_APP__ENVIRONMENT=production` is intentional, correct design (the
+file is explicitly a production deployment artifact, confirmed by its own
+header comment) — the root cause is purely that this consequence was never
+surfaced to the operator at the one place they would naturally look
+(`.env.example`'s own comment for that variable) before this phase.
+[TESTED — confirmed via `docker compose config`, Section 4.]
+
+================================================================================
+9. EXACT CHANGES MADE
+================================================================================
+
+All changes are documentation-only. No source code, test, Docker, or
+configuration-schema file was modified.
+
+(a) `.env.example`: added an explanatory block to the
+    `KINGSEC_APP__ENVIRONMENT` comment (Finding 2) stating that the shipped
+    `docker-compose.yml` hardcodes production and that setting this value
+    here has no effect under `docker compose up` — it only affects a bare
+    `python -m kingsec` run. No default value, example, or secret-related
+    line was changed.
+
+(b) `README.md`: in the "Database Migrations (Alembic)" section's
+    "Environment variables" table (Finding 1), added a preceding explanatory
+    paragraph and rewrote the `Purpose` column for `KINGSEC_STORAGE__DATABASE_URL`
+    and `ALEMBIC_DATABASE_URL` to state plainly that both are migration-only
+    and that the former is not a recognized `Settings` field. The
+    `KINGSEC_STORAGE__DATA_DIR` row was clarified as used by both migrations
+    and the server. No other part of README.md was touched.
+
+(c) `docs/INSTALL.md`: in the "Environment Variables" table (Finding 1 and
+    Finding 3), corrected the `KINGSEC_STORAGE__DATABASE_URL` row to state
+    it is migration-only and will make the server refuse to start if set;
+    clarified `ALEMBIC_DATABASE_URL`'s actual fallback precedence (verified
+    against `alembic/env.py::_resolve_database_url()`'s real code, Section 5);
+    updated the `KINGSEC_JWT__SECRET_KEY`/`KINGSEC_SECRETS__API_KEY_PEPPER`
+    rows to describe their current (Phase 25/26) rejection behavior instead
+    of the pre-Phase-25 behavior the table still described. No other row or
+    section of docs/INSTALL.md was touched.
+
+Design rationale: every change is additive clarification of existing,
+already-correct application behavior — no `Settings` field, validator,
+Docker Compose service definition, or Alembic resolution order was altered.
+This directly follows Step 8's constraint list (only "correct misleading
+.env.example comments," "correct migration/server documentation" were
+applied) and avoids every explicitly forbidden action (no redesign, no new
+framework, no new arbitrary security policy, no unrelated refactor).
+
+================================================================================
+10. TESTS ADDED/CHANGED
+================================================================================
+
+None. No source code behavior changed this phase (Section 9 — every change
+is a comment/prose edit in `.env.example`, `README.md`, or
+`docs/INSTALL.md`), so there is nothing new for a pytest test to exercise.
+This is consistent with Step 9's own framing ("For every code change, add
+focused tests") and with the phase's closing instruction not to manufacture
+a defect where none exists at the code level — the three confirmed findings
+are all documentation defects, verified instead by direct reproduction
+(Section 6) and by `grep`/introspection cross-checks (Section 4), not by new
+automated tests.
+
+The full Phase 24/25/26 regression suites and the complete test suite were
+still run in full to confirm the documentation-only changes introduced no
+regression (Section 11).
+
+================================================================================
+11. COMPLETE VALIDATION MATRIX
+================================================================================
+
+  [TESTED] `./.venv/Scripts/python.exe -m ruff check .` (full repo) →
+  "All checks passed!"
+
+  [TESTED] `./.venv/Scripts/python.exe -m mypy src` → "Success: no issues
+  found in 585 source files" (identical to Phase 25/26 — expected, since no
+  `.py` file was touched this phase).
+
+  [TESTED] Phase 24 regression suite (`test_secret_api.py`,
+  `test_secret_use_cases.py`, `test_encrypted_file_secret_provider.py`,
+  `test_secret_providers.py`) → 43 passed, 0 failed.
+
+  [TESTED] Phase 25/26 regression suite (`test_composition.py`,
+  `test_web_integration.py`, `tests/unit/infrastructure/auth/
+  test_provisioning.py`, `tests/unit/infrastructure/secrets/
+  test_provisioning.py`) → 36 passed, 0 failed.
+
+  [TESTED] `./.venv/Scripts/python.exe -m pytest tests/ -q` (full suite,
+  `--color=no`): exit code 0; pytest reached completion (the warnings
+  summary and `-- Docs:` trailer both printed); zero `F`/`E` markers
+  appeared anywhere in the captured dotted progress output. The literal
+  final numeric pass count was NOT captured — reproducing the identical
+  output-capture limitation on very large pytest runs that Phase 25 and
+  Phase 26 both already documented and confirmed reproducible independent
+  of any code change. Exact total: [CANNOT BE VERIFIED]. This is an
+  environment limitation, not a test failure; the dedicated sub-suite runs
+  above did capture exact counts (43 and 36 respectively).
+
+================================================================================
+12. DOCKER BEHAVIOR
+================================================================================
+
+See Section 6 for the full scenario-by-scenario record. Summary: Scenarios
+A, B, and C are byte-for-byte identical in behavior to every prior phase's
+reproduction (Phase 23/25/26) — this phase changed no code, so no change to
+Docker startup behavior was expected or observed. Scenario D is new to this
+phase and empirically confirms Section 5's database-consistency analysis.
+No Docker image was rebuilt this phase (Section 14 explains why, matching
+the identical `git archive HEAD` constraint Phase 25/26 already documented).
+All isolated resources (`kingsec-phase27-test` container,
+`kingsec-data-phase27` volume, `phase27_docker_default` network) were
+created fresh with unique names and fully torn down; the three pre-existing
+volumes (`kingsec-data`, `kingsec-data-phase09`, `kingsec-data-phase12`)
+were never referenced or modified.
+
+================================================================================
+13. SECURITY / OPERATIONAL IMPLICATIONS
+================================================================================
+
+  Authentication configuration weakness:      NONE FOUND this phase. [TESTED
+    — Phase 25/26's own fixes remain intact and unregressed, Section 11.]
+  Encryption configuration weakness:          NONE FOUND this phase. [TESTED,
+    same regression evidence.]
+  Database-target mismatch:                   CONFIRMED POSSIBLE, but the
+    consequence is the server refusing to start (loud, not silent) — an
+    operational reliability/documentation issue, not a security
+    vulnerability. [TESTED, Section 6 Scenario D.]
+  Ignored configuration:                      CONFIRMED — `KINGSEC_APP__
+    ENVIRONMENT` set via `.env` is silently overridden by
+    `docker-compose.yml`'s own `environment:` block. This is intentional,
+    correct design for a file explicitly labeled a production deployment
+    artifact, not a security weakness — the operational risk was purely
+    that it was undocumented until this phase. [TESTED, Section 4.]
+  Dangerous defaults:                         NONE FOUND. No default value
+    was found to be unsafe; Phase 25/26 already closed every previously-
+    confirmed gap in this category.
+  Misleading documentation:                   CONFIRMED — Findings 1-3
+    (Section 7). This is the entire substance of this phase's findings.
+  Startup reliability issue:                  CONFIRMED, and precisely
+    characterized in Section 5/6: setting `KINGSEC_STORAGE__DATABASE_URL`
+    causes the server to refuse to start after migrations already
+    succeeded. This is existing, correct fail-closed behavior
+    (`extra="forbid"`) operating exactly as designed — the "issue" is that
+    an operator following the old documentation could reach this state
+    without warning, now corrected.
+  Migration reliability issue:                NONE FOUND independent of the
+    above — migrations themselves ran correctly and deterministically in
+    every scenario tested.
+  Docker configuration inconsistency:         NONE FOUND at the Docker
+    Compose file level itself (its hardcoded production environment is
+    intentional and unchanged); the inconsistency was entirely in
+    documentation describing it.
+
+No finding in this phase is classified as a security vulnerability. Every
+finding is a documentation or documentation-completeness issue, correctly
+scoped per the phase's own explicit instruction not to inflate
+documentation issues into security findings.
+
+================================================================================
+14. REMAINING LIMITATIONS
+================================================================================
+
+- As in Phase 25/26: this repository's Dockerfile builds its wheel from
+  `git archive HEAD`, so no Docker image could reflect any phase's
+  uncommitted changes without committing (forbidden). This phase made no
+  code changes, so this limitation had no practical effect on Section 6's
+  Docker reproductions — every scenario exercised the same, already-built
+  `kingsec:2.0.0` image's actual, current behavior faithfully.
+
+- The full-suite pytest run's exact final numeric pass count could not be
+  captured in this environment for the third consecutive phase (Section 11)
+  — a confirmed, reproducible environment limitation unrelated to test
+  correctness or to this phase's changes.
+
+- Approximately 70 real, accepted `Settings` field paths remain undocumented
+  in `.env.example` (mostly `integrations.*`/`performance.*` groups). Left
+  alone per this phase's explicit "do not add broad configuration
+  documentation for every optional field" instruction — this is a
+  completeness gap, not a correctness defect.
+
+- Per this phase's own rules, Phase 24's secret-rotation design, Phase 25's
+  composition-root placeholder guard, and Phase 26's empty-secret/error-
+  quality fixes were not touched and remain exactly as those phases left
+  them (Section 3).
+
+================================================================================
+15. FINAL GIT STATE
+================================================================================
+
+  HEAD:            ab3a037cb3deaeac9f45ff3fc4c472c8bb610cff  (UNCHANGED)
+  Branch:          main, up to date with origin/main (UNCHANGED)
+
+  `git diff --stat` (this phase's own changes only):
+    .env.example        35 changed lines (was 25 after Phase 26; +10 this phase)
+    README.md           14 changed lines (new this phase)
+    docs/INSTALL.md      10 changed lines (new this phase)
+
+  Phase 24 files — re-verified identical to Section 3's baseline: 43 / 23 /
+  6 changed lines respectively, 56 insertions(+), 16 deletions(-). [TESTED]
+
+  Phase 25 files not touched by Phase 26 or 27 — re-verified identical: 13 /
+  6 / 11 / 8 changed lines, 33 insertions(+), 5 deletions(-). [TESTED]
+
+  Phase 26 files not touched by Phase 27 — re-verified identical: 62 / 21
+  changed lines, 79 insertions(+), 4 deletions(-). [TESTED]
+
+  Untracked files: identical set to the starting state (Section 2). No new
+  untracked file was created this phase (all three edits were to already-
+  tracked files).
+
+  No file outside the list in Section 1 was modified. No reset, clean, or
+  stash was used at any point in this phase.
+
+================================================================================
+16. CONFIRMATION: NO COMMIT, PUSH, OR DEPLOYMENT
+================================================================================
+
+[TESTED] `git log -1 --oneline` before and after this phase both show the
+identical commit `ab3a037`. No `git commit`, `git add` (staging), or
+`git push` was executed at any point. No deployment occurred beyond the
+disposable, fully-torn-down isolated Docker containers in Section 6, none of
+which used the real `kingsec` container name, `kingsec-data` volume, or any
+pre-existing project resource — confirmed by `docker volume ls` showing only
+the same three pre-existing volumes before and after this phase. The
+developer's real `.env`, secret stores, Turso credentials, Cloudflare
+credentials, Resend/Gmail credentials, and production infrastructure were
+never read, displayed, or modified.

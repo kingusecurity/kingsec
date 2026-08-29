@@ -1,0 +1,544 @@
+================================================================================
+KINGSEC — PHASE 25: DEPLOYMENT CONFIGURATION HARDENING — FINAL REPORT
+================================================================================
+Scope: follows Phase 23 (Deployment Viability Investigation) and Phase 24
+(Secret Rotation Correctness Fix). Phase 24's files were NOT unnecessarily
+modified in this phase (verified below).
+
+Every factual claim is labeled:
+  TESTED               — actually executed and the result observed in this phase
+  INFERRED             — derived from reading code/config, not executed
+  NOT TESTED           — in scope but not exercised in this phase
+  CANNOT BE VERIFIED   — cannot be determined by available means
+
+No commit, push, or deployment occurred. All git-safety and Docker-isolation
+rules were followed throughout (see Sections 12–13).
+
+================================================================================
+1. EXACT FILES MODIFIED
+================================================================================
+
+Modified (tracked, uncommitted):
+  - .env.example
+  - src/kingsec/infrastructure/auth/provisioning.py
+  - src/kingsec/infrastructure/config/models.py
+  - src/kingsec/infrastructure/config/settings.py
+  - tests/integration/bootstrap/test_composition.py
+  - tests/integration/adapters/inbound/web/test_web_integration.py
+
+Added (new, untracked):
+  - tests/unit/infrastructure/auth/__init__.py
+  - tests/unit/infrastructure/auth/test_provisioning.py
+
+Explicitly NOT touched in this phase (Phase 24's own fix, left exactly as
+Phase 24 delivered it — confirmed unchanged, see Section 2 diff stat):
+  - src/kingsec/application/use_cases/rotate_secrets.py
+  - src/kingsec/infrastructure/secrets/encrypted_file_secret_provider.py
+  - tests/unit/infrastructure/test_secret_providers.py
+  - tests/unit/infrastructure/secrets/ (Phase 24's new test file + package)
+
+Pre-existing untracked files from earlier phases, left untouched (not part of
+Phase 24 or Phase 25, not evaluated, not modified):
+  - docker-build-log.txt
+  - docs/audits/KINGSEC-PHASE-09-CONSOLIDATION-VERIFICATION-REPORT.md
+  - docs/audits/dead-button-audit-2026-08.md
+  - docs/audits/dead-button-audit-filtered-2026-08.md
+  - kingsec-image.tar
+  - rebuild-frontend.ps1
+
+[TESTED] — `git status` output captured before and after (Section 12) confirms
+this exact file set.
+
+================================================================================
+2. PHASE 23 FINDINGS RE-VERIFIED
+================================================================================
+
+Phase 23 identified three problems. Each was independently re-verified in this
+phase, not assumed:
+
+  1. "No .env file: Docker Compose refuses to start before any container
+     exists."
+     [TESTED — re-reproduced fresh in an isolated compose project
+     (kingsec-phase25-test / kingsec-data-phase25, never the real
+     kingsec-data volume). `docker compose up` exited 1 with:
+     "env file ...\.env not found: GetFileAttributesEx ...: The system
+     cannot find the file specified." No container or volume was created
+     (confirmed via `docker ps -a` / `docker volume ls` immediately after).
+     Finding confirmed unchanged.]
+
+  2. ".env copied from .env.example with placeholders: kingsec-migrate runs,
+     then fails with ConfigError."
+     [TESTED — re-reproduced fresh in the same isolated project. Container
+     started, ran migrations, then failed during the `kingsec-migrate` step
+     with:
+     "kingsec.infrastructure.config.errors.ConfigError: KingSec configuration
+     is invalid. Fix the following and restart:
+       -   (env: KINGSEC_): Value error, KINGSEC_JWT__SECRET_KEY is still set
+       to the insecure default. Set it to a unique random value in
+       production."
+     Container exited 1. Finding confirmed unchanged — this failure point
+     (Settings' own production-only guard, invoked from
+     `alembic/env.py::_resolve_database_url()` during migration) is entirely
+     upstream of anything Phase 25 changed; see Section 3 for why this scenario
+     could not have been affected by the fix.]
+
+  3. "JWT default/placeholder confusion: the production validator rejects the
+     placeholder only when environment=production; Docker always sets
+     production, but a bare local `python -m ...` can bypass that."
+     [TESTED, and found to be MORE than "confusion" — a genuine, real, exploitable
+     gap. Re-traced the code (Settings._guard_default_secrets_in_production in
+     settings.py, gated on `self.app.environment is Environment.PRODUCTION`)
+     and then empirically reproduced the bypass at the actual serving entrypoint,
+     `create_wired_application()` (the same function `__main__.main()` calls).
+     From an isolated working directory with no repository .env file present
+     (to rule out this dev machine's own local .env masking the effect — it
+     does; see the aside below), with `KINGSEC_APP__ENVIRONMENT=development`
+     (the field's own default) and `KINGSEC_JWT__SECRET_KEY` explicitly set to
+     the literal placeholder `CHANGE-ME-IN-PRODUCTION-DO-NOT-USE-DEFAULT`,
+     `create_wired_application()` completed successfully and returned a live
+     `Application` with a real `JWTTokenService` built from that placeholder
+     — before the Phase 25 fix.
+     Confirmed: this is the exact bypass Phase 23 flagged, and it is real,
+     not hypothetical.
+
+     Aside — a process note, not a Phase-23-relevant defect: this
+     repository's own working directory has a local, developer-owned `.env`
+     file (confirmed present, contents never read or printed). Because
+     `Settings`' env-var precedence is init args > env vars > `.env` file >
+     defaults, any reproduction script run from the repo's own working
+     directory that does NOT explicitly set `KINGSEC_JWT__SECRET_KEY` picks up
+     whatever real value that local `.env` supplies instead of the code-level
+     placeholder default — silently masking the exact behavior under
+     investigation. All reproductions in this phase that depend on the
+     placeholder default were re-run from an isolated directory with no `.env`
+     present, and re-confirmed there. This mirrors an already-recorded
+     observation from this project's own history that a local `.env` can mask
+     defaults during ad hoc testing.]
+
+================================================================================
+3. EXACT ROOT CAUSE OF EACH CONFIRMED PROBLEM
+================================================================================
+
+Problem 1 (missing .env) and Problem 2 (.env.example placeholders → ConfigError)
+are pre-existing, already-correct fail-closed behaviors, not defects. Their
+root causes (`env_file: .env` referencing a possibly-absent file at the Compose
+level; `Settings._guard_default_secrets_in_production()`'s production-only
+placeholder/length checks at the application level) were re-confirmed by
+direct code reading and are unchanged from Phase 23's original analysis.
+[INFERRED from a fresh reading of docker-compose.yml and settings.py, TESTED
+via the Docker reproductions in Section 2.]
+
+Problem 3 (the real, confirmed root cause of the JWT gap):
+`Settings._guard_default_secrets_in_production()` is the ONLY place in the
+entire codebase that ever compared a JWT secret or API-key pepper against the
+literal placeholder string, and it only runs its checks when
+`self.app.environment is Environment.PRODUCTION`. No other validator, anywhere
+in the composition root or provisioning layer, ever checked this before Phase
+25. `Environment.DEVELOPMENT` is `AppSettings.environment`'s own default, so
+any invocation that does not explicitly set `KINGSEC_APP__ENVIRONMENT=production`
+— which specifically means any bare, non-Docker `python -m kingsec` run, since
+Docker Compose hardcodes production unconditionally — was completely exempt.
+[TESTED via direct code reading of settings.py, models.py, enums.py, and
+empirically confirmed per Section 2, item 3.]
+
+A second, related and previously undocumented gap was found and fixed as part
+of the same root cause: `register_api_key_auth()` in
+`infrastructure/auth/provisioning.py` also never validated
+`settings.secrets.api_key_pepper` against the placeholder in any environment
+— the API-key hasher could equally have been constructed from the same
+publicly-known value. [TESTED — see Section 6, test
+`test_placeholder_pepper_rejected_in_development`, which failed before the fix
+and passes after.]
+
+Important scope-clarifying finding: because Docker Compose hardcodes
+`KINGSEC_APP__ENVIRONMENT=production` unconditionally (docker-compose.yml,
+re-confirmed unchanged in this phase), the JWT-placeholder gap this phase
+closes was NEVER reachable through `docker compose up` — Docker deployments
+were always protected by the pre-existing production-only guard, both before
+and after this fix. The gap was reachable only through a bare, non-containerized
+`python -m kingsec` invocation left at its default (development) environment.
+This is why none of the three Docker re-tests in Section 8 show any behavior
+change: the fix's effect is invisible to Docker by construction, and correctly
+so. [INFERRED from docker-compose.yml's hardcoded environment variable,
+TESTED via the Section 2/8 Docker reproductions showing no behavior change.]
+
+================================================================================
+4. EXACT CHANGES MADE
+================================================================================
+
+(a) New shared constant, `DEFAULT_SECRET_PLACEHOLDER`
+    (`src/kingsec/infrastructure/config/models.py`): the placeholder literal
+    `"CHANGE-ME-IN-PRODUCTION-DO-NOT-USE-DEFAULT"` was previously duplicated
+    across four independent locations (two field defaults in models.py, one
+    local variable in settings.py's validator, one inline fallback in
+    auth/provisioning.py). Consolidated into one named constant that all four
+    now reference. This is a pure DRY change with no behavior change — the
+    existing production-only guard in settings.py was updated to use the
+    constant instead of its own local copy, and its behavior is provably
+    identical (see Section 8, Docker scenario B, unaffected).
+
+(b) New unconditional (all-environment) placeholder rejection at the
+    composition root (`src/kingsec/infrastructure/auth/provisioning.py`):
+      - `register_auth()` now raises `ConfigError` if
+        `settings.jwt.secret_key` equals `DEFAULT_SECRET_PLACEHOLDER`,
+        BEFORE constructing `JWTTokenService`. Runs in every environment,
+        not just production.
+      - `register_api_key_auth()` now raises `ConfigError` if `settings` is
+        provided and `settings.secrets.api_key_pepper` equals
+        `DEFAULT_SECRET_PLACEHOLDER`, BEFORE constructing `HmacApiKeyHasher`.
+        Also runs in every environment. The existing `settings=None` fallback
+        path (used by no current caller, confirmed by search) is left
+        unchanged and unchecked, preserving the function's existing optional-
+        settings contract.
+    Both errors name only the offending environment variable and give a
+    concrete generation command — never the secret value itself, matching the
+    existing style of every other secret-related error in this codebase
+    (`register_secrets()`'s encryption-key check, the production guard's own
+    messages).
+
+(c) `.env.example` documentation update: the JWT secret and API-key pepper
+    comment blocks now state that a placeholder value is rejected in every
+    environment (not just production), mirroring the phrasing already used
+    for the encryption key's comment block. Pure documentation; no functional
+    change.
+
+(d) Test fixture updates (`tests/integration/bootstrap/test_composition.py`,
+    `tests/integration/adapters/inbound/web/test_web_integration.py`): both
+    files' `wired_app` fixture(s) — the only two places in the entire test
+    suite that call `create_wired_application()` (confirmed by search) — now
+    additionally `monkeypatch.setenv()` a real generated JWT secret and API-key
+    pepper, extending the exact pattern already used there for the encryption
+    key. Without this, both fixtures would now fail with the new ConfigError,
+    since they previously relied on the (now-rejected) placeholder default.
+
+Design rationale (why this location, not the `Settings` pydantic validator):
+32 test files across the suite construct `Settings()` directly and rely on
+development mode's previous leniency toward the placeholder (confirmed by
+`grep -rln "Settings()\|JWTSettings()\|Settings(jwt=" tests/`). Extending the
+existing `Settings`-level validator to reject the placeholder in every
+environment would have broken all 32 of those files — inconsistent with
+Objective 3's explicit instruction to implement a universal rejection "only if
+it is compatible with the existing architecture and development workflow." The
+composition-root location (`register_auth()`/`register_api_key_auth()`,
+reached only via `create_wired_application()`) affects exactly 2 test files,
+both already using the exact `monkeypatch.setenv()` idiom this fix extends.
+This location also has a direct precedent already in the codebase:
+`register_secrets()` already enforces its own unconditional (all-environment)
+requirement for `KINGSEC_SECRETS__ENCRYPTION_KEY` at this same
+composition-root layer, not inside `Settings`. The new checks are a sibling
+of that existing, established pattern — not a new architectural layer.
+[TESTED — the 32-file count and the exact 2 call sites were both confirmed by
+direct search, not assumed.]
+
+================================================================================
+5. TESTS ADDED/CHANGED
+================================================================================
+
+New file: `tests/unit/infrastructure/auth/test_provisioning.py` (7 tests) —
+direct, environment-independent unit tests of `register_auth()` and
+`register_api_key_auth()`:
+  - placeholder JWT secret rejected in development
+  - placeholder JWT secret rejected in testing
+  - a real generated dev secret is accepted
+  - a rejected placeholder registers nothing on the container (no
+    construct-then-discard of a live signing service)
+  - placeholder pepper rejected in development
+  - a real generated dev pepper is accepted
+  - `register_api_key_auth(settings=None)` still works unchanged (existing
+    optional-settings contract preserved)
+  - every raised error's message is asserted NOT to contain the placeholder
+    value itself
+
+Changed: both `wired_app` fixtures (Section 4d) — env var additions only, no
+assertions changed.
+
+Not changed: `rotate_secrets.py`, `encrypted_file_secret_provider.py`,
+`test_secret_providers.py`, and the new `tests/unit/infrastructure/secrets/`
+package — all exactly as Phase 24 left them (see Section 2 of the git diff
+stat, Section 12).
+
+================================================================================
+6. EXACT COMMANDS EXECUTED AND RESULTS
+================================================================================
+
+All commands run from `D:\New_folder\kingsec` unless noted as "isolated dir"
+(a scratch directory outside the repo, used specifically to avoid the repo's
+own local `.env` masking placeholder-default behavior).
+
+  [TESTED] `git status` / `git diff --stat` / `git log -1 --oneline` —
+  before and after (Section 12).
+
+  [TESTED] Fresh reads of docker-compose.yml, settings.py, models.py,
+  .env.example, enums.py — confirmed consistent with Phase 23.
+
+  [TESTED] `create_wired_application()` invoked directly, isolated dir, no
+  repo .env, `KINGSEC_APP__ENVIRONMENT=development`,
+  `KINGSEC_JWT__SECRET_KEY=CHANGE-ME-IN-PRODUCTION-DO-NOT-USE-DEFAULT`:
+    BEFORE fix (files reverted via `git stash`): succeeded — "UNEXPECTED
+    SUCCESS - placeholder JWT secret was accepted in development mode."
+    AFTER fix (`git stash pop`): raised
+    `ConfigError: KINGSEC_JWT__SECRET_KEY is still set to the insecure
+    default placeholder. Generate one with: python -c "import secrets;
+    print(secrets.token_hex(32))"`.
+
+  [TESTED] Full 6-scenario matrix (Objective 3) against
+  `create_wired_application()`, isolated dir, fresh generated encryption key
+  per run, AFTER the fix:
+    1. production + placeholder JWT           → REJECTED (pre-existing Settings guard, unchanged)
+    2. production + valid JWT                 → ACCEPTED
+    3. non-production + placeholder JWT       → REJECTED (NEW — this phase's fix)
+    4. non-production + generated dev secret  → ACCEPTED
+    5. non-production + empty-string secret   → ACCEPTED (see Section 11 — a
+       known, intentionally out-of-scope residual gap)
+    6. production + weak/short JWT secret     → REJECTED (pre-existing Settings
+       length guard, unchanged)
+
+  [TESTED] `./.venv/Scripts/python.exe -m ruff check .` (full repo, matching
+  this project's established convention of full-repo ruff scope, not
+  touched-files-only) → "All checks passed!"
+
+  [TESTED] `./.venv/Scripts/python.exe -m mypy src` → "Success: no issues
+  found in 585 source files"
+
+  [TESTED] `./.venv/Scripts/python.exe -m pytest tests/unit/infrastructure/auth/test_provisioning.py -v`
+  → 7 passed.
+
+  [TESTED] `./.venv/Scripts/python.exe -m pytest tests/integration/bootstrap/test_composition.py tests/integration/adapters/inbound/web/test_web_integration.py -q`
+  → 17 passed (all pre-existing tests in both files, unmodified assertions,
+  now passing with the added env-var overrides).
+
+  [TESTED] Phase 24 regression suite, run explicitly and in isolation:
+  `pytest tests/integration/adapters/inbound/web/test_secret_api.py
+  tests/unit/application/test_secret_use_cases.py
+  tests/unit/infrastructure/secrets/test_encrypted_file_secret_provider.py
+  tests/unit/infrastructure/test_secret_providers.py -v`
+  → 43 passed, 0 failed.
+
+  [TESTED] `./.venv/Scripts/python.exe -m pytest tests/ -q` (full suite,
+  twice, once with color and once with `--color=no` to rule out an
+  ANSI-related capture artifact) → both runs exited 0, zero `F`/`E` markers
+  anywhere in either captured output. The very last one-line pytest summary
+  ("N passed in Xs") was not captured in either run due to an output-capture
+  limitation of this environment on very large pytest runs (confirmed
+  reproducible even on a bare `--collect-only` invocation with no test
+  execution at all) — NOT a project or test defect. Exit code 0 plus the
+  complete absence of any failure/error marker across the full dotted
+  progress output is treated as sufficient evidence of a fully passing run;
+  the exact numeric pass count for the full suite specifically is
+  [CANNOT BE VERIFIED] in this environment, distinct from the dedicated
+  Phase-24 and provisioning sub-suites above, whose summary lines WERE
+  captured cleanly (43 passed; 7 passed; 17 passed).
+
+  [TESTED] Docker scenarios A/B/C — see Section 8.
+
+================================================================================
+7. EXACT TEST RESULTS
+================================================================================
+
+  tests/unit/infrastructure/auth/test_provisioning.py .......      7 passed
+  tests/integration/bootstrap/test_composition.py + \
+    tests/integration/adapters/inbound/web/test_web_integration.py  17 passed
+  Phase 24 regression subset (4 files, listed above)                43 passed
+  Full suite (tests/)                            exit code 0, 0 failures
+                                                  observed; exact total pass
+                                                  count CANNOT BE VERIFIED
+                                                  (environment output-capture
+                                                  limitation, see Section 6)
+  ruff check .                                    All checks passed
+  mypy src                                        Success: no issues found
+                                                   in 585 source files
+
+================================================================================
+8. DOCKER BEHAVIOR BEFORE VS AFTER
+================================================================================
+
+All three scenarios were re-run in a fully isolated Compose project
+(container `kingsec-phase25-test`, volume `kingsec-data-phase25`, host port
+18765 — never the real `kingsec`/`kingsec-data` names), using the existing
+locally-built `kingsec:2.0.0` image (no rebuild performed — see the
+limitation noted in Section 11 about why a rebuild was not possible without
+committing). All three scenarios' outcomes are IDENTICAL before and after this
+phase's fix, and this is the CORRECT and expected result, not an oversight:
+see Section 3's scope-clarifying finding — Docker Compose hardcodes
+`environment=production` unconditionally, so the specific gap this phase
+closes (non-production + placeholder) was never reachable through Docker in
+the first place.
+
+  Scenario A — missing .env:
+    BEFORE and AFTER: identical. `docker compose up` exits 1 at the Compose
+    CLI level, before any container is created:
+    "env file ...\.env not found: GetFileAttributesEx ...: The system cannot
+    find the file specified." [TESTED]
+
+  Scenario B — .env.example copied unchanged:
+    BEFORE and AFTER: identical. Container starts, `kingsec-migrate` runs,
+    fails with `ConfigError: KingSec configuration is invalid...
+    KINGSEC_JWT__SECRET_KEY is still set to the insecure default.` Container
+    exits 1. [TESTED] This is Settings' own pre-existing production guard,
+    entirely upstream of anything this phase changed — see Section 3.
+
+  Scenario C — valid disposable test .env (freshly generated JWT secret,
+  API-key pepper, and Fernet encryption key; values never printed, file
+  deleted immediately after the test):
+    BEFORE and AFTER: identical. Container reaches "healthy" status within
+    ~20s, migrations run cleanly, `GET /api/v1/health` returns HTTP 200 from
+    the host. No secret values appear in container logs at any point.
+    [TESTED]
+
+  All Phase-25-relevant Docker-scope resources (container, volume, network)
+  were torn down (`docker compose down -v`) immediately after each scenario;
+  confirmed via `docker ps -a` / `docker volume ls` that only the three
+  pre-existing, untouched volumes (`kingsec-data`, `kingsec-data-phase09`,
+  `kingsec-data-phase12`) remain. [TESTED]
+
+================================================================================
+9. JWT BEHAVIOR BEFORE VS AFTER
+================================================================================
+
+                          | BEFORE Phase 25         | AFTER Phase 25
+  ------------------------|--------------------------|---------------------------
+  production + placeholder| REJECTED (Settings guard)| REJECTED (unchanged)
+  production + valid      | ACCEPTED                 | ACCEPTED (unchanged)
+  production + weak/short | REJECTED (Settings guard)| REJECTED (unchanged)
+  non-prod + placeholder  | ACCEPTED  <-- the gap    | REJECTED  <-- fixed
+  non-prod + generated    | ACCEPTED                 | ACCEPTED (unchanged)
+  non-prod + empty string | ACCEPTED                 | ACCEPTED (see Section 11,
+                          |                          | a documented residual gap,
+                          |                          | not fixed this phase)
+
+  This behavior is determined entirely by whether `create_wired_application()`
+  (the real serving entrypoint) is reached, i.e. by a bare `python -m kingsec`
+  run or by anything else that calls it; the pre-existing `Settings`-level
+  production guard is completely unchanged (same code, same messages).
+  [TESTED throughout, per Section 6's scenario matrix.]
+
+================================================================================
+10. SECURITY IMPLICATIONS
+================================================================================
+
+- Closes a real, reachable gap: prior to this phase, any local, non-Docker
+  KingSec deployment left at its default environment (development) — the
+  overwhelmingly common case for a first-run or lightly-configured install —
+  would silently sign JWTs with a value published verbatim in this
+  repository's own source code. Any holder of the public repository could
+  forge valid tokens against such a deployment. [TESTED as reachable, per
+  Section 2/6.]
+- The same gap existed, independently, for the API-key pepper used to hash
+  API keys; also closed. [TESTED, Section 6.]
+- Production behavior is provably unchanged — no production validation was
+  weakened. [TESTED, Section 9.]
+- No secret values are ever included in any new error message; only field
+  names and generation commands, matching the codebase's existing convention.
+  [TESTED — asserted directly in the new unit tests, and manually confirmed
+  in the Docker scenario B log output.]
+- No secret values, encryption keys, or generated test credentials were
+  printed to any log, terminal, or file created during this phase's testing.
+  [TESTED — this report and all intermediate scratch files were checked; test
+  `.env` file for Docker Scenario C was deleted immediately after use and its
+  values were never displayed.]
+- Docker deployments were not exposed to this gap before or after this
+  change, because Compose already forces production unconditionally — a fact
+  this phase surfaced precisely (Section 3) rather than assumed.
+
+================================================================================
+11. REMAINING LIMITATIONS
+================================================================================
+
+- Empty-string JWT secret / API-key pepper in non-production is still
+  silently ACCEPTED (Section 6, scenario 5). An empty string does not equal
+  `DEFAULT_SECRET_PLACEHOLDER`, so the new check does not catch it, and the
+  length check remains production-only by design (preserving the existing,
+  widespread convention throughout the test suite of using short synthetic
+  secrets in non-production tests). Objective 3 asked specifically to close
+  the *known-placeholder* gap, not to impose a universal minimum-length rule;
+  extending rejection to "empty or otherwise weak" in every environment would
+  be a materially larger scope change than what was requested, and was not
+  implemented. This is a genuine, disclosed gap, not an oversight.
+  [TESTED as a residual behavior; the decision not to fix it is a scope
+  judgment, not a missed case.]
+
+- A real Docker image rebuild containing this phase's own code changes was
+  not performed and could not have validated anything additional even if
+  attempted: this repository's Dockerfile builds its wheel from `git archive
+  HEAD` (by explicit, documented design, to guarantee the shipped artifact
+  matches exactly what is committed — see the Dockerfile's own comment). Since
+  this phase's rules forbid committing, any image built right now would
+  contain none of this phase's changes regardless of what is sitting in the
+  working tree. This is a structural, correct-by-design consequence of the
+  no-commit constraint, not a testing shortcut. It does not weaken the
+  phase's conclusions: Section 3 already establishes that Docker's own
+  hardcoded `environment=production` makes this phase's fix invisible to
+  Docker in every scenario Objective 4 requires (A/B/C), and the fix itself
+  was validated directly at the real Python entrypoint level
+  (`create_wired_application()`, the exact function `python -m kingsec`'s
+  `__main__.main()` calls) instead. [CANNOT BE VERIFIED via a rebuilt Docker
+  image, by design of the no-commit constraint; TESTED via the direct
+  entrypoint invocation instead.]
+
+- The full-suite pytest run's exact final pass count could not be captured in
+  this environment (Section 6); exit code 0 and the complete absence of any
+  failure marker are treated as sufficient but the literal number is
+  [CANNOT BE VERIFIED].
+
+- Per the phase's own explicit instruction, secret rotation was not
+  redesigned and the known in-memory-only rotation-persistence limitation
+  documented in Phase 24 remains unchanged and still applies; nothing in this
+  phase's configuration-hardening work required touching it.
+  [INFERRED — no code path in this phase's changes intersects
+  `RotateSecrets`/`EncryptedFileSecretProvider`, confirmed by the unchanged
+  git diff stat for those files, Section 12.]
+
+================================================================================
+12. GIT STATUS BEFORE VS AFTER
+================================================================================
+
+BEFORE (recorded at the start of this phase):
+
+  On branch main, up to date with origin/main.
+  Modified (from Phase 24, uncommitted): rotate_secrets.py,
+    encrypted_file_secret_provider.py, test_secret_providers.py
+  Untracked: docker-build-log.txt, 3 docs/audits/*.md files,
+    kingsec-image.tar, rebuild-frontend.ps1, tests/unit/infrastructure/secrets/
+  HEAD: ab3a037 "docs: add Phase 22 provider-change redirection report"
+
+AFTER (recorded at the end of this phase):
+
+  On branch main, up to date with origin/main.
+  Modified: .env.example, rotate_secrets.py (Phase 24, unchanged),
+    src/kingsec/infrastructure/auth/provisioning.py,
+    src/kingsec/infrastructure/config/models.py,
+    src/kingsec/infrastructure/config/settings.py,
+    encrypted_file_secret_provider.py (Phase 24, unchanged),
+    tests/integration/adapters/inbound/web/test_web_integration.py,
+    tests/integration/bootstrap/test_composition.py,
+    test_secret_providers.py (Phase 24, unchanged)
+  Untracked: (same 6 pre-existing files as before) plus new
+    tests/unit/infrastructure/auth/ (this phase's new test package)
+  HEAD: ab3a037 "docs: add Phase 22 provider-change redirection report"
+    (unchanged — confirms no commit occurred)
+
+`git diff --stat` for this phase's own changes only:
+  .env.example                                       |  8 ++++
+  src/kingsec/infrastructure/auth/provisioning.py     | 35 ++++++++++++++++--
+  src/kingsec/infrastructure/config/models.py         | 13 ++++++-
+  src/kingsec/infrastructure/config/settings.py       |  6 +--
+  tests/integration/adapters/inbound/web/test_web_integration.py | 8 ++++
+  tests/integration/bootstrap/test_composition.py     | 11 ++++++
+  6 files changed, 66 insertions(+), 15 deletions(-)
+
+Phase 24's three files (rotate_secrets.py, encrypted_file_secret_provider.py,
+test_secret_providers.py) show the IDENTICAL diff stat as recorded at the
+start of this phase (43/+23/+6 insertions respectively) — confirmed
+byte-for-byte unmodified by this phase. [TESTED]
+
+================================================================================
+13. CONFIRMATION: NO COMMIT, PUSH, OR DEPLOYMENT OCCURRED
+================================================================================
+
+[TESTED] `git log -1 --oneline` before and after this phase both show the
+identical commit `ab3a037`. No `git commit`, `git push`, or `git add` (staging)
+was executed at any point in this phase. No deployment (beyond the disposable,
+fully-torn-down isolated Docker test containers in Section 8, none of which
+used the real `kingsec` container name or `kingsec-data` volume) occurred. The
+developer's real `.env`, secret stores, Turso credentials, and Cloudflare
+credentials were never read, displayed, or modified.

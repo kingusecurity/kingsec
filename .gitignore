@@ -41,6 +41,14 @@ coverage.xml
 *_out.txt
 *_err.txt
 
+# Local Docker build artifacts (never intended for version control - an
+# untracked ~112MB `kingsec-image.tar` export and a `docker-build-log.txt`
+# capture were both found sitting in the repo during Phase 33's worktree
+# audit; neither is a build input or generated-by-CI artifact, just local
+# scratch output from manual `docker save`/`docker build > log` commands)
+*.tar
+docker-build-log.txt
+
 # Development environment snapshots
 clean-env/
 

@@ -1,0 +1,531 @@
+================================================================================
+KINGSEC — PHASE 31: CLEAN-HEAD RELEASE REPRODUCTION & PHASE 30 FINALIZATION
+FINAL REPORT
+================================================================================
+
+Every factual claim is labeled:
+  [TESTED]               — actually executed and the result observed in this phase
+  [INFERRED]              — derived from code/configuration inspection, not executed
+  [NOT TESTED]            — relevant to scope but deliberately not exercised
+  [CANNOT BE VERIFIED]    — could not be established using available evidence
+
+No push, no production deployment, no production credential access, no
+production database/container/volume mutation, and no destructive Git
+command occurred (Section 17/20). Exactly one commit was created, containing
+exactly the three intended Phase 30 files.
+
+================================================================================
+1. EXECUTIVE SUMMARY
+================================================================================
+
+Phase 30's two fixes (frontend Docker reproducibility, shadowed health-route
+removal) were finalized by committing exactly the three files Phase 30
+produced, then independently re-proving both fixes from a clean, disposable
+clone of the newly committed HEAD — not the real working tree. This closes
+the one honest limitation every backend/Dockerfile fix in this entire audit
+sequence has carried: until now, no fix could be observed inside an actual
+built Docker image, because the Dockerfile's `git archive HEAD` mechanism
+only ships committed content. That limitation no longer applies to Phase
+30's fixes specifically, and this phase proves it directly: the built
+image's shipped `health_routes.py` no longer contains `health_simple`, and
+the shipped frontend's `<title>` is the real committed value even when a
+fresh, separately-cloned build context contains a genuinely uncommitted
+marker.
+
+One incidental defect was found and corrected before committing: an earlier
+Phase 30 edit had accidentally deleted an existing assertion
+(`assert resp.json()["status"] == "ok"`) from `test_returns_200` while
+cleaning up a stray line from an earlier draft. This was caught during
+Step 2's careful diff review (exactly the review this phase's process is
+designed to catch), restored before staging, and is reflected in the final
+committed diff as a pure, clean addition with no unintended deletion.
+
+All Phase 24-29 uncommitted work remains completely untouched. The commit
+contains exactly three files. No push occurred.
+
+================================================================================
+2. STARTING GIT STATE
+================================================================================
+
+[TESTED, recorded before any Phase 31 action]
+
+  `git status --short`: 16 modified tracked files (Phase 24-27, Phase 29's
+    `ci.yml`, and Phase 30's `Dockerfile`/`health_routes.py`/
+    `test_routes.py`, all still uncommitted at this point), 13 untracked
+    entries (5 phase report files, docker-build-log.txt, 3 docs/audits/
+    *.md files, kingsec-image.tar, rebuild-frontend.ps1, and the Phase
+    24/25/26/28 test additions).
+  `git diff --check`: exit code 0.
+  `git diff --stat`: 16 files changed, 278 insertions(+), 49 deletions(-).
+  `git rev-parse HEAD`: `ab3a037cb3deaeac9f45ff3fc4c472c8bb610cff`.
+  `git branch -vv`: `main`, tracking `origin/main`, no ahead/behind.
+  `git log -1 --oneline`: `ab3a037 docs: add Phase 22 provider-change
+    redirection report`.
+  `git stash list`: empty (no leftover stash from Phase 30's own transient
+    use).
+  `docker images kingsec`: `kingsec:2.0.0` (f0aa61a1597a), `kingsec:latest`,
+    `kingsec:1.0.0`.
+  `docker ps -a`: one pre-existing, unrelated container,
+    `buildx_buildkit_default` (Docker Desktop's own BuildKit builder
+    infrastructure — not a KingSec resource, not created by this session).
+  `docker volume ls`: `buildx_buildkit_default_state` (same BuildKit
+    infrastructure), plus `kingsec-data`, `kingsec-data-phase09`,
+    `kingsec-data-phase12`.
+
+Distinguishing the changes present at this point: the 13 files from Phase
+24-27+29 (`.env.example`, `.github/workflows/ci.yml`, `README.md`, `docs/
+INSTALL.md`, `rotate_secrets.py`, `infrastructure/auth/provisioning.py`,
+`config/models.py`, `config/settings.py`, `encrypted_file_secret_
+provider.py`, `infrastructure/secrets/provisioning.py`, `test_web_
+integration.py`, `test_composition.py`, `test_secret_providers.py`) were
+pre-existing from prior phases and are NOT part of this phase's commit. The
+3 Phase 30 files (`Dockerfile`, `health_routes.py`, `test_routes.py`) are
+this phase's commit target. No unexpected file was found in either
+category.
+
+================================================================================
+3. EXACT PHASE 30 COMMIT
+================================================================================
+
+  Commit hash: `5be975ab76204e37b4af9f92abeb23daa1197d94`
+  Parent: `ab3a037cb3deaeac9f45ff3fc4c472c8bb610cff` (the exact prior HEAD)
+  Message: `phase 30: harden docker reproducibility and remove duplicate
+    health route` (exact text specified by this phase's instructions,
+    verified via `git log -1 --oneline` after committing)
+  [TESTED] HEAD advanced exactly once: confirmed via `git log -2 --oneline`
+    showing only `5be975a` then `ab3a037`, with no other commit in between.
+
+================================================================================
+4. EXACT FILES COMMITTED
+================================================================================
+
+[TESTED] `git show --stat --oneline HEAD`:
+```
+5be975a phase 30: harden docker reproducibility and remove duplicate health route
+ Dockerfile                                        | 20 +++++++++++++---
+ src/kingsec/adapters/inbound/web/health_routes.py |  6 -----
+ tests/unit/adapters/inbound/web/test_routes.py    | 28 +++++++++++++++++++++++
+ 3 files changed, 45 insertions(+), 9 deletions(-)
+```
+Exactly the three intended files, no more, no fewer. [TESTED] `git diff
+HEAD^ HEAD --check` → exit code 0 (no whitespace errors in the committed
+diff).
+
+Per-file review (Step 2), performed BEFORE staging:
+  `Dockerfile`: confirmed the diff contains exactly — `apt-get install`
+    for `git` in the frontend-builder stage, `COPY .git ./.git`, `RUN git
+    archive HEAD -- frontend | tar -x --strip-components=1 && rm -rf
+    .git`, followed by the pre-existing `RUN npm ci` and `RUN npm run
+    build` (both preserved, just reordered after the extraction step
+    instead of interleaved with the old two-step COPY pattern). No other
+    stage was touched.
+  `health_routes.py`: confirmed the diff is a pure 6-line deletion of
+    exactly the `health_simple()` function and its decorator/blank lines
+    — no other `/healthz/*` handler was touched.
+  `test_routes.py`: confirmed the diff, after the correction described in
+    Section 5, is a pure addition of `test_only_one_router_defines_get_
+    health` with no unintended deletion. The test verifies there is
+    exactly one effective `GET /api/v1/health` implementation by checking
+    each `APIRouter`'s own `.routes` list directly.
+
+================================================================================
+5. PRE-COMMIT VALIDATION
+================================================================================
+
+[TESTED] During Step 2's diff review, an unintended change was found:
+`git diff -- tests/unit/adapters/inbound/web/test_routes.py` showed the
+pre-existing `assert resp.json()["status"] == "ok"` line inside
+`test_returns_200` had been accidentally deleted during an earlier Phase 30
+editing pass (a leftover artifact from cleaning up a stray duplicate line
+introduced while iterating on the new test). This was not an intended
+Phase 30 change and would have weakened existing test coverage. It was
+restored (re-adding the single assertion line) before proceeding, and the
+diff was re-inspected to confirm the file's change was then a clean, pure
+addition with zero unintended deletion (Section 4).
+
+[TESTED] `./.venv/Scripts/python.exe -m ruff check .` (full repo) → "All
+  checks passed!"
+[TESTED] `./.venv/Scripts/python.exe -m mypy src` → "Success: no issues
+  found in 585 source files"
+[TESTED] `git diff --check` → exit code 0.
+[TESTED] Targeted health/route tests (`test_routes.py`, `test_web_
+  integration.py`, `test_middleware_integration.py`, `test_openapi.py`,
+  `test_openapi_allowlist.py`) → 37 tests, all passed.
+[TESTED] Phase 24-28 regression suites (secret store/retrieve/rotate,
+  composition root, auth/secrets provisioning, deployment-contract guard)
+  → 81 tests, all passed.
+[TESTED] `./.venv/Scripts/python.exe -m pytest tests/ -q --color=no` (full
+  suite): exit code 0; all dots, zero `F`/`E` markers in the captured
+  output. The literal final numeric pass count was NOT captured — the
+  seventh consecutive phase (25 through 31) to reproduce this exact,
+  environment-specific output-capture limitation on very large pytest
+  runs, confirmed unrelated to any code change. Exact total: [CANNOT BE
+  VERIFIED].
+
+All validation succeeded before any staging or commit was performed.
+
+================================================================================
+6. COMMIT VERIFICATION
+================================================================================
+
+Immediately after committing [TESTED]:
+  `git status --short`: the three Phase 30 files no longer appear;
+    all 13 pre-existing Phase 24-27/29 modified/untracked entries remain
+    present, unchanged, in their prior form.
+  `git rev-parse HEAD`: `5be975ab76204e37b4af9f92abeb23daa1197d94`.
+  `git log -1 --oneline`: exact commit message confirmed.
+  `git branch -vv`: `main 5be975a [origin/main: ahead 1] phase 30: ...` —
+    confirms the branch is exactly one commit ahead of `origin/main`, i.e.
+    no push occurred and the tracking relationship accurately reflects a
+    single new local commit.
+
+All six confirmation criteria from Step 5 are met.
+
+================================================================================
+7. CLEAN-HEAD CLONE VERIFICATION
+================================================================================
+
+[TESTED] A disposable, local-only clone was created:
+`git clone --no-hardlinks "D:\New_folder\kingsec" kingsec-phase31-clean`
+into a scratch directory outside the repository. Inside the clone:
+  `git rev-parse HEAD` → `5be975ab76204e37b4af9f92abeb23daa1197d94` —
+    exactly equal to the newly created Phase 30 commit.
+  `git status --short` → empty (clean, zero uncommitted changes — as
+    guaranteed by construction for any fresh clone).
+  Direct `grep` inside the clone confirmed the Dockerfile fix present
+    (`apt-get install ... git` found) and `health_simple` absent from
+    `health_routes.py` — the fix already exists at the source level in
+    this clone, before Docker was even invoked.
+
+The clone's remote (`origin`) points to this machine's own local
+repository path (`D:\New_folder\kingsec`), never any real remote — no
+network access to any real Git host occurred.
+
+================================================================================
+8. DOCKER CLEAN-HEAD BUILD
+================================================================================
+
+[TESTED] `docker build -t kingsec:phase31-clean-head .` run from the clean
+clone's root → exit code 0. Build took longer than a cached rebuild
+(~5-6 minutes observed, monitored via background task) since the frontend-
+builder stage's cache was invalidated by this being a fresh clone with a
+different `.git` copy timestamp/content layering; no error occurred at any
+step.
+
+Image inspection [TESTED]:
+  `pip show kingsec` inside the image → `Version: 2.0.0`.
+  `docker inspect --format '{{json .Config}}'` →
+    `"Cmd":["sh","-c","kingsec-migrate && python -m kingsec"]`,
+    `"Healthcheck"` with the identical 30s/10s/15s/3-retries configuration
+    and health URL as every prior phase's inspection, `"User":"kingsec"`,
+    `"WorkingDir":"/home/kingsec"`, `"ExposedPorts":{"8765/tcp":{}}` — all
+    unchanged.
+  `docker images kingsec` confirmed `kingsec:2.0.0` (`f0aa61a1597a`),
+    `kingsec:latest`, and `kingsec:1.0.0` were never rebuilt, overwritten,
+    or otherwise touched — the new tag exists alongside them, untouched.
+
+================================================================================
+9. PROOF BACKEND health_simple() IS ABSENT FROM SHIPPED IMAGE
+================================================================================
+
+[TESTED] Inside the running `kingsec:phase31-clean-head` image:
+```
+$ ls -la /usr/local/lib/python3.12/site-packages/kingsec/adapters/inbound/web/health_routes.py
+-rw-r--r-- 1 root root 4402 ... health_routes.py          (file exists)
+
+$ grep -n health_simple .../health_routes.py
+(no output; grep exit code 1)
+```
+This is direct, physical proof — not an HTTP-level inference — that the
+committed Git HEAD now contains the Phase 30 backend fix, and that
+Docker's `git archive HEAD` mechanism actually ships it into the installed
+wheel. This is the exact proof Phase 30 itself could not produce, because
+its fix was uncommitted at the time (documented explicitly as a limitation
+in Phase 30's own final report).
+
+================================================================================
+10. PROOF CANONICAL health_check() REMAINS
+================================================================================
+
+[TESTED] Inside the same running image:
+```
+$ grep -n health_check .../routes.py
+71:async def health_check() -> schemas.HealthResponse:
+```
+Confirms the sole, canonical, externally-observed health implementation
+(`routes.py::health_check()`) is present and unaffected by the dead-code
+removal, exactly as intended — Phase 30's fix removed only the unreachable
+duplicate, never the real implementation.
+
+================================================================================
+11. FRONTEND GIT-HEAD PROVENANCE VERIFICATION
+================================================================================
+
+[TESTED] Inside `kingsec:phase31-clean-head`'s shipped frontend bundle:
+```
+$ grep -o '<title>[^<]*</title>' .../static/index.html
+<title>KingSec</title>
+```
+The exact, real, committed title — no marker or stray content. Frontend
+assets (`assets/`, `favicon.svg`, icon files, `manifest.json`,
+`offline.html`, `sw.js`, `index.html`) all present and correctly built.
+
+[TESTED] Repeated the Phase 30 controlled marker experiment in a SEPARATE
+disposable clone (`kingsec-phase31-marker`), per Step 9's explicit
+recommendation:
+  1. Cloned committed HEAD fresh (`git rev-parse HEAD` confirmed
+     `5be975a...`).
+  2. Modified `frontend/index.html`'s `<title>` to
+     `KingSec-PHASE31-MARKER`, without committing (`git status --short`
+     confirmed ` M frontend/index.html`).
+  3. Built with the now-committed Phase 30 Dockerfile:
+     `docker build -t kingsec:phase31-marker-test .` → exit code 0 (fast,
+     using cached layers, since `.git`'s content for this clone was
+     otherwise identical to the just-built clean-head image).
+  4. Inspected the resulting image: `grep -o '<title>[^<]*</title>'
+     .../static/index.html` → returned exactly `<title>KingSec</title>` —
+     the real committed value, NOT the marker.
+  5. Reverted the marker (`git checkout -- frontend/index.html`), confirmed
+     the marker clone was clean (`git status --short` empty), removed the
+     test image (`docker rmi kingsec:phase31-marker-test`).
+
+This is a second, independent confirmation (beyond Section 11's baseline
+check) that the fix correctly rejects a genuinely uncommitted frontend
+change even when built fresh from the new committed HEAD. The real
+repository (`D:\New_folder\kingsec`) was never touched by this experiment —
+confirmed via `git status --short -- frontend/` showing clean throughout.
+
+================================================================================
+12. FIRST-RUN DEPLOYMENT
+================================================================================
+
+Isolated Compose project: container `kingsec-phase31-test`, volume
+`kingsec-data-phase31`, network `phase31_docker_default`, host port 18770,
+image `kingsec:phase31-clean-head`, disposable `.env` with freshly
+generated secrets (never printed, deleted immediately after use).
+
+  1. [TESTED] Container started: `docker compose up -d` → exit code 0.
+  2. [TESTED] Migrations ran successfully: 31 "Running upgrade" lines in
+     container logs, no errors.
+  3. [TESTED] Database created: `/home/kingsec/.kingsec/kingsec.db` (+
+     `-shm`/`-wal`) confirmed present.
+  4. [TESTED] Application started: "application started", "Uvicorn
+     running on http://0.0.0.0:8765" in logs.
+  5. [TESTED] Container became healthy: `docker ps` → `Up 34 seconds
+     (healthy)`.
+  6. [TESTED] `GET /api/v1/health` → HTTP 200
+     (`curl -s -o /dev/null -w "%{http_code}"`).
+  7. [TESTED] Response body: exactly `{"status":"ok"}`.
+  8. [TESTED] No secret values in logs: `docker logs ... | grep -iE
+     "secret|pepper"` → no matching lines.
+
+================================================================================
+13. MIGRATION/DATABASE RESULTS
+================================================================================
+
+[TESTED] 31 migrations applied — identical count to every prior phase's
+reproduction (Phase 26, 27, 29, 30). Migration head confirmed via direct
+SQLite query inside the container: `alembic_version = 91969658a556` —
+identical revision ID to every prior phase's reproduction, confirming the
+Phase 30 Dockerfile/health-route commit had zero effect on the migration
+chain, exactly as expected (no migration file appears in this phase's
+commit or diff).
+
+================================================================================
+14. HEALTH/READINESS RESULTS
+================================================================================
+
+  HTTP status:    200 [TESTED]
+  Response body:  `{"status":"ok"}` [TESTED] — exact match, byte-for-byte.
+  Container health state: `healthy` [TESTED]
+  This response is served by the now-sole `routes.py::health_check()`
+  implementation, confirmed both by the physical source inspection
+  (Section 10) and this live HTTP test — a full-stack confirmation from
+  committed source through the running container to the observed response.
+
+================================================================================
+15. REGRESSION MATRIX
+================================================================================
+
+Ruff: [TESTED] "All checks passed!" — run directly against the clean
+  clone's files (a pure static-analysis pass requiring no import
+  resolution, so this genuinely exercised the clone's own content).
+
+MyPy: [TESTED] "Success: no issues found in 585 source files" — run
+  directly against the clean clone's `src/`.
+
+Health/route tests, Phase 24-28 regression suites, full pytest suite:
+  [TESTED, with an important methodology note] These were executed via the
+  real repository's shared Python virtual environment rather than by
+  attempting to run `pytest` directly inside the disposable clone. The
+  shared venv's editable install of the `kingsec` package resolves imports
+  to the real repository's path regardless of the current working
+  directory, so running `pytest` from inside the clone risked silently
+  testing the REAL repository's source rather than the clone's — an
+  ambiguity worth avoiding rather than glossing over. Instead, content-hash
+  equality (normalizing CRLF/LF, since Git on this Windows machine
+  reports line-ending differences for every one of these files on every
+  phase) was verified directly between the real repository's post-commit
+  state and the clone's three Phase 30 files: all three were confirmed
+  byte-identical after normalization. Given that equivalence, running the
+  test suites via the real repository (now at the identical HEAD,
+  `5be975a`) is evidentially equivalent to running them inside the clone
+  for the purpose of validating the Phase 30 fix's correctness — the
+  distinction that matters (ruff/mypy exercising the clone's own files
+  directly, Sections above) was preserved precisely where import-path
+  ambiguity was not a concern.
+  Result: all 37 targeted tests passed; all 81 Phase 24-28 regression
+  tests passed; full suite exited 0 with zero `F`/`E` markers observed (
+  exact total count [CANNOT BE VERIFIED], per the same recurring
+  environment limitation, Section 5).
+
+================================================================================
+16. DOCKER CLEANUP
+================================================================================
+
+[TESTED] Removed: `kingsec:phase31-clean-head`, `kingsec:phase31-marker-
+  test` (both via `docker rmi`); confirmed via `docker images kingsec`
+  showing only the three pre-existing tags remain (`2.0.0`'s image ID
+  unchanged throughout). Container `kingsec-phase31-test`, volume
+  `kingsec-data-phase31`, and network `phase31_docker_default` — all
+  removed via `docker compose down -v`; confirmed via `docker ps -a`/
+  `docker volume ls` showing only the pre-existing `kingsec-data`,
+  `kingsec-data-phase09`, `kingsec-data-phase12` volumes and the
+  unrelated, pre-existing `buildx_buildkit_default` container/volume
+  remain, exactly matching Section 2's starting inventory. Disposable
+  clones (`kingsec-phase31-clean`, `kingsec-phase31-marker`) and their
+  parent directories were fully removed via `rm -rf`, confirmed absent
+  afterward. The disposable `.env` file was deleted after use. No `docker
+  system prune`, `docker volume prune`, or `docker container prune` was
+  used at any point.
+
+================================================================================
+17. PRODUCTION-SAFETY VERIFICATION
+================================================================================
+
+  No production deployment:      [TESTED] No Docker command targeted
+                                  anything other than uniquely-named,
+                                  disposable Phase-31 resources; the real
+                                  `kingsec` container name and
+                                  `kingsec-data` volume were never
+                                  referenced by any command this phase
+                                  issued.
+  No Cloudflare deployment:      [TESTED] No Cloudflare-related command,
+                                  credential, or API call was made.
+  No Turso mutation:              [TESTED] No database connection to any
+                                  Turso endpoint was made; all database
+                                  activity used disposable local SQLite
+                                  files inside disposable containers.
+  No Resend mutation:              [TESTED] No email/Resend-related command
+                                  or credential was used.
+  No Gmail mutation:                [TESTED] No Gmail-related command or
+                                  credential was used.
+  No production credentials
+    accessed:                       [TESTED] No `.env` other than the
+                                  disposable, freshly-generated one was
+                                  read or written; the real repository's
+                                  own `.env` (gitignored) was never opened,
+                                  read, or referenced.
+  No production database touched:    [TESTED] Section 16.
+  No production container touched:    [TESTED] Section 16.
+  No production volume touched:      [TESTED] Section 16.
+  No push performed:               [TESTED] No `git push` command was
+                                  executed at any point; `git branch -vv`
+                                  before and after both show `main`
+                                  tracking `origin/main` with the local
+                                  branch ahead by exactly one commit (the
+                                  Phase 30 commit) and never pushed.
+
+================================================================================
+18. FINAL GIT STATE
+================================================================================
+
+  HEAD:            5be975ab76204e37b4af9f92abeb23daa1197d94
+                    (exactly one commit beyond the Phase 30/Phase-31-
+                    starting HEAD, `ab3a037...`) [TESTED]
+  Branch:          main, `[origin/main: ahead 1]` — confirms no push
+                    occurred [TESTED]
+  `git diff --check`: exit code 0 [TESTED]
+  `git stash list`: empty — no persistent stash [TESTED]
+
+  `git status --short` (final): the three Phase 30 files no longer appear
+  (committed); all 13 pre-existing Phase 24-27/29 modified/untracked
+  entries remain present, byte-for-byte unchanged from Section 2's
+  starting inventory — confirmed by direct comparison of the two
+  `git status --short` outputs.
+
+  No file outside `Dockerfile`, `src/kingsec/adapters/inbound/web/
+  health_routes.py`, and `tests/unit/adapters/inbound/web/test_routes.py`
+  was staged or committed. No `git reset`, `git clean`, or persistent
+  `git stash` was used at any point in this phase.
+
+================================================================================
+19. REMAINING LIMITATIONS
+================================================================================
+
+- Pytest execution for the regression/full-suite validation used the real
+  repository's shared virtual environment rather than an isolated
+  installation inside the disposable clone, for the import-resolution
+  reason explained in Section 15. This was mitigated by verifying exact
+  content-hash equality of the three committed files between the clone and
+  the real repository before relying on this equivalence — not merely
+  assumed.
+
+- The full-suite pytest run's exact final numeric pass count could not be
+  captured in this environment for the seventh consecutive phase (Section
+  5/15) — a confirmed, reproducible environment limitation, unrelated to
+  this or any prior phase's changes.
+
+- The Docker build from the clean clone took noticeably longer (~5-6
+  minutes) than a cached rebuild, consistent with the cache-invalidation
+  trade-off Phase 30's own report already disclosed (the frontend stage's
+  new `git archive`-based extraction invalidates on every commit, mirroring
+  the backend stage's pre-existing, already-accepted behavior). This is
+  expected, not a defect.
+
+- Per this phase's own rules, no other Phase 24-29 work was modified,
+  reviewed for changes beyond confirming it remains untouched, or
+  otherwise altered.
+
+================================================================================
+20. EXPLICIT CONFIRMATION
+================================================================================
+
+  No push:                    [TESTED] Section 17/18.
+  No production deployment:    [TESTED] Section 17.
+  No production credentials:   [TESTED] Section 17.
+  No production database:      [TESTED] Section 17.
+  No destructive cleanup:      [TESTED] No `git reset`, `git clean`,
+                                persistent `git stash`, `docker system
+                                prune`, `docker volume prune`, or `docker
+                                container prune` was used at any point.
+  No unrelated files committed: [TESTED] Section 3/4/18 — exactly three
+                                files, verified via `git show --stat` and
+                                re-confirmed via `git diff HEAD^ HEAD`.
+
+================================================================================
+SUCCESS CRITERIA
+================================================================================
+
+  A. Phase 30 commit created exactly once:                MET [TESTED]
+  B. Commit contains exactly the three intended files:     MET [TESTED]
+  C. Clean Git HEAD checkout reproduces successfully:       MET [TESTED]
+  D. Docker image from clean HEAD contains the backend fix: MET [TESTED]
+  E. Docker image from clean HEAD contains committed
+     frontend content:                                      MET [TESTED]
+  F. First-run clean-HEAD deployment succeeds:               MET [TESTED]
+  G. 31 migrations apply successfully:                       MET [TESTED]
+  H. Container becomes healthy:                              MET [TESTED]
+  I. GET /api/v1/health returns HTTP 200 {"status":"ok"}:     MET [TESTED]
+  J. Exactly one effective health implementation exists:      MET [TESTED]
+  K. Ruff passes:                                             MET [TESTED]
+  L. MyPy passes:                                             MET [TESTED]
+  M. Applicable regression suites pass:                       MET [TESTED]
+  N. Full pytest completes without observed failures/errors:  MET [TESTED]
+     (exact total count CANNOT BE VERIFIED, per Section 5/15/19)
+  O. No unrelated behavior/files changed:                     MET [TESTED]
+  P. No production resources touched:                         MET [TESTED]
+  Q. No push performed:                                       MET [TESTED]
+  R. Disposable Docker resources completely cleaned up:       MET [TESTED]
+
+All eighteen success criteria are met.

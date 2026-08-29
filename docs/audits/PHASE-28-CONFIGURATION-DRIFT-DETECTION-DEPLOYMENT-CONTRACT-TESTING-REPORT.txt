@@ -1,0 +1,524 @@
+================================================================================
+KINGSEC — PHASE 28: CONFIGURATION DRIFT DETECTION & DEPLOYMENT-CONTRACT TESTING
+FINAL REPORT
+================================================================================
+
+Every factual claim is labeled:
+  [TESTED]               — actually executed and the result observed in this phase
+  [INFERRED]              — derived from reading code/config, not executed
+  [NOT TESTED]            — in scope but not exercised in this phase
+  [CANNOT BE VERIFIED]    — cannot be determined by available means
+
+Success criterion achieved: A — a real configuration-contract regression gap
+was found (zero existing automated protection against the exact Phase 26/27
+drift class), and the smallest effective automated guard was implemented and
+proven, both against a synthetic reproduction of the historical defect shape
+and against a realistic future-drift scenario injected into a disposable
+copy of the real file (the real file itself was never touched by the proof).
+
+No commit, staging, push, or deployment occurred (Section 16). No source or
+runtime code was modified — this phase is purely additive: one new,
+test-only file. No secret value was ever printed, logged, or included in
+this report.
+
+================================================================================
+1. EXACT FILES MODIFIED
+================================================================================
+
+Added (new, untracked):
+  - tests/unit/infrastructure/config/test_deployment_contract.py
+
+No other file was modified. No `.env.example`, `README.md`, `docs/INSTALL.md`,
+`Settings`, `docker-compose.yml`, `Dockerfile`, or Alembic file was touched —
+this phase found the existing content of all of them to already be correct
+(Phase 27's own fixes), and added only a test that would catch future
+regression in that correctness.
+
+Left exactly as their respective phases delivered them (confirmed
+byte-identical, Section 3):
+  Phase 24: rotate_secrets.py, encrypted_file_secret_provider.py,
+    test_secret_providers.py, tests/unit/infrastructure/secrets/
+    test_encrypted_file_secret_provider.py
+  Phase 25: config/models.py, config/settings.py, test_composition.py,
+    test_web_integration.py
+  Phase 26: infrastructure/auth/provisioning.py, infrastructure/secrets/
+    provisioning.py, tests/unit/infrastructure/auth/test_provisioning.py,
+    tests/unit/infrastructure/secrets/test_provisioning.py
+  Phase 27: .env.example, README.md, docs/INSTALL.md
+
+Pre-existing untracked files from earlier phases, left untouched:
+  PHASE-25/26/27 report files, docker-build-log.txt, 3 docs/audits/*.md
+  files, kingsec-image.tar, rebuild-frontend.ps1.
+
+[TESTED — confirmed via `git status --short`/`git diff --stat` before and
+after, Sections 2 and 15.]
+
+================================================================================
+2. STARTING GIT STATE
+================================================================================
+
+[TESTED, recorded before any Phase 28 action]
+
+  HEAD:          ab3a037cb3deaeac9f45ff3fc4c472c8bb610cff
+  Branch:        main
+  Ahead/behind:  up to date with origin/main
+
+  Modified tracked files (12): .env.example, README.md, docs/INSTALL.md
+    (Phase 27), rotate_secrets.py (Phase 24), infrastructure/auth/
+    provisioning.py (Phase 26), config/models.py, config/settings.py
+    (Phase 25), encrypted_file_secret_provider.py (Phase 24),
+    infrastructure/secrets/provisioning.py (Phase 26), test_web_integration.py,
+    test_composition.py (Phase 25), test_secret_providers.py (Phase 24).
+
+  Untracked (11): 3 phase report files (Phase 25/26/27), docker-build-log.txt,
+    3 docs/audits/*.md files, kingsec-image.tar, rebuild-frontend.ps1,
+    tests/unit/infrastructure/auth/ (Phase 25/26), tests/unit/infrastructure/
+    secrets/ (Phase 24/26).
+
+  `git diff` (full, all 12 files) was captured in full per Step 1's explicit
+  instruction; its content matches exactly the sum of Phase 24, 25, 26, and
+  27's own previously-reported diffs (Section 3) — no unexpected hunk was
+  present in any file.
+
+  No unexpected modification found.
+
+================================================================================
+3. PHASE 24/25/26/27 BASELINE VERIFICATION
+================================================================================
+
+[TESTED] `git diff --stat` per phase's file set, before any Phase 28 action:
+  Phase 24: 43 / 23 / 6 changed lines (rotate_secrets.py /
+    encrypted_file_secret_provider.py / test_secret_providers.py) — 3 files,
+    56 insertions(+), 16 deletions(-).
+  Phase 25: 13 / 6 / 11 / 8 changed lines (models.py / settings.py /
+    test_composition.py / test_web_integration.py) — 4 files, 33
+    insertions(+), 5 deletions(-).
+  Phase 26: 62 / 21 changed lines (auth/provisioning.py / secrets/
+    provisioning.py) — 2 files, 79 insertions(+), 4 deletions(-).
+  Phase 27: 35 / 14 / 10 changed lines (.env.example / README.md /
+    docs/INSTALL.md) — 3 files, 46 insertions(+), 13 deletions(-).
+
+All four figures are byte-for-byte identical to every prior phase's own
+final report. Re-checked again at the end of this phase (Section 15):
+unchanged. None of Phase 24/25/26/27's files were modified this phase.
+
+================================================================================
+4. CONFIGURATION-CONTRACT INVENTORY
+================================================================================
+
+Mapped fresh this phase [TESTED via direct code reading and live
+introspection, not inferred]:
+
+  KINGSEC_JWT__SECRET_KEY
+    → real Settings field (JWTSettings.secret_key)
+    → validated in 2 layers: Settings._guard_default_secrets_in_production
+      (placeholder + 32-byte minimum, production-only) and
+      register_auth() (placeholder + empty, every environment — Phase
+      25/26)
+    → consumed by JWTTokenService via register_auth()
+    → runtime effect: signs/verifies all JWTs
+
+  KINGSEC_SECRETS__API_KEY_PEPPER
+    → real Settings field (SecretsSettings.api_key_pepper)
+    → same two-layer validation pattern as above, mirrored in
+      register_api_key_auth()
+    → consumed by HmacApiKeyHasher
+    → runtime effect: hashes/verifies API keys
+
+  KINGSEC_SECRETS__ENCRYPTION_KEY
+    → real Settings field (SecretsSettings.encryption_key, Optional[SecretStr])
+    → validated in register_secrets() (missing/empty/malformed/wrong-length,
+      every environment — Phase 26)
+    → consumed by FernetEncryptionService
+    → runtime effect: encrypts/decrypts stored secrets
+
+  KINGSEC_APP__ENVIRONMENT
+    → real Settings field (AppSettings.environment)
+    → gates the production-only branch of the guard above
+    → Compose-only behavior: docker-compose.yml's own `environment:` block
+      hardcodes this to `production` unconditionally, which — confirmed
+      empirically in Phase 27 via `docker compose config` — always wins
+      over whatever `.env`/`env_file:` supplies for the same key. This is
+      intentional (the shipped compose file is explicitly a production
+      artifact) and is now documented in `.env.example` (Phase 27).
+
+  KINGSEC_STORAGE__DATABASE_URL
+    → NOT a Settings field (confirmed by introspection: StorageSettings has
+      only `data_dir`)
+    → migration-only variable, read via raw `os.environ.get()` in
+      `kingsec/alembic/env.py::_resolve_database_url()`
+    → setting it makes the running server raise `ConfigError: ... Extra
+      inputs are not permitted` (Settings' `extra="forbid"` on nested
+      groups)
+    → this is the one variable this phase's new guard explicitly allowlists
+      as a deliberate, documented exception (Section 8).
+
+  KINGSEC_STORAGE__DATA_DIR
+    → real Settings field (StorageSettings.data_dir)
+    → consumed by both the running server (`build_sqlite_url()`) and, as a
+      fallback, Alembic migrations
+
+  ALEMBIC_DATABASE_URL
+    → NOT `KINGSEC_`-namespaced, deliberately outside the Settings contract
+      by design (a plain Alembic/CI convention)
+    → highest-precedence override in `_resolve_database_url()`
+    → out of this phase's guard's scope by construction (the guard only
+      inspects `KINGSEC_*` tokens), which is correct: it was never meant to
+      be a Settings field and documenting it that way was never the defect.
+
+This inventory matches Phase 26/27's own findings exactly; no new
+contract-mapping surprise was found this phase. What was missing, and is
+now added, is an automated mechanism that keeps this map's "documented ⇄
+real field" correspondence honest going forward (Section 5/8).
+
+================================================================================
+5. EXISTING AUTOMATED PROTECTION DISCOVERED
+================================================================================
+
+[TESTED, via exhaustive `grep` across the entire `tests/` tree]:
+  - Zero test files reference `.env.example`.
+  - Zero test files perform `Settings.model_fields` (or any other)
+    introspection to cross-check documentation.
+  - Zero test files reference `docker-compose.yml` or parse Compose
+    configuration.
+  - Zero test files reference `README.md` or `docs/INSTALL.md`.
+  - Exactly one test file (`tests/integration/test_alembic_migrations.py`)
+    references `ALEMBIC_DATABASE_URL` — read directly to confirm its usage:
+    it sets that variable purely as a mechanism to point Alembic's own
+    migration tests at a temporary SQLite file. It does not validate
+    documentation accuracy, Settings-field correspondence, or anything
+    resembling a configuration contract.
+
+Conclusion: before this phase, NO automated mechanism of any kind protected
+against the Phase 26/27 class of drift (a `KINGSEC_*` variable documented
+somewhere that does not correspond to a real, current `Settings` field, or
+the reverse). This is not an inference from absence of evidence — it is a
+direct, exhaustive search result across the full test tree.
+
+================================================================================
+6. CONFIGURATION-DRIFT FINDINGS
+================================================================================
+
+Finding 1 [TESTED, CONFIRMED GAP]: no automated test would have caught
+Phase 26's original defect (`KINGSEC_STORAGE__DATABASE_URL` documented in
+`.env.example` as a general database override when it is not a `Settings`
+field) at the time it was introduced, nor would it catch an equivalent
+future defect (a typo, a rename left undocumented, a phantom variable) in
+any of `.env.example`, `README.md`, or `docs/INSTALL.md` today. Proven by
+Section 5's exhaustive search plus a direct reproduction (Section 10).
+
+Finding 2 [TESTED, NOT A GAP]: the three real documentation files, as they
+stand today (post-Phase-27), contain zero `KINGSEC_*` mismatches when
+checked against the live `Settings.model_fields` tree, with the one known,
+intentional exception (`KINGSEC_STORAGE__DATABASE_URL`) correctly excluded.
+[TESTED — Section 11's parametrized test passes against all three real
+files.]
+
+No other drift-detection gap was found. Docker Compose's production-forcing
+behavior (already documented as of Phase 27) was not found to need its own
+automated guard this phase — Option C (parsing `docker-compose.yml` to
+verify the override "remains intentional and documented") would require
+either a fragile YAML-diff-against-prose comparison or a hand-maintained
+duplicate of the one hardcoded line, and no evidence surfaced this phase
+that the existing single-file, single-line hardcoding is actually at risk
+of drifting silently — unlike the `.env.example`/README/INSTALL triple-
+duplication that already drifted twice. Per Step 5's "choose ONLY the
+smallest approach justified by the evidence," Option C was not implemented.
+
+================================================================================
+7. ROOT CAUSE
+================================================================================
+
+Same root cause Phase 27 already identified: `.env.example`, `README.md`,
+and `docs/INSTALL.md` are three independently-maintained, hand-written
+descriptions of the same configuration surface, with nothing that
+mechanically ties any of them back to the real `Settings` field set. Phase
+28's specific finding is that this was never a solvable-by-vigilance problem
+— it was a solvable-by-automation problem with no automation in place. The
+gap is a missing test, not a missing runtime check: `Settings`' own
+`extra="forbid"` behavior already correctly rejects an unrecognized field at
+runtime (that mechanism was never broken); what was missing was anything
+that checks the *documentation* against that same real field set *before* a
+human notices the mismatch in production.
+
+================================================================================
+8. EXACT CHANGES MADE
+================================================================================
+
+Added `tests/unit/infrastructure/config/test_deployment_contract.py`
+(Option A + a small, directly-coupled complement of Option B — see design
+rationale below; Option C and D were considered and explicitly not
+implemented, Section 6).
+
+Contents:
+  - `_real_settings_field_paths()`: introspects the live
+    `Settings.model_fields` tree (same technique Phase 26/27 used ad hoc)
+    to compute every `KINGSEC_<GROUP>__<FIELD>` path the code actually
+    accepts — never a hand-maintained list.
+  - `_documented_vars(text)`: extracts every `KINGSEC_[A-Z0-9_]+` token from
+    a documentation file's raw text via a single, simple regex.
+  - `_DOCUMENTED_NON_SETTINGS_VARS`: a one-entry, explicitly-commented
+    allowlist (`KINGSEC_STORAGE__DATABASE_URL`) for the one variable that is
+    deliberately documented but is not, and should not be, a `Settings`
+    field.
+  - `TestDetectionLogicCatchesTheHistoricalDefectShape` (3 tests): proves
+    the detection function itself works, using synthetic input that
+    reproduces the historical defect's exact shape, independent of the
+    current (already-correct) state of any real file.
+  - `TestDeploymentDocumentationMatchesRealSettingsFields` (1 parametrized
+    test, 3 cases): the actual regression guard — runs the same detection
+    logic against the real, current `.env.example`, `README.md`, and
+    `docs/INSTALL.md`.
+  - `TestMigrationOnlyVariablesRemainRejectedByTheRunningServer` (2 tests):
+    pins the complementary direction of the same contract — that
+    `KINGSEC_STORAGE__DATABASE_URL` is still actually rejected by `Settings`
+    today (not just documented as rejected), and that the allowlist itself
+    contains no now-stale entries (a name that has since become a real
+    field would be flagged here, not silently pass).
+
+Design rationale: Option A (documented-variable-is-a-real-field check) is
+the direct, evidence-driven match for the exact defect that occurred twice
+(Phase 26 in `.env.example`, Phase 27 found the same defect duplicated into
+README.md and docs/INSTALL.md). The two small tests pinning the allowlist's
+own correctness are a minimal, tightly-coupled complement addressing the
+Primary Question's explicit reverse case ("a migration-only environment
+variable is accidentally treated as a server setting") — not a separate
+Option B implementation, but the other half of the same allowlist's
+integrity. Option C (Compose-override contract test) and Option D (general
+documentation-claim parsing) were both explicitly not implemented, per
+Section 6's reasoning and Step 5's "do not automatically implement all
+four" instruction. No `Settings` field, validator, provisioning function,
+Docker file, or Alembic file was touched — this is purely a new, test-side
+file, matching Step 5's "TEST THE CONTRACT... do NOT make runtime
+application code responsible for documentation."
+
+================================================================================
+9. TESTS ADDED/CHANGED
+================================================================================
+
+Added (all in the one new file, 8 tests total):
+  TestDetectionLogicCatchesTheHistoricalDefectShape
+    - test_flags_a_documented_variable_that_is_not_a_real_field
+    - test_flags_a_completely_invented_variable_name
+    - test_does_not_flag_a_real_field_or_the_known_exception
+  TestDeploymentDocumentationMatchesRealSettingsFields
+    - test_documented_variables_are_real_fields_or_known_exceptions
+      [.env.example, README.md, docs/INSTALL.md] (parametrized, 3 cases)
+  TestMigrationOnlyVariablesRemainRejectedByTheRunningServer
+    - test_documented_non_settings_var_is_still_rejected
+      [KINGSEC_STORAGE__DATABASE_URL] (parametrized, 1 case)
+    - test_allowlist_has_no_stale_entries
+
+No existing test was modified. No existing test's assertions changed.
+
+[TESTED] `pytest tests/unit/infrastructure/config/test_deployment_contract.py -v`
+→ 8 passed.
+
+================================================================================
+10. FAILURE-BEFORE/FIX-AFTER EVIDENCE
+================================================================================
+
+Failure boundary reproduced BEFORE any guard existed [TESTED, Section 5]:
+exhaustive search confirmed zero existing tests would have caught the
+historical `.env.example` defect, or would catch an equivalent one today.
+
+Guard catches the defect, demonstrated two ways:
+
+  (a) [TESTED] Synthetic reproduction, in-process, of the exact historical
+      defect shape (`TestDetectionLogicCatchesTheHistoricalDefectShape`):
+      passing `"KINGSEC_STORAGE__DATABASE_URL overrides DATA_DIR..."` through
+      the detection logic with no allowlist applied correctly flags it as a
+      mismatch; a completely invented name
+      (`KINGSEC_MADE_UP__NONSENSE`) is also correctly flagged; a real field
+      plus the allowlisted exception together produce zero mismatches.
+
+  (b) [TESTED] Direct empirical reproduction against a disposable copy of
+      the real file (the actual `.env.example` was never modified): the
+      real file's current content was first confirmed to produce zero
+      mismatches; a temporary copy was then created with one additional,
+      realistic simulated-drift line appended
+      (`KINGSEC_SECRETS__KEY_PEPPER=...`, simulating a field rename left
+      undocumented — one of the Primary Question's own named examples).
+      Running the identical detection logic against that copy correctly
+      identified `KINGSEC_SECRETS__KEY_PEPPER` as a mismatch. The real
+      `.env.example` file was read but never written to during this proof.
+
+Guard verified against the real, current configuration [TESTED, Section 11]:
+with the guard now added as a permanent test, `pytest tests/unit/
+infrastructure/config/test_deployment_contract.py -v` passes all 8 cases,
+including the 3 real-file parametrized cases — confirming the guard does
+not raise a false positive against the actual, already-correct repository
+state.
+
+================================================================================
+11. COMPLETE VALIDATION MATRIX
+================================================================================
+
+  [TESTED] `pytest tests/unit/infrastructure/config/test_deployment_contract.py -v`
+  → 8 passed.
+
+  [TESTED] `./.venv/Scripts/python.exe -m ruff check .` (full repo, including
+  the new test file) → "All checks passed!"
+
+  [TESTED] `./.venv/Scripts/python.exe -m mypy src` → "Success: no issues
+  found in 585 source files" (unchanged — the new file is under `tests/`,
+  outside this project's established `mypy src` gate scope, consistent with
+  every other test file in the repository).
+
+  [TESTED] Phase 24 regression suite (`test_secret_api.py`,
+  `test_secret_use_cases.py`, `test_encrypted_file_secret_provider.py`,
+  `test_secret_providers.py`) → 43 passed, 0 failed.
+
+  [TESTED] Phase 25/26 regression suite (`test_composition.py`,
+  `test_web_integration.py`, `tests/unit/infrastructure/auth/
+  test_provisioning.py`, `tests/unit/infrastructure/secrets/
+  test_provisioning.py`) → 36 passed, 0 failed.
+
+  [TESTED] `pytest tests/unit/infrastructure/config/ -q` (the full config
+  test directory, confirming the new file collects and passes alongside
+  the three pre-existing files with no name collision or fixture conflict)
+  → all passed.
+
+  [TESTED] `./.venv/Scripts/python.exe -m pytest tests/ -q` (full suite,
+  `--color=no`): exit code 0; pytest reached completion (warnings summary
+  and `-- Docs:` trailer both printed); zero `F`/`E` markers appeared
+  anywhere in the captured output. The literal final numeric pass count was
+  NOT captured — the same output-capture limitation on very large pytest
+  runs that Phases 25, 26, and 27 all independently reproduced, confirmed
+  unrelated to any code change (it also reproduces on a bare
+  `--collect-only` run with no test execution at all). Exact total:
+  [CANNOT BE VERIFIED]. The dedicated sub-suite runs above did capture
+  exact counts (8, 43, 36).
+
+================================================================================
+12. DOCKER BEHAVIOR, IF APPLICABLE
+================================================================================
+
+Not applicable — no Docker testing was performed this phase, per Step 8's
+own explicit instruction ("Only perform Docker testing if the phase
+actually changes something that Docker behavior could exercise"). This
+phase's only change is one new, test-only Python file exercised entirely
+by `pytest` against the live `Settings` class and the repository's own
+files on disk; it does not touch `docker-compose.yml`, `Dockerfile`, any
+provisioning function, or any runtime code path, so no Docker-observable
+behavior exists to validate. [INFERRED from the fact that the diff (Section
+15) touches only one new test file, and TESTED indirectly by Section 11's
+full-suite pass showing no other behavior changed either.]
+
+================================================================================
+13. SECURITY IMPLICATIONS
+================================================================================
+
+  Prevents configuration drift:              YES, for the specific,
+    evidenced class (a `KINGSEC_*` name documented but not a real field, or
+    the reverse) across the three files that have already drifted once.
+    [TESTED, Section 10.]
+  Accidentally blocks legitimate configuration: NO — the guard only reads
+    files and introspects `Settings`; it never runs as part of application
+    startup and cannot reject any real deployment. A brand-new, genuinely
+    intentional migration-only or Compose-only variable would require one
+    explicit, visible line added to `_DOCUMENTED_NON_SETTINGS_VARS` — a
+    deliberate maintainer action, not an accidental block. [INFERRED from
+    the guard's own structure; TESTED indirectly in that the guard does not
+    touch any runtime code path.]
+  Weakens any security control:              NO. No `Settings` validator,
+    provisioning function, or fail-closed behavior was touched.
+  Exposes secret values:                     NO. The guard only ever
+    inspects variable *names* (via regex on `KINGSEC_[A-Z0-9_]+`, which
+    matches identifiers, never values) and Settings' own field structure.
+    The one test that sets an actual environment variable
+    (`test_documented_non_settings_var_is_still_rejected`) uses a synthetic,
+    clearly-non-secret placeholder string and asserts only on the exception
+    message's mention of "extra"/"not permitted" — never on or via the
+    value itself.
+  Logs secret values:                        NO — same reasoning; nothing
+    in this test file logs anything.
+  Creates false confidence:                  Deliberately scoped to avoid
+    this: the report and the test file's own docstrings state plainly that
+    this guard checks NAME correspondence only (does a documented `KINGSEC_*`
+    token exist as a real field or a known exception) — it does NOT verify
+    that a documentation comment's prose is factually accurate (e.g., it
+    would not have caught the wording defect Phase 26/27 fixed by itself,
+    only the underlying name-existence question). This limitation is stated
+    explicitly, not left implicit.
+  Introduces fragile parsing:                Minimized: the only parsing is
+    a single, simple regex matching the project's own fixed, unambiguous
+    naming convention (`KINGSEC_` prefix, uppercase, underscores) — the same
+    convention already used successfully for this exact purpose in Phase
+    26 and Phase 27's own ad hoc audits. It does not parse Markdown
+    structure, YAML, or prose semantics (Option D, explicitly avoided).
+
+================================================================================
+14. REMAINING LIMITATIONS
+================================================================================
+
+- The guard checks name correspondence, not documentation accuracy. It
+  would not automatically catch a comment that misdescribes a real field's
+  actual behavior (the exact kind of prose-level defect Phase 26/27 also
+  fixed) — only that the name itself is either real or a deliberately
+  allowlisted exception. Closing that gap would require prose/behavior
+  parsing, which Step 5's Option D and this phase's own evidence-based
+  minimalism explicitly caution against implementing without much stronger
+  justification than exists today.
+
+- Option C (an automated check that Docker Compose's production-forcing
+  override "remains intentional and documented") was not implemented — no
+  evidence surfaced this phase that this single hardcoded line is at
+  meaningful risk of silent drift, unlike the three-file documentation
+  duplication that already drifted twice. If a future phase's own
+  evidence-driven investigation finds this assumption wrong, that would be
+  the moment to add it — not preemptively here.
+
+- The ~70 legitimate, currently-undocumented `Settings` fields (mostly
+  `integrations.*`, `performance.*`) remain out of scope, exactly as Phase
+  27 and this phase's own instructions specify — the new guard does not
+  flag them, by design, since flagging "real field not yet documented" was
+  never the demonstrated problem (the problem was the reverse: documented
+  names that are not real fields).
+
+- The full-suite pytest run's exact final numeric pass count could not be
+  captured in this environment for the fourth consecutive phase (Section
+  11) — a confirmed, reproducible environment limitation, unrelated to
+  this or any prior phase's changes.
+
+- Per this phase's own rules, Phase 24's secret-rotation design, Phase 25's
+  composition-root placeholder guard, Phase 26's empty-secret/error-quality
+  fixes, and Phase 27's documentation corrections were not touched and
+  remain exactly as those phases left them (Section 3).
+
+================================================================================
+15. FINAL GIT STATE
+================================================================================
+
+  HEAD:            ab3a037cb3deaeac9f45ff3fc4c472c8bb610cff  (UNCHANGED)
+  Branch:          main, up to date with origin/main (UNCHANGED)
+
+  `git diff --stat` for every previously-tracked, modified file: identical,
+  byte-for-byte, to the state recorded in Section 2 (Sections 3's four
+  per-phase figures re-verified unchanged).
+
+  New untracked file added this phase:
+    tests/unit/infrastructure/config/test_deployment_contract.py
+
+  No other untracked file was added, removed, or modified. No file outside
+  the one listed in Section 1 was touched. No reset, clean, or stash was
+  used at any point in this phase.
+
+================================================================================
+16. EXPLICIT CONFIRMATION
+================================================================================
+
+  No staging:      [TESTED] `git status --short` before and after both show
+                    every pre-existing change in "not staged" form; the one
+                    new file appears only as `??` (untracked), never staged.
+                    No `git add` was executed at any point.
+  No commit:        [TESTED] `git log -1 --oneline` before and after both
+                    show the identical commit `ab3a037`.
+  No push:          [TESTED] No `git push` command was executed at any
+                    point; the branch's relationship to `origin/main`
+                    (up to date, neither ahead nor behind) is unchanged.
+  No production
+    deployment:     [TESTED] No Docker command was executed this phase at
+                    all (Section 12); no real credential, Turso, Cloudflare,
+                    Resend, Gmail, or production resource was read,
+                    displayed, or modified.
