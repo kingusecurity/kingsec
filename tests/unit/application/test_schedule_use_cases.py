@@ -130,7 +130,9 @@ class TestUpdateSchedule:
         sid = next(iter(repo._schedules.keys()))
 
         update_uc = UpdateSchedule(repo, audit)
-        result = update_uc.execute(UpdateScheduleRequest(schedule_id=sid, name="New Name"))
+        result = update_uc.execute(
+            UpdateScheduleRequest(schedule_id=sid, name="New Name", requesting_user_id="u1")
+        )
         assert result.schedule.name == "New Name"
 
     def test_update_not_found(self) -> None:
@@ -143,6 +145,45 @@ class TestUpdateSchedule:
         except Exception:
             pass
 
+    def test_update_by_admin_succeeds(self) -> None:
+        """KSEC-69-01: an admin may update any user's schedule."""
+        repo = InMemoryScheduleRepo()
+        audit = FakeAuditPublisher()
+        create_uc = CreateSchedule(repo, audit)
+        create_uc.execute(CreateScheduleRequest(name="Alice's", target="10.0.0.1", owner_user_id="alice"))
+        sid = next(iter(repo._schedules.keys()))
+
+        uc = UpdateSchedule(repo, audit)
+        result = uc.execute(
+            UpdateScheduleRequest(schedule_id=sid, name="Renamed by admin", requesting_user_id="admin1", is_admin=True)
+        )
+        assert result.schedule.name == "Renamed by admin"
+
+    def test_update_by_non_owner_non_admin_raises_not_found(self) -> None:
+        """KSEC-69-01: a non-owner, non-admin cannot update another user's
+        schedule - and the failure is indistinguishable from "not found"."""
+        from kingsec.application.errors import ScheduleNotFoundError
+
+        repo = InMemoryScheduleRepo()
+        audit = FakeAuditPublisher()
+        create_uc = CreateSchedule(repo, audit)
+        create_uc.execute(CreateScheduleRequest(name="Alice's", target="10.0.0.1", owner_user_id="alice"))
+        sid = next(iter(repo._schedules.keys()))
+        audit.entries.clear()
+
+        uc = UpdateSchedule(repo, audit)
+        try:
+            uc.execute(
+                UpdateScheduleRequest(schedule_id=sid, name="hijacked", requesting_user_id="mallory")
+            )
+            raise AssertionError("should raise ScheduleNotFoundError")
+        except ScheduleNotFoundError:
+            pass
+
+        # No mutation, no audit entry for the rejected attempt.
+        assert repo.find_by_id(sid).name == "Alice's"
+        assert audit.entries == []
+
 
 class TestDeleteSchedule:
     def test_delete_existing(self) -> None:
@@ -153,7 +194,7 @@ class TestDeleteSchedule:
         sid = next(iter(repo._schedules.keys()))
 
         delete_uc = DeleteSchedule(repo, audit)
-        result = delete_uc.execute(DeleteScheduleRequest(schedule_id=sid))
+        result = delete_uc.execute(DeleteScheduleRequest(schedule_id=sid, requesting_user_id="u1"))
         assert result.success
         assert repo.find_by_id(sid) is None
         assert audit.entries[1].action == AuditAction.SCHEDULE_DELETED
@@ -165,6 +206,40 @@ class TestDeleteSchedule:
         result = uc.execute(DeleteScheduleRequest(schedule_id="nonexistent"))
         assert not result.success
 
+    def test_delete_by_admin_succeeds(self) -> None:
+        """KSEC-69-01: an admin may delete any user's schedule."""
+        repo = InMemoryScheduleRepo()
+        audit = FakeAuditPublisher()
+        create_uc = CreateSchedule(repo, audit)
+        create_uc.execute(CreateScheduleRequest(name="Alice's", target="10.0.0.1", owner_user_id="alice"))
+        sid = next(iter(repo._schedules.keys()))
+
+        uc = DeleteSchedule(repo, audit)
+        result = uc.execute(DeleteScheduleRequest(schedule_id=sid, requesting_user_id="admin1", is_admin=True))
+        assert result.success
+        assert repo.find_by_id(sid) is None
+
+    def test_delete_by_non_owner_non_admin_reports_failure_not_success(self) -> None:
+        """KSEC-69-01: a non-owner, non-admin cannot delete another user's
+        schedule. DeleteSchedule's own established "not found" shape is
+        success=False (not an exception, unlike its siblings) - the
+        ownership-denial case deliberately mirrors that exact shape so a
+        non-owner cannot distinguish "doesn't exist" from "isn't yours"."""
+        repo = InMemoryScheduleRepo()
+        audit = FakeAuditPublisher()
+        create_uc = CreateSchedule(repo, audit)
+        create_uc.execute(CreateScheduleRequest(name="Alice's", target="10.0.0.1", owner_user_id="alice"))
+        sid = next(iter(repo._schedules.keys()))
+        audit.entries.clear()
+
+        uc = DeleteSchedule(repo, audit)
+        result = uc.execute(DeleteScheduleRequest(schedule_id=sid, requesting_user_id="mallory"))
+        assert not result.success
+
+        # No deletion, no audit entry for the rejected attempt.
+        assert repo.find_by_id(sid) is not None
+        assert audit.entries == []
+
 
 class TestPauseSchedule:
     def test_pause(self) -> None:
@@ -175,10 +250,42 @@ class TestPauseSchedule:
         sid = next(iter(repo._schedules.keys()))
 
         uc = PauseSchedule(repo, audit)
-        result = uc.execute(PauseScheduleRequest(schedule_id=sid))
+        result = uc.execute(PauseScheduleRequest(schedule_id=sid, requesting_user_id="u1"))
         assert result.schedule.paused is True
         assert result.schedule.status == "paused"
         assert audit.entries[1].action == AuditAction.SCHEDULE_PAUSED
+
+    def test_pause_by_admin_succeeds(self) -> None:
+        repo = InMemoryScheduleRepo()
+        audit = FakeAuditPublisher()
+        create_uc = CreateSchedule(repo, audit)
+        create_uc.execute(CreateScheduleRequest(name="Alice's", target="10.0.0.1", owner_user_id="alice"))
+        sid = next(iter(repo._schedules.keys()))
+
+        uc = PauseSchedule(repo, audit)
+        result = uc.execute(PauseScheduleRequest(schedule_id=sid, requesting_user_id="admin1", is_admin=True))
+        assert result.schedule.paused is True
+
+    def test_pause_by_non_owner_non_admin_raises_not_found(self) -> None:
+        """KSEC-69-01: must not change status, must not record an audit entry."""
+        from kingsec.application.errors import ScheduleNotFoundError
+
+        repo = InMemoryScheduleRepo()
+        audit = FakeAuditPublisher()
+        create_uc = CreateSchedule(repo, audit)
+        create_uc.execute(CreateScheduleRequest(name="Alice's", target="10.0.0.1", owner_user_id="alice"))
+        sid = next(iter(repo._schedules.keys()))
+        audit.entries.clear()
+
+        uc = PauseSchedule(repo, audit)
+        try:
+            uc.execute(PauseScheduleRequest(schedule_id=sid, requesting_user_id="mallory"))
+            raise AssertionError("should raise ScheduleNotFoundError")
+        except ScheduleNotFoundError:
+            pass
+
+        assert repo.find_by_id(sid).paused is False
+        assert audit.entries == []
 
 
 class TestResumeSchedule:
@@ -190,12 +297,45 @@ class TestResumeSchedule:
         sid = next(iter(repo._schedules.keys()))
 
         pause_uc = PauseSchedule(repo, audit)
-        pause_uc.execute(PauseScheduleRequest(schedule_id=sid))
+        pause_uc.execute(PauseScheduleRequest(schedule_id=sid, requesting_user_id="u1"))
 
         resume_uc = ResumeSchedule(repo, audit)
-        result = resume_uc.execute(ResumeScheduleRequest(schedule_id=sid))
+        result = resume_uc.execute(ResumeScheduleRequest(schedule_id=sid, requesting_user_id="u1"))
         assert result.schedule.paused is False
         assert result.schedule.status == "active"
+
+    def test_resume_by_admin_succeeds(self) -> None:
+        repo = InMemoryScheduleRepo()
+        audit = FakeAuditPublisher()
+        create_uc = CreateSchedule(repo, audit)
+        create_uc.execute(CreateScheduleRequest(name="Alice's", target="10.0.0.1", owner_user_id="alice"))
+        sid = next(iter(repo._schedules.keys()))
+        PauseSchedule(repo, audit).execute(PauseScheduleRequest(schedule_id=sid, requesting_user_id="alice"))
+
+        uc = ResumeSchedule(repo, audit)
+        result = uc.execute(ResumeScheduleRequest(schedule_id=sid, requesting_user_id="admin1", is_admin=True))
+        assert result.schedule.paused is False
+
+    def test_resume_by_non_owner_non_admin_raises_not_found(self) -> None:
+        from kingsec.application.errors import ScheduleNotFoundError
+
+        repo = InMemoryScheduleRepo()
+        audit = FakeAuditPublisher()
+        create_uc = CreateSchedule(repo, audit)
+        create_uc.execute(CreateScheduleRequest(name="Alice's", target="10.0.0.1", owner_user_id="alice"))
+        sid = next(iter(repo._schedules.keys()))
+        PauseSchedule(repo, audit).execute(PauseScheduleRequest(schedule_id=sid, requesting_user_id="alice"))
+        audit.entries.clear()
+
+        uc = ResumeSchedule(repo, audit)
+        try:
+            uc.execute(ResumeScheduleRequest(schedule_id=sid, requesting_user_id="mallory"))
+            raise AssertionError("should raise ScheduleNotFoundError")
+        except ScheduleNotFoundError:
+            pass
+
+        assert repo.find_by_id(sid).paused is True
+        assert audit.entries == []
 
 
 class TestEnableDisable:
@@ -207,14 +347,78 @@ class TestEnableDisable:
         sid = next(iter(repo._schedules.keys()))
 
         disable_uc = DisableSchedule(repo, audit)
-        dresult = disable_uc.execute(DisableScheduleRequest(schedule_id=sid))
+        dresult = disable_uc.execute(DisableScheduleRequest(schedule_id=sid, requesting_user_id="u1"))
         assert dresult.schedule.enabled is False
         assert dresult.schedule.status == "disabled"
 
         enable_uc = EnableSchedule(repo, audit)
-        eresult = enable_uc.execute(EnableScheduleRequest(schedule_id=sid))
+        eresult = enable_uc.execute(EnableScheduleRequest(schedule_id=sid, requesting_user_id="u1"))
         assert eresult.schedule.enabled is True
         assert eresult.schedule.status == "active"
+
+    def test_disable_by_admin_succeeds(self) -> None:
+        repo = InMemoryScheduleRepo()
+        audit = FakeAuditPublisher()
+        create_uc = CreateSchedule(repo, audit)
+        create_uc.execute(CreateScheduleRequest(name="Alice's", target="10.0.0.1", owner_user_id="alice"))
+        sid = next(iter(repo._schedules.keys()))
+
+        uc = DisableSchedule(repo, audit)
+        result = uc.execute(DisableScheduleRequest(schedule_id=sid, requesting_user_id="admin1", is_admin=True))
+        assert result.schedule.enabled is False
+
+    def test_disable_by_non_owner_non_admin_raises_not_found(self) -> None:
+        from kingsec.application.errors import ScheduleNotFoundError
+
+        repo = InMemoryScheduleRepo()
+        audit = FakeAuditPublisher()
+        create_uc = CreateSchedule(repo, audit)
+        create_uc.execute(CreateScheduleRequest(name="Alice's", target="10.0.0.1", owner_user_id="alice"))
+        sid = next(iter(repo._schedules.keys()))
+        audit.entries.clear()
+
+        uc = DisableSchedule(repo, audit)
+        try:
+            uc.execute(DisableScheduleRequest(schedule_id=sid, requesting_user_id="mallory"))
+            raise AssertionError("should raise ScheduleNotFoundError")
+        except ScheduleNotFoundError:
+            pass
+
+        assert repo.find_by_id(sid).enabled is True
+        assert audit.entries == []
+
+    def test_enable_by_admin_succeeds(self) -> None:
+        repo = InMemoryScheduleRepo()
+        audit = FakeAuditPublisher()
+        create_uc = CreateSchedule(repo, audit)
+        create_uc.execute(CreateScheduleRequest(name="Alice's", target="10.0.0.1", owner_user_id="alice"))
+        sid = next(iter(repo._schedules.keys()))
+        DisableSchedule(repo, audit).execute(DisableScheduleRequest(schedule_id=sid, requesting_user_id="alice"))
+
+        uc = EnableSchedule(repo, audit)
+        result = uc.execute(EnableScheduleRequest(schedule_id=sid, requesting_user_id="admin1", is_admin=True))
+        assert result.schedule.enabled is True
+
+    def test_enable_by_non_owner_non_admin_raises_not_found(self) -> None:
+        from kingsec.application.errors import ScheduleNotFoundError
+
+        repo = InMemoryScheduleRepo()
+        audit = FakeAuditPublisher()
+        create_uc = CreateSchedule(repo, audit)
+        create_uc.execute(CreateScheduleRequest(name="Alice's", target="10.0.0.1", owner_user_id="alice"))
+        sid = next(iter(repo._schedules.keys()))
+        DisableSchedule(repo, audit).execute(DisableScheduleRequest(schedule_id=sid, requesting_user_id="alice"))
+        audit.entries.clear()
+
+        uc = EnableSchedule(repo, audit)
+        try:
+            uc.execute(EnableScheduleRequest(schedule_id=sid, requesting_user_id="mallory"))
+            raise AssertionError("should raise ScheduleNotFoundError")
+        except ScheduleNotFoundError:
+            pass
+
+        assert repo.find_by_id(sid).enabled is False
+        assert audit.entries == []
 
 
 class TestTriggerScheduleNow:
@@ -227,9 +431,43 @@ class TestTriggerScheduleNow:
         sid = next(iter(repo._schedules.keys()))
 
         uc = TriggerScheduleNow(repo, job_svc, audit)
-        result = uc.execute(TriggerScheduleNowRequest(schedule_id=sid))
+        result = uc.execute(TriggerScheduleNowRequest(schedule_id=sid, requesting_user_id="u1"))
         assert result.job_id.startswith("job-")
         assert len(job_svc.jobs) == 1
+
+    def test_trigger_by_admin_succeeds(self) -> None:
+        repo = InMemoryScheduleRepo()
+        audit = FakeAuditPublisher()
+        job_svc = FakeJobService()
+        create_uc = CreateSchedule(repo, audit)
+        create_uc.execute(CreateScheduleRequest(name="Alice's", target="10.0.0.1", owner_user_id="alice"))
+        sid = next(iter(repo._schedules.keys()))
+
+        uc = TriggerScheduleNow(repo, job_svc, audit)
+        result = uc.execute(TriggerScheduleNowRequest(schedule_id=sid, requesting_user_id="admin1", is_admin=True))
+        assert result.job_id.startswith("job-")
+        assert len(job_svc.jobs) == 1
+
+    def test_trigger_by_non_owner_non_admin_raises_not_found(self) -> None:
+        from kingsec.application.errors import ScheduleNotFoundError
+
+        repo = InMemoryScheduleRepo()
+        audit = FakeAuditPublisher()
+        job_svc = FakeJobService()
+        create_uc = CreateSchedule(repo, audit)
+        create_uc.execute(CreateScheduleRequest(name="Alice's", target="10.0.0.1", owner_user_id="alice"))
+        sid = next(iter(repo._schedules.keys()))
+        audit.entries.clear()
+
+        uc = TriggerScheduleNow(repo, job_svc, audit)
+        try:
+            uc.execute(TriggerScheduleNowRequest(schedule_id=sid, requesting_user_id="mallory"))
+            raise AssertionError("should raise ScheduleNotFoundError")
+        except ScheduleNotFoundError:
+            pass
+
+        assert len(job_svc.jobs) == 0
+        assert audit.entries == []
 
     def test_trigger_not_found(self) -> None:
         repo = InMemoryScheduleRepo()
@@ -277,8 +515,35 @@ class TestGetSchedule:
         sid = next(iter(repo._schedules.keys()))
 
         uc = GetSchedule(repo)
-        result = uc.execute(GetScheduleRequest(schedule_id=sid))
+        result = uc.execute(GetScheduleRequest(schedule_id=sid, requesting_user_id="u1"))
         assert result.schedule.name == "Test"
+
+    def test_get_by_admin_succeeds(self) -> None:
+        repo = InMemoryScheduleRepo()
+        audit = FakeAuditPublisher()
+        create_uc = CreateSchedule(repo, audit)
+        create_uc.execute(CreateScheduleRequest(name="Alice's", target="10.0.0.1", owner_user_id="alice"))
+        sid = next(iter(repo._schedules.keys()))
+
+        uc = GetSchedule(repo)
+        result = uc.execute(GetScheduleRequest(schedule_id=sid, requesting_user_id="admin1", is_admin=True))
+        assert result.schedule.name == "Alice's"
+
+    def test_get_by_non_owner_non_admin_raises_not_found(self) -> None:
+        from kingsec.application.errors import ScheduleNotFoundError
+
+        repo = InMemoryScheduleRepo()
+        audit = FakeAuditPublisher()
+        create_uc = CreateSchedule(repo, audit)
+        create_uc.execute(CreateScheduleRequest(name="Alice's", target="10.0.0.1", owner_user_id="alice"))
+        sid = next(iter(repo._schedules.keys()))
+
+        uc = GetSchedule(repo)
+        try:
+            uc.execute(GetScheduleRequest(schedule_id=sid, requesting_user_id="mallory"))
+            raise AssertionError("should raise ScheduleNotFoundError")
+        except ScheduleNotFoundError:
+            pass
 
     def test_get_not_found(self) -> None:
         repo = InMemoryScheduleRepo()

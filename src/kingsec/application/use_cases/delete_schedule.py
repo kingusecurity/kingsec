@@ -19,6 +19,16 @@ class DeleteSchedule:
         if existing is None:
             return DeleteScheduleResponse(success=False)
 
+        # KSEC-69-01: deliberately returns the identical success=False
+        # this use case already returns for "doesn't exist" above, rather
+        # than raising ScheduleNotFoundError (the pattern every sibling
+        # use case uses) - this use case's own established not-found
+        # shape is a boolean result, not an exception, so a non-owner
+        # must see that same shape or the two cases would become
+        # distinguishable from each other.
+        if not (request.is_admin or (existing.owner_user_id and existing.owner_user_id == request.requesting_user_id)):
+            return DeleteScheduleResponse(success=False)
+
         self._repository.delete(request.schedule_id)
 
         self._audit_publisher.record(

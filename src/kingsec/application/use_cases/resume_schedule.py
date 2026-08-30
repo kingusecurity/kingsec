@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from kingsec.application._support import check_schedule_access
 from kingsec.application.ports.outbound.audit_publisher import AuditPublisher
 from kingsec.application.ports.outbound.schedule_repository import ScheduleRepositoryPort
 from kingsec.domain.audit import AuditAction, AuditEntry
@@ -24,6 +25,9 @@ class ResumeSchedule:
             from kingsec.application.errors import ScheduleNotFoundError
 
             raise ScheduleNotFoundError(f"schedule '{request.schedule_id}' not found")
+
+        # KSEC-69-01: authorization before the status transition.
+        check_schedule_access(existing, request.requesting_user_id, request.is_admin)
 
         updated = ScanSchedule(
             id=existing.id,

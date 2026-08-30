@@ -270,7 +270,13 @@ async def get_schedule(
     current_user: CurrentUser = Depends(require_role(Role.VIEWER)),
     get_uc: GetSchedule = Depends(_get_get_schedule_uc),
 ) -> CreateScheduleResponse:
-    result = get_uc.execute(GetScheduleRequest(schedule_id=schedule_id))
+    result = get_uc.execute(
+        GetScheduleRequest(
+            schedule_id=schedule_id,
+            requesting_user_id=current_user.user_id,
+            is_admin=current_user.role == Role.ADMIN,
+        )
+    )
     s = result.schedule
     return CreateScheduleResponse(
         schedule=ScheduleViewResponse(
@@ -326,6 +332,8 @@ async def update_schedule(
             retry_strategy=body.retry_strategy,
             max_retries=body.max_retries,
             retry_delay_seconds=body.retry_delay_seconds,
+            requesting_user_id=current_user.user_id,
+            is_admin=current_user.role == Role.ADMIN,
         )
     )
     s = result.schedule
@@ -372,6 +380,7 @@ async def delete_schedule(
         DeleteScheduleRequest(
             schedule_id=schedule_id,
             requesting_user_id=current_user.user_id,
+            is_admin=current_user.role == Role.ADMIN,
         )
     )
     return DeleteScheduleResponse(success=result.success)
@@ -393,6 +402,7 @@ async def pause_schedule(
         PauseScheduleRequest(
             schedule_id=schedule_id,
             requesting_user_id=current_user.user_id,
+            is_admin=current_user.role == Role.ADMIN,
         )
     )
     s = result.schedule
@@ -439,6 +449,7 @@ async def resume_schedule(
         ResumeScheduleRequest(
             schedule_id=schedule_id,
             requesting_user_id=current_user.user_id,
+            is_admin=current_user.role == Role.ADMIN,
         )
     )
     s = result.schedule
@@ -485,6 +496,7 @@ async def enable_schedule(
         EnableScheduleRequest(
             schedule_id=schedule_id,
             requesting_user_id=current_user.user_id,
+            is_admin=current_user.role == Role.ADMIN,
         )
     )
     s = result.schedule
@@ -531,6 +543,7 @@ async def disable_schedule(
         DisableScheduleRequest(
             schedule_id=schedule_id,
             requesting_user_id=current_user.user_id,
+            is_admin=current_user.role == Role.ADMIN,
         )
     )
     s = result.schedule
@@ -577,6 +590,7 @@ async def trigger_schedule(
         TriggerScheduleNowRequest(
             schedule_id=schedule_id,
             requesting_user_id=current_user.user_id,
+            is_admin=current_user.role == Role.ADMIN,
         )
     )
     s = result.schedule

@@ -65,6 +65,8 @@ class UpdateScheduleRequest:
     retry_strategy: str | None = None
     max_retries: int | None = None
     retry_delay_seconds: int | None = None
+    requesting_user_id: str = ""
+    is_admin: bool = False
 
 
 @dataclass(frozen=True)
@@ -76,6 +78,7 @@ class UpdateScheduleResponse:
 class DeleteScheduleRequest:
     schedule_id: str
     requesting_user_id: str = ""
+    is_admin: bool = False
 
 
 @dataclass(frozen=True)
@@ -87,6 +90,7 @@ class DeleteScheduleResponse:
 class PauseScheduleRequest:
     schedule_id: str
     requesting_user_id: str = ""
+    is_admin: bool = False
 
 
 @dataclass(frozen=True)
@@ -98,6 +102,7 @@ class PauseScheduleResponse:
 class ResumeScheduleRequest:
     schedule_id: str
     requesting_user_id: str = ""
+    is_admin: bool = False
 
 
 @dataclass(frozen=True)
@@ -109,6 +114,7 @@ class ResumeScheduleResponse:
 class EnableScheduleRequest:
     schedule_id: str
     requesting_user_id: str = ""
+    is_admin: bool = False
 
 
 @dataclass(frozen=True)
@@ -120,6 +126,7 @@ class EnableScheduleResponse:
 class DisableScheduleRequest:
     schedule_id: str
     requesting_user_id: str = ""
+    is_admin: bool = False
 
 
 @dataclass(frozen=True)
@@ -131,6 +138,7 @@ class DisableScheduleResponse:
 class TriggerScheduleNowRequest:
     schedule_id: str
     requesting_user_id: str = ""
+    is_admin: bool = False
 
 
 @dataclass(frozen=True)
@@ -154,6 +162,7 @@ class ListSchedulesResponse:
 class GetScheduleRequest:
     schedule_id: str
     requesting_user_id: str = ""
+    is_admin: bool = False
 
 
 @dataclass(frozen=True)

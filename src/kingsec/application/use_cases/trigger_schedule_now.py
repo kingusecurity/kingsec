@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from kingsec.application._support import check_schedule_access
 from kingsec.application.ports.job_service import JobServicePort
 from kingsec.application.ports.outbound.audit_publisher import AuditPublisher
 from kingsec.application.ports.outbound.schedule_repository import ScheduleRepositoryPort
@@ -30,6 +31,9 @@ class TriggerScheduleNow:
             from kingsec.application.errors import ScheduleNotFoundError
 
             raise ScheduleNotFoundError(f"schedule '{request.schedule_id}' not found")
+
+        # KSEC-69-01: authorization before the scanner job is submitted.
+        check_schedule_access(existing, request.requesting_user_id, request.is_admin)
 
         job = self._job_service.submit_scan(target=existing.target, config={"schedule_id": str(existing.id)})
         now = datetime.now(UTC).isoformat()

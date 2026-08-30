@@ -61,25 +61,46 @@ class InMemoryScheduleRepo(ScheduleRepositoryPort):
         self._schedules.pop(schedule_id, None)
 
 
-async def override_get_current_user() -> CurrentUser:
-    return CurrentUser(
-        user_id="u1",
-        username="admin",
-        role=Role.ADMIN,
-        claims=TokenClaims(
-            user_id="u1",
-            username="admin",
-            role="admin",
-            token_type="access",
-            jti="admin_jti",
-            issued_at=None,
-            expires_at=None,
-        ),
-    )
+class ActorHolder:
+    """Mutable holder for the currently-authenticated test user.
+
+    KSEC-69-01: the owner/non-owner/admin matrix needs to swap identities
+    mid-test (e.g. Alice creates a schedule, then Mallory calls the same
+    endpoint) without rebuilding the app/TestClient. Since the FastAPI
+    dependency override closes over this same object, mutating its fields
+    changes who the *next* request is authenticated as.
+    """
+
+    def __init__(self, user_id: str = "u1", role: Role = Role.ADMIN) -> None:
+        self.user_id = user_id
+        self.role = role
+
+    def as_current_user(self) -> CurrentUser:
+        return CurrentUser(
+            user_id=self.user_id,
+            username=self.user_id,
+            role=self.role,
+            claims=TokenClaims(
+                user_id=self.user_id,
+                username=self.user_id,
+                role=self.role.name.lower(),
+                token_type="access",
+                jti=f"{self.user_id}_jti",
+                issued_at=None,
+                expires_at=None,
+            ),
+        )
 
 
 @pytest.fixture
-def app() -> FastAPI:
+def actor() -> ActorHolder:
+    """Defaults to the original hardcoded identity (ADMIN "u1") so every
+    pre-existing test in this file keeps working unmodified."""
+    return ActorHolder(user_id="u1", role=Role.ADMIN)
+
+
+@pytest.fixture
+def app(actor: ActorHolder) -> FastAPI:
     container = Container()
 
     repo = InMemoryScheduleRepo()
@@ -143,8 +164,12 @@ def app() -> FastAPI:
         ensure_directories=False,
     )
 
+    async def override_get_current_user() -> CurrentUser:
+        return actor.as_current_user()
+
     fastapi_app = FastAPI()
     fastapi_app.state.kingsec_app = application
+    fastapi_app.state.audit = audit
     fastapi_app.dependency_overrides[get_current_user] = override_get_current_user
 
     from kingsec.adapters.inbound.web.schedule_routes import router
@@ -357,3 +382,373 @@ class TestCreateScheduleBodyMaxLengthBoundary:
         # description was never updated.
         get_resp = client.get(f"/api/v1/schedules/{sid}")
         assert get_resp.json()["schedule"]["description"] == ""
+
+
+class TestScheduleOwnershipAuthorization:
+    """Phase 70 / KSEC-69-01: real-HTTP-route owner/non-owner/admin matrix.
+
+    Alice owns the schedule under test throughout. Every operation is
+    proven three ways: Alice (owner) succeeds, Mallory (unrelated
+    ANALYST) is denied with no side effect and no audit entry, and Admin
+    succeeds regardless of ownership.
+    """
+
+    def _create_as_alice(self, client: TestClient, actor: ActorHolder, name: str = "Alice's Schedule") -> str:
+        actor.user_id = "alice"
+        actor.role = Role.ANALYST
+        resp = client.post("/api/v1/schedules", json={"name": name, "target": "10.99.99.99"})
+        assert resp.status_code == 201, resp.text
+        return str(resp.json()["schedule"]["id"])
+
+    # ---- GET ----
+
+    def test_get_owner_success(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+        resp = client.get(f"/api/v1/schedules/{sid}")
+        assert resp.status_code == 200
+        assert resp.json()["schedule"]["name"] == "Alice's Schedule"
+
+    def test_get_non_owner_denied(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+        app.state.audit.entries.clear()
+
+        actor.user_id = "mallory"
+        actor.role = Role.ANALYST
+        resp = client.get(f"/api/v1/schedules/{sid}")
+        assert resp.status_code == 404
+        assert app.state.audit.entries == []
+
+    def test_get_admin_success(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+
+        actor.user_id = "admin1"
+        actor.role = Role.ADMIN
+        resp = client.get(f"/api/v1/schedules/{sid}")
+        assert resp.status_code == 200
+        assert resp.json()["schedule"]["name"] == "Alice's Schedule"
+
+    # ---- PUT (update) ----
+
+    def test_update_owner_success(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+        resp = client.put(f"/api/v1/schedules/{sid}", json={"name": "Renamed by Alice"})
+        assert resp.status_code == 200
+        assert resp.json()["schedule"]["name"] == "Renamed by Alice"
+
+    def test_update_non_owner_denied(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+        app.state.audit.entries.clear()
+
+        actor.user_id = "mallory"
+        actor.role = Role.ANALYST
+        resp = client.put(f"/api/v1/schedules/{sid}", json={"name": "hijacked"})
+        assert resp.status_code == 404
+        assert app.state.audit.entries == []
+
+        # No mutation: Alice still sees her original name.
+        actor.user_id = "alice"
+        actor.role = Role.ANALYST
+        get_resp = client.get(f"/api/v1/schedules/{sid}")
+        assert get_resp.json()["schedule"]["name"] == "Alice's Schedule"
+
+    def test_update_admin_success(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+
+        actor.user_id = "admin1"
+        actor.role = Role.ADMIN
+        resp = client.put(f"/api/v1/schedules/{sid}", json={"name": "Renamed by admin"})
+        assert resp.status_code == 200
+        assert resp.json()["schedule"]["name"] == "Renamed by admin"
+
+    # ---- DELETE ----
+    # KSEC-69-01 / deliberate deviation: DeleteSchedule's own pre-existing
+    # "not found" shape is HTTP 200 {"success": false} (not a raised
+    # exception / 404, unlike every sibling operation). The ownership
+    # denial mirrors that exact pre-existing shape so a non-owner cannot
+    # distinguish "doesn't exist" from "isn't yours" - it does NOT return
+    # 404 here, and that is by design, not a shortfall.
+
+    def test_delete_owner_success(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+        resp = client.delete(f"/api/v1/schedules/{sid}")
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+        assert client.get(f"/api/v1/schedules/{sid}").status_code == 404
+
+    def test_delete_non_owner_denied(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+        app.state.audit.entries.clear()
+
+        actor.user_id = "mallory"
+        actor.role = Role.ANALYST
+        resp = client.delete(f"/api/v1/schedules/{sid}")
+        assert resp.status_code == 200
+        assert resp.json()["success"] is False
+        assert app.state.audit.entries == []
+
+        # No deletion: Alice's schedule still exists.
+        actor.user_id = "alice"
+        actor.role = Role.ANALYST
+        assert client.get(f"/api/v1/schedules/{sid}").status_code == 200
+
+    def test_delete_admin_success(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+
+        actor.user_id = "admin1"
+        actor.role = Role.ADMIN
+        resp = client.delete(f"/api/v1/schedules/{sid}")
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+
+    # ---- pause / resume ----
+
+    def test_pause_owner_success(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+        resp = client.post(f"/api/v1/schedules/{sid}/pause")
+        assert resp.status_code == 200
+        assert resp.json()["schedule"]["paused"] is True
+
+    def test_pause_non_owner_denied(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+        app.state.audit.entries.clear()
+
+        actor.user_id = "mallory"
+        actor.role = Role.ANALYST
+        resp = client.post(f"/api/v1/schedules/{sid}/pause")
+        assert resp.status_code == 404
+        assert app.state.audit.entries == []
+
+        actor.user_id = "alice"
+        actor.role = Role.ANALYST
+        assert client.get(f"/api/v1/schedules/{sid}").json()["schedule"]["paused"] is False
+
+    def test_pause_admin_success(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+
+        actor.user_id = "admin1"
+        actor.role = Role.ADMIN
+        resp = client.post(f"/api/v1/schedules/{sid}/pause")
+        assert resp.status_code == 200
+        assert resp.json()["schedule"]["paused"] is True
+
+    def test_resume_owner_success(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+        client.post(f"/api/v1/schedules/{sid}/pause")
+        resp = client.post(f"/api/v1/schedules/{sid}/resume")
+        assert resp.status_code == 200
+        assert resp.json()["schedule"]["paused"] is False
+
+    def test_resume_non_owner_denied(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+        client.post(f"/api/v1/schedules/{sid}/pause")
+        app.state.audit.entries.clear()
+
+        actor.user_id = "mallory"
+        actor.role = Role.ANALYST
+        resp = client.post(f"/api/v1/schedules/{sid}/resume")
+        assert resp.status_code == 404
+        assert app.state.audit.entries == []
+
+        actor.user_id = "alice"
+        actor.role = Role.ANALYST
+        assert client.get(f"/api/v1/schedules/{sid}").json()["schedule"]["paused"] is True
+
+    def test_resume_admin_success(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+        client.post(f"/api/v1/schedules/{sid}/pause")
+
+        actor.user_id = "admin1"
+        actor.role = Role.ADMIN
+        resp = client.post(f"/api/v1/schedules/{sid}/resume")
+        assert resp.status_code == 200
+        assert resp.json()["schedule"]["paused"] is False
+
+    # ---- enable / disable ----
+
+    def test_disable_owner_success(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+        resp = client.post(f"/api/v1/schedules/{sid}/disable")
+        assert resp.status_code == 200
+        assert resp.json()["schedule"]["enabled"] is False
+
+    def test_disable_non_owner_denied(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+        app.state.audit.entries.clear()
+
+        actor.user_id = "mallory"
+        actor.role = Role.ANALYST
+        resp = client.post(f"/api/v1/schedules/{sid}/disable")
+        assert resp.status_code == 404
+        assert app.state.audit.entries == []
+
+        actor.user_id = "alice"
+        actor.role = Role.ANALYST
+        assert client.get(f"/api/v1/schedules/{sid}").json()["schedule"]["enabled"] is True
+
+    def test_disable_admin_success(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+
+        actor.user_id = "admin1"
+        actor.role = Role.ADMIN
+        resp = client.post(f"/api/v1/schedules/{sid}/disable")
+        assert resp.status_code == 200
+        assert resp.json()["schedule"]["enabled"] is False
+
+    def test_enable_owner_success(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+        client.post(f"/api/v1/schedules/{sid}/disable")
+        resp = client.post(f"/api/v1/schedules/{sid}/enable")
+        assert resp.status_code == 200
+        assert resp.json()["schedule"]["enabled"] is True
+
+    def test_enable_non_owner_denied(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+        client.post(f"/api/v1/schedules/{sid}/disable")
+        app.state.audit.entries.clear()
+
+        actor.user_id = "mallory"
+        actor.role = Role.ANALYST
+        resp = client.post(f"/api/v1/schedules/{sid}/enable")
+        assert resp.status_code == 404
+        assert app.state.audit.entries == []
+
+        actor.user_id = "alice"
+        actor.role = Role.ANALYST
+        assert client.get(f"/api/v1/schedules/{sid}").json()["schedule"]["enabled"] is False
+
+    def test_enable_admin_success(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+        client.post(f"/api/v1/schedules/{sid}/disable")
+
+        actor.user_id = "admin1"
+        actor.role = Role.ADMIN
+        resp = client.post(f"/api/v1/schedules/{sid}/enable")
+        assert resp.status_code == 200
+        assert resp.json()["schedule"]["enabled"] is True
+
+    # ---- trigger ----
+
+    def test_trigger_owner_success(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+        resp = client.post(f"/api/v1/schedules/{sid}/trigger")
+        assert resp.status_code == 200
+        assert "job_id" in resp.json()
+
+    def test_trigger_non_owner_denied(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+        app.state.audit.entries.clear()
+
+        actor.user_id = "mallory"
+        actor.role = Role.ANALYST
+        resp = client.post(f"/api/v1/schedules/{sid}/trigger")
+        assert resp.status_code == 404
+        assert app.state.audit.entries == []
+
+    def test_trigger_admin_success(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+        sid = self._create_as_alice(client, actor)
+
+        actor.user_id = "admin1"
+        actor.role = Role.ADMIN
+        resp = client.post(f"/api/v1/schedules/{sid}/trigger")
+        assert resp.status_code == 200
+        assert "job_id" in resp.json()
+
+
+class TestScheduleIdorRegression:
+    """Phase 70 / Section 12: permanent regression test converting the
+    Phase 69 discovery proof (prove_schedule_idor.py) into a real,
+    committed end-to-end test - Alice creates a private schedule,
+    Mallory (an unrelated authenticated ANALYST) attempts to read,
+    modify, and delete it, and Admin retains full access throughout."""
+
+    def test_alice_mallory_admin_end_to_end(self, app: FastAPI, actor: ActorHolder) -> None:
+        client = TestClient(app)
+
+        # [1] Alice creates a private, sensitive-looking schedule.
+        actor.user_id = "alice"
+        actor.role = Role.ANALYST
+        create_resp = client.post(
+            "/api/v1/schedules",
+            json={"name": "alice-private-scan", "target": "10.99.99.99"},
+        )
+        assert create_resp.status_code == 201
+        sid = create_resp.json()["schedule"]["id"]
+        app.state.audit.entries.clear()
+
+        # [2] Mallory, an unrelated authenticated user, targets Alice's
+        # schedule by ID across every single-resource operation.
+        actor.user_id = "mallory"
+        actor.role = Role.ANALYST
+
+        get_resp = client.get(f"/api/v1/schedules/{sid}")
+        assert get_resp.status_code == 404
+
+        put_resp = client.put(f"/api/v1/schedules/{sid}", json={"name": "hijacked", "target": "evil.example.com"})
+        assert put_resp.status_code == 404
+
+        pause_resp = client.post(f"/api/v1/schedules/{sid}/pause")
+        assert pause_resp.status_code == 404
+
+        resume_resp = client.post(f"/api/v1/schedules/{sid}/resume")
+        assert resume_resp.status_code == 404
+
+        disable_resp = client.post(f"/api/v1/schedules/{sid}/disable")
+        assert disable_resp.status_code == 404
+
+        enable_resp = client.post(f"/api/v1/schedules/{sid}/enable")
+        assert enable_resp.status_code == 404
+
+        trigger_resp = client.post(f"/api/v1/schedules/{sid}/trigger")
+        assert trigger_resp.status_code == 404
+
+        delete_resp = client.delete(f"/api/v1/schedules/{sid}")
+        assert delete_resp.status_code == 200
+        assert delete_resp.json()["success"] is False
+
+        # None of Mallory's attempts produced an audit entry.
+        assert app.state.audit.entries == []
+
+        # [3] Alice's schedule is completely unaffected by any of it.
+        actor.user_id = "alice"
+        actor.role = Role.ANALYST
+        alice_view = client.get(f"/api/v1/schedules/{sid}")
+        assert alice_view.status_code == 200
+        assert alice_view.json()["schedule"]["name"] == "alice-private-scan"
+        assert alice_view.json()["schedule"]["target"] == "10.99.99.99"
+        assert alice_view.json()["schedule"]["enabled"] is True
+        assert alice_view.json()["schedule"]["paused"] is False
+
+        # [4] Admin retains full access to Alice's schedule.
+        actor.user_id = "admin1"
+        actor.role = Role.ADMIN
+        admin_view = client.get(f"/api/v1/schedules/{sid}")
+        assert admin_view.status_code == 200
+        assert admin_view.json()["schedule"]["name"] == "alice-private-scan"
+
+        admin_delete = client.delete(f"/api/v1/schedules/{sid}")
+        assert admin_delete.status_code == 200
+        assert admin_delete.json()["success"] is True

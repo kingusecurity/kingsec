@@ -18,9 +18,10 @@ from kingsec.domain import (
     Target,
     TargetType,
 )
+from kingsec.domain.schedule import ScanSchedule
 from kingsec.shared.errors import KingSecError
 
-from .errors import ApplicationError, AssessmentNotFoundError, InputValidationError
+from .errors import ApplicationError, AssessmentNotFoundError, InputValidationError, ScheduleNotFoundError
 
 
 def to_assessment_id(raw: str) -> AssessmentId:
@@ -42,6 +43,24 @@ def check_assessment_access(assessment: Assessment, requesting_user: str, is_adm
     if assessment.owner_id and assessment.owner_id == requesting_user:
         return
     raise AssessmentNotFoundError(str(assessment.id))
+
+
+def check_schedule_access(schedule: ScanSchedule, requesting_user: str, is_admin: bool) -> None:
+    """Raise ScheduleNotFoundError unless the caller owns this schedule or is Admin.
+
+    Phase 70 / Finding KSEC-69-01: mirrors check_assessment_access()
+    exactly - same fail-closed semantics (a schedule with no recorded
+    owner is Admin-only, not open to everyone), and the same choice of
+    exception, so a non-owner cannot distinguish "this schedule does not
+    exist" from "this schedule exists but belongs to someone else" -
+    both raise the identical ScheduleNotFoundError, which the web
+    adapter already maps to a generic 404.
+    """
+    if is_admin:
+        return
+    if schedule.owner_user_id and schedule.owner_user_id == requesting_user:
+        return
+    raise ScheduleNotFoundError(f"schedule '{schedule.id}' not found")
 
 
 def safe_failure_message(exc: BaseException) -> str:
