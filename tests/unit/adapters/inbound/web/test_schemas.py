@@ -6,12 +6,16 @@ import pytest
 from pydantic import ValidationError
 
 from kingsec.adapters.inbound.web.schemas import (
+    AdminResetPasswordBody,
     AssessmentResponse,
+    AssignRoleBody,
+    ChangePasswordBody,
     CreateAssessmentBody,
     ErrorResponse,
     FindingResponse,
     GenerateReportResponse,
     HealthResponse,
+    RefreshTokenBody,
     SeverityCountResponse,
     StartAssessmentResponse,
 )
@@ -79,6 +83,141 @@ class TestCreateAssessmentBody:
             CreateAssessmentBody(
                 target_value="10.0.0.5",
             )
+
+    # Phase 68 / KSEC-64-04: profile_id previously had no max_length.
+    def _make(self, **overrides) -> CreateAssessmentBody:
+        defaults = dict(
+            target_value="10.0.0.5",
+            target_type="ip_address",
+            authorized_by="admin",
+            scope="10.0.0.5",
+        )
+        defaults.update(overrides)
+        return CreateAssessmentBody(**defaults)
+
+    def test_profile_id_below_limit_accepted(self) -> None:
+        body = self._make(profile_id="x" * 127)
+        assert body.profile_id == "x" * 127
+
+    def test_profile_id_exact_limit_accepted(self) -> None:
+        body = self._make(profile_id="x" * 128)
+        assert body.profile_id == "x" * 128
+
+    def test_profile_id_above_limit_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="string_too_long"):
+            self._make(profile_id="x" * 129)
+
+
+class TestRefreshTokenBody:
+    """Phase 68 / KSEC-64-04: refresh_token previously had no max_length."""
+
+    def test_below_limit_accepted(self) -> None:
+        body = RefreshTokenBody(refresh_token="x" * 1023)
+        assert len(body.refresh_token) == 1023
+
+    def test_exact_limit_accepted(self) -> None:
+        body = RefreshTokenBody(refresh_token="x" * 1024)
+        assert len(body.refresh_token) == 1024
+
+    def test_above_limit_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="string_too_long"):
+            RefreshTokenBody(refresh_token="x" * 1025)
+
+    def test_valid_token_shaped_value_still_accepted(self) -> None:
+        """Existing behavior: a realistic JWT-shaped token still passes."""
+        body = RefreshTokenBody(refresh_token="a.b.c")
+        assert body.refresh_token == "a.b.c"
+
+
+class TestAssignRoleBody:
+    """Phase 68 / KSEC-64-04: role previously had no max_length."""
+
+    def test_below_limit_accepted(self) -> None:
+        body = AssignRoleBody(role="x" * 19)
+        assert len(body.role) == 19
+
+    def test_exact_limit_accepted(self) -> None:
+        body = AssignRoleBody(role="x" * 20)
+        assert len(body.role) == 20
+
+    def test_above_limit_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="string_too_long"):
+            AssignRoleBody(role="x" * 21)
+
+    def test_real_role_names_still_accepted(self) -> None:
+        for role in ("viewer", "analyst", "admin"):
+            assert AssignRoleBody(role=role).role == role
+
+
+class TestAdminResetPasswordBody:
+    """Phase 68 / KSEC-64-04: new_password previously had no Field()
+    constraints at all. The chosen bounds (8-128) are deliberately
+    identical to the canonical policy ChangePassword._validate_password()
+    already enforces (Phase 67 / KSEC-64-03) - not a second, competing
+    limit."""
+
+    def test_below_limit_accepted(self) -> None:
+        body = AdminResetPasswordBody(new_password="x" * 127)
+        assert len(body.new_password) == 127
+
+    def test_exact_limit_accepted(self) -> None:
+        body = AdminResetPasswordBody(new_password="x" * 128)
+        assert len(body.new_password) == 128
+
+    def test_above_limit_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="string_too_long"):
+            AdminResetPasswordBody(new_password="x" * 129)
+
+    def test_below_minimum_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="string_too_short"):
+            AdminResetPasswordBody(new_password="x" * 7)
+
+    def test_valid_password_still_accepted(self) -> None:
+        body = AdminResetPasswordBody(new_password="NewSecurePass1")
+        assert body.new_password == "NewSecurePass1"
+
+
+class TestChangePasswordBody:
+    """Phase 68 / KSEC-64-04: current_password/new_password previously
+    had no Field() constraints at all."""
+
+    def test_current_password_below_limit_accepted(self) -> None:
+        body = ChangePasswordBody(current_password="x" * 127, new_password="NewSecurePass1")
+        assert len(body.current_password) == 127
+
+    def test_current_password_exact_limit_accepted(self) -> None:
+        body = ChangePasswordBody(current_password="x" * 128, new_password="NewSecurePass1")
+        assert len(body.current_password) == 128
+
+    def test_current_password_above_limit_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="string_too_long"):
+            ChangePasswordBody(current_password="x" * 129, new_password="NewSecurePass1")
+
+    def test_current_password_short_value_still_accepted(self) -> None:
+        """current_password proves knowledge of a possibly pre-policy
+        password - it must not be forced to meet the new min_length."""
+        body = ChangePasswordBody(current_password="old", new_password="NewSecurePass1")
+        assert body.current_password == "old"
+
+    def test_new_password_below_limit_accepted(self) -> None:
+        body = ChangePasswordBody(current_password="old", new_password="x" * 127)
+        assert len(body.new_password) == 127
+
+    def test_new_password_exact_limit_accepted(self) -> None:
+        body = ChangePasswordBody(current_password="old", new_password="x" * 128)
+        assert len(body.new_password) == 128
+
+    def test_new_password_above_limit_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="string_too_long"):
+            ChangePasswordBody(current_password="old", new_password="x" * 129)
+
+    def test_new_password_below_minimum_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="string_too_short"):
+            ChangePasswordBody(current_password="old", new_password="x" * 7)
+
+    def test_valid_change_still_accepted(self) -> None:
+        body = ChangePasswordBody(current_password="oldpassword", new_password="NewSecurePass1")
+        assert body.new_password == "NewSecurePass1"
 
 
 class TestFindingResponse:

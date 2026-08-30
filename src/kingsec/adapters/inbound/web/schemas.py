@@ -67,6 +67,7 @@ class CreateAssessmentBody(BaseModel):
     )
     profile_id: str | None = Field(
         default=None,
+        max_length=128,
         description="Assessment profile to plan this scan against. Omit to run every target-compatible scanner (the pre-profile default behavior).",
         examples=["quick-scan"],
     )
@@ -292,6 +293,7 @@ class RefreshTokenBody(BaseModel):
     refresh_token: str = Field(
         ...,
         min_length=1,
+        max_length=1024,
         description="The refresh token to exchange.",
     )
 
@@ -350,6 +352,7 @@ class AssignRoleBody(BaseModel):
     role: str = Field(
         ...,
         min_length=1,
+        max_length=20,
         description="Target role: viewer, analyst, or admin.",
     )
 
@@ -486,7 +489,12 @@ class AdminResetPasswordBody(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    new_password: str
+    # Bounds match the canonical policy enforced in
+    # ChangePassword._validate_password() (Phase 67 / KSEC-64-03) - kept
+    # in sync deliberately, not duplicated as a second source of truth:
+    # this Field() only rejects obviously-invalid lengths early at the
+    # HTTP boundary, the use case still re-validates complexity itself.
+    new_password: str = Field(..., min_length=8, max_length=128)
 
 
 class ChangePasswordBody(BaseModel):
@@ -494,8 +502,13 @@ class ChangePasswordBody(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    current_password: str
-    new_password: str
+    # current_password proves knowledge of whatever password is already
+    # set - it is deliberately NOT bound by the current complexity
+    # policy's min_length, since an account's existing password may
+    # predate that policy. max_length still applies: no valid password
+    # this application could ever have set exceeds 128 characters.
+    current_password: str = Field(..., min_length=1, max_length=128)
+    new_password: str = Field(..., min_length=8, max_length=128)
 
 
 class RolePermissionResponse(BaseModel):

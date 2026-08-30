@@ -285,3 +285,75 @@ class TestScheduleAPI:
         )
         resp = client.get("/api/v1/schedules/due")
         assert resp.status_code == 200
+
+
+class TestCreateScheduleBodyMaxLengthBoundary:
+    """Phase 68 / Finding KSEC-64-04: CreateScheduleBody.schedule_type/
+    .cron_expression/.timezone/.retry_strategy previously had no
+    max_length - proves the constraint is enforced at the real HTTP
+    boundary and that a rejected request never reaches CreateSchedule /
+    the schedule store."""
+
+    def test_over_limit_schedule_type_is_rejected_at_the_http_boundary(self, app: FastAPI) -> None:
+        client = TestClient(app)
+        resp = client.post(
+            "/api/v1/schedules",
+            json={"name": "oversized", "target": "10.0.0.1", "schedule_type": "x" * 33},
+        )
+        assert resp.status_code == 422, resp.text
+        assert client.get("/api/v1/schedules").json()["items"] == []
+
+    def test_over_limit_cron_expression_is_rejected_at_the_http_boundary(self, app: FastAPI) -> None:
+        client = TestClient(app)
+        resp = client.post(
+            "/api/v1/schedules",
+            json={"name": "oversized", "target": "10.0.0.1", "cron_expression": "x" * 257},
+        )
+        assert resp.status_code == 422, resp.text
+        assert client.get("/api/v1/schedules").json()["items"] == []
+
+    def test_over_limit_timezone_is_rejected_at_the_http_boundary(self, app: FastAPI) -> None:
+        client = TestClient(app)
+        resp = client.post(
+            "/api/v1/schedules",
+            json={"name": "oversized", "target": "10.0.0.1", "timezone": "x" * 65},
+        )
+        assert resp.status_code == 422, resp.text
+        assert client.get("/api/v1/schedules").json()["items"] == []
+
+    def test_over_limit_retry_strategy_is_rejected_at_the_http_boundary(self, app: FastAPI) -> None:
+        client = TestClient(app)
+        resp = client.post(
+            "/api/v1/schedules",
+            json={"name": "oversized", "target": "10.0.0.1", "retry_strategy": "x" * 33},
+        )
+        assert resp.status_code == 422, resp.text
+        assert client.get("/api/v1/schedules").json()["items"] == []
+
+    def test_exact_limit_timezone_is_accepted_and_stored(self, app: FastAPI) -> None:
+        client = TestClient(app)
+        resp = client.post(
+            "/api/v1/schedules",
+            json={"name": "exact-limit", "target": "10.0.0.1", "timezone": "x" * 64},
+        )
+        assert resp.status_code == 201, resp.text
+        assert len(client.get("/api/v1/schedules").json()["items"]) == 1
+
+    def test_over_limit_update_description_is_rejected_at_the_http_boundary(self, app: FastAPI) -> None:
+        client = TestClient(app)
+        create_resp = client.post(
+            "/api/v1/schedules",
+            json={"name": "To Update", "target": "10.0.0.1"},
+        )
+        sid = create_resp.json()["schedule"]["id"]
+
+        resp = client.put(
+            f"/api/v1/schedules/{sid}",
+            json={"description": "x" * 1025},
+        )
+        assert resp.status_code == 422, resp.text
+
+        # Downstream side effect did not occur: the schedule's
+        # description was never updated.
+        get_resp = client.get(f"/api/v1/schedules/{sid}")
+        assert get_resp.json()["schedule"]["description"] == ""

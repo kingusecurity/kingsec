@@ -69,22 +69,33 @@ def _mask(plaintext_key: str) -> str:
 class SaveAIProviderConfigBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    provider: str = Field(..., min_length=1)
+    # 64: known provider identifiers ("openai", "anthropic") are short;
+    # generous margin for future providers.
+    provider: str = Field(..., min_length=1, max_length=64)
+    # 512: real-world third-party API key formats (OpenAI, Anthropic,
+    # etc.) are well under 200 characters; generous bound since no
+    # narrower project-defined format exists for a third-party key.
     api_key: str | None = Field(
         default=None,
+        max_length=512,
         description="Omit or leave null to keep the currently saved key unchanged.",
     )
-    model: str | None = None
-    base_url: str | None = None
+    # 128: consistent with this project's other short identifier/name
+    # fields (e.g. CreateApiKeyBody.name); model names like
+    # "claude-sonnet-4-5" are well under this.
+    model: str | None = Field(default=None, max_length=128)
+    # 2048: matches this project's existing convention for target/URL
+    # fields (CreateAssessmentBody.target_value/scope, CreateScheduleBody.target).
+    base_url: str | None = Field(default=None, max_length=2048)
 
 
 class TestAIProviderConfigBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    provider: str = Field(..., min_length=1)
-    api_key: str = Field(..., min_length=1)
-    model: str | None = None
-    base_url: str | None = None
+    provider: str = Field(..., min_length=1, max_length=64)
+    api_key: str = Field(..., min_length=1, max_length=512)
+    model: str | None = Field(default=None, max_length=128)
+    base_url: str | None = Field(default=None, max_length=2048)
 
 
 @router.get("")

@@ -189,3 +189,44 @@ class TestSecretAPI:
         data = resp.json()
         assert data["reencrypted_count"] == 1
         assert len(data["new_key_fingerprint"]) == 16
+
+
+class TestStoreSecretBodyMaxLengthBoundary:
+    """Phase 68 / Finding KSEC-64-04: StoreSecretBody.value/.secret_type
+    previously had no max_length - proves the constraint is enforced at
+    the real HTTP boundary (not merely at the Pydantic-model level) and
+    that a rejected request never reaches StoreSecret / the secret
+    store."""
+
+    def test_over_limit_value_is_rejected_at_the_http_boundary(self, app: FastAPI) -> None:
+        client = TestClient(app)
+        resp = client.post(
+            "/api/v1/admin/secrets",
+            json={"name": "oversized", "value": "x" * 8193},
+        )
+        assert resp.status_code == 422, resp.text
+
+        # Downstream side effect did not occur: nothing was ever stored.
+        listing = client.get("/api/v1/admin/secrets")
+        assert listing.json()["items"] == []
+
+    def test_over_limit_secret_type_is_rejected_at_the_http_boundary(self, app: FastAPI) -> None:
+        client = TestClient(app)
+        resp = client.post(
+            "/api/v1/admin/secrets",
+            json={"name": "oversized", "value": "v", "secret_type": "x" * 65},
+        )
+        assert resp.status_code == 422, resp.text
+        listing = client.get("/api/v1/admin/secrets")
+        assert listing.json()["items"] == []
+
+    def test_exact_limit_value_is_accepted_and_stored(self, app: FastAPI) -> None:
+        client = TestClient(app)
+        resp = client.post(
+            "/api/v1/admin/secrets",
+            json={"name": "exact-limit", "value": "x" * 8192},
+        )
+        assert resp.status_code == 201, resp.text
+
+        listing = client.get("/api/v1/admin/secrets")
+        assert len(listing.json()["items"]) == 1

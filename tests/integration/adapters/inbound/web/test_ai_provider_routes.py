@@ -182,6 +182,52 @@ class TestSaveConfig:
         assert resp.status_code == 400
 
 
+class TestSaveConfigMaxLengthBoundary:
+    """Phase 68 / Finding KSEC-64-04: SaveAIProviderConfigBody's fields
+    previously had no max_length - proves the constraint is enforced at
+    the real HTTP boundary and that a rejected request never reaches the
+    config repository (no save() call, no audit entry)."""
+
+    def test_over_limit_provider_is_rejected_at_the_http_boundary(self) -> None:
+        app, repo, audit = _build_app()
+        resp = _client(app).put(
+            "/api/v1/settings/ai-provider",
+            json={"provider": "x" * 65, "api_key": "k"},
+        )
+        assert resp.status_code == 422, resp.text
+        assert repo.get() is None
+        assert audit.entries == []
+
+    def test_over_limit_api_key_is_rejected_at_the_http_boundary(self) -> None:
+        app, repo, audit = _build_app()
+        resp = _client(app).put(
+            "/api/v1/settings/ai-provider",
+            json={"provider": "openai", "api_key": "x" * 513},
+        )
+        assert resp.status_code == 422, resp.text
+        assert repo.get() is None
+        assert audit.entries == []
+
+    def test_over_limit_base_url_is_rejected_at_the_http_boundary(self) -> None:
+        app, repo, audit = _build_app()
+        resp = _client(app).put(
+            "/api/v1/settings/ai-provider",
+            json={"provider": "openai", "api_key": "k", "base_url": "x" * 2049},
+        )
+        assert resp.status_code == 422, resp.text
+        assert repo.get() is None
+        assert audit.entries == []
+
+    def test_exact_limit_api_key_is_accepted_and_saved(self) -> None:
+        app, repo, _audit = _build_app()
+        resp = _client(app).put(
+            "/api/v1/settings/ai-provider",
+            json={"provider": "openai", "api_key": "k" * 512},
+        )
+        assert resp.status_code == 200, resp.text
+        assert repo.get() is not None
+
+
 class TestTestConnection:
     def test_unsupported_provider_fails_without_any_network_call(self) -> None:
         app, _repo, _audit = _build_app()

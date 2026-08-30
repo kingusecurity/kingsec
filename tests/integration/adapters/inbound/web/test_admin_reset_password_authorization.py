@@ -187,16 +187,24 @@ class TestAdminResetPasswordComplexity:
         return admin_token, target_id
 
     @pytest.mark.parametrize(
-        "weak_password",
+        "weak_password,expected_status",
         [
-            "",
-            "short1A",
-            "alllowercase1",
-            "ALLUPPERCASE1",
-            "NoDigitsHere",
+            # Phase 68 / KSEC-64-04: AdminResetPasswordBody.new_password
+            # now has Field(min_length=8, max_length=128), so length
+            # violations are caught earlier, at the Pydantic/HTTP
+            # boundary (422) - before the use case (and its 400
+            # PasswordValidationError) is ever reached. Complexity
+            # violations (missing uppercase/lowercase/digit) that satisfy
+            # the length bound still reach the use case and are still
+            # rejected there (400), exactly as Phase 67 established.
+            ("", 422),
+            ("short1A", 422),
+            ("alllowercase1", 400),
+            ("ALLUPPERCASE1", 400),
+            ("NoDigitsHere", 400),
         ],
     )
-    def test_admin_using_a_weak_password_is_rejected(self, weak_password: str) -> None:
+    def test_admin_using_a_weak_password_is_rejected(self, weak_password: str, expected_status: int) -> None:
         admin_token, target_id = self._admin_token_and_target()
         original_hash = self._ur.find_by_id(target_id).password_hash
 
@@ -206,9 +214,10 @@ class TestAdminResetPasswordComplexity:
             headers={"Authorization": f"Bearer {admin_token}"},
         )
 
-        assert resp.status_code == 400, resp.text
+        assert resp.status_code == expected_status, resp.text
         # Negative security evidence: the target's stored credential is
-        # unchanged, and no audit entry was recorded for a rejected reset.
+        # unchanged, and no audit entry was recorded for a rejected reset,
+        # regardless of which validation layer rejected the password.
         assert self._ur.find_by_id(target_id).password_hash == original_hash
         assert self._audit.entries == []
 

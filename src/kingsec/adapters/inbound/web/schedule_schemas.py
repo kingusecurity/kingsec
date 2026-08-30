@@ -45,10 +45,19 @@ class CreateScheduleBody(BaseModel):
     target: str = Field(..., min_length=1, max_length=2048)
     scanner_ids: list[str] = Field(default_factory=list)
     config: dict[str, object] = Field(default_factory=dict)
-    schedule_type: str = Field(default="one_time")
-    cron_expression: str = Field(default="")
-    timezone: str = Field(default="UTC")
-    retry_strategy: str = Field(default="no_retry")
+    # 32: ScheduleType's longest defined value is 8 characters
+    # ("one_time") - generous margin for future values.
+    schedule_type: str = Field(default="one_time", max_length=32)
+    # 256: standard cron syntax (5-6 whitespace-separated fields) is far
+    # shorter than this even with lists/ranges; no domain limit exists,
+    # so this is a conservative, generous bound.
+    cron_expression: str = Field(default="", max_length=256)
+    # 64: the longest real IANA timezone names (e.g.
+    # "America/Argentina/ComodRivadavia") are ~33 characters.
+    timezone: str = Field(default="UTC", max_length=64)
+    # 32: RetryStrategy's longest defined value is 8 characters
+    # ("no_retry") - generous margin for future values.
+    retry_strategy: str = Field(default="no_retry", max_length=32)
     max_retries: int = Field(default=0, ge=0)
     retry_delay_seconds: int = Field(default=0, ge=0)
 
@@ -63,14 +72,16 @@ class UpdateScheduleBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str | None = Field(default=None, min_length=1, max_length=256)
-    description: str | None = None
+    # Bounds mirror CreateScheduleBody's equivalent fields exactly - the
+    # same conceptual fields must not disagree between create and update.
+    description: str | None = Field(default=None, max_length=1024)
     target: str | None = Field(default=None, min_length=1, max_length=2048)
     scanner_ids: list[str] | None = None
     config: dict[str, object] | None = None
-    schedule_type: str | None = None
-    cron_expression: str | None = None
-    timezone: str | None = None
-    retry_strategy: str | None = None
+    schedule_type: str | None = Field(default=None, max_length=32)
+    cron_expression: str | None = Field(default=None, max_length=256)
+    timezone: str | None = Field(default=None, max_length=64)
+    retry_strategy: str | None = Field(default=None, max_length=32)
     max_retries: int | None = None
     retry_delay_seconds: int | None = None
 
