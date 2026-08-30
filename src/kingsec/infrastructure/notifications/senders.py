@@ -4,17 +4,27 @@ Each sender implements ``NotificationSenderPort`` and delivers notifications
 via its respective channel (webhook, Slack, Discord, Teams, email, in-app).
 All HTTP-based senders use ``urllib``. Sensitive configuration (SMTP password,
 webhook URLs) is stored as instance attributes but never logged.
+
+The webhook/Slack/Discord/Teams senders use ``open_validated()`` (not
+``validate_url()`` followed by a bare ``urlopen()``) for every outbound
+request (Phase 66 / Finding KSEC-64-02): validating only the initial URL
+and then following redirects with the default opener would let a
+destination that passed that initial check redirect the connection to
+an unvalidated internal address after the fact. ``open_validated()``
+validates the destination and refuses to follow any redirect at all -
+the same SSRF-safe pattern already used by the SIEM, ticketing, and
+generic webhook integrations in ``kingsec.infrastructure.integrations``.
 """
 
 from __future__ import annotations
 
 import json
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from kingsec.application.ports.outbound import NotificationSenderPort
 from kingsec.domain.notification import Notification, NotificationChannel
 from kingsec.infrastructure.logging import get_logger
-from kingsec.infrastructure.notifications.url_validator import SSRFError, validate_url
+from kingsec.infrastructure.notifications.url_validator import SSRFError, open_validated
 
 logger = get_logger("kingsec.infrastructure.notifications.senders")
 
@@ -45,7 +55,6 @@ class WebhookSender(NotificationSenderPort):
         if not url:
             return "Webhook endpoint not configured"
         try:
-            validate_url(url)
             payload = json.dumps(
                 {
                     "event": notification.event_type,
@@ -56,7 +65,7 @@ class WebhookSender(NotificationSenderPort):
             ).encode()
             req = Request(url, data=payload, method="POST")
             req.add_header("Content-Type", "application/json")
-            with urlopen(req, timeout=10):  # nosec B310 — URL is validated by validate_url() which blocks private IPs and non-http schemes
+            with open_validated(req, timeout=10):
                 pass
             return None
         except SSRFError:
@@ -79,7 +88,6 @@ class SlackSender(NotificationSenderPort):
         if not url:
             return "Slack webhook not configured"
         try:
-            validate_url(url)
             payload = json.dumps(
                 {
                     "text": f"*{notification.title}*\n{notification.message}",
@@ -87,7 +95,7 @@ class SlackSender(NotificationSenderPort):
             ).encode()
             req = Request(url, data=payload, method="POST")
             req.add_header("Content-Type", "application/json")
-            with urlopen(req, timeout=10):  # nosec B310 — URL is validated by validate_url() which blocks private IPs and non-http schemes
+            with open_validated(req, timeout=10):
                 pass
             return None
         except SSRFError:
@@ -110,7 +118,6 @@ class DiscordSender(NotificationSenderPort):
         if not url:
             return "Discord webhook not configured"
         try:
-            validate_url(url)
             payload = json.dumps(
                 {
                     "content": f"**{notification.title}**\n{notification.message}",
@@ -118,7 +125,7 @@ class DiscordSender(NotificationSenderPort):
             ).encode()
             req = Request(url, data=payload, method="POST")
             req.add_header("Content-Type", "application/json")
-            with urlopen(req, timeout=10):  # nosec B310 — URL is validated by validate_url() which blocks private IPs and non-http schemes
+            with open_validated(req, timeout=10):
                 pass
             return None
         except SSRFError:
@@ -141,7 +148,6 @@ class TeamsSender(NotificationSenderPort):
         if not url:
             return "Teams webhook not configured"
         try:
-            validate_url(url)
             payload = json.dumps(
                 {
                     "@type": "MessageCard",
@@ -153,7 +159,7 @@ class TeamsSender(NotificationSenderPort):
             ).encode()
             req = Request(url, data=payload, method="POST")
             req.add_header("Content-Type", "application/json")
-            with urlopen(req, timeout=10):  # nosec B310 — URL is validated by validate_url() which blocks private IPs and non-http schemes
+            with open_validated(req, timeout=10):
                 pass
             return None
         except SSRFError:
