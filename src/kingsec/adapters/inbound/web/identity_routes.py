@@ -10,7 +10,7 @@ from kingsec.application.errors import IdentityProviderNotFoundError
 from kingsec.application.idp.protocol_handlers import test_provider_connection
 from kingsec.application.idp.provider_service import IdentityProviderService
 
-from .auth import CurrentUser, get_current_user
+from .auth import CurrentUser, get_current_user, require_admin
 from .dependencies import get_application
 
 if TYPE_CHECKING:
@@ -57,7 +57,7 @@ async def list_providers(
 async def create_provider(
     request: Request,
     body: dict[str, Any],
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(require_admin),
 ) -> dict[str, Any]:
     if not body.get("name"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="name is required")
@@ -185,7 +185,7 @@ async def update_provider(
     provider_id: str,
     request: Request,
     body: dict[str, Any],
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(require_admin),
 ) -> dict[str, Any]:
     service = _get_idp_service(request)
     try:
@@ -209,7 +209,7 @@ async def update_provider(
 async def delete_provider(
     provider_id: str,
     request: Request,
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(require_admin),
 ) -> dict[str, Any]:
     service = _get_idp_service(request)
     try:
@@ -223,7 +223,7 @@ async def delete_provider(
 async def activate_provider(
     provider_id: str,
     request: Request,
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(require_admin),
 ) -> dict[str, Any]:
     service = _get_idp_service(request)
     try:
@@ -240,7 +240,7 @@ async def activate_provider(
 async def deactivate_provider(
     provider_id: str,
     request: Request,
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(require_admin),
 ) -> dict[str, Any]:
     service = _get_idp_service(request)
     try:

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from kingsec.domain.plugin_extensions import PluginPermission, PluginType
 
-from .auth import CurrentUser, get_current_user
+from .auth import CurrentUser, get_current_user, require_admin
 from .dependencies import get_application
 
 if TYPE_CHECKING:
@@ -83,6 +83,7 @@ def get_sdk_plugin(
 @router.post("/plugins/scan")
 def scan_plugins(
     registry: PluginRegistry = Depends(_get_registry),
+    _: CurrentUser = Depends(require_admin),
 ) -> dict[str, Any]:
     manifests = registry.discover()
     return {
@@ -95,6 +96,7 @@ def scan_plugins(
 def load_plugin(
     plugin_id: str,
     registry: PluginRegistry = Depends(_get_registry),
+    _: CurrentUser = Depends(require_admin),
 ) -> dict[str, Any]:
     runtime = registry.load_plugin(plugin_id)
     if not runtime:
@@ -115,6 +117,7 @@ def load_plugin(
 def unload_plugin(
     plugin_id: str,
     registry: PluginRegistry = Depends(_get_registry),
+    _: CurrentUser = Depends(require_admin),
 ) -> dict[str, Any]:
     registry.unload_plugin(plugin_id)
     return {"message": f"Plugin '{plugin_id}' unloaded"}

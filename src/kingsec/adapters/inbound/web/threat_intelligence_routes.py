@@ -10,7 +10,7 @@ from kingsec.application.threat_intelligence.reports import ThreatReportGenerato
 from kingsec.application.threat_intelligence.service import ThreatIntelligenceService
 from kingsec.domain.identifiers import CveId
 
-from .auth import CurrentUser, get_current_user
+from .auth import CurrentUser, get_current_user, require_analyst
 from .dependencies import get_application
 
 router = APIRouter(prefix="/api/v1", tags=["Threat Intelligence"])
@@ -109,6 +109,7 @@ async def get_cve(
 async def sync_cve(
     cve_code: str,
     service: ThreatIntelligenceService = Depends(_get_ti_service),
+    _: CurrentUser = Depends(require_analyst),
 ) -> dict[str, Any]:
     try:
         entry = await service.sync_cve(cve_code)
@@ -121,6 +122,7 @@ async def sync_cve(
 async def delete_cve(
     cve_id: str,
     service: ThreatIntelligenceService = Depends(_get_ti_service),
+    _: CurrentUser = Depends(require_analyst),
 ) -> dict[str, str]:
     try:
         await service.delete_cve(CveId(cve_id))
@@ -264,6 +266,7 @@ async def register_feed(
     title: str = Query(...),
     source_url: str = Query(""),
     service: ThreatIntelligenceService = Depends(_get_ti_service),
+    _: CurrentUser = Depends(require_analyst),
 ) -> dict[str, Any]:
     feed = await service.register_feed(feed_type, title, source_url)
     return {

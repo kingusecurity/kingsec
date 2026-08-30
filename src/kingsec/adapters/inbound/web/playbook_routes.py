@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-from .auth import CurrentUser, get_current_user
+from .auth import CurrentUser, get_current_user, require_analyst
 from .dependencies import get_application
 
 if TYPE_CHECKING:
@@ -39,6 +39,7 @@ def list_playbooks(
 def create_playbook(
     body: dict[str, Any],
     service: PlaybookService = Depends(_get_service),
+    _: CurrentUser = Depends(require_analyst),
 ) -> dict[str, Any]:
     try:
         pb = service.create_playbook(
@@ -110,6 +111,7 @@ def update_playbook(
     playbook_id: str,
     body: dict[str, Any],
     service: PlaybookService = Depends(_get_service),
+    _: CurrentUser = Depends(require_analyst),
 ) -> dict[str, Any]:
     try:
         pb = service.update_playbook(
@@ -133,6 +135,7 @@ def update_playbook(
 def delete_playbook(
     playbook_id: str,
     service: PlaybookService = Depends(_get_service),
+    _: CurrentUser = Depends(require_analyst),
 ) -> None:
     service.delete_playbook(playbook_id)
 
@@ -142,6 +145,7 @@ def execute_playbook(
     playbook_id: str,
     body: dict[str, Any] | None = None,
     service: PlaybookService = Depends(_get_service),
+    _: CurrentUser = Depends(require_analyst),
 ) -> dict[str, Any]:
     try:
         result = service.execute_playbook(
@@ -158,6 +162,7 @@ def execute_playbook(
 def enable_playbook(
     playbook_id: str,
     service: PlaybookService = Depends(_get_service),
+    _: CurrentUser = Depends(require_analyst),
 ) -> dict[str, Any]:
     try:
         pb = service.enable_playbook(playbook_id)
@@ -170,6 +175,7 @@ def enable_playbook(
 def disable_playbook(
     playbook_id: str,
     service: PlaybookService = Depends(_get_service),
+    _: CurrentUser = Depends(require_analyst),
 ) -> dict[str, Any]:
     try:
         pb = service.disable_playbook(playbook_id)
