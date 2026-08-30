@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from kingsec.application.ports import AuditPublisher, PasswordHasher, UserRepository
+from kingsec.application.use_cases.change_password import ChangePassword
 from kingsec.domain.audit import AuditAction, AuditEntry
 
 
@@ -143,6 +144,11 @@ class AdminResetPassword:
             from kingsec.domain.user import UserNotFoundError
 
             raise UserNotFoundError(request.user_id)
+        # Phase 67 / Finding KSEC-64-03: an admin-initiated reset must meet
+        # the same complexity policy as every other password-setting path
+        # (registration, self-service change) - reuses that canonical
+        # validator rather than duplicating its rules here.
+        ChangePassword._validate_password(request.new_password)
         user.password_hash = self._hasher.hash(request.new_password)
         self._users.save(user)
         self._audit.record(
