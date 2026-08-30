@@ -245,6 +245,264 @@ Periodically verify backup integrity:
 
 ---
 
+## Secret and Key Rotation
+
+KingSec relies on two distinct secrets, and they play very different
+roles. Rotating them is not the same operation and carries different
+risk profiles — read both subsections before rotating either one.
+
+### JWT Signing Secret (`KINGSEC_JWT__SECRET_KEY`)
+
+**What it protects:** this secret signs and verifies every access and
+refresh token issued to logged-in users. It does not encrypt any stored
+data.
+
+**Why rotate it:** to invalidate all currently-issued tokens at once —
+for example, after a suspected leak of the signing secret itself, or as
+routine hardening (see "Rotate secrets every 90 days" under Security
+Hardening Recommendations, below).
+
+**What happens to existing JWTs/sessions after rotation:** every
+previously-issued access and refresh token stops validating immediately.
+Every logged-in user is forced to re-authenticate. This is the entire
+point of rotating this secret — it is not a side effect, it is the
+mechanism. Plan rotation for a low-traffic window and communicate the
+forced re-login to users in advance where practical.
+
+**Procedure:**
+
+1. Generate a new secret:
+
+       python -c "import secrets; print(secrets.token_urlsafe(48))"
+
+2. Set `KINGSEC_JWT__SECRET_KEY` to the new value in your deployment's
+   environment configuration (`.env` file or orchestrator secret store).
+3. Restart the KingSec service so the new value takes effect.
+4. Confirm the service started successfully (`GET /api/v1/health` returns
+   200) and that a fresh login succeeds.
+5. Inform users that all existing sessions have been invalidated.
+
+**What NOT to do:** do not rotate this secret without expecting every
+active session to end — there is no partial or gradual rotation path for
+JWT signing.
+
+### Fernet Encryption Key (`KINGSEC_SECRETS__ENCRYPTION_KEY`)
+
+**What it protects:** this key encrypts every value stored through
+KingSec's internal secret-management subsystem (for example, third-party
+integration credentials saved via the Secrets admin API). It is
+completely separate from the JWT signing secret and from user account
+passwords (which are hashed with Argon2id, not encrypted, and are never
+affected by this key).
+
+**Primary and legacy keys:** KingSec supports one *primary* encryption
+key plus zero or more *legacy* keys, both sourced from durable
+configuration and loaded at process startup:
+
+- `KINGSEC_SECRETS__ENCRYPTION_KEY` — the primary key. All new
+  encryption uses this key.
+- `KINGSEC_SECRETS__LEGACY_ENCRYPTION_KEYS` — an ordered list of
+  retired keys, accepted for **decryption only**. A legacy key is never
+  used to encrypt new data. Populate this list when rotating the
+  primary key so that data already encrypted under an old key remains
+  readable after the restart that switches to the new one.
+
+Key rotation (changing which key is primary) and secret migration
+(re-encrypting already-stored ciphertext under the current primary key)
+are two separate, operator-controlled steps — see below.
+
+**Key rotation procedure:**
+
+1. Take a full backup first (see Backup and Restore, above) — this is
+   mandatory, not optional, for this procedure.
+2. Generate a new Fernet key *outside* the running application:
+
+       python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+   KingSec never generates this key for you — it must be supplied
+   through configuration.
+3. Take the **current** value of `KINGSEC_SECRETS__ENCRYPTION_KEY` and
+   add it to `KINGSEC_SECRETS__LEGACY_ENCRYPTION_KEYS`, so it remains
+   available for decryption during and after migration.
+4. Set `KINGSEC_SECRETS__ENCRYPTION_KEY` to the newly generated key.
+5. Restart KingSec. The application now builds its encryption service
+   from the new primary key plus the old key(s) listed as legacy —
+   existing secrets remain readable immediately after the restart
+   because the old key is still part of durable configuration.
+6. Call `POST /api/v1/admin/secrets/rotate` to migrate stored secrets.
+   This endpoint does **not** generate a key; it decrypts every stored
+   secret (using primary or legacy keys, whichever applies) and
+   re-encrypts it under the current primary key. Like before, this is a
+   safe two-pass procedure — every value is decrypted first, aborting
+   cleanly if any value fails to decrypt before anything is mutated —
+   so a call either migrates everything or leaves the store untouched.
+7. Verify a re-entered/migrated secret can still be retrieved correctly
+   before relying on it.
+
+**Legacy-key retirement:** KingSec does not automatically detect or
+prevent premature removal of a legacy key. Do not remove a key from
+`KINGSEC_SECRETS__LEGACY_ENCRYPTION_KEYS` until you have independently
+confirmed no remaining stored ciphertext still depends on it (for
+example, by calling `/secrets/rotate` and confirming it reports the
+expected number of migrated secrets). If a legacy key is removed while
+ciphertext still depends on it, that secret will fail to decrypt.
+
+**What NOT to do:**
+
+- Do not expect `POST /api/v1/admin/secrets/rotate` to generate a key
+  for you — key generation and configuration are operator steps that
+  must happen first (steps 1–5 above). The endpoint's job is migrating
+  already-stored ciphertext onto the current primary key, not producing
+  new key material.
+- Do not remove a key from `KINGSEC_SECRETS__ENCRYPTION_KEY` or
+  `KINGSEC_SECRETS__LEGACY_ENCRYPTION_KEYS` while any stored secret is
+  still encrypted under it — doing so makes that secret undecryptable.
+- Do not commit any actual secret value (JWT secret, encryption key, or
+  a stored secret's plaintext) to Git, to this documentation, or to any
+  ticket/support channel. Production credentials must never appear in
+  written documentation, source control, or logs.
+
+---
+
+## Rollback and Incident Response
+
+### A. Application Rollback
+
+Consider rolling back to a previously known-good KingSec image when a
+newly deployed version is causing errors, crashes, or a serious
+regression that cannot be quickly fixed forward.
+
+1. **Identify the previous known-good release.** Check the image tag
+   currently running (`docker inspect kingsec --format '{{.Config.Image}}'`)
+   and the tag you deployed immediately before it — your deployment
+   history or `docker images` on the host is the source of truth.
+2. **Pause normal operations where practical.** Avoid starting new
+   assessments during the rollback window; let in-flight scans finish or
+   accept that they will be interrupted.
+3. **Take a database backup before rolling back** (see Backup and
+   Restore, above) — a rollback that also needs a database restore is a
+   much bigger operation than one that doesn't.
+4. **Check database compatibility.** If the version you are rolling back
+   *from* ran any database migrations that the version you are rolling
+   back *to* does not know about, the older application code may not
+   understand the current schema. Do not assume a schema downgrade is
+   automatic or safe — see Section B below before touching migrations.
+5. **Restore the previous application image:**
+
+       docker stop kingsec
+       docker rm kingsec
+       docker run -d --name kingsec --env-file .env -p 8765:8765 \
+         -v kingsec-data:/home/kingsec/.kingsec kingsec:<previous-tag>
+
+6. **Verify health:** `curl http://127.0.0.1:8765/api/v1/health` should
+   return `200`, and the container's own Docker healthcheck should report
+   `healthy` (`docker ps` shows the container status).
+7. **Check logs** (`docker logs kingsec`) for startup errors, especially
+   schema-version mismatches.
+8. **Confirm the application is actually serving correctly** — log in,
+   load the dashboard, and confirm existing data is visible as expected,
+   not just that the health endpoint responds.
+
+### B. Database/Migration Rollback
+
+Database rollback is more sensitive than application rollback because
+data loss from a bad downgrade is often irreversible, while a bad
+application rollback is fixable by rolling forward again.
+
+- **Never assume an Alembic downgrade is safe by default.** Only run
+  `alembic downgrade` when you have specifically verified that the
+  target migration's downgrade path was written to preserve the data you
+  care about — some migrations (e.g. ones that drop a column or table)
+  cannot losslessly reverse themselves even if a `downgrade()` function
+  exists.
+- **Always take a backup immediately before any destructive migration
+  operation** — before running a downgrade, and ideally before running
+  a forward migration too, since a bad forward migration is exactly what
+  a downgrade or restore would need to recover from.
+- **Keep application and database versions compatible.** The safest
+  recovery from a bad migration is usually restoring the database backup
+  taken immediately before the migration ran, paired with the
+  application version that backup was captured under — not attempting a
+  live downgrade against a database whose current state may not match
+  what the downgrade path expects.
+- **Do not blindly run `alembic downgrade` in production** as a
+  first-response action. Prefer restoring from backup (Section
+  "Restoring from Backup", above) unless you have specifically confirmed
+  the downgrade path is safe for your data.
+
+### C. Incident Response
+
+This is an operator runbook for KingSec-specific incidents, not a
+general security framework. Adapt the order to the actual situation —
+containment sometimes has to happen before full identification is
+complete.
+
+1. **Identify.** Determine what actually happened: check the Audit Log
+   (Admin > Audit Log) for the relevant time window, review
+   `docker logs kingsec`, and confirm which accounts, API keys, or
+   secrets are implicated.
+2. **Contain.** Deactivate compromised user accounts (Admin > Users >
+   Deactivate — invalidates active sessions within 60 seconds) and/or
+   revoke compromised API keys (Admin > API Keys) immediately. If the
+   host itself may be compromised, isolate it from the network before
+   doing further investigation.
+3. **Preserve evidence.** Export the relevant Audit Log range (see
+   "Exporting the Audit Log", above) and take a database backup before
+   making further changes, so the state at time of discovery is not
+   lost.
+4. **Rotate compromised credentials/secrets.** See "Secret and Key
+   Rotation," above, for the JWT signing secret and encryption key
+   specifically — note the encryption-key limitation documented there
+   if that is the credential in question. For a compromised API key,
+   revoke it from Admin > API Keys and issue a new one. For a
+   compromised user password, force a reset from Admin > Users > Edit >
+   Reset Password.
+5. **Assess database impact.** Review the Audit Log for what the
+   compromised credential/account actually accessed or modified during
+   the exposure window, and cross-check against a backup from before the
+   incident if you need to determine what changed.
+6. **Recover.** Restore from a pre-incident backup only if you have
+   confirmed data was corrupted or improperly modified — otherwise,
+   prefer forward remediation (revoke, rotate, reset) over a destructive
+   restore.
+7. **Verify.** Confirm the previously-compromised credential/account no
+   longer has access, that legitimate users can still operate normally,
+   and that the health endpoint and core workflows (login, assessment
+   creation) function correctly.
+8. **Document.** Record what happened, what was affected, what actions
+   were taken, and when — this becomes the incident record referenced
+   in future audits.
+9. **Prevent recurrence.** Identify the root cause (leaked credential,
+   weak password, missing MFA, exposed admin endpoint, etc.) and apply
+   the corresponding hardening measure from "Security Hardening
+   Recommendations," below.
+
+**Example scenarios:**
+
+- **Suspected API-key compromise:** revoke the key immediately (Admin >
+  API Keys), review the Audit Log for actions taken under that key
+  during the suspected exposure window, issue a replacement key, and
+  update any automation that used the old key.
+- **JWT-secret compromise:** rotate `KINGSEC_JWT__SECRET_KEY`
+  immediately (Section A, above) — this invalidates every active
+  session at once, which is the correct containment action for this
+  specific credential.
+- **Encryption-key compromise:** follow the "only currently safe way to
+  change this key" procedure under Secret and Key Rotation, above —
+  export, rotate, re-enter. Treat any secret encrypted under the
+  compromised key as exposed even after rotation, since rotation does
+  not retroactively protect data an attacker already decrypted.
+- **Suspected unauthorized administrative access:** deactivate the
+  affected admin account, review the Audit Log for every action taken
+  under it, and audit which other accounts/roles that admin could have
+  modified.
+- **Suspected database compromise:** isolate the host, preserve a copy
+  of the current database file for forensic review before taking any
+  further action, and assess whether encrypted secrets (Section on
+  encryption-key compromise, above) or password hashes were exposed.
+
+---
+
 ## Monitor Scanner Health
 
 ### Scanner Health Dashboard

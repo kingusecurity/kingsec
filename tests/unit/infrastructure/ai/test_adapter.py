@@ -58,9 +58,6 @@ class _UnusedEncryptionService(EncryptionServicePort):
     def decrypt(self, ciphertext):
         raise NotImplementedError
 
-    def rotate_key(self):
-        raise NotImplementedError
-
     def can_decrypt(self, ciphertext):
         raise NotImplementedError
 

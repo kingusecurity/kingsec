@@ -559,6 +559,14 @@ class SecretsSettings(BaseModel):
     # Fernet symmetric encryption key (base64-urlsafe-encoded, 32 bytes).
     # REQUIRED for secret persistence. Startup fails if absent.
     encryption_key: SecretStr | None = None
+    # Retired encryption keys, newest first — accepted for decrypting
+    # existing secrets only, never used to encrypt new ones (Phase 57 /
+    # Finding E-01). Populate this when rotating `encryption_key`: move
+    # the old value here *before* removing it from `encryption_key`, so
+    # secrets already encrypted under it remain readable across the
+    # restart. See docs/ADMIN_GUIDE.md's "Secret and Key Rotation"
+    # section for the full operator procedure.
+    legacy_encryption_keys: list[SecretStr] = Field(default_factory=list)
 
 
 class MiddlewareSettings(BaseModel):

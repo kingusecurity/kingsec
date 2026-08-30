@@ -29,7 +29,6 @@ from kingsec.application.use_cases.validate_configuration import (
 class InMemoryEncryptionService(EncryptionServicePort):
     def __init__(self) -> None:
         self._key = b"test-key-32-bytes-long!!"
-        self._rotated = False
 
     def encrypt(self, plaintext: str) -> bytes:
         return f"ENC({plaintext})".encode()
@@ -38,9 +37,6 @@ class InMemoryEncryptionService(EncryptionServicePort):
         raw = ciphertext.decode()
         assert raw.startswith("ENC(") and raw.endswith(")")
         return raw[4:-1]
-
-    def rotate_key(self) -> None:
-        self._rotated = True
 
     def can_decrypt(self, ciphertext: bytes) -> bool:
         return ciphertext.startswith(b"ENC(")

@@ -28,9 +28,18 @@ touching anything: a bare ``StoreSecret`` → ``RetrieveSecret`` round trip
 The fix makes the provider genuinely "dumb" (matching its actual,
 already-relied-upon contract) and moves ``RotateSecrets``'s own
 encrypt/decrypt logic to mirror ``StoreSecret``/``RetrieveSecret``'s
-existing, correct pattern - decrypt everything under the old key first
-(a clean abort point if anything fails), rotate once, then re-encrypt and
-write back everything under the new key.
+existing, correct pattern - decrypt everything first (a clean abort
+point if anything fails), then re-encrypt and write back everything
+under the current primary key.
+
+Phase 57 / Finding E-01 further removed ``EncryptionServicePort.rotate_key()``
+entirely: it generated a new key in process memory only, which was never
+persisted anywhere a fresh process would find it, so a real restart after
+calling it made every re-encrypted secret permanently undecryptable. Key
+material now comes exclusively from durable configuration (a primary key
+plus ordered legacy decrypt-only keys) - see ``TestRestartBehavior`` and
+``TestFernetEncryptionServiceLegacyKeys`` (test_fernet_encryption.py) for
+the regression coverage.
 
 All storage in this file is an isolated temp file per test (via
 ``tmp_path``) - never the developer's real KingSec secret store.
@@ -134,21 +143,35 @@ class TestRotationPreservesPlaintext:
         assert retrieved.plaintext == "s3cret!"
 
     def test_rotation_genuinely_re_encrypts_under_the_new_key(self, tmp_path) -> None:
-        """The OLD key alone, without the new one, must no longer be able
-        to decrypt the post-rotation ciphertext."""
+        """Phase 57 / Finding E-01: the "new key" now comes from durable
+        configuration (the operator sets a new primary key and demotes
+        the old one to legacy), not from an in-process rotate_key() call.
+        After RotateSecrets runs against a service configured this way,
+        the OLD key alone (without being listed as legacy) must no longer
+        be able to decrypt the post-rotation ciphertext - it has genuinely
+        moved onto the new primary key, not merely stayed valid because
+        the old key was silently retained forever."""
         old_key = Fernet.generate_key()
-        service = FernetEncryptionService(old_key)
-        local_provider = EncryptedFileSecretProvider(service, tmp_path / "secrets.json")
-        StoreSecret(service, local_provider).execute(
+        new_key = Fernet.generate_key()
+
+        # Store under the old key, as if this happened before rotation.
+        old_service = FernetEncryptionService(old_key)
+        local_provider = EncryptedFileSecretProvider(old_service, tmp_path / "secrets.json")
+        StoreSecret(old_service, local_provider).execute(
             StoreSecretRequest(name="s", plaintext="plaintext-value")
         )
 
-        RotateSecrets(service, local_provider).execute(RotateSecretsRequest())
+        # Simulates the operator's actual rotation action: new primary key
+        # configured, old key demoted to legacy (decrypt-only), restarted.
+        rotated_service = FernetEncryptionService(new_key, legacy_keys=[old_key])
+        rotated_provider = EncryptedFileSecretProvider(rotated_service, tmp_path / "secrets.json")
+        RotateSecrets(rotated_service, rotated_provider).execute(RotateSecretsRequest())
 
-        ciphertext_after = binascii.unhexlify(local_provider.get("s"))
+        ciphertext_after = binascii.unhexlify(rotated_provider.get("s"))
         with pytest.raises(InvalidToken):
             Fernet(old_key).decrypt(ciphertext_after)
-        assert service.decrypt(ciphertext_after) == "plaintext-value"
+        assert Fernet(new_key).decrypt(ciphertext_after).decode("utf-8") == "plaintext-value"
+        assert rotated_service.decrypt(ciphertext_after) == "plaintext-value"
 
     def test_stored_representation_remains_single_layer_ciphertext_after_rotation(
         self, encryption_service, provider
@@ -228,9 +251,17 @@ class TestCorruptedCiphertext:
 
 
 class TestRestartBehavior:
-    """Scenario 12: application restart / read-after-rotation, tested to
-    the extent this architecture actually permits (see the final report's
-    Limitations section for what it does not)."""
+    """Scenario 12: application restart / read-after-rotation.
+
+    Phase 57 / Finding E-01 fixed the real gap here: previously, a
+    genuine process restart after calling the rotation endpoint lost
+    access to everything rotated in the prior run, because the "new key"
+    was generated in-process and never persisted anywhere a fresh
+    process's Settings-driven construction would find it. Key material
+    now comes entirely from durable configuration (a primary key plus
+    ordered legacy decrypt-only keys), so a fresh process's ability to
+    decrypt depends only on that configuration, never on in-memory state
+    from a process that no longer exists."""
 
     def test_a_second_provider_instance_sharing_the_same_rotated_encryption_service_reads_correctly(
         self, encryption_service, provider, tmp_path
@@ -248,30 +279,108 @@ class TestRestartBehavior:
         result = RetrieveSecret(encryption_service, reloaded).execute(RetrieveSecretRequest(name="api-key"))
         assert result.plaintext == "sk-real-secret-value"
 
-    def test_a_brand_new_encryption_service_built_from_only_the_original_key_cannot_read_rotated_data(
-        self, tmp_path
-    ) -> None:
-        """Documents the real, current architectural limitation (see the
-        Phase 24 report): the rotated key is never persisted anywhere a
-        fresh process's Settings-driven construction would find it, so a
-        genuine process restart - which rebuilds FernetEncryptionService
-        from only the original KINGSEC_SECRETS__ENCRYPTION_KEY - loses
-        access to anything rotated in a prior run. This is not new
-        breakage from this fix; it is a pre-existing architectural gap
-        that a correctness fix to the rotation logic itself does not
-        (and per this phase's own scope, should not) also solve."""
+    def test_a_fresh_process_with_unchanged_configuration_reads_correctly(self, tmp_path) -> None:
+        """Phase 57 / Finding E-01 fix: a genuine process restart that
+        rebuilds FernetEncryptionService from the SAME configured key
+        (no rotation attempted at all) must always be able to read
+        everything - this is the baseline restart-survivability case,
+        and it was never broken (the defect was specific to the
+        now-removed in-process rotate_key(), not to restarting per se)."""
         original_key = Fernet.generate_key()
         service = FernetEncryptionService(original_key)
         local_provider = EncryptedFileSecretProvider(service, tmp_path / "secrets.json")
         StoreSecret(service, local_provider).execute(
             StoreSecretRequest(name="api-key", plaintext="sk-real-secret-value")
         )
-        RotateSecrets(service, local_provider).execute(RotateSecretsRequest())
 
+        # Simulate a restart: fresh service and provider from the same
+        # configured key, no legacy keys involved.
         fresh_service = FernetEncryptionService(original_key)
         fresh_provider = EncryptedFileSecretProvider(fresh_service, tmp_path / "secrets.json")
+        result = RetrieveSecret(fresh_service, fresh_provider).execute(RetrieveSecretRequest(name="api-key"))
+        assert result.plaintext == "sk-real-secret-value"
+
+    def test_a_fresh_process_configured_with_the_rotated_key_as_legacy_reads_correctly(
+        self, tmp_path
+    ) -> None:
+        """Phase 57 / Finding E-01 — the actual fix under test: a genuine
+        process restart configured per the documented rotation procedure
+        (new primary key, old key moved to KINGSEC_SECRETS__LEGACY_ENCRYPTION_KEYS)
+        must be able to decrypt data that a prior process encrypted under
+        the old key, WITHOUT that prior process ever having called
+        RotateSecrets. This is restart survivability (R2): the fresh
+        process's ability to decrypt depends only on its own durable
+        configuration, never on in-memory state from a process that no
+        longer exists."""
+        old_key = Fernet.generate_key()
+        new_key = Fernet.generate_key()
+
+        old_service = FernetEncryptionService(old_key)
+        old_provider = EncryptedFileSecretProvider(old_service, tmp_path / "secrets.json")
+        StoreSecret(old_service, old_provider).execute(
+            StoreSecretRequest(name="api-key", plaintext="sk-real-secret-value")
+        )
+
+        # Simulate the restart with the new operator-driven configuration.
+        fresh_service = FernetEncryptionService(new_key, legacy_keys=[old_key])
+        fresh_provider = EncryptedFileSecretProvider(fresh_service, tmp_path / "secrets.json")
+        result = RetrieveSecret(fresh_service, fresh_provider).execute(RetrieveSecretRequest(name="api-key"))
+        assert result.plaintext == "sk-real-secret-value"
+
+    def test_a_fresh_process_missing_the_legacy_key_fails_loudly_not_silently(self, tmp_path) -> None:
+        """R8 - failure must be explicit: if an operator sets a new
+        primary key but forgets to carry the old key forward as a legacy
+        key, decryption of existing secrets must raise, never silently
+        return wrong data or an empty value."""
+        old_key = Fernet.generate_key()
+        new_key = Fernet.generate_key()
+
+        old_service = FernetEncryptionService(old_key)
+        old_provider = EncryptedFileSecretProvider(old_service, tmp_path / "secrets.json")
+        StoreSecret(old_service, old_provider).execute(
+            StoreSecretRequest(name="api-key", plaintext="sk-real-secret-value")
+        )
+
+        # Operator error: forgot to list old_key as a legacy key.
+        misconfigured_service = FernetEncryptionService(new_key)
+        misconfigured_provider = EncryptedFileSecretProvider(misconfigured_service, tmp_path / "secrets.json")
         with pytest.raises(InvalidToken):
-            RetrieveSecret(fresh_service, fresh_provider).execute(RetrieveSecretRequest(name="api-key"))
+            RetrieveSecret(misconfigured_service, misconfigured_provider).execute(
+                RetrieveSecretRequest(name="api-key")
+            )
+
+    def test_rotate_secrets_use_case_migrates_ciphertext_across_a_restart(self, tmp_path) -> None:
+        """End-to-end fixed flow: store under the old key: restart with
+        new primary + old as legacy (R2); call RotateSecrets to migrate
+        the on-disk ciphertext onto the new primary key (R1 - the "new
+        key" was already durable configuration before this call, not
+        something generated by this call); confirm a THIRD fresh process,
+        configured with ONLY the new key and no legacy keys at all, can
+        still read it — proving the migration is genuinely complete and
+        the old key is no longer needed."""
+        old_key = Fernet.generate_key()
+        new_key = Fernet.generate_key()
+
+        old_service = FernetEncryptionService(old_key)
+        old_provider = EncryptedFileSecretProvider(old_service, tmp_path / "secrets.json")
+        StoreSecret(old_service, old_provider).execute(
+            StoreSecretRequest(name="api-key", plaintext="sk-real-secret-value")
+        )
+
+        service = FernetEncryptionService(new_key, legacy_keys=[old_key])
+        local_provider = EncryptedFileSecretProvider(service, tmp_path / "secrets.json")
+        RotateSecrets(service, local_provider).execute(RotateSecretsRequest())
+
+        # A third, independent process configured with ONLY the new key -
+        # no legacy keys at all - must still be able to read it, proving
+        # the migration genuinely moved the ciphertext, not merely that
+        # the old key happened to still be configured.
+        new_key_only_service = FernetEncryptionService(new_key)
+        new_key_only_provider = EncryptedFileSecretProvider(new_key_only_service, tmp_path / "secrets.json")
+        result = RetrieveSecret(new_key_only_service, new_key_only_provider).execute(
+            RetrieveSecretRequest(name="api-key")
+        )
+        assert result.plaintext == "sk-real-secret-value"
 
 
 class TestRotationFailureBehavior:

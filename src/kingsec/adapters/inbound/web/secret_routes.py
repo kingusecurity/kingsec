@@ -173,10 +173,20 @@ async def delete_secret(
     "/secrets/rotate",
     response_model=RotateSecretsResponse,
     tags=["secrets"],
-    summary="Rotate encryption key",
-    description="Rotate the encryption key and re-encrypt all stored secrets.",
+    summary="Re-encrypt all stored secrets under the current primary key",
+    description=(
+        "Re-encrypts every stored secret under the currently configured "
+        "primary encryption key (KINGSEC_SECRETS__ENCRYPTION_KEY). This "
+        "endpoint does NOT generate a new key itself — to actually rotate "
+        "the key, first set a new KINGSEC_SECRETS__ENCRYPTION_KEY, move "
+        "the previous value into KINGSEC_SECRETS__LEGACY_ENCRYPTION_KEYS, "
+        "and restart the application; only then does calling this "
+        "endpoint migrate existing ciphertext onto the new key. See "
+        "docs/ADMIN_GUIDE.md's 'Secret and Key Rotation' section for the "
+        "full procedure."
+    ),
     responses={
-        200: {"description": "Key rotated"},
+        200: {"description": "Secrets re-encrypted under the current primary key"},
         401: {"description": "Missing or invalid token"},
         403: {"description": "Insufficient permissions (ADMIN required)"},
     },
