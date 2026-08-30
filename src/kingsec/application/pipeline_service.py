@@ -34,11 +34,13 @@ class PipelineService(PipelineServicePort):
     ) -> PipelineExecution:
         return self._start_uc.execute(target, owner_user_id, scanner_ids, priority)
 
-    def get_pipeline(self, pipeline_id: str) -> PipelineExecution:
-        return self._get_uc.execute(pipeline_id)
+    def get_pipeline(
+        self, pipeline_id: str, requesting_user_id: str = "", is_admin: bool = False
+    ) -> PipelineExecution:
+        return self._get_uc.execute(pipeline_id, requesting_user_id, is_admin)
 
-    def list_pipelines(self) -> list[PipelineExecution]:
-        return self._list_uc.execute()
+    def list_pipelines(self, requesting_user_id: str = "", is_admin: bool = False) -> list[PipelineExecution]:
+        return self._list_uc.execute(requesting_user_id, is_admin)
 
     def cancel_pipeline(self, pipeline_id: str) -> PipelineExecution:
         return self._cancel_uc.execute(pipeline_id)

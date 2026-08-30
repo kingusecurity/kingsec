@@ -26,6 +26,9 @@ class InMemoryPipelineRepository(PipelineRepositoryPort):
     def find_all(self) -> list[PipelineExecution]:
         return list(self._executions.values())
 
+    def find_by_owner(self, owner_user_id: str) -> list[PipelineExecution]:
+        return [e for e in self._executions.values() if e.owner_user_id == owner_user_id]
+
     def find_by_state(self, state: str) -> list[PipelineExecution]:
         return [e for e in self._executions.values() if e.state.value == state]
 
@@ -102,6 +105,16 @@ class SQLAlchemyPipelineRepository(PipelineRepositoryPort):
 
         with self._session_factory() as session:
             rows = session.execute(text("SELECT * FROM scan_pipeline ORDER BY created_at DESC")).fetchall()
+            return [self._row_to_execution(r._mapping) for r in rows]
+
+    def find_by_owner(self, owner_user_id: str) -> list[PipelineExecution]:
+        from sqlalchemy import text
+
+        with self._session_factory() as session:
+            rows = session.execute(
+                text("SELECT * FROM scan_pipeline WHERE owner_user_id = :owner_user_id ORDER BY created_at DESC"),
+                {"owner_user_id": owner_user_id},
+            ).fetchall()
             return [self._row_to_execution(r._mapping) for r in rows]
 
     def find_by_state(self, state: str) -> list[PipelineExecution]:

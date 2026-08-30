@@ -90,7 +90,7 @@ async def list_pipelines(
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = _get_service(request)
-    executions = service.list_pipelines()
+    executions = service.list_pipelines(requesting_user_id=user.user_id, is_admin=user.role == Role.ADMIN)
     return {"pipelines": [_to_response(e) for e in executions], "total": len(executions)}
 
 
@@ -102,7 +102,9 @@ async def get_pipeline(
 ) -> dict[str, Any]:
     service = _get_service(request)
     try:
-        execution = service.get_pipeline(pipeline_id)
+        execution = service.get_pipeline(
+            pipeline_id, requesting_user_id=user.user_id, is_admin=user.role == Role.ADMIN
+        )
     except PipelineNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return _to_response(execution)

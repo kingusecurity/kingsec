@@ -47,6 +47,40 @@ class TestInMemoryPipelineRepository:
         )
         assert len(repo.find_all()) == 2
 
+    def test_find_by_owner(self) -> None:
+        repo = InMemoryPipelineRepository()
+        repo.save(
+            PipelineExecution(
+                pipeline_id=PipelineId(value="pl-1"),
+                target="a",
+                state=PipelineState.QUEUED,
+                owner_user_id="alice",
+            )
+        )
+        repo.save(
+            PipelineExecution(
+                pipeline_id=PipelineId(value="pl-2"),
+                target="b",
+                state=PipelineState.RUNNING,
+                owner_user_id="mallory",
+            )
+        )
+        results = repo.find_by_owner("alice")
+        assert len(results) == 1
+        assert results[0].pipeline_id.value == "pl-1"
+
+    def test_find_by_owner_no_match(self) -> None:
+        repo = InMemoryPipelineRepository()
+        repo.save(
+            PipelineExecution(
+                pipeline_id=PipelineId(value="pl-1"),
+                target="a",
+                state=PipelineState.QUEUED,
+                owner_user_id="alice",
+            )
+        )
+        assert repo.find_by_owner("mallory") == []
+
     def test_find_by_state(self) -> None:
         repo = InMemoryPipelineRepository()
         repo.save(

@@ -168,6 +168,10 @@ async def list_queue(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
+    # KSEC-71-02: this endpoint previously returned every user's queue
+    # entries to any authenticated caller. Every other queue route already
+    # requires admin - this one is no exception.
+    _require_admin(user)
     service = _get_service(request)
     entries = service.list_queue()
     return {

@@ -166,6 +166,11 @@ async def list_members(
     org = repo.find_by_id(org_id)
     if org is None:
         raise HTTPException(status_code=404, detail="Organization not found")
+    # KSEC-71-03: require_viewer only checks the caller's global role, not
+    # membership in this specific organization - every mutating route in
+    # this file already calls get_member_role first; this read route must too.
+    if repo.get_member_role(org_id, user.user_id) is None:
+        raise HTTPException(status_code=403, detail="Not a member of this organization")
     members = repo.list_members(org_id)
     return {
         "members": [
@@ -388,6 +393,10 @@ async def list_activity(
     org = repo.find_by_id(org_id)
     if org is None:
         raise HTTPException(status_code=404, detail="Organization not found")
+    # KSEC-71-03: same membership check as list_members - require_viewer
+    # alone does not establish that the caller belongs to this organization.
+    if repo.get_member_role(org_id, user.user_id) is None:
+        raise HTTPException(status_code=403, detail="Not a member of this organization")
     events = repo.list_activity(org_id, limit=limit)
     return {
         "events": [

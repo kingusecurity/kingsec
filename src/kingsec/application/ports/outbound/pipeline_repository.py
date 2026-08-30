@@ -16,6 +16,9 @@ class PipelineRepositoryPort(ABC):
     def find_all(self) -> list[PipelineExecution]: ...
 
     @abstractmethod
+    def find_by_owner(self, owner_user_id: str) -> list[PipelineExecution]: ...
+
+    @abstractmethod
     def find_by_state(self, state: str) -> list[PipelineExecution]: ...
 
     @abstractmethod

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from kingsec.application._support import check_pipeline_access
 from kingsec.application.ports.outbound import PipelineOrchestratorPort, PipelineRepositoryPort
 from kingsec.application.ports.outbound.audit_publisher import AuditPublisher
 from kingsec.domain.audit import AuditAction, AuditEntry
@@ -62,12 +63,16 @@ class GetPipeline:
     def __init__(self, repo: PipelineRepositoryPort) -> None:
         self._repo = repo
 
-    def execute(self, pipeline_id: str) -> PipelineExecution:
+    def execute(self, pipeline_id: str, requesting_user_id: str = "", is_admin: bool = False) -> PipelineExecution:
         execution = self._repo.find_by_id(pipeline_id)
         if not execution:
             from kingsec.application.errors import PipelineNotFoundError
 
             raise PipelineNotFoundError(f"Pipeline '{pipeline_id}' not found")
+
+        # KSEC-71-01: authorization before returning the record.
+        check_pipeline_access(execution, requesting_user_id, is_admin)
+
         return execution
 
 
@@ -75,8 +80,10 @@ class ListPipelines:
     def __init__(self, repo: PipelineRepositoryPort) -> None:
         self._repo = repo
 
-    def execute(self) -> list[PipelineExecution]:
-        return self._repo.find_all()
+    def execute(self, requesting_user_id: str = "", is_admin: bool = False) -> list[PipelineExecution]:
+        if is_admin:
+            return self._repo.find_all()
+        return self._repo.find_by_owner(requesting_user_id)
 
 
 class CancelPipeline:

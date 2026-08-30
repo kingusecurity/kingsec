@@ -18,10 +18,17 @@ from kingsec.domain import (
     Target,
     TargetType,
 )
+from kingsec.domain.pipeline import PipelineExecution
 from kingsec.domain.schedule import ScanSchedule
 from kingsec.shared.errors import KingSecError
 
-from .errors import ApplicationError, AssessmentNotFoundError, InputValidationError, ScheduleNotFoundError
+from .errors import (
+    ApplicationError,
+    AssessmentNotFoundError,
+    InputValidationError,
+    PipelineNotFoundError,
+    ScheduleNotFoundError,
+)
 
 
 def to_assessment_id(raw: str) -> AssessmentId:
@@ -61,6 +68,24 @@ def check_schedule_access(schedule: ScanSchedule, requesting_user: str, is_admin
     if schedule.owner_user_id and schedule.owner_user_id == requesting_user:
         return
     raise ScheduleNotFoundError(f"schedule '{schedule.id}' not found")
+
+
+def check_pipeline_access(execution: PipelineExecution, requesting_user: str, is_admin: bool) -> None:
+    """Raise PipelineNotFoundError unless the caller owns this pipeline or is Admin.
+
+    Phase 72 / Finding KSEC-71-01: mirrors check_schedule_access() exactly
+    - same fail-closed semantics (a pipeline with no recorded owner is
+    Admin-only, not open to everyone), and the same choice of exception,
+    so a non-owner cannot distinguish "this pipeline does not exist" from
+    "this pipeline exists but belongs to someone else" - both raise the
+    identical PipelineNotFoundError, which the web adapter already maps
+    to a generic 404.
+    """
+    if is_admin:
+        return
+    if execution.owner_user_id and execution.owner_user_id == requesting_user:
+        return
+    raise PipelineNotFoundError(f"Pipeline '{execution.pipeline_id}' not found")
 
 
 def safe_failure_message(exc: BaseException) -> str:
