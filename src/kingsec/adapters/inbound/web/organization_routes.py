@@ -5,8 +5,10 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
+from kingsec.application.errors import LicenseRequiredError
 from kingsec.application.ports.outbound.audit_publisher import AuditPublisher
 from kingsec.application.ports.outbound.organization_repository import OrganizationRepository
+from kingsec.application.services.licensing import LicenseGate
 from kingsec.domain.organization import (
     OrgActivityEvent,
     Organization,
@@ -40,6 +42,12 @@ def _get_repo(request: Request) -> OrganizationRepository:
 def _get_audit(request: Request) -> Any:
     app: Application = get_application(request)
     return app.resolve(AuditPublisher)
+
+
+def _get_license_gate(request: Request) -> LicenseGate | None:
+    app: Application = get_application(request)
+    gate: LicenseGate | None = app.resolve(LicenseGate)
+    return gate
 
 
 def _slugify(name: str) -> str:
@@ -103,6 +111,20 @@ async def create_organization(
     existing = repo.find_by_slug(slug)
     if existing:
         raise HTTPException(status_code=409, detail=f"Organization with slug '{slug}' already exists")
+
+    gate = _get_license_gate(request)
+    if gate is not None:
+        limit = gate.max_organizations()
+        # ``max_organizations() is None`` means unlimited (Professional/Enterprise).
+        # The count is installation-wide (server-side, never client-supplied)
+        # because the license model is per-installation, not per-organization.
+        if limit is not None and repo.count() >= limit:
+            raise LicenseRequiredError(
+                f"Organizations (limit of {limit} reached)",
+                gate.current_edition().value,
+                required="an edition with a higher organization limit",
+            )
+
     org = Organization(id=OrganizationId.generate(), name=name, slug=slug)
     repo.save(org)
     repo.add_member(OrganizationMembership(

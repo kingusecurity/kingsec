@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING, Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
+from kingsec.application.errors import LicenseRequiredError
+from kingsec.application.services.licensing import LicenseGate
 from kingsec.application.use_cases.audit_dto import SearchAuditEventsRequest
 from kingsec.application.use_cases.search_audit_events import SearchAuditEvents
 
@@ -26,6 +28,20 @@ def _get_app(request: Request) -> Application:
     return cast("Application", request.app.state.kingsec_app)
 
 
+def _require_enterprise_audit(request: Request) -> None:
+    """Enforce the Enterprise-edition ``enterprise_audit`` feature gate.
+
+    Stacked with (never a substitute for) the ``require_admin`` role check
+    already present on every route below: an Enterprise admin passes both,
+    a non-Enterprise admin is stopped here, and a non-admin is stopped by
+    ``require_admin`` regardless of edition.
+    """
+    app = _get_app(request)
+    gate: LicenseGate | None = app.resolve(LicenseGate)
+    if gate is not None and not gate.can_use_enterprise_audit():
+        raise LicenseRequiredError("Enterprise audit events", gate.current_edition().value, required="an Enterprise")
+
+
 @router.get(
     "/events",
     summary="Query enterprise audit events",
@@ -34,11 +50,11 @@ def _get_app(request: Request) -> Application:
         "Supports filtering by actor, action, severity, outcome, resource, "
         "and time range. Results are paginated and sortable."
     ),
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin), Depends(_require_enterprise_audit)],
     responses={
         200: {"description": "Audit events matching the query"},
         401: {"description": "Missing or invalid authentication"},
-        403: {"description": "Insufficient permissions (ADMIN required)"},
+        403: {"description": "Insufficient permissions (ADMIN required, Enterprise edition required)"},
     },
 )
 async def list_audit_events(
@@ -106,11 +122,11 @@ async def list_audit_events(
     "/events/{event_id}",
     summary="Get a single audit event by ID",
     description="Retrieve a specific enterprise audit event by its ID. Requires ADMIN role.",
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin), Depends(_require_enterprise_audit)],
     responses={
         200: {"description": "Audit event details"},
         401: {"description": "Missing or invalid authentication"},
-        403: {"description": "Insufficient permissions (ADMIN required)"},
+        403: {"description": "Insufficient permissions (ADMIN required, Enterprise edition required)"},
         404: {"description": "Audit event not found"},
     },
 )

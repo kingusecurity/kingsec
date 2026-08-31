@@ -136,6 +136,10 @@ def _build_app() -> tuple[FastAPI, StubAuditEventRepository, StubTokenService, S
                 return SearchAuditEvents(event_repo)
             if service_type == CheckRateLimit:
                 return CheckRateLimit(StubRateLimiter())
+            from kingsec.application.services.licensing import LicenseGate
+
+            if service_type == LicenseGate:
+                return None
             raise ValueError(f"Unknown service: {service_type}")
 
     app.state.kingsec_app = _StubApp()  # type: ignore[attr-defined]

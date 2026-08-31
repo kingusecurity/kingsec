@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -21,6 +22,9 @@ from kingsec.domain.license import (
     LicenseId,
     LicenseStatus,
 )
+from kingsec.shared.errors import PersistenceError
+
+_logger = logging.getLogger("kingsec.application.services.licensing")
 
 __all__ = [
     "InvalidLicenseKeyError",
@@ -41,7 +45,21 @@ class LicenseGate:
         self._validator = validator
 
     def _get_license(self) -> License | None:
-        return self._repo.find_active()
+        """Look up the active license, failing CLOSED to "no license" (i.e.
+        Community edition, via the existing ``lic is None`` branches in
+        ``_check``/``_limit``/etc.) if the repository itself is unavailable.
+
+        A database outage must never be interpreted as "license checks pass" -
+        that would silently grant paid features during an incident. Only the
+        repository's own translated ``PersistenceError`` is caught here (never
+        a blanket ``Exception``), so a real bug elsewhere in this class still
+        propagates normally.
+        """
+        try:
+            return self._repo.find_active()
+        except PersistenceError:
+            _logger.error("license repository unavailable; failing closed to Community edition", exc_info=True)
+            return None
 
     def _check(self, feature: str) -> bool:
         lic = self._get_license()

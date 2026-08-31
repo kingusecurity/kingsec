@@ -84,6 +84,9 @@ class StubApiKeyRepository(ApiKeyRepository):
     def count_by_user(self, user_id: str) -> int:
         return sum(1 for k in self._keys.values() if k.user_id == user_id)
 
+    def count_all(self) -> int:
+        return len(self._keys)
+
 # ── Minimal in-memory identity-provider repository (auth is what's under
 #    test, not IdP business logic) ──────────────────────────────────────
 

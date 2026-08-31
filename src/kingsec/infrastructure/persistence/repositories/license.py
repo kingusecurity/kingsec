@@ -5,11 +5,16 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from kingsec.application.ports.outbound.license_repository import LicenseRepository
 from kingsec.domain.license import License, LicenseEdition, LicenseId, LicenseStatus
+from kingsec.infrastructure.logging import get_logger
 from kingsec.infrastructure.persistence.models import LicenseORM
+from kingsec.shared.errors import PersistenceError, log_exception
+
+_logger = get_logger("kingsec.infrastructure.persistence.license")
 
 
 class SQLAlchemyLicenseRepository(LicenseRepository):
@@ -83,9 +88,14 @@ class SQLAlchemyLicenseRepository(LicenseRepository):
             .order_by(LicenseORM.created_at.desc())
             .limit(1)
         )
-        with self._session_factory() as session:
-            row = session.execute(stmt).scalar_one_or_none()
-            return self._to_domain(row) if row else None
+        try:
+            with self._session_factory() as session:
+                row = session.execute(stmt).scalar_one_or_none()
+                return self._to_domain(row) if row else None
+        except SQLAlchemyError as exc:
+            error = PersistenceError("failed to look up the active license", cause=exc)
+            log_exception(_logger, error)
+            raise error from exc
 
     def find_by_key(self, license_key: str) -> License | None:
         stmt = select(LicenseORM).where(LicenseORM.license_key == license_key)

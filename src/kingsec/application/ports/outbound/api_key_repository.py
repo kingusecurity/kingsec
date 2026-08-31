@@ -65,3 +65,14 @@ class ApiKeyRepository(ABC):
         Returns:
             Total key count.
         """
+
+    @abstractmethod
+    def count_all(self) -> int:
+        """Return the total number of API keys across the whole installation.
+
+        Used to enforce the license edition's installation-wide
+        ``max_api_keys`` limit, which is not per-user.
+
+        Returns:
+            Total key count across all users.
+        """

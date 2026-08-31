@@ -5,8 +5,9 @@ from __future__ import annotations
 import secrets
 
 from kingsec.application.dto import CreateApiKeyRequest, CreateApiKeyResponse
-from kingsec.application.errors import ApplicationError
+from kingsec.application.errors import ApplicationError, LicenseRequiredError
 from kingsec.application.ports import ApiKeyHasher, ApiKeyRepository
+from kingsec.application.services.licensing import LicenseGate
 from kingsec.domain.api_key import ApiKey, ApiKeyScope, ApiKeyStatus
 
 
@@ -18,12 +19,42 @@ class CreateApiKey:
     is returned once and cannot be recovered.
     """
 
-    def __init__(self, repo: ApiKeyRepository, hasher: ApiKeyHasher) -> None:
+    def __init__(
+        self,
+        repo: ApiKeyRepository,
+        hasher: ApiKeyHasher,
+        license_gate: LicenseGate | None = None,
+    ) -> None:
         self._repo = repo
         self._hasher = hasher
+        self._license_gate = license_gate
 
     def execute(self, request: CreateApiKeyRequest) -> CreateApiKeyResponse:
         import uuid
+
+        if self._license_gate is not None:
+            # Two independent checks, in order: entitlement, then the count
+            # limit. A stock Community license has no "api_keys" feature at
+            # all (see EDITION_FEATURES), so it is rejected here regardless
+            # of how many keys already exist. The limit below only becomes
+            # reachable for a license that DOES carry the "api_keys"
+            # entitlement - Professional/Enterprise (unlimited), or a custom
+            # signed license that grants "api_keys" as an add-on feature on
+            # top of a Community edition (whose max_api_keys stays 3, since
+            # EDITION_LIMITS has no per-license override for it).
+            if not self._license_gate.can_use_api_keys():
+                raise LicenseRequiredError("API keys", self._license_gate.current_edition().value)
+
+            limit = self._license_gate.max_api_keys()
+            # ``max_api_keys() is None`` means unlimited (Professional/Enterprise).
+            # The count is installation-wide (server-side, never client-supplied)
+            # because the license model is per-installation, not per-user.
+            if limit is not None and self._repo.count_all() >= limit:
+                raise LicenseRequiredError(
+                    f"API keys (limit of {limit} reached)",
+                    self._license_gate.current_edition().value,
+                    required="an edition with a higher API key limit",
+                )
 
         key_id = str(uuid.uuid4())
         secret = secrets.token_urlsafe(40)

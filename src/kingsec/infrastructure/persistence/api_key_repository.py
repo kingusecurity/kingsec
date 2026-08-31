@@ -70,6 +70,11 @@ class SqlAlchemyApiKeyRepository(ApiKeyRepository):
             ).scalar()
             return count if count else 0
 
+    def count_all(self) -> int:
+        with self._session_factory() as session:
+            count = session.execute(select(func.count()).select_from(ApiKeyORM)).scalar()
+            return count if count else 0
+
 
 def _to_domain(orm: ApiKeyORM) -> ApiKey:
     return ApiKey(
