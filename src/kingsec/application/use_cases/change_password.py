@@ -7,12 +7,18 @@ Steps:
     4. Hash the new password.
     5. Update the user entity.
     6. Persist the changes.
-    7. Publish audit entry.
+    7. Revoke every outstanding session/token for this user (KSEC-73-01).
+    8. Publish audit entry.
 
 Security considerations:
     - Current password verification prevents unauthorized changes.
     - New password must meet complexity requirements.
     - Passwords are hashed before storage.
+    - A successful password change revokes every session/token issued
+      before it, using the same RevokeAllSessions mechanism the
+      explicit "log out everywhere" feature already uses - a stolen
+      access/refresh token from before the change stops authenticating
+      immediately, not merely at its own natural expiry.
     - Audit entries record password changes for security monitoring.
 """
 
@@ -23,6 +29,8 @@ import logging
 from kingsec.application.dto import ChangePasswordRequest
 from kingsec.application.errors import ApplicationError
 from kingsec.application.ports import AuditPublisher, PasswordHasher, UserRepository
+from kingsec.application.use_cases.revoke_all_sessions import RevokeAllSessions
+from kingsec.application.use_cases.session_dto import RevokeAllSessionsRequest
 from kingsec.domain.audit import AuditAction, AuditEntry
 
 
@@ -33,10 +41,12 @@ class ChangePassword:
         self,
         users: UserRepository,
         hasher: PasswordHasher,
+        sessions: RevokeAllSessions,
         audit: AuditPublisher | None = None,
     ) -> None:
         self._users = users
         self._hasher = hasher
+        self._sessions = sessions
         self._audit = audit
 
     def execute(self, request: ChangePasswordRequest) -> None:
@@ -58,7 +68,13 @@ class ChangePassword:
         # Step 5: Persist.
         self._users.save(user)
 
-        # Step 6: Audit password change.
+        # Step 6: KSEC-73-01 - revoke every outstanding session/token for
+        # this user. Reuses RevokeAllSessions exactly as the explicit
+        # "log out everywhere" feature does, rather than a second,
+        # parallel revocation mechanism.
+        self._sessions.execute(RevokeAllSessionsRequest(user_id=user.id))
+
+        # Step 7: Audit password change.
         self._publish_audit(
             AuditEntry(
                 action=AuditAction.PASSWORD_CHANGED,

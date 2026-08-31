@@ -47,6 +47,7 @@ from kingsec.application.errors import (
     JobNotFoundError,
     JobQueueEntryNotFoundError,
     LicenseRequiredError,
+    MfaStepUpAuthenticationError,
     MonitorEventNotFoundError,
     NotificationNotFoundError,
     PipelineNotFoundError,
@@ -164,6 +165,12 @@ async def handle_password_validation_error(_request: Request, exc: PasswordValid
 
 
 async def handle_authentication_error(_request: Request, exc: AuthenticationError) -> JSONResponse:
+    return _error_response(401, ErrorCode.AUTHORIZATION, str(exc))
+
+
+async def handle_mfa_step_up_authentication_error(
+    _request: Request, exc: MfaStepUpAuthenticationError
+) -> JSONResponse:
     return _error_response(401, ErrorCode.AUTHORIZATION, str(exc))
 
 
@@ -293,6 +300,7 @@ def register_error_handlers(app: object) -> None:
     app.exception_handler(InvariantViolation)(handle_invariant_violation)
     app.exception_handler(PasswordValidationError)(handle_password_validation_error)
     app.exception_handler(AuthenticationError)(handle_authentication_error)
+    app.exception_handler(MfaStepUpAuthenticationError)(handle_mfa_step_up_authentication_error)
     app.exception_handler(RegistrationError)(handle_registration_error)
     app.exception_handler(TokenRefreshError)(handle_token_refresh_error)
     app.exception_handler(ApiKeyNotFoundError)(handle_api_key_not_found)

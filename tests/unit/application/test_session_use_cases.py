@@ -201,7 +201,8 @@ class TestCreateSession:
     def test_creates_session(self) -> None:
         repo = FakeSessionRepository()
         clock = FakeClock()
-        uc = CreateSession(repo, clock, max_concurrent_sessions=5)
+        tokens = FakeTokenService()
+        uc = CreateSession(repo, clock, tokens, max_concurrent_sessions=5)
         req = CreateSessionRequest(
             user_id="u1",
             jti="jti_new",
@@ -219,10 +220,11 @@ class TestCreateSession:
     def test_revokes_oldest_when_at_limit(self) -> None:
         repo = FakeSessionRepository()
         clock = FakeClock()
+        tokens = FakeTokenService()
         for i in range(5):
             s = make_session(sid=f"s{i}", jti=f"jti{i}", refresh_jti=f"rjti{i}")
             repo.save(s)
-        uc = CreateSession(repo, clock, max_concurrent_sessions=5)
+        uc = CreateSession(repo, clock, tokens, max_concurrent_sessions=5)
         req = CreateSessionRequest(
             user_id="u1",
             jti="jti_new",
@@ -233,6 +235,51 @@ class TestCreateSession:
         uc.execute(req)
         assert repo.find_by_id("s0") is None or repo.find_by_id("s0").status == SessionStatus.REVOKED
         assert repo.count_active_by_user("u1") <= 5
+
+    def test_evicted_sessions_jwts_are_actually_revoked(self) -> None:
+        """KSEC-73-02: eviction must revoke the evicted session's jti AND
+        refresh_jti in the real TokenService store the JWT-verification
+        path consults - not merely flip the Session row's own status."""
+        repo = FakeSessionRepository()
+        clock = FakeClock()
+        tokens = FakeTokenService()
+        for i in range(5):
+            s = make_session(sid=f"s{i}", jti=f"jti{i}", refresh_jti=f"rjti{i}")
+            repo.save(s)
+        uc = CreateSession(repo, clock, tokens, max_concurrent_sessions=5)
+
+        uc.execute(
+            CreateSessionRequest(
+                user_id="u1", jti="jti_new", refresh_jti="rjti_new", client_ip="1.2.3.4", user_agent="curl"
+            )
+        )
+
+        # s0 is the oldest (issued_at is identical across make_session's
+        # default, but s0 is inserted first and is the one the existing
+        # test above already asserts gets evicted).
+        evicted = repo.find_by_id("s0")
+        assert evicted is not None
+        assert evicted.status == SessionStatus.REVOKED
+        assert tokens.is_revoked("jti0")
+        assert tokens.is_revoked("rjti0")
+
+        # The sixth (new) session's own tokens must NOT be revoked.
+        assert not tokens.is_revoked("jti_new")
+        assert not tokens.is_revoked("rjti_new")
+
+    def test_no_eviction_below_limit_revokes_nothing(self) -> None:
+        repo = FakeSessionRepository()
+        clock = FakeClock()
+        tokens = FakeTokenService()
+        uc = CreateSession(repo, clock, tokens, max_concurrent_sessions=5)
+
+        uc.execute(
+            CreateSessionRequest(
+                user_id="u1", jti="jti_new", refresh_jti="rjti_new", client_ip="1.2.3.4", user_agent="curl"
+            )
+        )
+
+        assert tokens.revoked == set()
 
 
 class TestValidateSession:

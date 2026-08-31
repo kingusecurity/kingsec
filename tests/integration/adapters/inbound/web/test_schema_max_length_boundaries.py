@@ -19,12 +19,14 @@ from fastapi.testclient import TestClient
 
 from kingsec.application import Login, RefreshToken, RegisterUser
 from kingsec.application.auth import AuthorizationService
-from kingsec.application.ports import AuditPublisher, TokenService
+from kingsec.application.ports import AuditPublisher, SessionRepository, TokenService
 from kingsec.application.use_cases.assign_role import AssignRole
 from kingsec.application.use_cases.change_password import ChangePassword
 from kingsec.application.use_cases.check_rate_limit import CheckRateLimit
+from kingsec.application.use_cases.revoke_all_sessions import RevokeAllSessions
 from kingsec.domain.audit import AuditEntry
 from kingsec.domain.rate_limit import LockoutPolicy
+from kingsec.domain.session import Session
 from kingsec.infrastructure.config import Settings
 
 from .test_rbac import (
@@ -48,11 +50,55 @@ class _RecordingAuditPublisher(AuditPublisher):
         self.entries.append(entry)
 
 
+class _NoOpSessionRepo(SessionRepository):
+    """No sessions are ever created in these schema-boundary tests -
+    ChangePassword's KSEC-73-01 session revocation step just needs a
+    real SessionRepository/RevokeAllSessions wiring to exist, not any
+    actual sessions to revoke."""
+
+    def save(self, session: Session) -> None:
+        pass
+
+    def find_by_id(self, session_id: str) -> Session | None:
+        return None
+
+    def find_by_jti(self, jti: str) -> Session | None:
+        return None
+
+    def find_by_refresh_jti(self, refresh_jti: str) -> Session | None:
+        return None
+
+    def find_active_by_user(self, user_id: str) -> list[Session]:
+        return []
+
+    def count_active_by_user(self, user_id: str) -> int:
+        return 0
+
+    def revoke(self, session_id: str) -> None:
+        pass
+
+    def revoke_all_by_user(self, user_id: str, exclude_session_id: str | None = None) -> None:
+        pass
+
+    def update_activity(self, session_id: str, last_activity: str) -> None:
+        pass
+
+    def update_refresh_jti(self, session_id: str, new_refresh_jti: str) -> None:
+        pass
+
+    def update_access_jti(self, session_id: str, new_jti: str) -> None:
+        pass
+
+    def delete_expired(self, before: str) -> int:
+        return 0
+
+
 def _build_app() -> tuple[FastAPI, StubUserRepo, _RecordingAuditPublisher]:
     token_service = StubTokenService()
     user_repo = StubUserRepo()
     hasher = StubHasher()
     audit = _RecordingAuditPublisher()
+    revoke_all_sessions = RevokeAllSessions(_NoOpSessionRepo(), token_service)
 
     app = FastAPI()
 
@@ -89,7 +135,7 @@ def _build_app() -> tuple[FastAPI, StubUserRepo, _RecordingAuditPublisher]:
             if service_type == CheckRateLimit:
                 return CheckRateLimit(StubRateLimiter())
             if service_type == ChangePassword:
-                return ChangePassword(user_repo, hasher, audit)
+                return ChangePassword(user_repo, hasher, revoke_all_sessions, audit)
             if service_type == AssignRole:
                 return AssignRole(user_repo, audit)
             if service_type == ServiceAPI:

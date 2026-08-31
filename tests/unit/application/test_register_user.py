@@ -40,6 +40,21 @@ class StubUserRepository(UserRepository):
     def save(self, user: User) -> None:
         self.saved_users.append(user)
 
+    def save_new_user_claiming_bootstrap_admin(self, user: User) -> User:
+        if len(self.saved_users) == 0:
+            user = User(
+                id=user.id,
+                username=user.username,
+                email=user.email,
+                password_hash=user.password_hash,
+                role=Role.ADMIN,
+                is_active=user.is_active,
+                created_at=user.created_at,
+                last_login_at=user.last_login_at,
+            )
+        self.saved_users.append(user)
+        return user
+
     def exists_by_username(self, username: str) -> bool:
         return self._existing_username is not None and username.lower() == self._existing_username.lower()
 

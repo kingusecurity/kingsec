@@ -17,7 +17,7 @@ from kingsec.application.ports.outbound.clock_port import ClockPort
 from kingsec.application.ports.outbound.lockout_repository import LockoutRepository
 from kingsec.application.ports.outbound.mfa_secret_repository import MfaSecretRepository
 from kingsec.application.use_cases.check_rate_limit import CheckRateLimit
-from kingsec.domain import User
+from kingsec.domain import Role, User
 from kingsec.domain.mfa import MfaSecret
 from kingsec.domain.rate_limit import AccountLockout, LockoutPolicy, RateLimitDecision, RateLimitPolicy
 from kingsec.infrastructure.config import Settings
@@ -128,6 +128,21 @@ class StubUserRepo:
 
     def save(self, user: User) -> None:
         self._users[user.id] = user
+
+    def save_new_user_claiming_bootstrap_admin(self, user: User) -> User:
+        if not self._users:
+            user = User(
+                id=user.id,
+                username=user.username,
+                email=user.email,
+                password_hash=user.password_hash,
+                role=Role.ADMIN,
+                is_active=user.is_active,
+                created_at=user.created_at,
+                last_login_at=user.last_login_at,
+            )
+        self._users[user.id] = user
+        return user
 
     def exists_by_username(self, username: str) -> bool:
         return self.find_by_username(username) is not None

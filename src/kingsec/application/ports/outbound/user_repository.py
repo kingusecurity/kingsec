@@ -54,6 +54,27 @@ class UserRepository(ABC):
         """
 
     @abstractmethod
+    def save_new_user_claiming_bootstrap_admin(self, user: User) -> User:
+        """Insert a brand-new user, atomically claiming the one-time
+        first-user-becomes-admin bootstrap slot.
+
+        KSEC-73-05: ``user.role`` is used as given UNLESS this call is the
+        one that inserts the very first row this table has ever had, in
+        which case the persisted role is ``Role.ADMIN`` regardless of
+        ``user.role`` - decided by a single atomic database operation
+        (not a separate "count users" read followed by a later insert),
+        so that under two concurrent registrations against an empty
+        table, at most one can ever win the bootstrap-admin claim.
+
+        Only ever call this for a genuinely new user (this is not an
+        upsert - use ``save`` for updates to an existing user).
+
+        Returns:
+            The User exactly as persisted, with ``role`` reflecting
+            whichever outcome the atomic claim actually produced.
+        """
+
+    @abstractmethod
     def exists_by_username(self, username: str) -> bool:
         """Check if a username is already taken.
 

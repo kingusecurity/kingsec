@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from kingsec.application._support import verify_step_up_password
+from kingsec.application.ports import PasswordHasher, UserRepository
 from kingsec.application.ports.outbound.audit_event_repository import AuditEventRepository
 from kingsec.application.ports.outbound.mfa_secret_repository import MfaSecretRepository
 from kingsec.application.ports.outbound.recovery_code_repository import RecoveryCodeRepository
@@ -23,15 +25,27 @@ class DisableMfa:
         self,
         secret_repo: MfaSecretRepository,
         recovery_repo: RecoveryCodeRepository,
+        users: UserRepository,
+        hasher: PasswordHasher,
         audit_repo: AuditEventRepository | None = None,
     ) -> None:
         self._secret_repo = secret_repo
         self._recovery_repo = recovery_repo
+        self._users = users
+        self._hasher = hasher
         self._audit_repo = audit_repo
 
     def execute(self, request: DisableMfaRequest) -> None:
         import uuid
         from datetime import UTC, datetime
+
+        # KSEC-73-03: step-up authentication - a bearer token alone must
+        # not be sufficient to disable MFA. Skipped only for the distinct
+        # admin route, which is already gated by require_admin_jwt_only -
+        # a stronger control than an ordinary access token, and one an
+        # admin cannot satisfy with the target user's own password.
+        if not request.is_admin:
+            verify_step_up_password(self._users, self._hasher, request.user_id, request.current_password)
 
         self._secret_repo.delete_by_user_id(request.user_id)
         self._recovery_repo.delete_by_user_id(request.user_id)

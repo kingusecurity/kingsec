@@ -77,12 +77,15 @@ class StubRecoveryCodeRepo(RecoveryCodeRepository):
     def save_batch(self, user_id: str, codes: list[MfaRecoveryCode]) -> None:
         self._codes[user_id] = list(codes)
 
-    def mark_used(self, user_id: str, code_hash: str) -> None:
+    def mark_used(self, user_id: str, code_hash: str) -> bool:
         codes = self._codes.get(user_id, [])
         for i, c in enumerate(codes):
             if c.code_hash == code_hash:
+                if c.status == RecoveryCodeStatus.USED:
+                    return False
                 codes[i] = MfaRecoveryCode(code_hash=c.code_hash, status=RecoveryCodeStatus.USED)
-                break
+                return True
+        return False
 
     def delete_by_user_id(self, user_id: str) -> None:
         self._codes.pop(user_id, None)
@@ -148,15 +151,15 @@ def _build_app() -> tuple[FastAPI, StubUserRepo, StubTokenService, StubMfaSecret
             if service_type == EnableMfa:
                 return EnableMfa(mfa_secret_repo, totp_service, audit_repo)
             if service_type == DisableMfa:
-                return DisableMfa(mfa_secret_repo, recovery_repo, audit_repo)
+                return DisableMfa(mfa_secret_repo, recovery_repo, user_repo, hasher, audit_repo)
             if service_type == VerifyMfaCode:
                 return VerifyMfaCode(user_repo, token_service, mfa_secret_repo, totp_service, None, audit_repo)
             if service_type == GenerateRecoveryCodes:
-                return GenerateRecoveryCodes(recovery_repo)
+                return GenerateRecoveryCodes(recovery_repo, user_repo, hasher)
             if service_type == UseRecoveryCode:
                 return UseRecoveryCode(user_repo, token_service, mfa_secret_repo, recovery_repo, None, audit_repo)
             if service_type == RotateRecoveryCodes:
-                return RotateRecoveryCodes(recovery_repo, audit_repo)
+                return RotateRecoveryCodes(recovery_repo, user_repo, hasher, audit_repo)
             if service_type == CheckRateLimit:
                 return CheckRateLimit(StubRateLimiter())
             raise ValueError(f"Unknown service: {service_type}")
@@ -282,7 +285,11 @@ class TestMfaIntegration:
 
         token = _register_and_login(client, username="user7")
         client.post("/api/v1/mfa/enable", headers={"Authorization": f"Bearer {token}"})
-        client.post("/api/v1/mfa/disable", headers={"Authorization": f"Bearer {token}"})
+        client.post(
+            "/api/v1/mfa/disable",
+            json={"current_password": "Passw0rd!"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
 
         resp = client.get("/api/v1/mfa/status", headers={"Authorization": f"Bearer {token}"})
         assert resp.json()["enabled"] is False
@@ -311,7 +318,11 @@ class TestMfaIntegration:
         token = _register_and_login(client, username="user8")
         client.post("/api/v1/mfa/enable", headers={"Authorization": f"Bearer {token}"})
 
-        gen_resp = client.post("/api/v1/mfa/recovery/generate", headers={"Authorization": f"Bearer {token}"})
+        gen_resp = client.post(
+            "/api/v1/mfa/recovery/generate",
+            json={"current_password": "Passw0rd!"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
         recovery_code = gen_resp.json()["codes"][0]
 
         pending_token = _login_for_pending_token(client, "user8")
@@ -328,7 +339,11 @@ class TestMfaIntegration:
         token = _register_and_login(client, username="user9")
         client.post("/api/v1/mfa/enable", headers={"Authorization": f"Bearer {token}"})
 
-        gen_resp = client.post("/api/v1/mfa/recovery/generate", headers={"Authorization": f"Bearer {token}"})
+        gen_resp = client.post(
+            "/api/v1/mfa/recovery/generate",
+            json={"current_password": "Passw0rd!"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
         recovery_code = gen_resp.json()["codes"][0]
 
         # First use succeeds
@@ -352,9 +367,17 @@ class TestMfaIntegration:
 
         token = _register_and_login(client, username="user10")
         client.post("/api/v1/mfa/enable", headers={"Authorization": f"Bearer {token}"})
-        client.post("/api/v1/mfa/recovery/generate", headers={"Authorization": f"Bearer {token}"})
+        client.post(
+            "/api/v1/mfa/recovery/generate",
+            json={"current_password": "Passw0rd!"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
 
-        rotate_resp = client.post("/api/v1/mfa/recovery/rotate", headers={"Authorization": f"Bearer {token}"})
+        rotate_resp = client.post(
+            "/api/v1/mfa/recovery/rotate",
+            json={"current_password": "Passw0rd!"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
         assert rotate_resp.status_code == 200
         assert len(rotate_resp.json()["codes"]) == 10
 

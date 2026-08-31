@@ -22,9 +22,26 @@ class EnableMfaResponse:
 
 @dataclass(frozen=True)
 class DisableMfaRequest:
-    """Request to disable MFA for a user."""
+    """Request to disable MFA for a user.
+
+    ``current_password`` is a KSEC-73-03 step-up credential: possessing a
+    valid access token alone must not be sufficient to strip MFA from an
+    account, so the self-service caller must re-prove their own password
+    immediately before this security-downgrading operation.
+
+    ``is_admin`` is set only by the distinct, already-more-strongly-gated
+    admin route (POST /mfa/disable/{user_id}, require_admin_jwt_only) to
+    skip the self-service step-up check - an admin cannot know another
+    user's password, and admin authority is already a stronger control
+    than "possession of an ordinary access token" (the exact threat this
+    finding addresses), matching the same is_admin-bypass shape already
+    used by check_assessment_access/check_schedule_access/
+    check_pipeline_access elsewhere in this application.
+    """
 
     user_id: str
+    current_password: str = ""
+    is_admin: bool = False
 
 
 @dataclass(frozen=True)
@@ -56,9 +73,14 @@ class VerifyMfaCodeResponse:
 
 @dataclass(frozen=True)
 class GenerateRecoveryCodesRequest:
-    """Request to generate new recovery codes."""
+    """Request to generate new recovery codes.
+
+    ``current_password`` is a KSEC-73-03 step-up credential - see
+    ``DisableMfaRequest``.
+    """
 
     user_id: str
+    current_password: str
 
 
 @dataclass(frozen=True)
@@ -96,9 +118,14 @@ class UseRecoveryCodeResponse:
 
 @dataclass(frozen=True)
 class RotateRecoveryCodesRequest:
-    """Request to replace all recovery codes for a user."""
+    """Request to replace all recovery codes for a user.
+
+    ``current_password`` is a KSEC-73-03 step-up credential - see
+    ``DisableMfaRequest``.
+    """
 
     user_id: str
+    current_password: str
 
 
 @dataclass(frozen=True)

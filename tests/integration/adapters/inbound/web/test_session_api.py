@@ -220,7 +220,7 @@ def app() -> FastAPI:
 
     container.register_factory(
         CreateSession,
-        lambda c: CreateSession(c.resolve(SessionRepository), c.resolve(ClockPort)),
+        lambda c: CreateSession(c.resolve(SessionRepository), c.resolve(ClockPort), c.resolve(TokenService)),
     )
     container.register_factory(
         ValidateSession,

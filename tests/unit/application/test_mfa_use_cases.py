@@ -171,15 +171,15 @@ class StubRecoveryCodeRepo(RecoveryCodeRepository):
     def save_batch(self, user_id: str, codes: Sequence[MfaRecoveryCode]) -> None:
         self._codes[user_id] = list(codes)
 
-    def mark_used(self, user_id: str, code_hash: str) -> None:
+    def mark_used(self, user_id: str, code_hash: str) -> bool:
         codes = self._codes.get(user_id, [])
-        for c in codes:
+        for i, c in enumerate(codes):
             if c.code_hash == code_hash:
-                self._codes[user_id] = [
-                    MfaRecoveryCode(code_hash=c.code_hash, status=RecoveryCodeStatus.USED) if i == codes.index(c) else c
-                    for i, c in enumerate(codes)
-                ]
-                return
+                if c.status == RecoveryCodeStatus.USED:
+                    return False
+                codes[i] = MfaRecoveryCode(code_hash=c.code_hash, status=RecoveryCodeStatus.USED)
+                return True
+        return False
 
     def delete_by_user_id(self, user_id: str) -> None:
         self._codes.pop(user_id, None)
@@ -244,28 +244,72 @@ class TestEnableMfa:
 
 
 class TestDisableMfa:
-    def test_disable_removes_secret(self) -> None:
+    def _setup(self) -> tuple[DisableMfa, StubMfaSecretRepo, StubRecoveryCodeRepo, StubAuditRepo]:
         secret_repo = StubMfaSecretRepo()
         recovery_repo = StubRecoveryCodeRepo()
+        users = StubUserRepo()
+        hasher = StubPasswordHasher()
         audit = StubAuditRepo()
         secret_repo.save(MfaSecret(user_id="user-1", secret_key="secret", status=MfaStatus.ENABLED))
+        recovery_repo.save_batch(
+            "user-1", [MfaRecoveryCode(code_hash="hash-1", status=RecoveryCodeStatus.ACTIVE)]
+        )
+        users.save(
+            User(
+                id="user-1",
+                username="testuser",
+                email="test@example.com",
+                password_hash=hasher.hash("pass123"),
+                role=Role.VIEWER,
+            )
+        )
+        uc = DisableMfa(secret_repo, recovery_repo, users, hasher, audit)
+        return uc, secret_repo, recovery_repo, audit
 
-        uc = DisableMfa(secret_repo, recovery_repo, audit)
-        uc.execute(DisableMfaRequest(user_id="user-1"))
+    def test_disable_removes_secret(self) -> None:
+        uc, secret_repo, _recovery_repo, _audit = self._setup()
+        uc.execute(DisableMfaRequest(user_id="user-1", current_password="pass123"))
 
         assert secret_repo.find_by_user_id("user-1") is None
 
     def test_disable_creates_audit_event(self) -> None:
-        secret_repo = StubMfaSecretRepo()
-        recovery_repo = StubRecoveryCodeRepo()
-        audit = StubAuditRepo()
-        secret_repo.save(MfaSecret(user_id="user-1", secret_key="secret", status=MfaStatus.ENABLED))
-
-        uc = DisableMfa(secret_repo, recovery_repo, audit)
-        uc.execute(DisableMfaRequest(user_id="user-1"))
+        uc, _secret_repo, _recovery_repo, audit = self._setup()
+        uc.execute(DisableMfaRequest(user_id="user-1", current_password="pass123"))
 
         assert len(audit.events) == 1
         assert audit.events[0].action == AuditAction.PASSWORD_CHANGED
+
+    def test_disable_without_step_up_password_is_rejected(self) -> None:
+        """KSEC-73-03: no current_password supplied -> rejected, MFA and
+        recovery codes remain intact."""
+        uc, secret_repo, recovery_repo, audit = self._setup()
+        with pytest.raises(ApplicationError, match="current password is incorrect"):
+            uc.execute(DisableMfaRequest(user_id="user-1", current_password=""))
+
+        assert secret_repo.find_by_user_id("user-1") is not None
+        assert len(recovery_repo.find_by_user_id("user-1")) == 1
+        assert audit.events == []
+
+    def test_disable_with_incorrect_step_up_password_is_rejected(self) -> None:
+        """KSEC-73-03: a valid access token alone (represented here by a
+        bare user_id) must not be sufficient - a wrong password is
+        rejected exactly like a missing one."""
+        uc, secret_repo, recovery_repo, audit = self._setup()
+        with pytest.raises(ApplicationError, match="current password is incorrect"):
+            uc.execute(DisableMfaRequest(user_id="user-1", current_password="totally-wrong"))
+
+        assert secret_repo.find_by_user_id("user-1") is not None
+        assert len(recovery_repo.find_by_user_id("user-1")) == 1
+        assert audit.events == []
+
+    def test_disable_by_admin_skips_step_up(self) -> None:
+        """The distinct admin route (already require_admin_jwt_only-gated)
+        cannot know the target's password - is_admin=True bypasses the
+        self-service step-up check without weakening it."""
+        uc, secret_repo, _recovery_repo, _audit = self._setup()
+        uc.execute(DisableMfaRequest(user_id="user-1", is_admin=True))
+
+        assert secret_repo.find_by_user_id("user-1") is None
 
 
 class TestVerifyMfaCode:
@@ -359,19 +403,37 @@ class TestVerifyMfaCode:
             uc.execute(VerifyMfaCodeRequest(pending_token=pending_token, totp_code="123456"))
 
 
+def _make_user_repo_with_password(user_id: str, password: str, hasher: StubPasswordHasher) -> StubUserRepo:
+    users = StubUserRepo()
+    users.save(
+        User(
+            id=user_id,
+            username="testuser",
+            email="test@example.com",
+            password_hash=hasher.hash(password),
+            role=Role.VIEWER,
+        )
+    )
+    return users
+
+
 class TestGenerateRecoveryCodes:
     def test_generates_ten_codes(self) -> None:
         repo = StubRecoveryCodeRepo()
-        uc = GenerateRecoveryCodes(repo)
-        result = uc.execute(GenerateRecoveryCodesRequest(user_id="user-1"))
+        hasher = StubPasswordHasher()
+        users = _make_user_repo_with_password("user-1", "pass123", hasher)
+        uc = GenerateRecoveryCodes(repo, users, hasher)
+        result = uc.execute(GenerateRecoveryCodesRequest(user_id="user-1", current_password="pass123"))
         assert len(result.codes) == 10
 
     def test_codes_are_stored_hashed(self) -> None:
         import hashlib
 
         repo = StubRecoveryCodeRepo()
-        uc = GenerateRecoveryCodes(repo)
-        result = uc.execute(GenerateRecoveryCodesRequest(user_id="user-1"))
+        hasher = StubPasswordHasher()
+        users = _make_user_repo_with_password("user-1", "pass123", hasher)
+        uc = GenerateRecoveryCodes(repo, users, hasher)
+        result = uc.execute(GenerateRecoveryCodesRequest(user_id="user-1", current_password="pass123"))
 
         stored = repo.find_by_user_id("user-1")
         assert len(stored) == 10
@@ -379,6 +441,31 @@ class TestGenerateRecoveryCodes:
             expected_hash = hashlib.sha256(plaintext.encode()).hexdigest()
             assert stored_code.code_hash == expected_hash
             assert stored_code.status == RecoveryCodeStatus.ACTIVE
+
+    def test_generate_without_step_up_password_is_rejected(self) -> None:
+        repo = StubRecoveryCodeRepo()
+        hasher = StubPasswordHasher()
+        users = _make_user_repo_with_password("user-1", "pass123", hasher)
+        uc = GenerateRecoveryCodes(repo, users, hasher)
+        with pytest.raises(ApplicationError, match="current password is incorrect"):
+            uc.execute(GenerateRecoveryCodesRequest(user_id="user-1", current_password="wrong"))
+
+        assert repo.find_by_user_id("user-1") == []
+
+
+def _seed_recovery_codes(repo: StubRecoveryCodeRepo, user_id: str, plaintext_codes: list[str]) -> None:
+    """Seed a recovery-code repo directly, bypassing GenerateRecoveryCodes'
+    own step-up requirement - irrelevant to tests that exercise recovery
+    CODE USAGE (UseRecoveryCode), not code generation."""
+    import hashlib
+
+    repo.save_batch(
+        user_id,
+        [
+            MfaRecoveryCode(code_hash=hashlib.sha256(c.encode()).hexdigest(), status=RecoveryCodeStatus.ACTIVE)
+            for c in plaintext_codes
+        ],
+    )
 
 
 class TestUseRecoveryCode:
@@ -405,35 +492,35 @@ class TestUseRecoveryCode:
 
     def test_valid_recovery_code_returns_tokens(self) -> None:
         uc, _tokens, recovery_repo, pending_token = self._setup()
-        uc_gen = GenerateRecoveryCodes(recovery_repo)
-        gen_result = uc_gen.execute(GenerateRecoveryCodesRequest(user_id="user-1"))
+        codes = ["code-a", "code-b"]
+        _seed_recovery_codes(recovery_repo, "user-1", codes)
 
-        result = uc.execute(UseRecoveryCodeRequest(pending_token=pending_token, recovery_code=gen_result.codes[0]))
+        result = uc.execute(UseRecoveryCodeRequest(pending_token=pending_token, recovery_code=codes[0]))
         assert result.access_token == "access:user-1"
 
     def test_used_code_cannot_be_reused(self) -> None:
         uc, tokens, recovery_repo, pending_token = self._setup()
-        uc_gen = GenerateRecoveryCodes(recovery_repo)
-        gen_result = uc_gen.execute(GenerateRecoveryCodesRequest(user_id="user-1"))
+        codes = ["code-a", "code-b"]
+        _seed_recovery_codes(recovery_repo, "user-1", codes)
 
-        uc.execute(UseRecoveryCodeRequest(pending_token=pending_token, recovery_code=gen_result.codes[0]))
+        uc.execute(UseRecoveryCodeRequest(pending_token=pending_token, recovery_code=codes[0]))
 
         # A second pending token, since the first was consumed (single-use)
         # by the successful completion above - isolates "code already used"
         # from "pending token already used", tested separately below.
         second_pending = tokens.create_mfa_pending_token(user_id="user-1", username="testuser", role="Admin")
         with pytest.raises(ApplicationError, match="invalid recovery code"):
-            uc.execute(UseRecoveryCodeRequest(pending_token=second_pending, recovery_code=gen_result.codes[0]))
+            uc.execute(UseRecoveryCodeRequest(pending_token=second_pending, recovery_code=codes[0]))
 
     def test_pending_token_cannot_be_reused_after_success(self) -> None:
         uc, _, recovery_repo, pending_token = self._setup()
-        uc_gen = GenerateRecoveryCodes(recovery_repo)
-        gen_result = uc_gen.execute(GenerateRecoveryCodesRequest(user_id="user-1"))
+        codes = ["code-a", "code-b"]
+        _seed_recovery_codes(recovery_repo, "user-1", codes)
 
-        uc.execute(UseRecoveryCodeRequest(pending_token=pending_token, recovery_code=gen_result.codes[0]))
+        uc.execute(UseRecoveryCodeRequest(pending_token=pending_token, recovery_code=codes[0]))
 
         with pytest.raises(ApplicationError, match="invalid or expired login attempt"):
-            uc.execute(UseRecoveryCodeRequest(pending_token=pending_token, recovery_code=gen_result.codes[1]))
+            uc.execute(UseRecoveryCodeRequest(pending_token=pending_token, recovery_code=codes[1]))
 
     def test_invalid_pending_token_raises_error(self) -> None:
         uc, _, _, _ = self._setup()
@@ -442,19 +529,21 @@ class TestUseRecoveryCode:
 
 
 class TestRotateRecoveryCodes:
-    def test_rotates_all_codes(self) -> None:
-
+    def _setup(self) -> tuple[RotateRecoveryCodes, StubRecoveryCodeRepo, StubUserRepo, StubPasswordHasher, StubAuditRepo]:
         repo = StubRecoveryCodeRepo()
+        hasher = StubPasswordHasher()
+        users = _make_user_repo_with_password("user-1", "pass123", hasher)
         audit = StubAuditRepo()
+        uc = RotateRecoveryCodes(repo, users, hasher, audit)
+        return uc, repo, users, hasher, audit
 
-        initial = GenerateRecoveryCodes(repo)
-        initial.execute(GenerateRecoveryCodesRequest(user_id="user-1"))
-
+    def test_rotates_all_codes(self) -> None:
+        uc, repo, _users, _hasher, _audit = self._setup()
+        _seed_recovery_codes(repo, "user-1", ["old-code-0", "old-code-1"])
         first_batch = repo.find_by_user_id("user-1")
         first_hashes = [c.code_hash for c in first_batch]
 
-        uc = RotateRecoveryCodes(repo, audit)
-        result = uc.execute(RotateRecoveryCodesRequest(user_id="user-1"))
+        result = uc.execute(RotateRecoveryCodesRequest(user_id="user-1", current_password="pass123"))
 
         assert len(result.codes) == 10
         rotated_batch = repo.find_by_user_id("user-1")
@@ -465,11 +554,20 @@ class TestRotateRecoveryCodes:
             assert h not in first_hashes
 
     def test_rotate_creates_audit_event(self) -> None:
-        repo = StubRecoveryCodeRepo()
-        audit = StubAuditRepo()
-
-        uc = RotateRecoveryCodes(repo, audit)
-        uc.execute(RotateRecoveryCodesRequest(user_id="user-1"))
+        uc, _repo, _users, _hasher, audit = self._setup()
+        uc.execute(RotateRecoveryCodesRequest(user_id="user-1", current_password="pass123"))
 
         assert len(audit.events) == 1
         assert audit.events[0].action == AuditAction.PASSWORD_CHANGED
+
+    def test_rotate_without_step_up_password_is_rejected(self) -> None:
+        uc, repo, _users, _hasher, audit = self._setup()
+        _seed_recovery_codes(repo, "user-1", ["old-code-0"])
+        original = [c.code_hash for c in repo.find_by_user_id("user-1")]
+
+        with pytest.raises(ApplicationError, match="current password is incorrect"):
+            uc.execute(RotateRecoveryCodesRequest(user_id="user-1", current_password="wrong"))
+
+        # Existing codes are untouched by the rejected attempt.
+        assert [c.code_hash for c in repo.find_by_user_id("user-1")] == original
+        assert audit.events == []

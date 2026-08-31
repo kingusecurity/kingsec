@@ -69,17 +69,15 @@ class UseRecoveryCode:
         if mfa_secret is None or mfa_secret.status.value != "enabled":
             raise ApplicationError("MFA is not enabled for this user")
 
-        # Verify recovery code.
+        # KSEC-73-04: attempt the atomic ACTIVE -> USED transition
+        # directly, rather than reading all codes first and deciding
+        # in-process which one to mark - that read-then-write shape is
+        # exactly the TOCTOU window this fix closes. mark_used()'s own
+        # WHERE clause (code_hash matches AND status='active') is the
+        # only place "does this code exist, is it unused, and does it
+        # match" is decided, atomically, at the database.
         input_hash = hashlib.sha256(request.recovery_code.encode()).hexdigest()
-        recovery_codes = self._recovery_repo.find_by_user_id(user.id)
-        matched = False
-        for rc in recovery_codes:
-            if rc.status.value == "used":
-                continue
-            if rc.code_hash == input_hash:
-                self._recovery_repo.mark_used(user.id, rc.code_hash)
-                matched = True
-                break
+        matched = self._recovery_repo.mark_used(user.id, input_hash)
 
         if not matched:
             self._publish_event(

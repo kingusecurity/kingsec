@@ -511,6 +511,22 @@ class ChangePasswordBody(BaseModel):
     new_password: str = Field(..., min_length=8, max_length=128)
 
 
+class MfaStepUpBody(BaseModel):
+    """Request body for security-downgrading MFA operations (disable,
+    recovery-code generate/rotate) - KSEC-73-03.
+
+    current_password proves the caller still knows the account's
+    password, not merely that they hold a still-valid access token.
+    Same bounds as ChangePasswordBody.current_password, for the same
+    reason (an existing password may predate the current complexity
+    policy's min_length).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    current_password: str = Field(..., min_length=1, max_length=128)
+
+
 class RolePermissionResponse(BaseModel):
     """A single role with its permissions."""
 

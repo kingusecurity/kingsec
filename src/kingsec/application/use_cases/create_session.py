@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+from kingsec.application.ports import TokenService
 from kingsec.application.ports.outbound.clock_port import ClockPort
 from kingsec.application.ports.outbound.session_repository import SessionRepository
 from kingsec.application.use_cases.session_dto import (
@@ -20,12 +21,14 @@ class CreateSession:
         self,
         repo: SessionRepository,
         clock: ClockPort,
+        tokens: TokenService,
         max_concurrent_sessions: int = 5,
         session_ttl_seconds: int = 604800,
         idle_timeout_seconds: int = 1800,
     ) -> None:
         self._repo = repo
         self._clock = clock
+        self._tokens = tokens
         self._max_concurrent = max_concurrent_sessions
         self._session_ttl = session_ttl_seconds
         self._idle_timeout = idle_timeout_seconds
@@ -40,7 +43,14 @@ class CreateSession:
             oldest = self._repo.find_active_by_user(request.user_id)
             if oldest:
                 oldest_sorted = sorted(oldest, key=lambda s: s.issued_at)
-                self._repo.revoke(oldest_sorted[0].id.value)
+                evicted = oldest_sorted[0]
+                # KSEC-73-02: revoke the evicted session's JWTs, not just
+                # its Session row - mirrors RevokeSession's exact pattern
+                # so an evicted device's tokens stop authenticating
+                # immediately instead of surviving until natural expiry.
+                self._tokens.revoke_token(evicted.jti)
+                self._tokens.revoke_token(evicted.refresh_jti)
+                self._repo.revoke(evicted.id.value)
 
         session = Session(
             id=SessionId.generate(),

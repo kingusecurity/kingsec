@@ -9,6 +9,18 @@ class InputValidationError(ApplicationError):
     """A request DTO carried invalid or malformed input."""
 
 
+class MfaStepUpAuthenticationError(ApplicationError):
+    """A security-downgrading MFA operation was requested without a valid
+    step-up credential (current password).
+
+    KSEC-73-03: possessing an ordinary access token must not by itself be
+    sufficient to disable MFA or regenerate/rotate recovery codes -
+    DisableMfa/GenerateRecoveryCodes/RotateRecoveryCodes each require the
+    caller to re-prove their current password via the same PasswordHasher
+    used everywhere else, before performing the operation.
+    """
+
+
 class LicenseRequiredError(ApplicationError):
     """The requested action is gated behind a license edition the caller doesn't have.
 

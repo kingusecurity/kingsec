@@ -50,6 +50,10 @@ class StubUserRepository(UserRepository):
     def save(self, user: User) -> None:
         self.saved_users.append(user)
 
+    def save_new_user_claiming_bootstrap_admin(self, user: User) -> User:
+        self.saved_users.append(user)
+        return user
+
     def exists_by_username(self, username: str) -> bool:
         return False
 

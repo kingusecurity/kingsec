@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from kingsec.application._support import verify_step_up_password
+from kingsec.application.ports import PasswordHasher, UserRepository
 from kingsec.application.ports.outbound.audit_event_repository import AuditEventRepository
 from kingsec.application.ports.outbound.recovery_code_repository import RecoveryCodeRepository
 from kingsec.domain.audit_event import (
@@ -22,9 +24,13 @@ class RotateRecoveryCodes:
     def __init__(
         self,
         recovery_repo: RecoveryCodeRepository,
+        users: UserRepository,
+        hasher: PasswordHasher,
         audit_repo: AuditEventRepository | None = None,
     ) -> None:
         self._recovery_repo = recovery_repo
+        self._users = users
+        self._hasher = hasher
         self._audit_repo = audit_repo
 
     def execute(self, request: RotateRecoveryCodesRequest) -> RotateRecoveryCodesResponse:
@@ -32,6 +38,10 @@ class RotateRecoveryCodes:
         import os
         import uuid
         from datetime import UTC, datetime
+
+        # KSEC-73-03: step-up authentication - a bearer token alone must
+        # not be sufficient to rotate recovery codes.
+        verify_step_up_password(self._users, self._hasher, request.user_id, request.current_password)
 
         plaintext_codes: list[str] = []
         hashed_codes: list[MfaRecoveryCode] = []

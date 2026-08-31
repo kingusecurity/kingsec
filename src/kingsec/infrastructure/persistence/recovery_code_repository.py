@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any, cast
 
-from sqlalchemy import select
+from sqlalchemy import CursorResult, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -58,17 +59,29 @@ class SqlAlchemyRecoveryCodeRepository(RecoveryCodeRepository):
             log_exception(_logger, error)
             raise error from exc
 
-    def mark_used(self, user_id: str, code_hash: str) -> None:
+    def mark_used(self, user_id: str, code_hash: str) -> bool:
         try:
             with self._session_factory.begin() as session:
-                stmt = select(MfaRecoveryCodeORM).where(
-                    MfaRecoveryCodeORM.user_id == user_id,
-                    MfaRecoveryCodeORM.code_hash == code_hash,
+                # KSEC-73-04: a single atomic conditional UPDATE, not a
+                # separate SELECT-then-write - the WHERE clause requires
+                # status still be ACTIVE, so of two concurrent callers
+                # racing this exact statement for the same code, at most
+                # one can ever match a row and transition it (the DB's
+                # own row-level locking/serialization enforces this, not
+                # anything in Python).
+                stmt = (
+                    update(MfaRecoveryCodeORM)
+                    .where(
+                        MfaRecoveryCodeORM.user_id == user_id,
+                        MfaRecoveryCodeORM.code_hash == code_hash,
+                        MfaRecoveryCodeORM.status == RecoveryCodeStatus.ACTIVE.value,
+                    )
+                    .values(status=RecoveryCodeStatus.USED.value)
                 )
-                orm = session.execute(stmt).scalar_one_or_none()
-                if orm is not None:
-                    orm.status = RecoveryCodeStatus.USED.value
-            _logger.debug("recovery code marked used", user_id=user_id)
+                result = cast("CursorResult[Any]", session.execute(stmt))
+                transitioned = result.rowcount == 1
+            _logger.debug("recovery code mark_used attempted", user_id=user_id, transitioned=transitioned)
+            return transitioned
         except SQLAlchemyError as exc:
             error = PersistenceError("failed to mark recovery code used", context={"user_id": user_id}, cause=exc)
             log_exception(_logger, error)

@@ -11,11 +11,12 @@ from collections.abc import Callable
 from datetime import UTC
 from typing import Any
 
-from sqlalchemy import exists, func, or_, select
+from sqlalchemy import exists, func, or_, select, text
 
 from kingsec.application.ports import UserRepository
 from kingsec.domain import Role, User
 from kingsec.infrastructure.logging import get_logger
+from kingsec.shared.errors import PersistenceError
 
 from .models import UserORM
 
@@ -54,6 +55,48 @@ class SqlAlchemyUserRepository(UserRepository):
             else:
                 session.add(_to_orm(user))
             session.commit()
+
+    def save_new_user_claiming_bootstrap_admin(self, user: User) -> User:
+        # KSEC-73-05: a single atomic INSERT ... SELECT statement, not a
+        # separate "count users" read followed by a later, separate
+        # insert. The CASE's COUNT(*) subquery and the row insertion
+        # happen as one database operation - SQLite (and Turso, its
+        # wire-compatible production target) serializes concurrent
+        # writers against the same table, so a second, concurrent call
+        # to this exact statement cannot observe the pre-insert empty
+        # count once the first call's row is visible; it will correctly
+        # see count > 0 and assign the non-admin role instead. This is
+        # the actual atomicity guarantee - not anything enforced in
+        # Python.
+        with self._session_factory() as session:
+            session.execute(
+                text("""
+                    INSERT INTO users
+                        (id, username, email, password_hash, role, is_active, created_at, last_login_at)
+                    SELECT
+                        :id, :username, :email, :password_hash,
+                        CASE WHEN (SELECT COUNT(*) FROM users) = 0 THEN 'ADMIN' ELSE :default_role END,
+                        :is_active, :created_at, :last_login_at
+                """),
+                {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "password_hash": user.password_hash,
+                    "default_role": user.role.name,
+                    "is_active": user.is_active,
+                    "created_at": user.created_at.isoformat(),
+                    "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+                },
+            )
+            session.commit()
+            persisted = session.get(UserORM, user.id)
+            if persisted is None:
+                raise PersistenceError(
+                    "user row not found immediately after insert",
+                    context={"user_id": user.id},
+                )
+            return _to_domain(persisted)
 
     def exists_by_username(self, username: str) -> bool:
         with self._session_factory() as session:

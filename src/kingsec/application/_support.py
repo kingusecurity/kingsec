@@ -26,9 +26,11 @@ from .errors import (
     ApplicationError,
     AssessmentNotFoundError,
     InputValidationError,
+    MfaStepUpAuthenticationError,
     PipelineNotFoundError,
     ScheduleNotFoundError,
 )
+from .ports import PasswordHasher, UserRepository
 
 
 def to_assessment_id(raw: str) -> AssessmentId:
@@ -86,6 +88,21 @@ def check_pipeline_access(execution: PipelineExecution, requesting_user: str, is
     if execution.owner_user_id and execution.owner_user_id == requesting_user:
         return
     raise PipelineNotFoundError(f"Pipeline '{execution.pipeline_id}' not found")
+
+
+def verify_step_up_password(users: UserRepository, hasher: PasswordHasher, user_id: str, password: str) -> None:
+    """Raise MfaStepUpAuthenticationError unless ``password`` matches the
+    user's current password hash.
+
+    KSEC-73-03: shared step-up check for security-downgrading MFA
+    operations (disable / recovery-code regenerate / rotate) - reuses
+    the same UserRepository/PasswordHasher pair every other password
+    verification in this application already uses, rather than a new
+    parallel credential check.
+    """
+    user = users.find_by_id(user_id)
+    if user is None or not hasher.verify(password, user.password_hash):
+        raise MfaStepUpAuthenticationError("current password is incorrect")
 
 
 def safe_failure_message(exc: BaseException) -> str:

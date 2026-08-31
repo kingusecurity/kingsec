@@ -711,6 +711,7 @@ def _register_use_cases(app: Application) -> None:
         lambda c: ChangePassword(
             c.resolve(UserRepository),
             c.resolve(PasswordHasher),
+            c.resolve(RevokeAllSessions),
             c.resolve(AuditPublisher),
         ),
     )
@@ -774,6 +775,8 @@ def _register_use_cases(app: Application) -> None:
         lambda c: DisableMfa(
             c.resolve(MfaSecretRepository),
             c.resolve(RecoveryCodeRepository),
+            c.resolve(UserRepository),
+            c.resolve(PasswordHasher),
             c.resolve(AuditEventRepository),
         ),
     )
@@ -790,7 +793,11 @@ def _register_use_cases(app: Application) -> None:
     )
     container.register_factory(
         GenerateRecoveryCodes,
-        lambda c: GenerateRecoveryCodes(c.resolve(RecoveryCodeRepository)),
+        lambda c: GenerateRecoveryCodes(
+            c.resolve(RecoveryCodeRepository),
+            c.resolve(UserRepository),
+            c.resolve(PasswordHasher),
+        ),
     )
     container.register_factory(
         UseRecoveryCode,
@@ -807,6 +814,8 @@ def _register_use_cases(app: Application) -> None:
         RotateRecoveryCodes,
         lambda c: RotateRecoveryCodes(
             c.resolve(RecoveryCodeRepository),
+            c.resolve(UserRepository),
+            c.resolve(PasswordHasher),
             c.resolve(AuditEventRepository),
         ),
     )
@@ -817,6 +826,7 @@ def _register_use_cases(app: Application) -> None:
         lambda c: CreateSession(
             c.resolve(SessionRepository),
             c.resolve(ClockPort),
+            c.resolve(TokenService),
         ),
     )
     container.register_factory(

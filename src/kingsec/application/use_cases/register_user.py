@@ -5,17 +5,22 @@ Steps:
     2. Check that the username is not already taken.
     3. Check that the email is not already registered.
     4. Hash the password.
-    5. Determine the user's role — the very first registered user in a
-       fresh database becomes ADMIN so the system is self-bootstrapping;
-       every subsequent registration receives VIEWER (least privilege).
-    6. Create the user entity.
-    7. Persist the user.
-    8. Publish audit entry.
+    5. Build the user entity with the non-bootstrap default role.
+    6. Persist, atomically claiming the first-user-becomes-admin
+       bootstrap slot if this is the very first user the table has
+       ever had.
+    7. Publish audit entry.
 
 Security considerations:
     - Passwords are hashed before storage (never stored in plaintext).
     - Default role is "viewer" (least privilege) for all users except
       the very first one, which becomes ADMIN to bootstrap the system.
+    - KSEC-73-05: the first-user-admin decision is made by a single
+      atomic database operation (UserRepository.
+      save_new_user_claiming_bootstrap_admin), not a separate "count
+      users" read followed by a later insert - two concurrent
+      registrations against an empty database cannot both win the
+      bootstrap-admin claim.
     - Duplicate username/email are rejected with generic messages.
     - Audit entries record registration attempts for security monitoring.
 """
@@ -60,43 +65,42 @@ class RegisterUser:
         # Step 4: Hash the password.
         password_hash = self._hasher.hash(request.password)
 
-        # Step 5: Determine role — first user in an empty database becomes
-        # ADMIN so the system is self-bootstrapping; all subsequent
-        # registrations receive VIEWER (least privilege).
+        # Step 5: Build the user entity with the non-bootstrap default
+        # role (VIEWER) - the repository may atomically override this to
+        # ADMIN if this call turns out to be the very first user.
         import uuid
-
-        is_first_user = self._users.count() == 0
-        role = Role.ADMIN if is_first_user else Role.VIEWER
 
         user = User(
             id=str(uuid.uuid4()),
             username=request.username,
             email=request.email,
             password_hash=password_hash,
-            role=role,
+            role=Role.VIEWER,
         )
 
-        # Step 7: Persist.
-        self._users.save(user)
+        # Step 6: Persist, atomically claiming the bootstrap-admin slot
+        # (KSEC-73-05). Use the value actually persisted, not `user`,
+        # since the role may have been overridden.
+        persisted = self._users.save_new_user_claiming_bootstrap_admin(user)
 
-        # Step 8: Audit successful registration.
+        # Step 7: Audit successful registration.
         self._publish_audit(
             AuditEntry(
                 action=AuditAction.USER_REGISTERED,
                 resource_type="user",
-                resource_id=user.id,
+                resource_id=persisted.id,
                 success=True,
-                user_id=user.id,
-                username=user.username,
-                role=user.role.label,
+                user_id=persisted.id,
+                username=persisted.username,
+                role=persisted.role.label,
             )
         )
 
         return RegisterUserResponse(
-            user_id=user.id,
-            username=user.username,
-            email=user.email,
-            role=user.role.label,
+            user_id=persisted.id,
+            username=persisted.username,
+            email=persisted.email,
+            role=persisted.role.label,
         )
 
     def _publish_audit(self, entry: AuditEntry) -> None:

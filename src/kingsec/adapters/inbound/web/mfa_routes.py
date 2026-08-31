@@ -16,6 +16,7 @@ from kingsec.domain import RateLimitGroup
 from .auth import CurrentUser, get_current_user_jwt_only, require_admin_jwt_only
 from .rate_limit_deps import require_rate_limit
 from .schemas import MfaStatusResponse as MfaStatusSchema
+from .schemas import MfaStepUpBody
 from .session_helpers import create_session_for_login
 
 if TYPE_CHECKING:
@@ -138,6 +139,7 @@ async def verify_mfa(
     },
 )
 async def disable_mfa(
+    body: MfaStepUpBody,
     request: Request,
     current_user: CurrentUser = Depends(get_current_user_jwt_only),
 ) -> dict[str, Any]:
@@ -146,7 +148,7 @@ async def disable_mfa(
 
     app = _get_app(request)
     use_case: DisableMfa = app.resolve(DisableMfa)
-    use_case.execute(DisableMfaRequest(user_id=current_user.user_id))
+    use_case.execute(DisableMfaRequest(user_id=current_user.user_id, current_password=body.current_password))
     return {"status": "ok"}
 
 
@@ -171,7 +173,7 @@ async def admin_disable_mfa(
 
     app = _get_app(request)
     use_case: DisableMfa = app.resolve(DisableMfa)
-    use_case.execute(DisableMfaRequest(user_id=user_id))
+    use_case.execute(DisableMfaRequest(user_id=user_id, is_admin=True))
     return {"status": "ok"}
 
 
@@ -240,6 +242,7 @@ async def use_recovery_code(
     },
 )
 async def generate_recovery_codes(
+    body: MfaStepUpBody,
     request: Request,
     current_user: CurrentUser = Depends(get_current_user_jwt_only),
 ) -> dict[str, Any]:
@@ -248,7 +251,9 @@ async def generate_recovery_codes(
 
     app = _get_app(request)
     use_case: GenerateRecoveryCodes = app.resolve(GenerateRecoveryCodes)
-    result = use_case.execute(GenerateRecoveryCodesRequest(user_id=current_user.user_id))
+    result = use_case.execute(
+        GenerateRecoveryCodesRequest(user_id=current_user.user_id, current_password=body.current_password)
+    )
     return {"codes": list(result.codes)}
 
 
@@ -262,6 +267,7 @@ async def generate_recovery_codes(
     },
 )
 async def rotate_recovery_codes(
+    body: MfaStepUpBody,
     request: Request,
     current_user: CurrentUser = Depends(get_current_user_jwt_only),
 ) -> dict[str, Any]:
@@ -270,5 +276,7 @@ async def rotate_recovery_codes(
 
     app = _get_app(request)
     use_case: RotateRecoveryCodes = app.resolve(RotateRecoveryCodes)
-    result = use_case.execute(RotateRecoveryCodesRequest(user_id=current_user.user_id))
+    result = use_case.execute(
+        RotateRecoveryCodesRequest(user_id=current_user.user_id, current_password=body.current_password)
+    )
     return {"codes": list(result.codes)}
