@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from kingsec.application.ports.outbound.session_repository import SessionRepository
+from kingsec.application.ports.outbound.token_service import TokenService
 from kingsec.application.use_cases.create_session import CreateSession
 from kingsec.application.use_cases.list_user_sessions import ListUserSessions
 from kingsec.application.use_cases.revoke_all_sessions import RevokeAllSessions
@@ -58,6 +59,11 @@ def _get_session_repo(request: Request) -> Any:
     return app.resolve(SessionRepository)
 
 
+def _get_token_service(request: Request) -> Any:
+    app: Application = request.app.state.kingsec_app
+    return app.resolve(TokenService)
+
+
 @router.get("", response_model=list[SessionView])
 async def list_sessions(
     current_user: CurrentUser = Depends(get_current_user_jwt_only),
@@ -102,9 +108,21 @@ async def logout_current(
     current_user: CurrentUser = Depends(get_current_user_jwt_only),
     revoke_uc: Any = Depends(_get_revoke_session_uc),
     repo: Any = Depends(_get_session_repo),
+    tokens: Any = Depends(_get_token_service),
 ) -> None:
     if current_user.claims is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid session context")
+
+    # KSEC-75-05: revoke the caller's own access-token jti directly and
+    # unconditionally - logout must not depend on a Session row existing
+    # for this token. session_helpers.create_session_for_login is
+    # documented best-effort/never-raises, so one may never have been
+    # recorded; without this, a "successful" logout for such a login
+    # would silently leave the access token fully valid. Reuses the
+    # existing TokenService.revoke_token(jti) mechanism - no new
+    # revocation API.
+    tokens.revoke_token(current_user.claims.jti)
+
     session = repo.find_by_jti(current_user.claims.jti)
     if session:
         revoke_uc.execute(RevokeSessionRequest(session_id=str(session.id)))
@@ -144,45 +162,32 @@ async def refresh_session(
     app: Application = request.app.state.kingsec_app
     token_svc: TokenService = app.resolve(TokenService)
 
+    # This initial verification only establishes that the presented
+    # string is a well-formed, unexpired, non-revoked refresh-type JWT -
+    # it is the entry gate, not the source of truth for user state.
+    # KSEC-75-04: minting the new tokens and validating current
+    # account-status/role now happens entirely inside RefreshSession,
+    # which re-fetches the user rather than trusting these claims.
     old_claims = token_svc.verify_refresh_token(body.refresh_token)
     if old_claims.token_type != "refresh":  # nosec B105 — "refresh" is a JWT token type, not a credential
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid token type")
 
-    new_access_token = token_svc.create_access_token(
-        user_id=old_claims.user_id,
-        username=old_claims.username,
-        role=old_claims.role,
-    )
-    new_access_claims = token_svc.verify_access_token(new_access_token)
-    new_refresh_token = token_svc.create_refresh_token(
-        user_id=old_claims.user_id,
-        username=old_claims.username,
-        role=old_claims.role,
-    )
-    new_refresh_claims = token_svc.verify_refresh_token(new_refresh_token)
-
     refresh_uc = app.resolve(RefreshSession)
-    rl_req = RLDTO(
-        user_id=old_claims.user_id,
-        old_refresh_jti=old_claims.jti,
-        new_refresh_jti=new_refresh_claims.jti,
-        new_access_jti=new_access_claims.jti,
-    )
-    rl_result = refresh_uc.execute(rl_req)
+    rl_result = refresh_uc.execute(RLDTO(user_id=old_claims.user_id, old_refresh_jti=old_claims.jti))
 
     if rl_result.replay_detected:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="refresh token replay detected",
         )
-    if not rl_result.valid:
+    if not rl_result.valid or rl_result.access_token is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="session not found or expired",
         )
 
     return schemas.RefreshTokenResponse(
-        access_token=new_access_token,
+        access_token=rl_result.access_token,
         token_type="bearer",  # nosec B106 — "bearer" is an OAuth token type identifier, not a credential
         expires_in=1800,
     )

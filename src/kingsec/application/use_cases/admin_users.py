@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 from kingsec.application.ports import AuditPublisher, PasswordHasher, UserRepository
 from kingsec.application.use_cases.change_password import ChangePassword
+from kingsec.application.use_cases.revoke_all_sessions import RevokeAllSessions
+from kingsec.application.use_cases.session_dto import RevokeAllSessionsRequest
 from kingsec.domain.audit import AuditAction, AuditEntry
 
 
@@ -69,8 +71,9 @@ class SearchUsersResponse:
 
 
 class DeactivateUser:
-    def __init__(self, users: UserRepository, audit: AuditPublisher) -> None:
+    def __init__(self, users: UserRepository, sessions: RevokeAllSessions, audit: AuditPublisher) -> None:
         self._users = users
+        self._sessions = sessions
         self._audit = audit
 
     def execute(self, request: DeactivateUserRequest) -> AdminUserResponse:
@@ -81,6 +84,15 @@ class DeactivateUser:
             raise UserNotFoundError(request.user_id)
         user.disable()
         self._users.save(user)
+
+        # KSEC-75-02: is_active=False alone doesn't stop an already-issued
+        # access token from authenticating (JWT auth trusts the token's
+        # own claims, not a fresh DB lookup) - revoke the TARGET user's
+        # sessions/tokens immediately, the same RevokeAllSessions
+        # mechanism KSEC-73-01/KSEC-75-01 already use, rather than a
+        # second, parallel revocation mechanism.
+        self._sessions.execute(RevokeAllSessionsRequest(user_id=user.id))
+
         self._audit.record(
             AuditEntry(
                 action=AuditAction.USER_DEACTIVATED,
@@ -133,9 +145,16 @@ class ActivateUser:
 
 
 class AdminResetPassword:
-    def __init__(self, users: UserRepository, hasher: PasswordHasher, audit: AuditPublisher) -> None:
+    def __init__(
+        self,
+        users: UserRepository,
+        hasher: PasswordHasher,
+        sessions: RevokeAllSessions,
+        audit: AuditPublisher,
+    ) -> None:
         self._users = users
         self._hasher = hasher
+        self._sessions = sessions
         self._audit = audit
 
     def execute(self, request: ResetPasswordRequest) -> AdminUserResponse:
@@ -151,6 +170,17 @@ class AdminResetPassword:
         ChangePassword._validate_password(request.new_password)
         user.password_hash = self._hasher.hash(request.new_password)
         self._users.save(user)
+
+        # KSEC-75-01: an admin-initiated password reset is the incident-
+        # response tool for a compromised account - it must actually cut
+        # the attacker off, not just change a credential the attacker's
+        # already-issued tokens never had to prove again. Revokes the
+        # TARGET user's sessions/tokens (request.user_id), never the
+        # admin's own (request.admin_user_id) - reuses RevokeAllSessions
+        # exactly as self-service ChangePassword (KSEC-73-01) does,
+        # rather than a second, parallel revocation mechanism.
+        self._sessions.execute(RevokeAllSessionsRequest(user_id=user.id))
+
         self._audit.record(
             AuditEntry(
                 action=AuditAction.PASSWORD_RESET,

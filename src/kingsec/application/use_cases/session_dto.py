@@ -54,14 +54,14 @@ class ValidateSessionResponse:
 class RefreshSessionRequest:
     user_id: str
     old_refresh_jti: str
-    new_refresh_jti: str
-    new_access_jti: str
 
 
 @dataclass(frozen=True)
 class RefreshSessionResponse:
     valid: bool
     replay_detected: bool
+    access_token: str | None = None
+    refresh_token: str | None = None
 
 
 @dataclass(frozen=True)

@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
-from kingsec.application.ports import TokenClaims, TokenService
+from kingsec.application.ports import TokenClaims, TokenService, UserRepository
 from kingsec.application.ports.outbound.clock_port import ClockPort
 from kingsec.application.ports.outbound.session_repository import SessionRepository
+from kingsec.application.ports.outbound.token_service import TokenInvalidError
 from kingsec.application.use_cases.create_session import CreateSession
 from kingsec.application.use_cases.list_user_sessions import ListUserSessions
 from kingsec.application.use_cases.refresh_session import RefreshSession
@@ -23,6 +26,7 @@ from kingsec.application.use_cases.terminate_other_sessions import (
     TerminateOtherSessions,
 )
 from kingsec.application.use_cases.validate_session import ValidateSession
+from kingsec.domain import Role, User
 from kingsec.domain.session import (
     DeviceInfo,
     Session,
@@ -30,6 +34,70 @@ from kingsec.domain.session import (
     SessionStatus,
     SessionType,
 )
+
+
+@dataclass
+class FakeUserRepository(UserRepository):
+    """Minimal UserRepository fake for session use-case tests - KSEC-75-04
+    needs RefreshSession to re-fetch the current user, so its tests need
+    a real (if simple) UserRepository, not just Session/Token fakes."""
+
+    users: dict[str, User] = field(default_factory=dict)
+
+    def find_by_username(self, username: str) -> User | None:
+        for u in self.users.values():
+            if u.username.lower() == username.lower():
+                return u
+        return None
+
+    def find_by_id(self, user_id: str) -> User | None:
+        return self.users.get(user_id)
+
+    def save(self, user: User) -> None:
+        self.users[user.id] = user
+
+    def save_new_user_claiming_bootstrap_admin(self, user: User) -> User:
+        self.users[user.id] = user
+        return user
+
+    def exists_by_username(self, username: str) -> bool:
+        return self.find_by_username(username) is not None
+
+    def exists_by_email(self, email: str) -> bool:
+        return any(u.email.lower() == email.lower() for u in self.users.values())
+
+    def list_all(self, limit: int = 50, offset: int = 0) -> list[User]:
+        return list(self.users.values())[offset : offset + limit]
+
+    def count(self) -> int:
+        return len(self.users)
+
+    def count_by_role(self, role: Role) -> int:
+        return sum(1 for u in self.users.values() if u.role == role)
+
+    def search(
+        self,
+        *,
+        query: str | None = None,
+        role: str | None = None,
+        is_active: bool | None = None,
+        limit: int = 50,
+        offset: int = 0,
+        order_by: str = "username",
+        order_dir: str = "asc",
+    ) -> tuple[list[User], int]:
+        return ([], 0)
+
+
+def make_user(user_id: str = "u1", role: Role = Role.VIEWER, is_active: bool = True) -> User:
+    return User(
+        id=user_id,
+        username=f"user_{user_id}",
+        email=f"{user_id}@example.com",
+        password_hash="hashed:irrelevant",
+        role=role,
+        is_active=is_active,
+    )
 
 
 @dataclass
@@ -138,25 +206,56 @@ class FakeSessionRepository(SessionRepository):
 
 @dataclass
 class FakeTokenService(TokenService):
+    """A real, working fake: create_*_token/verify_*_token round-trip
+    through an in-memory table, rather than the previous stub shape
+    (create returning "", verify raising NotImplementedError) - needed
+    now that RefreshSession (KSEC-75-04) mints tokens internally and
+    immediately verifies them to extract the new jti, exactly like
+    JWTTokenService's real callers do."""
+
     revoked: set[str] = field(default_factory=set)
+    _tokens: dict[str, TokenClaims] = field(default_factory=dict)
+
+    def _mint(self, user_id: str, username: str, role: str, token_type: str) -> str:
+        jti = uuid.uuid4().hex
+        token = f"{token_type}:{jti}"
+        now = datetime.now(UTC)
+        self._tokens[token] = TokenClaims(
+            user_id=user_id,
+            username=username,
+            role=role,
+            token_type=token_type,
+            jti=jti,
+            issued_at=now,
+            expires_at=now,
+        )
+        return token
 
     def create_access_token(self, user_id: str, username: str, role: str) -> str:
-        return ""
+        return self._mint(user_id, username, role, "access")
 
     def create_refresh_token(self, user_id: str, username: str, role: str) -> str:
-        return ""
+        return self._mint(user_id, username, role, "refresh")
 
     def create_mfa_pending_token(self, user_id: str, username: str, role: str) -> str:
-        return ""
+        return self._mint(user_id, username, role, "mfa_pending")
+
+    def _verify(self, token: str, expected_type: str) -> TokenClaims:
+        claims = self._tokens.get(token)
+        if claims is None or claims.token_type != expected_type:
+            raise TokenInvalidError(f"expected {expected_type} token")
+        if claims.jti in self.revoked:
+            raise TokenInvalidError("token has been revoked")
+        return claims
 
     def verify_access_token(self, token: str) -> TokenClaims:
-        raise NotImplementedError
+        return self._verify(token, "access")
 
     def verify_refresh_token(self, token: str) -> TokenClaims:
-        raise NotImplementedError
+        return self._verify(token, "refresh")
 
     def verify_mfa_pending_token(self, token: str) -> TokenClaims:
-        raise NotImplementedError
+        return self._verify(token, "mfa_pending")
 
     def revoke_token(self, jti: str) -> None:
         self.revoked.add(jti)
@@ -312,67 +411,135 @@ class TestValidateSession:
 
 
 class TestRefreshSession:
-    def test_valid_refresh(self) -> None:
+    """KSEC-75-04: RefreshSession must re-fetch the current user and
+    reject/reflect current account state, never trusting the old
+    refresh token's own claims - see the module-level FakeUserRepository/
+    make_user helpers."""
+
+    def test_valid_refresh_active_user(self) -> None:
+        """Test A: an active user with a valid refresh token can
+        successfully refresh, and the resulting tokens carry the
+        CURRENT user identity/role."""
         repo = FakeSessionRepository()
         repo.save(make_session())
         tokens = FakeTokenService()
-        uc = RefreshSession(repo, tokens)
-        req = RefreshSessionRequest(
-            user_id="u1",
-            old_refresh_jti="rjti1",
-            new_refresh_jti="rjti_new",
-            new_access_jti="jti_new",
-        )
-        resp = uc.execute(req)
+        users = FakeUserRepository()
+        users.save(make_user(user_id="u1", role=Role.ANALYST))
+        uc = RefreshSession(repo, tokens, users)
+
+        resp = uc.execute(RefreshSessionRequest(user_id="u1", old_refresh_jti="rjti1"))
+
         assert resp.valid
         assert not resp.replay_detected
+        assert resp.access_token is not None
+        assert resp.refresh_token is not None
+
+        new_access_claims = tokens.verify_access_token(resp.access_token)
+        assert new_access_claims.user_id == "u1"
+        assert new_access_claims.role == Role.ANALYST.label
+
         updated = repo.find_by_id("s1")
-        assert updated.refresh_jti == "rjti_new"
-        assert updated.jti == "jti_new"
+        # The session's tracked JTIs were rotated to the newly-minted tokens' jtis.
+        assert updated.refresh_jti == tokens.verify_refresh_token(resp.refresh_token).jti
+        assert updated.jti == new_access_claims.jti
+        # The OLD jtis were revoked.
         assert "rjti1" in tokens.revoked
         assert "jti1" in tokens.revoked
 
-    def test_replay_detected(self) -> None:
+    def test_deactivated_user_refresh_rejected(self) -> None:
+        """Test B: login, obtain refresh token, deactivate the user,
+        attempt refresh - it MUST fail, and MUST NOT mint new tokens or
+        touch the session."""
         repo = FakeSessionRepository()
         repo.save(make_session())
         tokens = FakeTokenService()
-        uc = RefreshSession(repo, tokens)
-        req1 = RefreshSessionRequest(
-            user_id="u1",
-            old_refresh_jti="rjti1",
-            new_refresh_jti="rjti_new",
-            new_access_jti="jti_new",
-        )
-        resp1 = uc.execute(req1)
+        users = FakeUserRepository()
+        users.save(make_user(user_id="u1", role=Role.VIEWER, is_active=False))
+        uc = RefreshSession(repo, tokens, users)
+
+        resp = uc.execute(RefreshSessionRequest(user_id="u1", old_refresh_jti="rjti1"))
+
+        assert not resp.valid
+        assert not resp.replay_detected
+        assert resp.access_token is None
+        assert resp.refresh_token is None
+        # The (still-active-looking) session row is untouched - the
+        # rejection happened before any rotation/revocation occurred.
+        unchanged = repo.find_by_id("s1")
+        assert unchanged.jti == "jti1"
+        assert unchanged.refresh_jti == "rjti1"
+        assert unchanged.status == SessionStatus.ACTIVE
+        assert tokens.revoked == set()
+
+    def test_role_change_reflected_on_refresh(self) -> None:
+        """Test C: login as Admin, change the user to Viewer, refresh -
+        the new access token MUST reflect Viewer, MUST NOT carry Admin."""
+        repo = FakeSessionRepository()
+        repo.save(make_session())
+        tokens = FakeTokenService()
+        users = FakeUserRepository()
+        users.save(make_user(user_id="u1", role=Role.ADMIN))
+        uc = RefreshSession(repo, tokens, users)
+
+        # Demote the user in the database, as AssignRole would.
+        users.users["u1"].role = Role.VIEWER
+
+        resp = uc.execute(RefreshSessionRequest(user_id="u1", old_refresh_jti="rjti1"))
+
+        assert resp.valid
+        new_claims = tokens.verify_access_token(resp.access_token)
+        assert new_claims.role == Role.VIEWER.label
+        assert new_claims.role != Role.ADMIN.label
+
+    def test_nonexistent_user_refresh_rejected(self) -> None:
+        """Test D: a refresh token for a user_id that no longer exists
+        in UserRepository (deleted account) must be rejected."""
+        repo = FakeSessionRepository()
+        repo.save(make_session())
+        tokens = FakeTokenService()
+        users = FakeUserRepository()  # deliberately empty - "u1" does not exist
+        uc = RefreshSession(repo, tokens, users)
+
+        resp = uc.execute(RefreshSessionRequest(user_id="u1", old_refresh_jti="rjti1"))
+
+        assert not resp.valid
+        assert not resp.replay_detected
+        assert resp.access_token is None
+
+    def test_replay_detected(self) -> None:
+        """Test E: existing refresh-token rotation and replay/reuse
+        detection must still work after the KSEC-75-04 remediation."""
+        repo = FakeSessionRepository()
+        repo.save(make_session())
+        tokens = FakeTokenService()
+        users = FakeUserRepository()
+        users.save(make_user(user_id="u1", role=Role.VIEWER))
+        uc = RefreshSession(repo, tokens, users)
+
+        resp1 = uc.execute(RefreshSessionRequest(user_id="u1", old_refresh_jti="rjti1"))
         assert resp1.valid
         assert "rjti1" in tokens.revoked
         assert "jti1" in tokens.revoked
+        rotated_refresh_jti = tokens.verify_refresh_token(resp1.refresh_token).jti
+        rotated_access_jti = tokens.verify_access_token(resp1.access_token).jti
 
         tokens.revoked.clear()
-        req2 = RefreshSessionRequest(
-            user_id="u1",
-            old_refresh_jti="rjti1",
-            new_refresh_jti="rjti_replay",
-            new_access_jti="jti_replay",
-        )
-        resp2 = uc.execute(req2)
+        # Replay: present the ALREADY-ROTATED-OUT old refresh_jti again.
+        resp2 = uc.execute(RefreshSessionRequest(user_id="u1", old_refresh_jti="rjti1"))
         assert not resp2.valid
         assert resp2.replay_detected
         assert repo.find_by_id("s1").status == SessionStatus.REVOKED
-        # Replay path revokes the current (post-refresh) JTIs
-        assert "jti_new" in tokens.revoked
-        assert "rjti_new" in tokens.revoked
+        # Replay path revokes the current (post-first-refresh) JTIs.
+        assert rotated_access_jti in tokens.revoked
+        assert rotated_refresh_jti in tokens.revoked
 
     def test_unknown_refresh_jti(self) -> None:
         repo = FakeSessionRepository()
         tokens = FakeTokenService()
-        uc = RefreshSession(repo, tokens)
-        req = RefreshSessionRequest(
-            user_id="u1",
-            old_refresh_jti="nonexistent",
-            new_refresh_jti="rjti_new",
-            new_access_jti="jti_new",
-        )
+        users = FakeUserRepository()
+        users.save(make_user(user_id="u1"))
+        uc = RefreshSession(repo, tokens, users)
+        req = RefreshSessionRequest(user_id="u1", old_refresh_jti="nonexistent")
         resp = uc.execute(req)
         assert not resp.valid
         assert not resp.replay_detected

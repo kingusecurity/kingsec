@@ -137,7 +137,7 @@ def _build_app() -> tuple[FastAPI, StubUserRepo, _RecordingAuditPublisher]:
             if service_type == ChangePassword:
                 return ChangePassword(user_repo, hasher, revoke_all_sessions, audit)
             if service_type == AssignRole:
-                return AssignRole(user_repo, audit)
+                return AssignRole(user_repo, revoke_all_sessions, audit)
             if service_type == ServiceAPI:
                 raise ValueError("ServiceAPI not needed by these tests")
             raise ValueError(f"Unknown service: {service_type}")

@@ -11,6 +11,8 @@ import logging
 from kingsec.application.dto import AssignRoleRequest, AssignRoleResponse
 from kingsec.application.errors import ApplicationError
 from kingsec.application.ports import AuditPublisher, UserRepository
+from kingsec.application.use_cases.revoke_all_sessions import RevokeAllSessions
+from kingsec.application.use_cases.session_dto import RevokeAllSessionsRequest
 from kingsec.domain import Role
 from kingsec.domain.audit import AuditAction, AuditEntry
 
@@ -21,9 +23,11 @@ class AssignRole:
     def __init__(
         self,
         users: UserRepository,
+        sessions: RevokeAllSessions,
         audit: AuditPublisher | None = None,
     ) -> None:
         self._users = users
+        self._sessions = sessions
         self._audit = audit
 
     def execute(self, request: AssignRoleRequest) -> AssignRoleResponse:
@@ -52,6 +56,14 @@ class AssignRole:
 
         target.change_role(new_role)
         self._users.save(target)
+
+        # KSEC-75-03: a role change (promotion or demotion) must not
+        # leave the target's existing access token honoring the OLD
+        # role until it naturally expires - revoke the target's
+        # sessions/tokens immediately, forcing a fresh login/refresh
+        # that will pick up the new role. Same RevokeAllSessions
+        # mechanism KSEC-73-01/KSEC-75-01/KSEC-75-02 already use.
+        self._sessions.execute(RevokeAllSessionsRequest(user_id=target.id))
 
         self._publish_audit(
             AuditEntry(

@@ -27,7 +27,12 @@ def _get_idp_service(request: Request) -> IdentityProviderService:
 @router.get("/providers")
 async def list_providers(
     request: Request,
-    user: CurrentUser = Depends(get_current_user),
+    # KSEC-75-06: SSO/LDAP integration metadata (entity IDs, SSO/
+    # authorization URLs, LDAP bind_dn/base_dn, domain hints) is
+    # admin-only, matching the create/update/delete/activate/deactivate
+    # operations on this same router - a low-privilege authenticated
+    # user must not be able to enumerate it.
+    user: CurrentUser = Depends(require_admin),
 ) -> dict[str, Any]:
     service = _get_idp_service(request)
     providers = service.list_all()
@@ -100,7 +105,8 @@ async def create_provider(
 async def get_provider(
     provider_id: str,
     request: Request,
-    user: CurrentUser = Depends(get_current_user),
+    # KSEC-75-06: same admin-only gating as list_providers above.
+    user: CurrentUser = Depends(require_admin),
 ) -> dict[str, Any]:
     service = _get_idp_service(request)
     try:

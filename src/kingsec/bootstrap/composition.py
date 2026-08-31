@@ -703,6 +703,7 @@ def _register_use_cases(app: Application) -> None:
         AssignRole,
         lambda c: AssignRole(
             c.resolve(UserRepository),
+            c.resolve(RevokeAllSessions),
             c.resolve(AuditPublisher),
         ),
     )
@@ -838,7 +839,7 @@ def _register_use_cases(app: Application) -> None:
     )
     container.register_factory(
         RefreshSession,
-        lambda c: RefreshSession(c.resolve(SessionRepository), c.resolve(TokenService)),
+        lambda c: RefreshSession(c.resolve(SessionRepository), c.resolve(TokenService), c.resolve(UserRepository)),
     )
     container.register_factory(
         RevokeSession,
@@ -1032,6 +1033,7 @@ def _register_use_cases(app: Application) -> None:
         DeactivateUser,
         lambda c: DeactivateUser(
             c.resolve(UserRepository),
+            c.resolve(RevokeAllSessions),
             c.resolve(AuditPublisher),
         ),
     )
@@ -1047,6 +1049,7 @@ def _register_use_cases(app: Application) -> None:
         lambda c: AdminResetPassword(
             c.resolve(UserRepository),
             c.resolve(PasswordHasher),
+            c.resolve(RevokeAllSessions),
             c.resolve(AuditPublisher),
         ),
     )
