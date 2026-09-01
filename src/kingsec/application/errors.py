@@ -262,6 +262,20 @@ class ScheduleConflictError(ApplicationError):
     retry with the current state; this is never retried automatically."""
 
 
+class OrganizationConflictError(ApplicationError):
+    """An organization was modified by another request between when this
+    caller read it and when it tried to save its own change (KSEC-86-01
+    optimistic locking, same mechanism as ScheduleConflictError) - never
+    retried automatically."""
+
+
+class TeamConflictError(ApplicationError):
+    """A team was modified by another request between when this caller read
+    it and when it tried to save its own change (KSEC-86-01 optimistic
+    locking, same mechanism as ScheduleConflictError) - never retried
+    automatically."""
+
+
 class VerificationNotFoundError(ApplicationError):
     """No backup verification exists for the requested identifier."""
 

@@ -72,12 +72,18 @@ class RegisterUser:
         self._validate_password(request.password)
 
         # Step 2: Check username uniqueness.
-        if self._users.exists_by_username(request.username):
-            raise RegistrationError("username already taken")
-
         # Step 3: Check email uniqueness.
-        if self._users.exists_by_email(request.email):
-            raise RegistrationError("email already registered")
+        # KSEC-86-03 (registration enumeration, carried forward from Phase
+        # 84): both checks raise the SAME message. Previously "username
+        # already taken" vs. "email already registered" let an
+        # unauthenticated caller submit a guessed email with a fresh random
+        # username and learn, from the response body alone, whether an
+        # account exists for that email - a classic account-enumeration
+        # oracle. login.py already treats the equivalent case this way
+        # ("invalid username or password" for both "no such user" and
+        # "wrong password"); this matches that established convention.
+        if self._users.exists_by_username(request.username) or self._users.exists_by_email(request.email):
+            raise RegistrationError("username or email already in use")
 
         # Step 4: Hash the password.
         password_hash = self._hasher.hash(request.password)

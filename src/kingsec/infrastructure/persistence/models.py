@@ -595,6 +595,10 @@ class OrganizationORM(Base):
     slug: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[str] = mapped_column(String, nullable=False)
+    # KSEC-86-01: optimistic-lock counter, same mechanism as
+    # ScheduleORM.version (KSEC-85-02) - see
+    # SQLAlchemyOrganizationRepository.save().
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
 
 class TeamORM(Base):
@@ -606,6 +610,8 @@ class TeamORM(Base):
     description: Mapped[str] = mapped_column(String, default="")
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[str] = mapped_column(String, nullable=False)
+    # KSEC-86-01: see OrganizationORM.version above.
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
 
 class OrganizationMembershipORM(Base):

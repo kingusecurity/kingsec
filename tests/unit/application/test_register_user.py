@@ -116,7 +116,7 @@ class TestRegisterUser:
             password="SecurePass1",
         )
 
-        with pytest.raises(RegistrationError, match="username already taken"):
+        with pytest.raises(RegistrationError, match="username or email already in use"):
             register.execute(request)
 
     def test_registration_with_duplicate_email(self) -> None:
@@ -130,8 +130,32 @@ class TestRegisterUser:
             password="SecurePass1",
         )
 
-        with pytest.raises(RegistrationError, match="email already registered"):
+        with pytest.raises(RegistrationError, match="username or email already in use"):
             register.execute(request)
+
+    def test_duplicate_username_and_duplicate_email_are_indistinguishable(self) -> None:
+        """KSEC-86-03 (registration enumeration, Phase-84 carry-forward):
+        the whole point of the generic message is that an unauthenticated
+        caller cannot tell WHICH field collided - assert the two failure
+        messages are byte-for-byte identical, not merely that each
+        contains a generic-sounding substring."""
+        hasher = StubPasswordHasher()
+
+        username_conflict_repo = StubUserRepository(existing_username="taken")
+        with pytest.raises(RegistrationError) as username_exc:
+            RegisterUser(username_conflict_repo, hasher).execute(
+                RegisterUserRequest(username="taken", email="new@example.com", password="SecurePass1")
+            )
+
+        email_conflict_repo = StubUserRepository(existing_email="taken@example.com")
+        with pytest.raises(RegistrationError) as email_exc:
+            RegisterUser(email_conflict_repo, hasher).execute(
+                RegisterUserRequest(username="newuser", email="taken@example.com", password="SecurePass1")
+            )
+
+        assert str(username_exc.value) == str(email_exc.value), (
+            "the response must not reveal which field (username vs email) actually collided"
+        )
 
     def test_registration_with_weak_password(self) -> None:
         repo = StubUserRepository()

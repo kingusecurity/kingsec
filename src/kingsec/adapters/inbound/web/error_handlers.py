@@ -13,6 +13,8 @@ Boundary policy
     │ ReportNotFoundError             │ 404 Not Found                      │
     │ *NotFoundError (every other one)│ 404 Not Found                      │
     │ ScheduleConflictError           │ 409 Conflict                       │
+    │ OrganizationConflictError       │ 409 Conflict                       │
+    │ TeamConflictError               │ 409 Conflict                       │
     │ IllegalStateTransition          │ 409 Conflict                       │
     │ InvariantViolation              │ 422 Unprocessable Entity           │
     │ DomainError (other)             │ 409 Conflict                       │
@@ -51,6 +53,7 @@ from kingsec.application.errors import (
     MfaStepUpAuthenticationError,
     MonitorEventNotFoundError,
     NotificationNotFoundError,
+    OrganizationConflictError,
     PipelineNotFoundError,
     PlaybookNotFoundError,
     PluginNotFoundError,
@@ -64,6 +67,7 @@ from kingsec.application.errors import (
     ScheduleNotFoundError,
     SnapshotNotFoundError,
     SSOSessionNotFoundError,
+    TeamConflictError,
     ThreatFeedNotFoundError,
     VerificationNotFoundError,
     WorkerNotFoundError,
@@ -113,6 +117,14 @@ async def handle_report_not_found(_request: Request, exc: ReportNotFoundError) -
 
 
 async def handle_schedule_conflict(_request: Request, exc: ScheduleConflictError) -> JSONResponse:
+    return _error_response(409, ErrorCode.UNEXPECTED, str(exc))
+
+
+async def handle_organization_conflict(_request: Request, exc: OrganizationConflictError) -> JSONResponse:
+    return _error_response(409, ErrorCode.UNEXPECTED, str(exc))
+
+
+async def handle_team_conflict(_request: Request, exc: TeamConflictError) -> JSONResponse:
     return _error_response(409, ErrorCode.UNEXPECTED, str(exc))
 
 
@@ -261,6 +273,8 @@ def register_error_handlers(app: object) -> None:
     app.exception_handler(ReportNotFoundError)(handle_report_not_found)
     app.exception_handler(LicenseRequiredError)(handle_license_required)
     app.exception_handler(ScheduleConflictError)(handle_schedule_conflict)
+    app.exception_handler(OrganizationConflictError)(handle_organization_conflict)
+    app.exception_handler(TeamConflictError)(handle_team_conflict)
 
     # Every other "resource not found" application error — same 404 contract,
     # previously unregistered and falling through to the generic 500 handler.

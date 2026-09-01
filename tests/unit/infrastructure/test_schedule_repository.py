@@ -33,13 +33,17 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from kingsec.application.errors import ScheduleConflictError
+from kingsec.application.jobs import InMemoryJobService, ScanJob
 from kingsec.application.ports.outbound.audit_publisher import AuditPublisher
+from kingsec.application.ports.outbound.clock_port import ClockPort
 from kingsec.application.use_cases.create_schedule import CreateSchedule
 from kingsec.application.use_cases.pause_schedule import PauseSchedule
 from kingsec.application.use_cases.schedule_dto import CreateScheduleRequest, PauseScheduleRequest
 from kingsec.domain.audit import AuditEntry
 from kingsec.domain.schedule import ScheduleStatus
 from kingsec.infrastructure.persistence.models import Base
+from kingsec.infrastructure.scheduler import in_process_scheduler as in_process_scheduler_module
+from kingsec.infrastructure.scheduler.in_process_scheduler import InProcessScheduler
 from kingsec.infrastructure.scheduler.sqlalchemy_schedule_repository import SqlAlchemyScheduleRepository
 
 
@@ -247,3 +251,266 @@ class TestScheduleStatusPreservedOnLoad:
     def test_status_round_trips(self, repo: SqlAlchemyScheduleRepository) -> None:
         schedule_id = _make_schedule(repo)
         assert repo.find_by_id(schedule_id).status == ScheduleStatus.ACTIVE
+
+
+# ── KSEC-86-02: dedicated concurrency coverage for Enable/Disable/Trigger and
+# the in-process scheduler tick. Phase 85 proved the repository-level
+# optimistic-lock mechanism using Pause and Update; these prove every
+# remaining caller correctly participates in that SAME mechanism (not a
+# redesign) - each test drives the exact field-copy shape its real use case
+# produces through repo.save() directly, using the same read/write-barrier
+# choreography as TestConcurrentSameFieldRace above, for the identical
+# reason documented there.
+
+
+class TestConcurrentEnableRace:
+    def test_two_concurrent_enables_from_the_same_read_one_wins_one_conflicts(self, session_factory) -> None:
+        repo = SqlAlchemyScheduleRepository(session_factory)
+        schedule_id = _make_schedule(repo)
+        # Start disabled so "enable" is a real transition, not a no-op.
+        disabled = repo.find_by_id(schedule_id)
+        repo.save(dataclasses.replace(disabled, enabled=False, paused=False, status=ScheduleStatus.DISABLED))
+
+        read_barrier = threading.Barrier(2)
+        results: list[str] = []
+        lock = threading.Lock()
+
+        def _read_then_enable() -> None:
+            existing = repo.find_by_id(schedule_id)
+            read_barrier.wait(timeout=5)
+            try:
+                repo.save(dataclasses.replace(existing, enabled=True, paused=False, status=ScheduleStatus.ACTIVE))
+                with lock:
+                    results.append("ok")
+            except ScheduleConflictError:
+                with lock:
+                    results.append("conflict")
+
+        threads = [threading.Thread(target=_read_then_enable) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        assert sorted(results) == ["conflict", "ok"], f"expected exactly one winner, one conflict: {results!r}"
+
+        final = repo.find_by_id(schedule_id)
+        assert final.enabled is True
+        assert final.version == 3, "disable (1->2) then exactly one winning enable (2->3)"
+
+
+class TestConcurrentDisableRace:
+    def test_two_concurrent_disables_from_the_same_read_one_wins_one_conflicts(self, session_factory) -> None:
+        repo = SqlAlchemyScheduleRepository(session_factory)
+        schedule_id = _make_schedule(repo)  # created enabled=True already
+
+        read_barrier = threading.Barrier(2)
+        results: list[str] = []
+        lock = threading.Lock()
+
+        def _read_then_disable() -> None:
+            existing = repo.find_by_id(schedule_id)
+            read_barrier.wait(timeout=5)
+            try:
+                repo.save(dataclasses.replace(existing, enabled=False, paused=False, status=ScheduleStatus.DISABLED))
+                with lock:
+                    results.append("ok")
+            except ScheduleConflictError:
+                with lock:
+                    results.append("conflict")
+
+        threads = [threading.Thread(target=_read_then_disable) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        assert sorted(results) == ["conflict", "ok"], f"expected exactly one winner, one conflict: {results!r}"
+
+        final = repo.find_by_id(schedule_id)
+        assert final.enabled is False
+        assert final.version == 2
+
+
+class TestConcurrentTriggerRace:
+    """Trigger Now (with_run_completed()) racing an Update (cron_expression
+    change) from the same version - one succeeds, the other conflicts, and
+    the loser's rejected write must never revert the winner's change."""
+
+    def test_trigger_and_update_race_the_loser_never_reverts_the_winner(self, session_factory) -> None:
+        repo = SqlAlchemyScheduleRepository(session_factory)
+        schedule_id = _make_schedule(repo)
+
+        read_barrier = threading.Barrier(2)
+        results: dict[str, str] = {}
+        lock = threading.Lock()
+
+        def _read_then_trigger() -> None:
+            existing = repo.find_by_id(schedule_id)
+            read_barrier.wait(timeout=5)
+            triggered = existing.with_run_completed(next_run="2026-01-02T00:00:00", now="2026-01-01T00:00:00")
+            try:
+                repo.save(triggered)
+                with lock:
+                    results["trigger"] = "ok"
+            except ScheduleConflictError:
+                with lock:
+                    results["trigger"] = "conflict"
+
+        def _read_then_update_cron() -> None:
+            existing = repo.find_by_id(schedule_id)
+            read_barrier.wait(timeout=5)
+            try:
+                repo.save(dataclasses.replace(existing, cron_expression="0 4 * * *"))
+                with lock:
+                    results["update"] = "ok"
+            except ScheduleConflictError:
+                with lock:
+                    results["update"] = "conflict"
+
+        t_trigger = threading.Thread(target=_read_then_trigger)
+        t_update = threading.Thread(target=_read_then_update_cron)
+        t_trigger.start()
+        t_update.start()
+        t_trigger.join(timeout=10)
+        t_update.join(timeout=10)
+
+        assert set(results.values()) == {"ok", "conflict"}, f"expected exactly one winner: {results!r}"
+
+        final = repo.find_by_id(schedule_id)
+        assert final.version == 2, "exactly one write should have been applied"
+
+        if results["trigger"] == "ok":
+            assert final.last_run == "2026-01-01T00:00:00"
+            assert final.cron_expression == "0 2 * * *", "the rejected update must not have touched cron_expression"
+        else:
+            assert final.last_run is None, "the rejected trigger must not have touched last_run"
+            assert final.cron_expression == "0 4 * * *"
+
+
+class _RecordingLogger:
+    """A minimal stand-in for the structured logger used by
+    in_process_scheduler.py - structlog's WriteLoggerFactory writes
+    directly to a stream rather than routing through stdlib ``logging``,
+    so pytest's ``caplog`` fixture cannot observe it; this records calls
+    directly, matching the pattern already used for the identical problem
+    in test_extended_adapter.py's TestAuditRequestBestEffort."""
+
+    def __init__(self) -> None:
+        self.exception_calls: list[tuple[str, dict]] = []
+
+    def exception(self, msg: str, **kwargs: object) -> None:
+        self.exception_calls.append((msg, kwargs))
+
+    def warning(self, *_args: object, **_kwargs: object) -> None:
+        return
+
+    def info(self, *_args: object, **_kwargs: object) -> None:
+        return
+
+
+class TestSchedulerTickRace:
+    """KSEC-86-02 / scheduler-specific requirement: in_process_scheduler.py's
+    own tick (find_due() -> with_run_completed() -> save()) is a second,
+    independent caller of the exact same lost-update-prone pattern the
+    schedule use cases have - Phase 85 fixed the underlying save()
+    mechanism but never exercised the scheduler itself. Proves a
+    scheduler-triggered stale write cannot silently overwrite a newer,
+    concurrently-applied schedule state, and that the conflict is logged
+    (not silently swallowed) rather than turned into a silent success.
+
+    The interleaving is forced deterministically (no sleeps): the
+    scheduler's own find_due() has already returned its (pre-race) reads
+    by the time _poll_due_schedules() calls job_service.submit_scan() for
+    a given schedule - so making the CONCURRENT external mutation a side
+    effect of submit_scan() guarantees it completes strictly between the
+    scheduler's read and its own with_run_completed()+save() write, with
+    no timing assumptions.
+    """
+
+    class _TriggeringJobService(InMemoryJobService):
+        def __init__(self, repo: SqlAlchemyScheduleRepository, schedule_id: str) -> None:
+            super().__init__()
+            self._repo = repo
+            self._schedule_id = schedule_id
+            self.submitted = False
+
+        def submit_scan(self, target: str, config: dict | None = None) -> ScanJob:
+            # The competing external mutation fires exactly once (on the
+            # first submit_scan() call in the batch, regardless of which
+            # schedule triggered it) - another actor pauses the target
+            # schedule while the scheduler is mid-tick, from the SAME
+            # version the scheduler already read via find_due(). Guarded
+            # so a second, unrelated due schedule in the same batch (see
+            # test_scheduler_continues_processing_other_schedules_after_a_conflict)
+            # does not retrigger it a second time.
+            if not self.submitted:
+                existing = self._repo.find_by_id(self._schedule_id)
+                self._repo.save(dataclasses.replace(existing, paused=True, status=ScheduleStatus.PAUSED))
+                self.submitted = True
+            return super().submit_scan(target, config)
+
+    class _FakeClock(ClockPort):
+        def now(self) -> float:
+            return 0.0
+
+    def test_scheduler_tick_losing_a_race_does_not_overwrite_the_concurrent_change(
+        self, session_factory, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo = SqlAlchemyScheduleRepository(session_factory)
+        schedule_id = _make_schedule(repo)  # enabled=True, paused=False, next_run=None -> immediately due
+
+        job_service = self._TriggeringJobService(repo, schedule_id)
+        scheduler = InProcessScheduler(repo, job_service, self._FakeClock())
+
+        recorder = _RecordingLogger()
+        monkeypatch.setattr(in_process_scheduler_module, "_logger", recorder)
+
+        scheduler._poll_due_schedules()
+
+        assert job_service.submitted is True, "the scheduler must still submit the scan job before its own save() races"
+
+        final = repo.find_by_id(schedule_id)
+        # The concurrent pause (version 1 -> 2) must survive; the
+        # scheduler's own stale with_run_completed() write (also computed
+        # from version 1) must be rejected, not silently applied on top.
+        assert final.paused is True, "the scheduler's stale write silently overwrote the concurrent pause"
+        assert final.version == 2, "exactly one write (the concurrent pause) should have succeeded"
+        assert final.last_run is None, "the scheduler's conflicting with_run_completed() write must not have been applied"
+
+        # The conflict must be logged, not silently swallowed - the
+        # existing `except Exception: _logger.exception(...)` boundary in
+        # _poll_due_schedules() (Phase 84/85's established, deliberately
+        # broad per-schedule catch, so one schedule's failure never stops
+        # the rest of the batch from being processed).
+        assert len(recorder.exception_calls) == 1
+        msg, kwargs = recorder.exception_calls[0]
+        assert msg == "failed to process due schedule"
+        assert kwargs.get("schedule_id") == schedule_id
+
+    def test_scheduler_continues_processing_other_schedules_after_a_conflict(
+        self, session_factory, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The conflict on one schedule must not abort the whole poll
+        cycle - a second, unrelated due schedule in the same batch must
+        still be processed successfully."""
+        repo = SqlAlchemyScheduleRepository(session_factory)
+        conflicting_id = _make_schedule(repo, owner="alice")
+
+        create_uc = CreateSchedule(repo, _FakeAuditPublisher())
+        other_id = create_uc.execute(
+            CreateScheduleRequest(
+                name="Other scan", owner_user_id="bob", target="other.example",
+                cron_expression="0 3 * * *", schedule_type="cron",
+            )
+        ).schedule.id
+
+        job_service = self._TriggeringJobService(repo, conflicting_id)
+        scheduler = InProcessScheduler(repo, job_service, self._FakeClock())
+        monkeypatch.setattr(in_process_scheduler_module, "_logger", _RecordingLogger())
+
+        scheduler._poll_due_schedules()
+
+        other_final = repo.find_by_id(other_id)
+        assert other_final.last_run is not None, "an unrelated due schedule in the same batch must still be processed"
+        assert other_final.version == 2

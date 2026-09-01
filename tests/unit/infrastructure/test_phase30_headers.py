@@ -107,6 +107,32 @@ class TestCORSConfig:
         settings = CORSSettings()
         assert settings.allow_credentials is False
 
+    def test_wildcard_origin_with_credentials_is_rejected_at_load_time(self) -> None:
+        """KSEC-86-03 (CORS wildcard + credentials guard, Phase-84
+        carry-forward): the application must fail fast rather than ever
+        actually run with this unsafe combination."""
+        from kingsec.infrastructure.config.models import CORSSettings
+
+        with pytest.raises(ValueError, match="allow_origins must not include '\\*'"):
+            CORSSettings(allow_origins=["*"], allow_credentials=True)
+
+    def test_wildcard_origin_without_credentials_is_still_allowed(self) -> None:
+        """The guard is specific to the dangerous combination - a wildcard
+        origin with credentials disabled is a legitimate, common
+        public-API configuration and must not be blocked."""
+        from kingsec.infrastructure.config.models import CORSSettings
+
+        settings = CORSSettings(allow_origins=["*"], allow_credentials=False)
+        assert settings.allow_origins == ["*"]
+
+    def test_explicit_origins_with_credentials_is_still_allowed(self) -> None:
+        """The legitimate, common production configuration - specific
+        origins with credentials enabled - must not be blocked."""
+        from kingsec.infrastructure.config.models import CORSSettings
+
+        settings = CORSSettings(allow_origins=["https://app.example.com"], allow_credentials=True)
+        assert settings.allow_credentials is True
+
 
 class TestSecurityHeadersConfig:
     """Test security headers configuration defaults."""

@@ -54,6 +54,15 @@ class Organization:
     slug: str
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    # KSEC-86-01: the version this instance was read at (from
+    # OrganizationRepository.find_by_id()/find_by_slug()/list_all()), mirroring
+    # ScanSchedule.version (KSEC-85-02) exactly - the repository uses it to
+    # detect a lost-update race on save(). Callers that mutate this object
+    # in place (e.g. update_organization()'s route handler) carry it forward
+    # automatically since no new instance is constructed; only the
+    # repository itself increments it, on a successful write. Never exposed
+    # through the API - it is a persistence concern, not a client one.
+    version: int = 1
 
 
 @dataclass
@@ -64,6 +73,9 @@ class Team:
     description: str = ""
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    # KSEC-86-01: see Organization.version above - identical mechanism, one
+    # per aggregate.
+    version: int = 1
 
 
 @dataclass(frozen=True)

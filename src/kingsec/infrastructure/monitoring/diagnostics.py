@@ -206,7 +206,23 @@ def create_diagnostics_bundle(
     collector = DiagnosticsCollector(data_dir=data_dir, app_version=app_version)
     diagnostic_data = collector.collect_all()
 
-    out = output_dir or Path(tempfile.gettempdir())
+    if output_dir is not None:
+        out = output_dir
+    else:
+        # KSEC-86-03 (diagnostics temp-file TOCTOU, Phase-84 carry-forward):
+        # the previous default - a fixed, predictable filename
+        # ("kingsec-diagnostics-<timestamp>.json/.zip") written with a
+        # plain, non-exclusive open(path, "w") directly into the SHARED
+        # system temp directory - let any other local user on that shared
+        # directory either read the bundle (which can contain
+        # config/environment details collected by collect_all()) or
+        # pre-plant a symlink at the predictable path so the write follows
+        # it elsewhere. tempfile.mkdtemp() atomically creates a unique,
+        # unpredictable, owner-only-permissioned directory (mode 0700 on
+        # POSIX) in one syscall - nothing about its path can be guessed or
+        # pre-planted, so there is no TOCTOU window and no symlink to
+        # follow. The file names inside it stay human-readable.
+        out = Path(tempfile.mkdtemp(prefix="kingsec-diagnostics-"))
     timestamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%d_%H%M%S")
     base_name = f"kingsec-diagnostics-{timestamp}"
 

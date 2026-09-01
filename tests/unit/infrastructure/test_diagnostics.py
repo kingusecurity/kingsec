@@ -1,6 +1,9 @@
 """Tests for diagnostics infrastructure."""
 
 import json
+import shutil
+import tempfile
+from pathlib import Path
 
 from kingsec.infrastructure.monitoring.diagnostics import (
     DiagnosticsCollector,
@@ -153,3 +156,37 @@ class TestDiagnosticsBundle:
             data = json.loads(content)
             assert data["version"] == "2.0.0-rc1"
             assert "system" in data
+
+
+class TestDiagnosticsBundleDefaultOutputDirIsNotPredictable:
+    """KSEC-86-03 (diagnostics temp-file TOCTOU, Phase-84 carry-forward):
+    the default output_dir=None path used to write a fixed, guessable
+    filename directly into the shared system temp directory via a plain
+    non-exclusive open() - any other local user on that shared directory
+    could read the bundle or pre-plant a symlink at the predictable path.
+    These exercise the REAL default path (no output_dir override)."""
+
+    def test_default_output_dir_is_not_the_shared_system_temp_root(self) -> None:
+        bundle_path = create_diagnostics_bundle(app_version="1.0.0")
+        try:
+            system_temp_root = Path(tempfile.gettempdir()).resolve()
+            assert bundle_path.parent.resolve() != system_temp_root, (
+                "the bundle must not be written directly into the shared system temp root"
+            )
+            assert bundle_path.parent.resolve().parent == system_temp_root, (
+                "the unique container directory should still live under the system temp root, just not be it"
+            )
+        finally:
+            shutil.rmtree(bundle_path.parent, ignore_errors=True)
+
+    def test_two_default_bundles_land_in_different_unpredictable_directories(self) -> None:
+        first = create_diagnostics_bundle(app_version="1.0.0")
+        second = create_diagnostics_bundle(app_version="1.0.0")
+        try:
+            assert first.parent != second.parent, (
+                "the container directory must be unique per call, not a fixed/guessable path an attacker could "
+                "pre-plant a symlink at"
+            )
+        finally:
+            shutil.rmtree(first.parent, ignore_errors=True)
+            shutil.rmtree(second.parent, ignore_errors=True)

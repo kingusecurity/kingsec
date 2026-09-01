@@ -506,6 +506,26 @@ class CORSSettings(BaseModel):
     )
     max_age: int = Field(default=600, ge=0)
 
+    @model_validator(mode="after")
+    def _guard_wildcard_with_credentials(self) -> CORSSettings:
+        # KSEC-86-03 (CORS wildcard + credentials guard, Phase-84
+        # carry-forward): "*" combined with allow_credentials=True lets any
+        # origin's script read authenticated responses - most modern
+        # browsers already refuse to honor Allow-Credentials on a wildcard
+        # origin, but the application must not attempt to configure this
+        # unsafe combination in the first place (older/non-browser clients
+        # and the principle that this should never be reachable are both
+        # reasons not to rely solely on browser-side enforcement). Same
+        # fail-fast-at-load-time pattern as ServerSettings.
+        # _guard_wildcard_bind() above.
+        if "*" in self.allow_origins and self.allow_credentials:
+            raise ValueError(
+                "CORS allow_origins must not include '*' when allow_credentials is "
+                "True - this configuration would let any origin's script read "
+                "authenticated responses. List explicit allowed origins instead."
+            )
+        return self
+
 
 class RateLimitSettings(BaseModel):
     """Rate limiting configuration.

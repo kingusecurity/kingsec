@@ -3,11 +3,13 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import Any, cast
 
-from sqlalchemy import select
+from sqlalchemy import CursorResult, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from kingsec.application.errors import OrganizationConflictError, TeamConflictError
 from kingsec.application.ports.outbound.organization_repository import OrganizationRepository
 from kingsec.domain.organization import (
     OrgActivityEvent,
@@ -36,20 +38,53 @@ class SQLAlchemyOrganizationRepository(OrganizationRepository):
     # --- Organizations ---
 
     def save(self, org: Organization) -> None:
+        """Insert a new organization, or update an existing one.
+
+        KSEC-86-01: the update path is optimistic-locked, identical in
+        design to SqlAlchemyScheduleRepository.save() (KSEC-85-02):
+        ``org.version`` must be the version this caller originally read
+        (via find_by_id()/find_by_slug()/list_all()) - update_organization()
+        mutates the SAME object it read in place, so this happens
+        automatically with no extra plumbing. The UPDATE is scoped to
+        ``WHERE id = ? AND version = ?`` and sets ``version = version + 1``;
+        if another writer already advanced the version, zero rows match and
+        OrganizationConflictError is raised - never silently overwriting,
+        never silently overwritten, never automatically retried.
+        """
         with self._session_factory() as session:
-            existing = session.get(OrganizationORM, str(org.id))
-            if existing is not None:
-                existing.name = org.name
-                existing.slug = org.slug
-                existing.updated_at = datetime.now(UTC).isoformat()
-            else:
+            exists = (
+                session.execute(select(OrganizationORM.id).where(OrganizationORM.id == str(org.id))).scalar_one_or_none()
+                is not None
+            )
+            if not exists:
                 session.add(OrganizationORM(
                     id=str(org.id),
                     name=org.name,
                     slug=org.slug,
                     created_at=org.created_at,
                     updated_at=org.updated_at,
+                    version=org.version,
                 ))
+                session.commit()
+                return
+
+            result = cast(
+                "CursorResult[Any]",
+                session.execute(
+                    update(OrganizationORM)
+                    .where(OrganizationORM.id == str(org.id), OrganizationORM.version == org.version)
+                    .values(
+                        name=org.name,
+                        slug=org.slug,
+                        updated_at=datetime.now(UTC).isoformat(),
+                        version=OrganizationORM.version + 1,
+                    )
+                ),
+            )
+            if result.rowcount == 0:
+                raise OrganizationConflictError(
+                    f"organization '{org.id}' was modified by another request since it was last read"
+                )
             session.commit()
 
     def find_by_id(self, org_id: str) -> Organization | None:
@@ -63,6 +98,7 @@ class SQLAlchemyOrganizationRepository(OrganizationRepository):
                 slug=orm.slug,
                 created_at=orm.created_at,
                 updated_at=orm.updated_at,
+                version=orm.version,
             )
 
     def find_by_slug(self, slug: str) -> Organization | None:
@@ -78,6 +114,7 @@ class SQLAlchemyOrganizationRepository(OrganizationRepository):
                 slug=orm.slug,
                 created_at=orm.created_at,
                 updated_at=orm.updated_at,
+                version=orm.version,
             )
 
     def list_all(self, limit: int = 50, offset: int = 0) -> list[Organization]:
@@ -86,7 +123,10 @@ class SQLAlchemyOrganizationRepository(OrganizationRepository):
                 select(OrganizationORM).order_by(OrganizationORM.name).offset(offset).limit(limit)
             ).scalars().all()
             return [
-                Organization(id=OrganizationId(o.id), name=o.name, slug=o.slug, created_at=o.created_at, updated_at=o.updated_at)
+                Organization(
+                    id=OrganizationId(o.id), name=o.name, slug=o.slug, created_at=o.created_at,
+                    updated_at=o.updated_at, version=o.version,
+                )
                 for o in orms
             ]
 
@@ -191,13 +231,18 @@ class SQLAlchemyOrganizationRepository(OrganizationRepository):
     # --- Teams ---
 
     def save_team(self, team: Team) -> None:
+        """Insert a new team, or update an existing one.
+
+        KSEC-86-01: same optimistic-locking design as save() above -
+        update_team()'s route handler mutates the SAME object it read in
+        place, so ``team.version`` is automatically the version that was
+        read.
+        """
         with self._session_factory() as session:
-            existing = session.get(TeamORM, str(team.id))
-            if existing is not None:
-                existing.name = team.name
-                existing.description = team.description
-                existing.updated_at = datetime.now(UTC).isoformat()
-            else:
+            exists = (
+                session.execute(select(TeamORM.id).where(TeamORM.id == str(team.id))).scalar_one_or_none() is not None
+            )
+            if not exists:
                 session.add(TeamORM(
                     id=str(team.id),
                     organization_id=team.organization_id,
@@ -205,7 +250,26 @@ class SQLAlchemyOrganizationRepository(OrganizationRepository):
                     description=team.description,
                     created_at=team.created_at,
                     updated_at=team.updated_at,
+                    version=team.version,
                 ))
+                session.commit()
+                return
+
+            result = cast(
+                "CursorResult[Any]",
+                session.execute(
+                    update(TeamORM)
+                    .where(TeamORM.id == str(team.id), TeamORM.version == team.version)
+                    .values(
+                        name=team.name,
+                        description=team.description,
+                        updated_at=datetime.now(UTC).isoformat(),
+                        version=TeamORM.version + 1,
+                    )
+                ),
+            )
+            if result.rowcount == 0:
+                raise TeamConflictError(f"team '{team.id}' was modified by another request since it was last read")
             session.commit()
 
     def find_team_by_id(self, team_id: str) -> Team | None:
@@ -220,6 +284,7 @@ class SQLAlchemyOrganizationRepository(OrganizationRepository):
                 description=orm.description,
                 created_at=orm.created_at,
                 updated_at=orm.updated_at,
+                version=orm.version,
             )
 
     def list_teams(self, org_id: str) -> list[Team]:
@@ -229,7 +294,7 @@ class SQLAlchemyOrganizationRepository(OrganizationRepository):
             ).scalars().all()
             return [
                 Team(id=TeamId(t.id), organization_id=t.organization_id, name=t.name, description=t.description,
-                     created_at=t.created_at, updated_at=t.updated_at)
+                     created_at=t.created_at, updated_at=t.updated_at, version=t.version)
                 for t in orms
             ]
 

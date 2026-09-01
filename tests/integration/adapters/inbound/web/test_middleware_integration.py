@@ -154,3 +154,36 @@ class TestRequestSizeLimitIsWiredIntoTheRealApp:
         from kingsec.infrastructure.config import Settings
 
         assert 0 < Settings().middleware.max_request_body_bytes <= 100 * 1024 * 1024
+
+    def test_a_real_chunked_transfer_encoded_request_cannot_bypass_the_limit(self) -> None:
+        """KSEC-86-03 (chunked request-body limit, Phase-84 carry-forward):
+        the previous Content-Length-only check could be bypassed entirely
+        by a client using Transfer-Encoding: chunked, which carries no
+        Content-Length header at all. Passing a generator as the request
+        content makes httpx negotiate a real chunked transfer (confirmed:
+        the request actually sent carries a `transfer-encoding: chunked`
+        header and NO `content-length` header at all - this is a genuine
+        HTTP client behavior, not a synthetic ASGI-level construction)."""
+        app = self._build_app_via_real_registration(max_request_body_bytes=10)
+        client = TestClient(app, raise_server_exceptions=False)
+
+        def chunked_body():
+            yield b"x" * 6
+            yield b"x" * 6  # 12 bytes total, over the 10-byte limit
+
+        resp = client.post("/api/v1/test", content=chunked_body())
+
+        assert resp.status_code == 413
+
+    def test_a_real_chunked_request_within_the_limit_still_reaches_the_route(self) -> None:
+        app = self._build_app_via_real_registration(max_request_body_bytes=100)
+        client = TestClient(app, raise_server_exceptions=False)
+
+        def chunked_body():
+            yield b"x" * 5
+            yield b"x" * 5  # 10 bytes total, under the 100-byte limit
+
+        resp = client.post("/api/v1/test", content=chunked_body())
+
+        assert resp.status_code == 200
+        assert resp.json()["received_bytes"] == 10

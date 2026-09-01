@@ -2,33 +2,113 @@
 
 from __future__ import annotations
 
+import json
 import time
 from typing import Any
 
-from fastapi import FastAPI, Request, Response, status
+from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.responses import JSONResponse
+from starlette.types import Message, Receive, Scope, Send
 
 from kingsec.infrastructure.logging import get_logger
 
 _logger = get_logger("kingsec.infrastructure.middleware.performance")
 
 
-class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
-    """Reject requests exceeding the configured body size limit."""
+class RequestSizeLimitMiddleware:
+    """Reject requests exceeding the configured body size limit.
+
+    KSEC-86-03 (chunked request-body limit, Phase-84 carry-forward): the
+    previous implementation (a ``BaseHTTPMiddleware`` checking only the
+    ``Content-Length`` header) could be bypassed entirely by a client
+    using ``Transfer-Encoding: chunked`` - chunked requests carry no
+    ``Content-Length`` header at all (the two are mutually exclusive per
+    HTTP/1.1), so the size check was simply never reached and an
+    unbounded body would be passed straight through to the route handler.
+
+    This is a plain ASGI middleware (not ``BaseHTTPMiddleware``) so it can
+    enforce the limit while the body is still STREAMING in, chunk by
+    chunk, exactly as the ASGI server delivers it - it never buffers the
+    body itself merely to measure it (which would itself be a memory-
+    exhaustion vector). The ``Content-Length`` header is still checked
+    first as a fast, cheap rejection for the common case where the client
+    supplies an honest one; the wrapped ``receive()`` is the real
+    enforcement point and is what actually closes the chunked-encoding
+    bypass, since it tracks the running total from the ASGI-level
+    ``http.request`` messages regardless of what headers were sent.
+
+    Once the limit is crossed, ``limited_receive()`` sends the 413
+    response ITSELF and then hands the downstream app an
+    ``http.disconnect`` message, rather than raising an exception and
+    relying on it to propagate cleanly back up through ``self._app(...)``.
+    That first approach was tried and rejected: this middleware sits
+    underneath several ``BaseHTTPMiddleware``-based layers in the real
+    app's stack (register_middleware() in bootstrap/web.py), and
+    ``BaseHTTPMiddleware``'s own internal request/response bridging does
+    not reliably let an exception raised deep inside a wrapped
+    ``receive()`` call propagate back out to an enclosing plain-ASGI
+    middleware's ``try/except`` - it was observed, end to end through the
+    real middleware stack, to surface as an unhandled 500 instead of the
+    intended 413. ``http.disconnect`` is the standard, framework-
+    recognized ASGI signal for "the client is gone, stop processing" -
+    Starlette's own body-reading treats it as a reason to stop silently
+    rather than attempt to send its own response, so there is no
+    double-send and no dependency on any particular set of enclosing
+    middleware.
+    """
 
     def __init__(self, app: Any, max_body_bytes: int = 10 * 1024 * 1024) -> None:
-        super().__init__(app)
+        self._app = app
         self._max_body_bytes = max_body_bytes
 
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        content_length = request.headers.get("content-length")
-        if content_length and int(content_length) > self._max_body_bytes:
-            return JSONResponse(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                content={"detail": f"Request body too large (max {self._max_body_bytes} bytes)"},
-            )
-        return await call_next(request)
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+
+        content_length = next((v for k, v in scope.get("headers", []) if k == b"content-length"), None)
+        if content_length is not None:
+            try:
+                declared = int(content_length)
+            except ValueError:
+                declared = None  # malformed header - let downstream request parsing reject it
+            if declared is not None and declared > self._max_body_bytes:
+                await self._send_413(send)
+                return
+
+        total = 0
+        rejected = False
+
+        async def limited_receive() -> Message:
+            nonlocal total, rejected
+            if rejected:
+                # The downstream app already got told to stop (below); if
+                # it calls receive() again anyway, keep telling it so -
+                # never re-deliver body data past the point of rejection.
+                return {"type": "http.disconnect"}
+            message = await receive()
+            if message["type"] == "http.request":
+                total += len(message.get("body", b""))
+                if total > self._max_body_bytes:
+                    # Enforces the limit on a chunked (no Content-Length)
+                    # body: each chunk is counted as it arrives, with
+                    # nothing ever buffered beyond what the ASGI server
+                    # already handed us one message at a time.
+                    rejected = True
+                    await self._send_413(send)
+                    return {"type": "http.disconnect"}
+            return message
+
+        await self._app(scope, limited_receive, send)
+
+    async def _send_413(self, send: Send) -> None:
+        body = json.dumps({"detail": f"Request body too large (max {self._max_body_bytes} bytes)"}).encode()
+        await send({
+            "type": "http.response.start",
+            "status": 413,
+            "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode())],
+        })
+        await send({"type": "http.response.body", "body": body})
 
 
 class MetricsMiddleware(BaseHTTPMiddleware):

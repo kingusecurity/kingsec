@@ -42,6 +42,114 @@ class TestRequestSizeLimitMiddleware:
         assert resp.status_code == 413
 
 
+class _EchoASGIApp:
+    """A minimal downstream ASGI app that reads the full request body via
+    receive() (exactly as Starlette's Request.body()/.stream() do - a
+    loop calling receive() until more_body is False) and echoes its
+    length back with 200 - standing in for "the real app", so these tests
+    prove the limit is enforced on the actual ASGI receive() stream, not
+    merely against a test double's shortcut."""
+
+    async def __call__(self, scope, receive, send) -> None:
+        body = b""
+        while True:
+            message = await receive()
+            body += message.get("body", b"")
+            if not message.get("more_body", False):
+                break
+        payload = f'{{"received": {len(body)}}}'.encode()
+        await send({
+            "type": "http.response.start",
+            "status": 200,
+            "headers": [(b"content-type", b"application/json")],
+        })
+        await send({"type": "http.response.body", "body": payload})
+
+
+class TestRequestSizeLimitMiddlewareChunkedBypass:
+    """KSEC-86-03 (chunked request-body limit, Phase-84 carry-forward):
+    Transfer-Encoding: chunked requests carry no Content-Length header at
+    all (the two are mutually exclusive per HTTP/1.1) - the previous
+    Content-Length-only check let such a request bypass the size limit
+    entirely, however large its actual body. These drive the middleware
+    directly at the ASGI level (the real enforcement boundary, and the
+    only way to construct a genuinely header-less, multi-chunk request
+    deterministically) to prove the limit is now enforced against the
+    streamed body itself, regardless of headers, without ever buffering
+    more of the (attacker-controlled) body than the transport already
+    delivered one message at a time."""
+
+    async def test_a_chunked_request_with_no_content_length_is_rejected_once_it_exceeds_the_limit(self) -> None:
+        app = RequestSizeLimitMiddleware(_EchoASGIApp(), max_body_bytes=10)
+        scope = {"type": "http", "headers": []}  # deliberately no content-length header
+        chunks = [b"x" * 6, b"x" * 6]  # 12 bytes total, delivered incrementally, over the 10-byte limit
+        sent: list[dict] = []
+
+        async def receive():
+            if chunks:
+                chunk = chunks.pop(0)
+                return {"type": "http.request", "body": chunk, "more_body": bool(chunks)}
+            return {"type": "http.disconnect"}  # pragma: no cover - not reached once the limit trips
+
+        async def send(message):
+            sent.append(message)
+
+        await app(scope, receive, send)
+
+        start = next(m for m in sent if m["type"] == "http.response.start")
+        assert start["status"] == 413
+
+    async def test_a_chunked_request_within_the_limit_still_reaches_the_app(self) -> None:
+        """The permitted case still works - proves the streaming
+        enforcement does not break legitimate chunked requests that stay
+        under the limit."""
+        app = RequestSizeLimitMiddleware(_EchoASGIApp(), max_body_bytes=100)
+        scope = {"type": "http", "headers": []}
+        chunks = [b"x" * 5, b"x" * 5]  # 10 bytes total, under the 100-byte limit
+        sent: list[dict] = []
+
+        async def receive():
+            if chunks:
+                chunk = chunks.pop(0)
+                return {"type": "http.request", "body": chunk, "more_body": bool(chunks)}
+            return {"type": "http.disconnect"}
+
+        async def send(message):
+            sent.append(message)
+
+        await app(scope, receive, send)
+
+        start = next(m for m in sent if m["type"] == "http.response.start")
+        assert start["status"] == 200
+        body_message = next(m for m in sent if m["type"] == "http.response.body")
+        assert b'"received": 10' in body_message["body"]
+
+    async def test_non_http_scopes_are_passed_through_unmodified(self) -> None:
+        """websocket/lifespan scopes have no request body to limit - the
+        middleware must not interfere with them at all."""
+        calls: list[tuple] = []
+
+        class _RecordingApp:
+            async def __call__(self, scope, receive, send):
+                calls.append((scope, receive, send))
+
+        app = RequestSizeLimitMiddleware(_RecordingApp(), max_body_bytes=10)
+        scope = {"type": "websocket"}
+
+        async def receive():
+            return {"type": "websocket.connect"}
+
+        async def send(message):
+            return None
+
+        await app(scope, receive, send)
+
+        assert len(calls) == 1
+        assert calls[0][0] is scope
+        assert calls[0][1] is receive
+        assert calls[0][2] is send
+
+
 class TestResponseCacheMiddleware:
     def test_caches_get_response(self) -> None:
         app = FastAPI()
