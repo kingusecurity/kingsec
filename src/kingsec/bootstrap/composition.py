@@ -691,12 +691,15 @@ def _register_use_cases(app: Application) -> None:
             c.resolve(AuditPublisher),
         ),
     )
+    from kingsec.application.services.licensing import LicenseGate
+
     container.register_factory(
         RegisterUser,
         lambda c: RegisterUser(
             c.resolve(UserRepository),
             c.resolve(PasswordHasher),
             c.resolve(AuditPublisher),
+            c.resolve(LicenseGate) if c.has(LicenseGate) else None,
         ),
     )
     container.register_factory(
@@ -718,8 +721,6 @@ def _register_use_cases(app: Application) -> None:
     )
 
     # API key use cases.
-    from kingsec.application.services.licensing import LicenseGate
-
     container.register_factory(
         CreateApiKey,
         lambda c: CreateApiKey(

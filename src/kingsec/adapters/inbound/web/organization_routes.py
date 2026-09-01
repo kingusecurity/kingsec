@@ -317,6 +317,18 @@ async def create_team(
     role = repo.get_member_role(org_id, user.user_id)
     if role not in (OrgRole.ADMIN,):
         raise HTTPException(status_code=403, detail="Only organization admins can create teams")
+
+    gate = _get_license_gate(request)
+    if gate is not None and not gate.can_use_team_collaboration():
+        raise LicenseRequiredError("Team collaboration", gate.current_edition().value)
+
+    # Only team CREATION is license-gated - it is the action that consumes
+    # the paid "team_collaboration" capability. update_team/delete_team/
+    # add_team_member/remove_team_member below intentionally remain
+    # ungated: a team that already exists (because it was created while
+    # correctly licensed) should not become unmanageable merely because a
+    # license later lapses - EDITION_FEATURES has no separate concept of
+    # "manage an existing team" distinct from creating one.
     team = Team(id=TeamId.generate(), organization_id=org_id, name=name, description=body.get("description", ""))
     repo.save_team(team)
     return {"id": str(team.id), "organization_id": team.organization_id, "name": team.name, "description": team.description}
@@ -419,6 +431,11 @@ async def list_activity(
     # alone does not establish that the caller belongs to this organization.
     if repo.get_member_role(org_id, user.user_id) is None:
         raise HTTPException(status_code=403, detail="Not a member of this organization")
+
+    gate = _get_license_gate(request)
+    if gate is not None and not gate.can_use_activity_feed():
+        raise LicenseRequiredError("Activity feed", gate.current_edition().value)
+
     events = repo.list_activity(org_id, limit=limit)
     return {
         "events": [

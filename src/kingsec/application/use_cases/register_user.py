@@ -30,8 +30,9 @@ from __future__ import annotations
 import logging
 
 from kingsec.application.dto import RegisterUserRequest, RegisterUserResponse
-from kingsec.application.errors import ApplicationError
+from kingsec.application.errors import ApplicationError, LicenseRequiredError
 from kingsec.application.ports import AuditPublisher, PasswordHasher, UserRepository
+from kingsec.application.services.licensing import LicenseGate
 from kingsec.domain import Role, User
 from kingsec.domain.audit import AuditAction, AuditEntry
 from kingsec.domain.user import PasswordValidationError
@@ -45,12 +46,28 @@ class RegisterUser:
         users: UserRepository,
         hasher: PasswordHasher,
         audit: AuditPublisher | None = None,
+        license_gate: LicenseGate | None = None,
     ) -> None:
         self._users = users
         self._hasher = hasher
         self._audit = audit
+        self._license_gate = license_gate
 
     def execute(self, request: RegisterUserRequest) -> RegisterUserResponse:
+        # Step 0: Enforce the installation-wide user limit (server-side
+        # count, never client-supplied). `max_users() is None` means
+        # unlimited (Professional/Enterprise). The numeric limit alone is
+        # authoritative here - Phase 82 established there is no separate
+        # "can register users at all" boolean, unlike api_keys.
+        if self._license_gate is not None:
+            limit = self._license_gate.max_users()
+            if limit is not None and self._users.count() >= limit:
+                raise LicenseRequiredError(
+                    f"Users (limit of {limit} reached)",
+                    self._license_gate.current_edition().value,
+                    required="an edition with a higher user limit",
+                )
+
         # Step 1: Validate password.
         self._validate_password(request.password)
 

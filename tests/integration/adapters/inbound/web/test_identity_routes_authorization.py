@@ -169,6 +169,10 @@ def _build_app() -> tuple[FastAPI, StubUserRepo, InMemoryIdpRepo, StubApiKeyRepo
                 return ValidateApiKey(api_key_repo, api_key_hasher)
             if service_type == ServiceAPI:
                 raise ValueError("ServiceAPI not needed by these tests")
+            from kingsec.application.services.licensing import LicenseGate
+
+            if service_type == LicenseGate:
+                return None
             raise ValueError(f"Unknown service: {service_type}")
 
     app.state.kingsec_app = _StubApp()  # type: ignore[attr-defined]

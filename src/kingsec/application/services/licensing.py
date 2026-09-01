@@ -112,6 +112,9 @@ class LicenseGate:
     def can_use_team_collaboration(self) -> bool:
         return self._check("team_collaboration")
 
+    def can_use_activity_feed(self) -> bool:
+        return self._check("activity_feed")
+
     # ── Limit checks ───────────────────────────────────────────────────────
 
     def max_users(self) -> int | None:

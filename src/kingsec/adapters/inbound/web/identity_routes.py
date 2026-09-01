@@ -6,9 +6,10 @@ from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from kingsec.application.errors import IdentityProviderNotFoundError
+from kingsec.application.errors import IdentityProviderNotFoundError, LicenseRequiredError
 from kingsec.application.idp.protocol_handlers import test_provider_connection
 from kingsec.application.idp.provider_service import IdentityProviderService
+from kingsec.application.services.licensing import LicenseGate
 
 from .auth import CurrentUser, get_current_user, require_admin
 from .dependencies import get_application
@@ -22,6 +23,23 @@ router = APIRouter(prefix="/api/v1/identity", tags=["identity"])
 def _get_idp_service(request: Request) -> IdentityProviderService:
     app: Application = get_application(request)
     return cast(IdentityProviderService, app.resolve(IdentityProviderService))
+
+
+def _require_sso_license(request: Request) -> None:
+    """Enforce the Enterprise-edition ``sso`` feature gate on the SSO/IdP
+    CONFIGURATION surface (create/update/delete/activate/deactivate).
+
+    Stacked with (never a substitute for) the ``require_admin`` role check
+    already present on every route below. Deliberately NOT applied to the
+    read-only ``list_providers``/``get_provider`` routes (viewing already-
+    configured SSO settings doesn't itself consume the paid capability) or
+    to ``/test`` (which persists nothing - it only test-connects a
+    not-yet-saved, in-memory provider object).
+    """
+    app: Application = get_application(request)
+    gate: LicenseGate | None = app.resolve(LicenseGate)
+    if gate is not None and not gate.can_use_sso():
+        raise LicenseRequiredError("SSO / identity provider configuration", gate.current_edition().value, required="an Enterprise")
 
 
 @router.get("/providers")
@@ -63,6 +81,7 @@ async def create_provider(
     request: Request,
     body: dict[str, Any],
     user: CurrentUser = Depends(require_admin),
+    _license: None = Depends(_require_sso_license),
 ) -> dict[str, Any]:
     if not body.get("name"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="name is required")
@@ -192,6 +211,7 @@ async def update_provider(
     request: Request,
     body: dict[str, Any],
     user: CurrentUser = Depends(require_admin),
+    _license: None = Depends(_require_sso_license),
 ) -> dict[str, Any]:
     service = _get_idp_service(request)
     try:
@@ -216,6 +236,7 @@ async def delete_provider(
     provider_id: str,
     request: Request,
     user: CurrentUser = Depends(require_admin),
+    _license: None = Depends(_require_sso_license),
 ) -> dict[str, Any]:
     service = _get_idp_service(request)
     try:
@@ -230,6 +251,7 @@ async def activate_provider(
     provider_id: str,
     request: Request,
     user: CurrentUser = Depends(require_admin),
+    _license: None = Depends(_require_sso_license),
 ) -> dict[str, Any]:
     service = _get_idp_service(request)
     try:
@@ -247,6 +269,7 @@ async def deactivate_provider(
     provider_id: str,
     request: Request,
     user: CurrentUser = Depends(require_admin),
+    _license: None = Depends(_require_sso_license),
 ) -> dict[str, Any]:
     service = _get_idp_service(request)
     try:

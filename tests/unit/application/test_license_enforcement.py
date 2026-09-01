@@ -22,14 +22,18 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from tests.integration.adapters.inbound.web.test_identity_routes_authorization import InMemoryIdpRepo
+from tests.unit.application.test_register_user import StubPasswordHasher, StubUserRepository
 
 from kingsec.adapters.inbound.web.audit_events import router as audit_events_router
 from kingsec.adapters.inbound.web.auth import CurrentUser, get_current_user
 from kingsec.adapters.inbound.web.dependencies import get_application
 from kingsec.adapters.inbound.web.error_handlers import register_error_handlers
+from kingsec.adapters.inbound.web.identity_routes import router as identity_router
 from kingsec.adapters.inbound.web.organization_routes import router as organization_router
-from kingsec.application.dto import CreateApiKeyRequest
+from kingsec.application.dto import CreateApiKeyRequest, RegisterUserRequest
 from kingsec.application.errors import LicenseRequiredError
+from kingsec.application.idp.provider_service import IdentityProviderService
 from kingsec.application.ports import ApiKeyHasher, ApiKeyRepository
 from kingsec.application.ports.outbound.audit_event_repository import AuditEventRepository
 from kingsec.application.ports.outbound.audit_publisher import AuditPublisher
@@ -39,13 +43,14 @@ from kingsec.application.ports.outbound.schedule_repository import ScheduleRepos
 from kingsec.application.services.licensing import LicenseGate, LicenseValidatorImpl
 from kingsec.application.use_cases.create_api_key import CreateApiKey
 from kingsec.application.use_cases.create_schedule import CreateSchedule
+from kingsec.application.use_cases.register_user import RegisterUser, RegistrationError
 from kingsec.application.use_cases.schedule_dto import CreateScheduleRequest
 from kingsec.application.use_cases.search_audit_events import SearchAuditEvents
 from kingsec.domain import Role
 from kingsec.domain.api_key import ApiKey
 from kingsec.domain.audit_event import AuditEvent, AuditEventId
 from kingsec.domain.license import License, LicenseEdition, LicenseId, LicenseStatus
-from kingsec.domain.organization import Organization, OrganizationMembership, OrgRole
+from kingsec.domain.organization import Organization, OrganizationId, OrganizationMembership, OrgRole
 from kingsec.domain.schedule import ScanSchedule
 from kingsec.infrastructure.config.models import IntegrationSettings
 from kingsec.infrastructure.integrations.webhook_service import WebhookDeliveryService
@@ -622,3 +627,316 @@ class TestLicenseRepositoryFailureFailsClosed:
             raise AssertionError("expected TypeError to propagate, not be swallowed")
         except TypeError:
             pass
+
+
+# ── User registration / max_users (KSEC-83-A) ────────────────────────────────
+
+
+class TestUserRegistrationLicenseEnforcement:
+    def _register(self, repo: StubUserRepository, gate: LicenseGate | None, n: int) -> None:
+        uc = RegisterUser(repo, StubPasswordHasher(), audit=None, license_gate=gate)
+        for i in range(n):
+            uc.execute(RegisterUserRequest(username=f"user{i}", email=f"user{i}@example.com", password="SecurePass1"))
+
+    def test_community_allows_users_below_the_limit(self) -> None:
+        repo = StubUserRepository()
+        gate = _gate(LicenseEdition.COMMUNITY)
+        self._register(repo, gate, 4)
+        assert repo.count() == 4
+
+    def test_community_rejects_registration_at_the_limit(self) -> None:
+        repo = StubUserRepository()
+        gate = _gate(LicenseEdition.COMMUNITY)
+        self._register(repo, gate, 5)  # Community's max_users == 5
+        uc = RegisterUser(repo, StubPasswordHasher(), audit=None, license_gate=gate)
+        try:
+            uc.execute(RegisterUserRequest(username="one-too-many", email="over@example.com", password="SecurePass1"))
+            raise AssertionError("expected LicenseRequiredError on the 6th user")
+        except LicenseRequiredError:
+            pass
+        assert repo.count() == 5
+
+    def test_professional_allows_registration_beyond_community_limit(self) -> None:
+        repo = StubUserRepository()
+        gate = _gate(LicenseEdition.PROFESSIONAL)
+        self._register(repo, gate, 8)
+        assert repo.count() == 8
+
+    def test_enterprise_allows_registration_beyond_community_limit(self) -> None:
+        repo = StubUserRepository()
+        gate = _gate(LicenseEdition.ENTERPRISE)
+        self._register(repo, gate, 8)
+        assert repo.count() == 8
+
+    def test_no_license_falls_back_to_community_limit(self) -> None:
+        repo = StubUserRepository()
+        gate = _gate(None)
+        self._register(repo, gate, 5)
+        uc = RegisterUser(repo, StubPasswordHasher(), audit=None, license_gate=gate)
+        try:
+            uc.execute(RegisterUserRequest(username="one-too-many", email="over@example.com", password="SecurePass1"))
+            raise AssertionError("expected LicenseRequiredError with no license")
+        except LicenseRequiredError:
+            pass
+
+    def test_count_is_installation_wide(self) -> None:
+        """The limit is a single installation-wide count - there is no
+        per-user or per-caller scoping to bypass."""
+        repo = StubUserRepository()
+        gate = _gate(LicenseEdition.COMMUNITY)
+        self._register(repo, gate, 5)
+        uc = RegisterUser(repo, StubPasswordHasher(), audit=None, license_gate=gate)
+        for username in ("alice", "bob", "carol"):
+            try:
+                uc.execute(RegisterUserRequest(username=username, email=f"{username}@example.com", password="SecurePass1"))
+                raise AssertionError(f"expected LicenseRequiredError for {username}")
+            except LicenseRequiredError:
+                pass
+
+    def test_no_gate_wired_is_unrestricted(self) -> None:
+        """Backward-compatible default: a caller that never wires a
+        LicenseGate keeps the pre-Phase-83 unrestricted behavior."""
+        repo = StubUserRepository()
+        self._register(repo, None, 10)
+        assert repo.count() == 10
+
+    def test_duplicate_username_still_rejected_and_not_masked_by_license_check(self) -> None:
+        """Under the limit (so the license check passes), a duplicate
+        username must still be rejected by its own check - the license
+        check does not swallow or replace it."""
+        repo = StubUserRepository(existing_username="taken")
+        gate = _gate(LicenseEdition.COMMUNITY)
+        uc = RegisterUser(repo, StubPasswordHasher(), audit=None, license_gate=gate)
+        try:
+            uc.execute(RegisterUserRequest(username="taken", email="new@example.com", password="SecurePass1"))
+            raise AssertionError("expected RegistrationError for duplicate username")
+        except RegistrationError:
+            pass
+        assert repo.count() == 0
+
+    def test_duplicate_username_rejected_even_when_over_the_limit(self) -> None:
+        """The reverse order also holds: even once the license limit is
+        already exceeded, the duplicate check still runs and reports its
+        own, more specific error rather than a generic license failure
+        being the only thing ever observed."""
+        repo = StubUserRepository(existing_username="taken")
+        gate = _gate(LicenseEdition.COMMUNITY)
+        self._register(repo, gate, 5)
+        uc = RegisterUser(repo, StubPasswordHasher(), audit=None, license_gate=gate)
+        # License check runs first (Section 3's "Step 0"), so at-limit
+        # takes precedence - this test documents that ordering rather than
+        # assuming the duplicate check would win.
+        try:
+            uc.execute(RegisterUserRequest(username="taken", email="new@example.com", password="SecurePass1"))
+            raise AssertionError("expected LicenseRequiredError (limit already reached)")
+        except LicenseRequiredError:
+            pass
+
+
+# ── SSO / identity-provider configuration (KSEC-83-B) ────────────────────────
+
+
+def _sso_app(gate: LicenseGate | None, *, role: Role) -> FastAPI:
+    idp_repo = InMemoryIdpRepo()
+    idp_service = IdentityProviderService(idp_repo)
+
+    class FakeApplication:
+        def resolve(self, port: type) -> object:
+            if port is IdentityProviderService:
+                return idp_service
+            if port is LicenseGate:
+                return gate
+            return None
+
+    async def override_get_current_user() -> CurrentUser:
+        return CurrentUser(user_id="admin-1", username="admin", role=role, claims=None)  # type: ignore[arg-type]
+
+    app = FastAPI()
+    app.include_router(identity_router)
+    app.state.kingsec_app = FakeApplication()
+    app.dependency_overrides[get_current_user] = override_get_current_user
+    register_error_handlers(app)
+    return app
+
+
+class TestSSOLicenseEnforcement:
+    def test_enterprise_admin_can_configure_sso(self) -> None:
+        app = _sso_app(_gate(LicenseEdition.ENTERPRISE), role=Role.ADMIN)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/api/v1/identity/providers", json={"name": "corp-okta", "protocol": "oidc"})
+        assert resp.status_code == 200, resp.text
+
+    def test_professional_admin_is_rejected_by_license(self) -> None:
+        app = _sso_app(_gate(LicenseEdition.PROFESSIONAL), role=Role.ADMIN)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/api/v1/identity/providers", json={"name": "corp-okta", "protocol": "oidc"})
+        assert resp.status_code == 403
+
+    def test_community_admin_is_rejected_by_license(self) -> None:
+        app = _sso_app(_gate(LicenseEdition.COMMUNITY), role=Role.ADMIN)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/api/v1/identity/providers", json={"name": "corp-okta", "protocol": "oidc"})
+        assert resp.status_code == 403
+
+    def test_no_license_admin_is_rejected_by_community_fallback(self) -> None:
+        app = _sso_app(_gate(None), role=Role.ADMIN)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/api/v1/identity/providers", json={"name": "corp-okta", "protocol": "oidc"})
+        assert resp.status_code == 403
+
+    def test_enterprise_non_admin_is_rejected_by_role(self) -> None:
+        """The license check does not replace the admin-role check."""
+        app = _sso_app(_gate(LicenseEdition.ENTERPRISE), role=Role.VIEWER)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/api/v1/identity/providers", json={"name": "corp-okta", "protocol": "oidc"})
+        assert resp.status_code == 403
+
+    def test_enterprise_admin_full_mutation_lifecycle_still_works(self) -> None:
+        """Existing valid SSO behavior still works for Enterprise, across
+        every gated mutation: create, update, activate, deactivate, delete."""
+        app = _sso_app(_gate(LicenseEdition.ENTERPRISE), role=Role.ADMIN)
+        client = TestClient(app, raise_server_exceptions=False)
+
+        created = client.post("/api/v1/identity/providers", json={"name": "corp-okta", "protocol": "oidc"})
+        assert created.status_code == 200, created.text
+        provider_id = created.json()["provider"]["id"]
+
+        updated = client.put(f"/api/v1/identity/providers/{provider_id}", json={"name": "renamed"})
+        assert updated.status_code == 200, updated.text
+
+        activated = client.post(f"/api/v1/identity/providers/{provider_id}/activate")
+        assert activated.status_code == 200, activated.text
+
+        deactivated = client.post(f"/api/v1/identity/providers/{provider_id}/deactivate")
+        assert deactivated.status_code == 200, deactivated.text
+
+        deleted = client.delete(f"/api/v1/identity/providers/{provider_id}")
+        assert deleted.status_code == 200, deleted.text
+
+    def test_community_admin_can_still_read_configuration(self) -> None:
+        """Read-only routes (list/get) are deliberately NOT license-gated -
+        viewing already-configured SSO settings doesn't itself consume the
+        paid capability. Only the admin-role gate applies to them."""
+        app = _sso_app(_gate(LicenseEdition.COMMUNITY), role=Role.ADMIN)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.get("/api/v1/identity/providers")
+        assert resp.status_code == 200, resp.text
+
+
+# ── Team collaboration (KSEC-83-C) ───────────────────────────────────────────
+
+
+ORG_ID = "org-1"
+
+
+def _team_org_app(gate: LicenseGate | None, *, caller_role: OrgRole | None) -> tuple[FastAPI, InMemoryOrgRepo]:
+    repo = InMemoryOrgRepo()
+    repo.save(Organization(id=OrganizationId(value=ORG_ID), name="Acme", slug="acme"))
+    if caller_role is not None:
+        repo.add_member(OrganizationMembership(user_id="owner-1", organization_id=ORG_ID, role=caller_role))
+    app = _org_app(repo, gate)
+    return app, repo
+
+
+class TestTeamCollaborationLicenseEnforcement:
+    def test_professional_admin_can_create_a_team(self) -> None:
+        app, _ = _team_org_app(_gate(LicenseEdition.PROFESSIONAL), caller_role=OrgRole.ADMIN)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/api/v1/teams", json={"organization_id": ORG_ID, "name": "Red Team"})
+        assert resp.status_code == 201, resp.text
+
+    def test_enterprise_admin_can_create_a_team(self) -> None:
+        app, _ = _team_org_app(_gate(LicenseEdition.ENTERPRISE), caller_role=OrgRole.ADMIN)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/api/v1/teams", json={"organization_id": ORG_ID, "name": "Red Team"})
+        assert resp.status_code == 201, resp.text
+
+    def test_community_admin_cannot_create_a_team(self) -> None:
+        app, _ = _team_org_app(_gate(LicenseEdition.COMMUNITY), caller_role=OrgRole.ADMIN)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/api/v1/teams", json={"organization_id": ORG_ID, "name": "Red Team"})
+        assert resp.status_code == 403
+
+    def test_no_license_follows_community_behavior(self) -> None:
+        app, _ = _team_org_app(_gate(None), caller_role=OrgRole.ADMIN)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/api/v1/teams", json={"organization_id": ORG_ID, "name": "Red Team"})
+        assert resp.status_code == 403
+
+    def test_non_admin_cannot_create_a_team_regardless_of_license(self) -> None:
+        """Existing organization-admin authorization is checked first and
+        remains independently effective, even on Enterprise."""
+        app, _ = _team_org_app(_gate(LicenseEdition.ENTERPRISE), caller_role=OrgRole.EDITOR)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/api/v1/teams", json={"organization_id": ORG_ID, "name": "Red Team"})
+        assert resp.status_code == 403
+
+    def test_non_member_cannot_create_a_team_regardless_of_license(self) -> None:
+        app, _ = _team_org_app(_gate(LicenseEdition.ENTERPRISE), caller_role=None)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/api/v1/teams", json={"organization_id": ORG_ID, "name": "Red Team"})
+        assert resp.status_code == 403
+
+    def test_existing_team_management_remains_ungated_by_design(self) -> None:
+        """Deliberate, documented semantics (see organization_routes.py's
+        create_team comment): only team CREATION consumes the paid
+        capability. update/delete/member-management on an already-existing
+        team remain reachable even on Community, so a license that later
+        lapses does not strand an org with unmanageable teams."""
+        app, repo = _team_org_app(_gate(LicenseEdition.ENTERPRISE), caller_role=OrgRole.ADMIN)
+        client = TestClient(app, raise_server_exceptions=False)
+        created = client.post("/api/v1/teams", json={"organization_id": ORG_ID, "name": "Red Team"})
+        team_id = created.json()["id"]
+
+        # Rebuild the app on a Community gate - the team already exists.
+        community_app = _org_app(repo, _gate(LicenseEdition.COMMUNITY))
+        community_client = TestClient(community_app, raise_server_exceptions=False)
+
+        updated = community_client.patch(f"/api/v1/teams/{team_id}", json={"name": "Renamed"})
+        assert updated.status_code == 200, updated.text
+
+        added = community_client.post(f"/api/v1/teams/{team_id}/members", json={"user_id": "new-member"})
+        assert added.status_code == 201, added.text
+
+        removed = community_client.delete(f"/api/v1/teams/{team_id}/members/new-member")
+        assert removed.status_code == 204, removed.text
+
+        deleted = community_client.delete(f"/api/v1/teams/{team_id}")
+        assert deleted.status_code == 204, deleted.text
+
+
+# ── Organization activity feed (KSEC-83-D) ───────────────────────────────────
+
+
+class TestActivityFeedLicenseEnforcement:
+    def test_enterprise_member_can_access_activity_feed(self) -> None:
+        app, _ = _team_org_app(_gate(LicenseEdition.ENTERPRISE), caller_role=OrgRole.VIEWER)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.get(f"/api/v1/organizations/{ORG_ID}/activity")
+        assert resp.status_code == 200, resp.text
+
+    def test_professional_member_can_access_activity_feed(self) -> None:
+        app, _ = _team_org_app(_gate(LicenseEdition.PROFESSIONAL), caller_role=OrgRole.VIEWER)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.get(f"/api/v1/organizations/{ORG_ID}/activity")
+        assert resp.status_code == 200, resp.text
+
+    def test_community_member_is_rejected_by_license(self) -> None:
+        app, _ = _team_org_app(_gate(LicenseEdition.COMMUNITY), caller_role=OrgRole.VIEWER)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.get(f"/api/v1/organizations/{ORG_ID}/activity")
+        assert resp.status_code == 403
+
+    def test_no_license_member_is_rejected_by_community_fallback(self) -> None:
+        app, _ = _team_org_app(_gate(None), caller_role=OrgRole.VIEWER)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.get(f"/api/v1/organizations/{ORG_ID}/activity")
+        assert resp.status_code == 403
+
+    def test_non_member_rejected_even_with_enterprise_license(self) -> None:
+        """License enforcement does not replace membership authorization -
+        both remain independently effective."""
+        app, _ = _team_org_app(_gate(LicenseEdition.ENTERPRISE), caller_role=None)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.get(f"/api/v1/organizations/{ORG_ID}/activity")
+        assert resp.status_code == 403
