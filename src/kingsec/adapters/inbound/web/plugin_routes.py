@@ -11,6 +11,7 @@ from kingsec.domain import Role
 
 from .auth import CurrentUser, get_current_user
 from .dependencies import get_application
+from .error_handlers import admin_operation_error
 
 if TYPE_CHECKING:
     from kingsec.bootstrap.application import Application
@@ -91,10 +92,7 @@ def _validate_archive_safety(package_path: str) -> None:
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to validate archive: {exc}",
-        ) from exc
+        raise admin_operation_error(exc, "validate archive safety", status_code=status.HTTP_400_BAD_REQUEST) from exc
 
 
 async def _save_upload(file: UploadFile) -> str:
@@ -204,7 +202,7 @@ async def install_plugin(
     except Exception as exc:
         if os.path.exists(path):
             os.unlink(path)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise admin_operation_error(exc, "install plugin", status_code=status.HTTP_400_BAD_REQUEST) from exc
     finally:
         if os.path.exists(path):
             os.unlink(path)
@@ -230,7 +228,7 @@ async def uninstall_plugin(
     try:
         service.uninstall(plugin_id)
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise admin_operation_error(exc, "uninstall plugin", status_code=status.HTTP_404_NOT_FOUND) from exc
     return {"message": f"Plugin '{plugin_id}' uninstalled successfully"}
 
 
@@ -245,7 +243,7 @@ async def enable_plugin(
     try:
         plugin = service.enable(plugin_id)
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise admin_operation_error(exc, "enable plugin", status_code=status.HTTP_404_NOT_FOUND) from exc
     return {
         "message": f"Plugin '{plugin_id}' enabled",
         "plugin": {"id": plugin.id, "status": plugin.status.value},
@@ -263,7 +261,7 @@ async def disable_plugin(
     try:
         plugin = service.disable(plugin_id)
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise admin_operation_error(exc, "disable plugin", status_code=status.HTTP_404_NOT_FOUND) from exc
     return {
         "message": f"Plugin '{plugin_id}' disabled",
         "plugin": {"id": plugin.id, "status": plugin.status.value},
@@ -285,7 +283,7 @@ async def update_plugin(
     except Exception as exc:
         if os.path.exists(path):
             os.unlink(path)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise admin_operation_error(exc, "update plugin", status_code=status.HTTP_400_BAD_REQUEST) from exc
     finally:
         if os.path.exists(path):
             os.unlink(path)
@@ -310,7 +308,7 @@ async def rollback_plugin(
     try:
         plugin = service.rollback(plugin_id)
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise admin_operation_error(exc, "rollback plugin", status_code=status.HTTP_404_NOT_FOUND) from exc
     return {
         "message": f"Plugin '{plugin_id}' rolled back",
         "plugin": {
@@ -334,7 +332,7 @@ async def validate_plugin(
     except Exception as exc:
         if os.path.exists(path):
             os.unlink(path)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise admin_operation_error(exc, "validate plugin", status_code=status.HTTP_400_BAD_REQUEST) from exc
     finally:
         if os.path.exists(path):
             os.unlink(path)
@@ -355,7 +353,7 @@ async def import_plugin(
     except Exception as exc:
         if os.path.exists(path):
             os.unlink(path)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise admin_operation_error(exc, "import plugin", status_code=status.HTTP_400_BAD_REQUEST) from exc
     finally:
         if os.path.exists(path):
             os.unlink(path)

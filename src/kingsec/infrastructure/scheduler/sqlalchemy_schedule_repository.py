@@ -35,6 +35,17 @@ class SqlAlchemyScheduleRepository(ScheduleRepositoryPort):
         if another writer already advanced the version, zero rows match and
         ScheduleConflictError is raised - never silently overwriting, never
         silently overwritten, never automatically retried.
+
+        KSEC-87-03: the "row doesn't exist" branch below is ALSO reached
+        when a row that DID exist was deleted by a concurrent
+        delete_schedule() between this caller's read and this save() -
+        not only for a genuinely brand-new schedule. A version > 1 proves
+        the caller read an existing row, so treating that case as a fresh
+        insert would silently resurrect the deleted schedule under a
+        stale version instead of surfacing the conflict. Only a version
+        of exactly 1 (create_schedule.py's own starting value, never
+        incremented by anything but a successful update) is treated as
+        "genuinely new".
         """
         with self._session_factory.begin() as session:
             from kingsec.infrastructure.persistence.models import ScheduleORM
@@ -44,6 +55,10 @@ class SqlAlchemyScheduleRepository(ScheduleRepositoryPort):
                 is not None
             )
             if not exists:
+                if schedule.version != 1:
+                    raise ScheduleConflictError(
+                        f"schedule '{schedule.id}' was deleted by another request since it was last read"
+                    )
                 orm = ScheduleORM(id=str(schedule.id), version=schedule.version)
                 session.add(orm)
                 self._update_orm(orm, schedule)

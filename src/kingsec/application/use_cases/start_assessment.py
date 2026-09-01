@@ -21,7 +21,7 @@ import logging
 from kingsec.application._support import safe_failure_message, to_assessment_id
 from kingsec.application.assessment_profiles import ExecutionPlanner
 from kingsec.application.dto import StartAssessmentRequest, StartAssessmentResponse
-from kingsec.application.errors import ExecutionPlanUnsatisfiedError
+from kingsec.application.errors import ExecutionPlanUnsatisfiedError, TooManyConcurrentAssessmentsError
 from kingsec.application.events import (
     EVENT_ASSESSMENT_COMPLETED,
     EVENT_ASSESSMENT_FAILED,
@@ -35,6 +35,7 @@ from kingsec.application.ports import (
     EventPublisher,
     ScannerPort,
 )
+from kingsec.application.ports.outbound.assessment_concurrency import AssessmentConcurrencyPort
 from kingsec.domain import Finding
 from kingsec.domain.audit import AuditAction, AuditEntry
 
@@ -50,6 +51,8 @@ class StartAssessment:
         events: EventPublisher | None = None,
         audit: AuditPublisher | None = None,
         planner: ExecutionPlanner | None = None,
+        concurrency: AssessmentConcurrencyPort | None = None,
+        max_concurrent: int | None = None,
     ) -> None:
         self._assessments = assessments
         self._scanner = scanner
@@ -57,8 +60,33 @@ class StartAssessment:
         self._events = events
         self._audit = audit
         self._planner = planner
+        # KSEC-87-02: both concurrency and max_concurrent default to None
+        # (the gate is skipped entirely, matching every pre-existing
+        # caller/test/fake exactly) - only enforced when both a
+        # concurrency-tracking port AND a configured limit are supplied.
+        self._concurrency = concurrency
+        self._max_concurrent = max_concurrent
 
     def execute(self, request: StartAssessmentRequest) -> StartAssessmentResponse:
+        if self._concurrency is not None and self._max_concurrent is not None:
+            if not self._concurrency.try_reserve_slot(self._max_concurrent):
+                raise TooManyConcurrentAssessmentsError(
+                    f"Maximum concurrent assessments ({self._max_concurrent}) already running; "
+                    "try again once a running assessment completes."
+                )
+        try:
+            return self._execute_reserved(request)
+        finally:
+            # Released unconditionally on every exit path (return or any
+            # exception) once a slot was actually reserved above - a
+            # reservation must never leak, whether the assessment
+            # completes, fails, or startup itself raises before scanning
+            # even begins (e.g. AssessmentNotFoundError, or the domain's
+            # own IllegalStateTransition from assessment.start()).
+            if self._concurrency is not None and self._max_concurrent is not None:
+                self._concurrency.release_slot()
+
+    def _execute_reserved(self, request: StartAssessmentRequest) -> StartAssessmentResponse:
         assessment = self._assessments.get(to_assessment_id(request.assessment_id))
 
         # The authorization gate lives in the domain: this raises

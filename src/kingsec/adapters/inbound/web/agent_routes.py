@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 from .auth import CurrentUser, get_current_user
 from .dependencies import get_application
+from .error_handlers import admin_operation_error
 
 router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
 
@@ -64,7 +65,7 @@ async def register_agent(
         )
         agent = service.register(reg)
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise admin_operation_error(exc, "register agent", status_code=status.HTTP_400_BAD_REQUEST) from exc
     return {
         "message": f"Agent '{agent.id}' registered",
         "agent": {
@@ -102,7 +103,7 @@ async def agent_heartbeat(
         )
         service.handle_heartbeat(hb)
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise admin_operation_error(exc, "record agent heartbeat", status_code=status.HTTP_404_NOT_FOUND) from exc
     return {"message": "Heartbeat received"}
 
 
@@ -175,7 +176,7 @@ async def disable_agent(
     try:
         agent = service.disable_agent(agent_id)
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise admin_operation_error(exc, "disable agent", status_code=status.HTTP_404_NOT_FOUND) from exc
     return {"message": f"Agent '{agent_id}' disabled", "state": agent.state.value}
 
 
@@ -190,7 +191,7 @@ async def enable_agent(
     try:
         agent = service.enable_agent(agent_id)
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise admin_operation_error(exc, "enable agent", status_code=status.HTTP_404_NOT_FOUND) from exc
     return {"message": f"Agent '{agent_id}' enabled", "state": agent.state.value}
 
 
@@ -205,7 +206,7 @@ async def remove_agent(
     try:
         service.remove_agent(agent_id)
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise admin_operation_error(exc, "remove agent", status_code=status.HTTP_404_NOT_FOUND) from exc
     return {"message": f"Agent '{agent_id}' removed"}
 
 
@@ -235,7 +236,7 @@ async def report_job_progress(
     try:
         service.report_job_progress(body["agent_id"], body["job_id"], body.get("progress", 0.0))
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise admin_operation_error(exc, "report job progress", status_code=status.HTTP_404_NOT_FOUND) from exc
     return {"message": "Progress reported"}
 
 
@@ -250,7 +251,7 @@ async def complete_job(
     try:
         service.complete_job(body["agent_id"], body["job_id"])
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise admin_operation_error(exc, "complete job", status_code=status.HTTP_404_NOT_FOUND) from exc
     return {"message": "Job completed"}
 
 
@@ -265,5 +266,5 @@ async def fail_job(
     try:
         service.fail_job(body["agent_id"], body["job_id"], body.get("error", ""))
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise admin_operation_error(exc, "fail job", status_code=status.HTTP_404_NOT_FOUND) from exc
     return {"message": "Job failed"}

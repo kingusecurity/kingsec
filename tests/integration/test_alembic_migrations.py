@@ -135,6 +135,7 @@ EXPECTED_TABLES = frozenset(
         "account_lockouts",
         "ai_provider_config",
         "api_keys",
+        "assessment_concurrency_slots",
         "assessments",
         "asset_history",
         "asset_relationships",
@@ -616,7 +617,7 @@ class TestMigrationAtomicity:
         with engine.begin() as conn:
             stamp = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
         engine.dispose()
-        assert stamp == "0fcacd6b048e"
+        assert stamp == "b61ad7b141a0"
 
 
 class TestMigrationMetadata:

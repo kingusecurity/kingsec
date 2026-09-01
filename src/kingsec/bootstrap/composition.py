@@ -567,6 +567,7 @@ def _register_use_cases(app: Application) -> None:
     settings = app.settings
     from kingsec.application.assessment_execution import AssessmentExecutionEngine
     from kingsec.application.assessment_profiles import ExecutionPlanner
+    from kingsec.application.ports.outbound.assessment_concurrency import AssessmentConcurrencyPort
 
     def _resolve_scanner_executor(c: Any) -> ScannerExecutor | None:
         """Return the resolved scanner if it also implements ScannerExecutor.
@@ -596,6 +597,11 @@ def _register_use_cases(app: Application) -> None:
             c.resolve(EventPublisher),
             c.resolve(AuditPublisher),
             c.resolve(ExecutionPlanner),
+            # KSEC-87-02: same session_factory/table register_persistence()
+            # already wires AssessmentRepository against, so this is always
+            # registered whenever AssessmentRepository (resolved above) is.
+            concurrency=c.resolve(AssessmentConcurrencyPort),
+            max_concurrent=settings.performance.max_concurrent_assessments,
         ),
     )
     container.register_factory(

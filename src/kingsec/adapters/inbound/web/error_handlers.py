@@ -15,6 +15,7 @@ Boundary policy
     │ ScheduleConflictError           │ 409 Conflict                       │
     │ OrganizationConflictError       │ 409 Conflict                       │
     │ TeamConflictError               │ 409 Conflict                       │
+    │ TooManyConcurrentAssessmentsErr │ 429 Too Many Requests              │
     │ IllegalStateTransition          │ 409 Conflict                       │
     │ InvariantViolation              │ 422 Unprocessable Entity           │
     │ DomainError (other)             │ 409 Conflict                       │
@@ -28,13 +29,15 @@ Boundary policy
 
 from __future__ import annotations
 
-from fastapi import Request
+import structlog
+from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from kingsec.application.errors import (
     AccountLinkNotFoundError,
     AgentNotFoundError,
     AlertNotFoundError,
+    ApplicationError,
     AssessmentNotFoundError,
     AssetNotFoundError,
     BackupNotFoundError,
@@ -69,6 +72,7 @@ from kingsec.application.errors import (
     SSOSessionNotFoundError,
     TeamConflictError,
     ThreatFeedNotFoundError,
+    TooManyConcurrentAssessmentsError,
     VerificationNotFoundError,
     WorkerNotFoundError,
 )
@@ -87,6 +91,46 @@ from kingsec.domain.errors import (
 from kingsec.domain.rate_limit import RateLimitExceeded
 from kingsec.domain.user import PasswordValidationError
 from kingsec.shared.errors import ErrorCode, KingSecError
+
+# KSEC-87-01: structlog directly (not kingsec.infrastructure.logging.
+# get_logger, KingSec's OWN wrapper) - the import-linter "Hexagonal
+# layering" contract treats adapters/infrastructure as sibling outer
+# layers that must not import each other; every other adapters/inbound/
+# web/*.py file that logs (auth.py) uses this exact same direct-structlog
+# pattern for the identical reason. structlog's global pipeline is
+# already configured once at startup (bootstrap), so this call site
+# doesn't need KingSec's own configuration wrapper at all.
+_logger = structlog.get_logger("kingsec.adapters.inbound.web.error_handlers")
+
+
+def admin_operation_error(exc: Exception, operation: str, *, status_code: int = 400) -> HTTPException:
+    """Translate an exception caught inside an admin-only route's try block
+    into a client-safe ``HTTPException``.
+
+    KSEC-87-01: agent_routes.py/backup_routes.py/plugin_routes.py each had
+    ``except Exception as exc: raise HTTPException(..., detail=str(exc))``
+    at ~19 call sites - broad enough to also catch genuinely unexpected
+    failures (a database error, a bug, a filesystem path) and leak their
+    message, even though the failure every one of these routes actually
+    expects in normal operation is one of this codebase's own
+    deliberately-crafted ``ApplicationError`` subclasses (e.g.
+    ``AgentNotFoundError``, ``PluginValidationError``), whose messages are
+    already safe by construction - hand-written strings like "Plugin 'x'
+    not found", never a wrapped raw filesystem/database exception.
+
+    ``ApplicationError`` (any subclass) keeps its own message verbatim -
+    this is the safe, intentional application-layer detail Section 5.2
+    warns not to accidentally hide. Anything else is logged here
+    (server-side only, never in the response) and replaced with the same
+    generic message the existing global catch-all
+    (``handle_unhandled_exception`` below) already uses, so an
+    unrecognised failure looks identical to the client whether it was
+    caught locally by a route or escaped to the global handler.
+    """
+    if isinstance(exc, ApplicationError):
+        return HTTPException(status_code=status_code, detail=str(exc))
+    _logger.exception("unexpected error during admin operation", operation=operation)
+    return HTTPException(status_code=500, detail=KingSecError.default_user_message)
 
 
 def _error_response(status_code: int, error_code: str, message: str) -> JSONResponse:
@@ -126,6 +170,12 @@ async def handle_organization_conflict(_request: Request, exc: OrganizationConfl
 
 async def handle_team_conflict(_request: Request, exc: TeamConflictError) -> JSONResponse:
     return _error_response(409, ErrorCode.UNEXPECTED, str(exc))
+
+
+async def handle_too_many_concurrent_assessments(
+    _request: Request, exc: TooManyConcurrentAssessmentsError
+) -> JSONResponse:
+    return _error_response(429, ErrorCode.UNEXPECTED, str(exc))
 
 
 async def handle_not_found_error(_request: Request, exc: Exception) -> JSONResponse:
@@ -245,6 +295,12 @@ async def handle_kingsec_error(_request: Request, exc: KingSecError) -> JSONResp
 
 
 async def handle_unhandled_exception(_request: Request, _exc: Exception) -> JSONResponse:
+    # KSEC-87-01: this global catch-all previously returned the generic
+    # response with no server-side record of what actually failed - every
+    # truly unexpected exception across the ENTIRE app (not just the
+    # admin routes admin_operation_error() covers) vanished with zero
+    # trace. Logged here, never in the response.
+    _logger.exception("unhandled exception reached the global error boundary")
     return _error_response(
         500,
         ErrorCode.UNEXPECTED,
@@ -275,6 +331,7 @@ def register_error_handlers(app: object) -> None:
     app.exception_handler(ScheduleConflictError)(handle_schedule_conflict)
     app.exception_handler(OrganizationConflictError)(handle_organization_conflict)
     app.exception_handler(TeamConflictError)(handle_team_conflict)
+    app.exception_handler(TooManyConcurrentAssessmentsError)(handle_too_many_concurrent_assessments)
 
     # Every other "resource not found" application error — same 404 contract,
     # previously unregistered and falling through to the generic 500 handler.

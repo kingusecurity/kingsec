@@ -41,6 +41,14 @@ class AssessmentNotFoundError(ApplicationError):
     """No assessment exists for the requested identifier."""
 
 
+class TooManyConcurrentAssessmentsError(ApplicationError):
+    """The configured `max_concurrent_assessments` limit is already reached
+    (KSEC-87-02) - the caller must retry later, once a running assessment
+    completes and releases its concurrency slot. Never retried
+    automatically; the reservation this error signals the absence of was
+    never claimed, so there is nothing to release."""
+
+
 class ReportNotFoundError(ApplicationError):
     """No report exists for the requested assessment."""
 

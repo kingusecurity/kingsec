@@ -1063,3 +1063,24 @@ class DeadLetterEntryModel(Base):
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     failed_at: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class AssessmentConcurrencySlotORM(Base):
+    """A single-row counter enforcing `max_concurrent_assessments`
+    (KSEC-87-02). Deliberately its own table, not a column bolted onto
+    ``AssessmentModel`` - this counts across ALL assessment rows at once,
+    which is a different kind of constraint than the per-row optimistic
+    lock (`version`) pattern used for schedules/organizations/teams.
+    Exactly one row exists (id=1, seeded by the creating migration).
+    SqlAlchemyAssessmentConcurrencyRepository never reads active_count and
+    decides separately whether to write - every mutation is a single
+    conditional ``UPDATE ... WHERE active_count < :max`` (or `> 0` for
+    release), so the check and the claim/release are one atomic
+    statement, with no read-then-write gap for a concurrent caller to
+    race.
+    """
+
+    __tablename__ = "assessment_concurrency_slots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    active_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

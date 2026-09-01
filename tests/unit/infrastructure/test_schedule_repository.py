@@ -514,3 +514,134 @@ class TestSchedulerTickRace:
         other_final = repo.find_by_id(other_id)
         assert other_final.last_run is not None, "an unrelated due schedule in the same batch must still be processed"
         assert other_final.version == 2
+
+
+class TestDeleteRacingUpdate:
+    """KSEC-87-03: delete_schedule() racing update/enable/disable/trigger.
+    Both scenarios below force the SAME deterministic choreography as
+    every other test in this file (read barrier, then an Event
+    controlling which write commits first) - never sleeps, never
+    incidental timing.
+
+    Building Scenario A surfaced a genuine, previously-undiscovered bug:
+    save()'s insert-vs-update branching decided "genuinely new schedule"
+    purely from "no row exists at this id" - which is ALSO true the
+    instant after a concurrent delete_schedule() removes a row that DID
+    exist. A stale "update" attempt racing a delete would silently take
+    the INSERT branch and resurrect the deleted schedule under its own
+    stale field values - the exact "does not resurrect deleted state"
+    failure Section 10's Additional Verification requires ruling out.
+    save() now only takes the insert branch when schedule.version == 1
+    (create_schedule.py's own starting value - never reachable by a
+    caller that read an existing row, since only a successful update
+    increments version); any other version on a since-deleted row is
+    correctly reported as a conflict instead. See this class's own
+    docstrings for the one narrow case this fix does not cover.
+    """
+
+    def test_scenario_a_delete_wins_stale_update_cannot_resurrect_or_modify(self, session_factory) -> None:
+        """read schedule -> DELETE wins -> UPDATE attempts stale write.
+
+        Uses a schedule already bumped to version 2 (via one prior
+        pause) before the race, not a freshly-created version-1 schedule
+        - deliberately, to exercise the fix's `version != 1` branch. A
+        schedule deleted before ever being updated (still at version 1)
+        is NOT protected by this fix: version 1 is indistinguishable
+        from "this ID never existed", since IDs are UUIDs and a genuinely
+        new schedule can never collide with one just deleted, this isn't
+        reachable except by literally racing the delete of the exact
+        schedule just read at v1 - documented here as a narrow, known
+        residual gap (see the Phase 87 report), not silently ignored.
+        """
+        repo = SqlAlchemyScheduleRepository(session_factory)
+        schedule_id = _make_schedule(repo)
+        PauseSchedule(repo, _FakeAuditPublisher()).execute(
+            PauseScheduleRequest(schedule_id=schedule_id, requesting_user_id="alice")
+        )  # version 1 -> 2, so the race below starts from version 2
+
+        read_barrier = threading.Barrier(2)
+        delete_committed = threading.Event()
+        results: dict[str, str] = {}
+        lock = threading.Lock()
+
+        def _delete() -> None:
+            repo.find_by_id(schedule_id)  # "read schedule" per the scenario, even though delete() takes only an id
+            read_barrier.wait(timeout=5)
+            repo.delete(schedule_id)
+            delete_committed.set()
+
+        def _stale_update() -> None:
+            existing = repo.find_by_id(schedule_id)
+            read_barrier.wait(timeout=5)
+            assert delete_committed.wait(timeout=5), "delete must commit before the stale update is attempted"
+            try:
+                repo.save(dataclasses.replace(existing, cron_expression="0 9 * * *"))
+                with lock:
+                    results["update"] = "ok"
+            except ScheduleConflictError:
+                with lock:
+                    results["update"] = "conflict"
+
+        t_delete = threading.Thread(target=_delete)
+        t_update = threading.Thread(target=_stale_update)
+        t_delete.start()
+        t_update.start()
+        t_delete.join(timeout=10)
+        t_update.join(timeout=10)
+
+        assert results["update"] == "conflict", (
+            "a stale update racing a delete must be rejected, not silently swallowed or "
+            "misreported as success"
+        )
+        assert repo.find_by_id(schedule_id) is None, (
+            "the schedule must remain deleted - the stale update must not have resurrected it "
+            "(this is the exact bug this test caught before the version != 1 fix)"
+        )
+
+    def test_scenario_b_update_wins_stale_delete_still_removes_the_updated_row(self, session_factory) -> None:
+        """read schedule -> UPDATE wins -> DELETE attempts stale operation.
+
+        Documents, rather than invents, the actual repository semantics:
+        SqlAlchemyScheduleRepository.delete() (and DeleteScheduleRequest
+        above it) takes only an id, never a version - it is
+        authorization-gated (owner/admin, in delete_schedule.py) but NOT
+        concurrency-gated. A "stale" delete is therefore not actually
+        stale from delete()'s own point of view: it unconditionally
+        removes whatever row currently exists at that id, including one
+        a concurrent update just changed. This is the real, current
+        behavior - not something this phase invents or fixes; flagged in
+        the Phase 87 report as a documented asymmetry (updates are
+        version-gated, deletes are not) for a future phase to weigh in on.
+        """
+        repo = SqlAlchemyScheduleRepository(session_factory)
+        schedule_id = _make_schedule(repo)
+
+        read_barrier = threading.Barrier(2)
+        update_committed = threading.Event()
+
+        def _update() -> None:
+            existing = repo.find_by_id(schedule_id)
+            read_barrier.wait(timeout=5)
+            repo.save(dataclasses.replace(existing, cron_expression="0 9 * * *"))
+            update_committed.set()
+
+        def _stale_delete() -> None:
+            repo.find_by_id(schedule_id)  # stale read, same pre-race version as _update's read
+            read_barrier.wait(timeout=5)
+            assert update_committed.wait(timeout=5), "update must commit before the stale delete is attempted"
+            repo.delete(schedule_id)
+
+        t_update = threading.Thread(target=_update)
+        t_delete = threading.Thread(target=_stale_delete)
+        t_update.start()
+        t_delete.start()
+        t_update.join(timeout=10)
+        t_delete.join(timeout=10)
+
+        # The documented actual semantics: the delete succeeds regardless
+        # of the update that happened first - no error, no conflict,
+        # because delete() never inspected a version at all.
+        assert repo.find_by_id(schedule_id) is None, (
+            "delete() is unconditional by id - it removes the row (now holding the winning "
+            "update's content) even though it was 'stale' relative to that update"
+        )

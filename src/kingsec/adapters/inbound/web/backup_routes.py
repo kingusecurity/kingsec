@@ -22,6 +22,7 @@ from kingsec.domain.backup import (
 
 from .auth import CurrentUser, get_current_user
 from .dependencies import get_application
+from .error_handlers import admin_operation_error
 
 if TYPE_CHECKING:
     from kingsec.bootstrap.application import Application
@@ -86,7 +87,7 @@ async def create_backup(
             compress=body.get("compress", True),
         )
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise admin_operation_error(exc, "create backup", status_code=status.HTTP_400_BAD_REQUEST) from exc
     return {"message": "Backup created", "backup": _backup_to_dict(backup)}
 
 
@@ -202,7 +203,7 @@ async def create_snapshot(
             backup_ids=body.get("backup_ids"),
         )
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise admin_operation_error(exc, "create snapshot", status_code=status.HTTP_400_BAD_REQUEST) from exc
     return {
         "message": "Snapshot created",
         "snapshot": {

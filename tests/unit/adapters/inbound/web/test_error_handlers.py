@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import pytest
 
+import kingsec.adapters.inbound.web.error_handlers as error_handlers_module
 from kingsec.adapters.inbound.web.error_handlers import (
     _KINGSEC_STATUS_MAP,
     _error_response,
+    admin_operation_error,
     handle_assessment_not_found,
     handle_domain_error,
     handle_illegal_state_transition,
@@ -18,8 +20,10 @@ from kingsec.adapters.inbound.web.error_handlers import (
     handle_unhandled_exception,
 )
 from kingsec.application.errors import (
+    AgentNotFoundError,
     AssessmentNotFoundError,
     InputValidationError,
+    PluginValidationError,
     ReportNotFoundError,
     ScheduleConflictError,
 )
@@ -175,6 +179,101 @@ class TestUnhandledExceptionHandler:
 
         body = json.loads(resp.body)
         assert "xyz" not in body["message"]
+
+    @pytest.mark.asyncio
+    async def test_unhandled_exception_is_logged_server_side(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """KSEC-87-01: previously this global catch-all left zero
+        server-side trace of what actually failed."""
+        calls: list[str] = []
+
+        class _RecordingLogger:
+            def exception(self, msg: str, **_kwargs: object) -> None:
+                calls.append(msg)
+
+        monkeypatch.setattr(error_handlers_module, "_logger", _RecordingLogger())
+
+        await handle_unhandled_exception(None, RuntimeError("db connection lost at /var/lib/kingsec.db"))
+
+        assert len(calls) == 1
+
+
+class TestAdminOperationError:
+    """KSEC-87-01: agent_routes.py/backup_routes.py/plugin_routes.py had
+    ~19 `except Exception as exc: raise HTTPException(..., detail=str(exc))`
+    sites, broad enough to leak an unexpected internal exception's message
+    even though the actually-expected failure in every case is one of this
+    codebase's own deliberately-crafted, already-safe ApplicationError
+    subclasses. These test the shared mechanism directly rather than
+    duplicating near-identical assertions across all ~19 call sites -
+    Section 5.3's own preferred test strategy."""
+
+    def test_application_error_keeps_its_own_message(self) -> None:
+        exc = AgentNotFoundError("Agent 'agent-1' not found")
+        result = admin_operation_error(exc, "disable agent", status_code=404)
+        assert result.status_code == 404
+        assert result.detail == "Agent 'agent-1' not found"
+
+    def test_a_different_application_error_subtype_also_keeps_its_message(self) -> None:
+        """Not hardcoded to one error type - any ApplicationError subclass
+        is treated as safe, matching Section 5.2's distinction between
+        deliberately-crafted business/validation errors and genuinely
+        unexpected ones."""
+        exc = PluginValidationError("Missing manifest.json in plugin archive")
+        result = admin_operation_error(exc, "install plugin", status_code=400)
+        assert result.status_code == 400
+        assert result.detail == "Missing manifest.json in plugin archive"
+
+    def test_unexpected_exception_does_not_expose_its_message(self) -> None:
+        exc = RuntimeError("sqlite database locked at /home/user/.kingsec/kingsec.db")
+        result = admin_operation_error(exc, "create backup", status_code=400)
+        assert "/home/user/.kingsec/kingsec.db" not in str(result.detail)
+        assert "sqlite database locked" not in str(result.detail)
+
+    def test_unexpected_exception_returns_500_regardless_of_the_requested_status(self) -> None:
+        """The caller's status_code is only for the safe (ApplicationError)
+        case - a genuinely unexpected failure is always a server error,
+        never whatever status the specific route happened to request for
+        its expected failure mode (e.g. 404 for "not found")."""
+        exc = RuntimeError("unexpected")
+        result = admin_operation_error(exc, "disable agent", status_code=404)
+        assert result.status_code == 500
+
+    def test_unexpected_exception_uses_the_same_generic_message_as_the_global_handler(self) -> None:
+        exc = RuntimeError("internal failure detail")
+        result = admin_operation_error(exc, "create backup", status_code=400)
+        assert result.detail == KingSecError.default_user_message
+
+    def test_unexpected_exception_is_logged_server_side_with_the_operation_name(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls: list[tuple] = []
+
+        class _RecordingLogger:
+            def exception(self, msg: str, **kwargs: object) -> None:
+                calls.append((msg, kwargs))
+
+        monkeypatch.setattr(error_handlers_module, "_logger", _RecordingLogger())
+
+        admin_operation_error(RuntimeError("boom"), "install plugin", status_code=400)
+
+        assert len(calls) == 1
+        _msg, kwargs = calls[0]
+        assert kwargs.get("operation") == "install plugin"
+
+    def test_application_error_is_not_logged_as_unexpected(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The safe, expected path should not also spam the logs as if it
+        were an unexpected failure."""
+        calls: list[str] = []
+
+        class _RecordingLogger:
+            def exception(self, msg: str, **_kwargs: object) -> None:
+                calls.append(msg)
+
+        monkeypatch.setattr(error_handlers_module, "_logger", _RecordingLogger())
+
+        admin_operation_error(AgentNotFoundError("Agent 'x' not found"), "disable agent", status_code=404)
+
+        assert calls == []
 
 
 class TestStatusMap:

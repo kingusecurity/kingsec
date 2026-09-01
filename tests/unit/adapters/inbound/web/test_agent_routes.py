@@ -191,3 +191,42 @@ class TestAgentRoutes:
             },
         )
         assert resp.status_code == 200
+
+
+class TestAdminExceptionDisclosureConsolidation:
+    """KSEC-87-01, representative-route coverage (Section 5.3): proves
+    admin_operation_error() is actually wired into a real route end to
+    end, both for the safe (ApplicationError) and unsafe (unexpected)
+    cases - not just tested in isolation against the helper function
+    itself (see test_error_handlers.py::TestAdminOperationError)."""
+
+    def test_a_known_application_error_still_reaches_the_client_with_its_own_message(
+        self, app: TestClient, mock_service: MagicMock
+    ) -> None:
+        from kingsec.application.errors import AgentNotFoundError
+
+        mock_service.disable_agent.side_effect = AgentNotFoundError("Agent 'agent-1' not found")
+
+        resp = app.post("/api/v1/agents/agent-1/disable")
+
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "Agent 'agent-1' not found"
+
+    def test_an_unexpected_exception_does_not_leak_its_message_to_the_client(
+        self, app: TestClient, mock_service: MagicMock
+    ) -> None:
+        """Route still admin-only (authorization untouched); the response
+        must never contain the underlying (here, deliberately
+        path-shaped) exception text."""
+        mock_service.disable_agent.side_effect = RuntimeError(
+            "sqlite3.OperationalError: database is locked: /var/lib/kingsec/kingsec.db"
+        )
+        real_client = TestClient(app.app, raise_server_exceptions=False)
+
+        resp = real_client.post("/api/v1/agents/agent-1/disable")
+
+        assert resp.status_code == 500
+        body_text = resp.text
+        assert "/var/lib/kingsec/kingsec.db" not in body_text
+        assert "sqlite3.OperationalError" not in body_text
+        assert "database is locked" not in body_text

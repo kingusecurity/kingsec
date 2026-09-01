@@ -191,3 +191,130 @@ class TestProfileGating:
         stored = assessments.get(assessment.id)
         assert stored.status == AssessmentStatus.FAILED
         assert "not installed" in (stored.failure_reason or "")
+
+
+class _FakeConcurrencyPort:
+    """In-memory stand-in for AssessmentConcurrencyPort - the real atomic-
+    UPDATE-based implementation is tested with genuine concurrent threads
+    against a real database in test_assessment_concurrency.py; this fake
+    exists only to prove StartAssessment calls try_reserve_slot()/
+    release_slot() at the right moments and the right number of times."""
+
+    def __init__(self) -> None:
+        self.reserved = 0
+        self.release_calls = 0
+        self.reserve_calls = 0
+
+    def try_reserve_slot(self, max_concurrent: int) -> bool:
+        self.reserve_calls += 1
+        if self.reserved >= max_concurrent:
+            return False
+        self.reserved += 1
+        return True
+
+    def release_slot(self) -> None:
+        self.release_calls += 1
+        self.reserved = max(0, self.reserved - 1)
+
+
+class _FailingScanner:
+    """Raises during scan() - drives StartAssessment's own failure path
+    (assessment.fail(), not an unhandled exception)."""
+
+    def scan(self, target: Any, scanner_ids: Sequence[str] | None = None) -> Sequence[Finding]:
+        raise RuntimeError("scanner crashed")
+
+    def compatible_scanners(self, target: Any) -> dict[str, str]:
+        return {}
+
+
+class TestConcurrencyGate:
+    """KSEC-87-02: StartAssessment's concurrency gate is only active when
+    BOTH concurrency and max_concurrent are supplied - every test above
+    this class constructs StartAssessment without them and must keep
+    working unchanged (confirmed: the whole file above passes with zero
+    modifications). These test the gate itself via a fake port; the real
+    atomic-reservation mechanism's own concurrency-safety is proven
+    separately against a real database in test_assessment_concurrency.py."""
+
+    def test_a_reserved_slot_is_released_after_successful_completion(
+        self, assessments: InMemoryAssessmentRepository
+    ) -> None:
+        assessment = _authorized(assessments)
+        concurrency = _FakeConcurrencyPort()
+        use_case = StartAssessment(
+            assessments, StubScanner(make_findings()), concurrency=concurrency, max_concurrent=2
+        )
+
+        response = use_case.execute(StartAssessmentRequest(str(assessment.id)))
+
+        assert response.status == AssessmentStatus.COMPLETED.value
+        assert concurrency.reserve_calls == 1
+        assert concurrency.release_calls == 1
+        assert concurrency.reserved == 0, "the slot must not still be held after a successful run"
+
+    def test_a_reserved_slot_is_released_after_the_scan_fails(
+        self, assessments: InMemoryAssessmentRepository
+    ) -> None:
+        """Failure path: a failed assessment must not permanently consume
+        a slot."""
+        assessment = _authorized(assessments)
+        concurrency = _FakeConcurrencyPort()
+        use_case = StartAssessment(assessments, _FailingScanner(), concurrency=concurrency, max_concurrent=2)
+
+        with pytest.raises(RuntimeError, match="scanner crashed"):
+            use_case.execute(StartAssessmentRequest(str(assessment.id)))
+
+        assert concurrency.release_calls == 1
+        assert concurrency.reserved == 0
+        stored = assessments.get(assessment.id)
+        assert stored.status == AssessmentStatus.FAILED
+
+    def test_a_reserved_slot_is_released_even_if_startup_itself_fails(
+        self, assessments: InMemoryAssessmentRepository
+    ) -> None:
+        """Transaction-rollback requirement: if the reservation succeeds
+        but something fails before scanning even begins (here, the
+        domain's own authorization gate rejecting an unauthorized
+        assessment), the reservation must not leak."""
+        assessment = _draft(assessments)  # never authorized
+        concurrency = _FakeConcurrencyPort()
+        use_case = StartAssessment(assessments, StubScanner([]), concurrency=concurrency, max_concurrent=2)
+
+        with pytest.raises(IllegalStateTransition):
+            use_case.execute(StartAssessmentRequest(str(assessment.id)))
+
+        assert concurrency.release_calls == 1
+        assert concurrency.reserved == 0
+
+    def test_capacity_exhausted_rejects_without_ever_scanning(
+        self, assessments: InMemoryAssessmentRepository
+    ) -> None:
+        from kingsec.application.errors import TooManyConcurrentAssessmentsError
+
+        assessment = _authorized(assessments)
+        concurrency = _FakeConcurrencyPort()
+        concurrency.reserved = 2  # already at the configured limit
+        scanner = _RecordingScanner(make_findings())
+        use_case = StartAssessment(assessments, scanner, concurrency=concurrency, max_concurrent=2)
+
+        with pytest.raises(TooManyConcurrentAssessmentsError):
+            use_case.execute(StartAssessmentRequest(str(assessment.id)))
+
+        assert scanner.scan_calls == [], "capacity must be checked before any scanning work begins"
+        assert concurrency.release_calls == 0, "a rejected reservation was never claimed - nothing to release"
+        stored = assessments.get(assessment.id)
+        assert stored.status == AssessmentStatus.AUTHORIZED, "a rejected reservation must not mutate the assessment"
+
+    def test_the_gate_is_skipped_entirely_when_not_configured(
+        self, assessments: InMemoryAssessmentRepository
+    ) -> None:
+        """Matches every other test in this file: concurrency=None,
+        max_concurrent=None (the defaults) must behave exactly as before
+        this feature existed - no gate, no reservation, no release."""
+        assessment = _authorized(assessments)
+        use_case = StartAssessment(assessments, StubScanner(make_findings()))
+
+        response = use_case.execute(StartAssessmentRequest(str(assessment.id)))
+
+        assert response.status == AssessmentStatus.COMPLETED.value
