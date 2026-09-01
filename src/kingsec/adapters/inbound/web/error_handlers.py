@@ -12,6 +12,7 @@ Boundary policy
     │ AssessmentNotFoundError         │ 404 Not Found                      │
     │ ReportNotFoundError             │ 404 Not Found                      │
     │ *NotFoundError (every other one)│ 404 Not Found                      │
+    │ ScheduleConflictError           │ 409 Conflict                       │
     │ IllegalStateTransition          │ 409 Conflict                       │
     │ InvariantViolation              │ 422 Unprocessable Entity           │
     │ DomainError (other)             │ 409 Conflict                       │
@@ -59,6 +60,7 @@ from kingsec.application.errors import (
     ReportNotFoundError,
     RestoreNotFoundError,
     RuleNotFoundError,
+    ScheduleConflictError,
     ScheduleNotFoundError,
     SnapshotNotFoundError,
     SSOSessionNotFoundError,
@@ -108,6 +110,10 @@ async def handle_assessment_not_found(_request: Request, exc: AssessmentNotFound
 
 async def handle_report_not_found(_request: Request, exc: ReportNotFoundError) -> JSONResponse:
     return _error_response(404, ErrorCode.NOT_FOUND, str(exc))
+
+
+async def handle_schedule_conflict(_request: Request, exc: ScheduleConflictError) -> JSONResponse:
+    return _error_response(409, ErrorCode.UNEXPECTED, str(exc))
 
 
 async def handle_not_found_error(_request: Request, exc: Exception) -> JSONResponse:
@@ -254,6 +260,7 @@ def register_error_handlers(app: object) -> None:
     app.exception_handler(AssessmentNotFoundError)(handle_assessment_not_found)
     app.exception_handler(ReportNotFoundError)(handle_report_not_found)
     app.exception_handler(LicenseRequiredError)(handle_license_required)
+    app.exception_handler(ScheduleConflictError)(handle_schedule_conflict)
 
     # Every other "resource not found" application error — same 404 contract,
     # previously unregistered and falling through to the generic 500 handler.

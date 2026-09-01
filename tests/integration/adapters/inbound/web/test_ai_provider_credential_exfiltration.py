@@ -101,12 +101,23 @@ def _build_app(
     encryption: EncryptionServicePort,
     audit: AuditPublisher,
     url_validator: URLValidationPort | None = None,
+    *,
+    allow_private: bool = True,
 ):
     """Same shape as test_ai_provider_ssrf.py's _build_app(), parameterised
     on a shared repo/encryption pair so a test can save through the route
-    and then resolve through AIConfigResolver against the same store."""
+    and then resolve through AIConfigResolver against the same store.
+
+    allow_private (KSEC-85-01) configures AIClient's OWN resolve-and-pin
+    step, independent of url_validator - AIClient no longer merely trusts
+    an upfront URLValidationPort check, so a caller using a real
+    SSRFURLValidator (to test the refusal policy itself) must pass the
+    matching allow_private value explicitly; every other caller here uses
+    the default True, matching _AllowAllURLValidator's "SSRF already
+    passed" stand-in purpose.
+    """
     url_validator = url_validator or _AllowAllURLValidator()
-    tester: AIProviderTestPort = AIProviderTester(url_validator)
+    tester: AIProviderTestPort = AIProviderTester(url_validator, allow_private=allow_private)
     settings = Settings(ai=AISettings(provider="anthropic"))
 
     app = FastAPI()
@@ -190,12 +201,19 @@ def _make_adapter(
     config_repo: AIProviderConfigRepository,
     encryption: EncryptionServicePort,
     url_validator: URLValidationPort | None = None,
+    *,
+    allow_private: bool = True,
 ) -> AIProviderAdapter:
     """Wire a real AIProviderAdapter against the same repo/encryption a
     save route used, so the next real AI call resolves whatever that
-    route actually persisted - not a stand-in."""
+    route actually persisted - not a stand-in.
+
+    allow_private (KSEC-85-01): see _build_app()'s docstring - must match
+    whatever policy url_validator represents when a caller passes a real
+    SSRFURLValidator instead of _AllowAllURLValidator.
+    """
     settings = AISettings(provider="anthropic", api_key=SecretStr("unused-env-fallback"))
-    client = AIClient(timeout=5, retry_count=0, retry_delay=0, verify_ssl=True)
+    client = AIClient(timeout=5, retry_count=0, retry_delay=0, verify_ssl=True, allow_private=allow_private)
     resolver = AIConfigResolver(settings, config_repo, encryption)
     return AIProviderAdapter(
         settings=settings,
@@ -374,7 +392,7 @@ class TestLocalModelServerStillWorks:
         encryption = FernetEncryptionService(Fernet.generate_key())
         audit = _RecordingAuditPublisher()
         validator = SSRFURLValidator(allow_private=False)
-        app = _build_app(repo, encryption, audit, url_validator=validator)
+        app = _build_app(repo, encryption, audit, url_validator=validator, allow_private=False)
         client = _client(app)
 
         resp = client.put(
@@ -384,7 +402,7 @@ class TestLocalModelServerStillWorks:
         assert resp.status_code == 200  # the save itself has never been SSRF-gated (§4.1)
         assert repo.get().base_url == local_url
 
-        adapter = _make_adapter(repo, encryption, url_validator=validator)
+        adapter = _make_adapter(repo, encryption, url_validator=validator, allow_private=False)
         with pytest.raises(Exception):
             adapter.recommend(_finding())
         assert state["hit"] is False

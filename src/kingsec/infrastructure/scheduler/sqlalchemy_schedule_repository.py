@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from typing import Any, cast
+
+from sqlalchemy import CursorResult, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
+from kingsec.application.errors import ScheduleConflictError
 from kingsec.application.ports.outbound.schedule_repository import ScheduleRepositoryPort
 from kingsec.domain.schedule import (
     RetryPolicy,
@@ -21,15 +24,43 @@ class SqlAlchemyScheduleRepository(ScheduleRepositoryPort):
         self._session_factory = session_factory
 
     def save(self, schedule: ScanSchedule) -> None:
+        """Insert a new schedule, or update an existing one.
+
+        KSEC-85-02: the update path is optimistic-locked. ``schedule.version``
+        must be the version this caller originally read (via find_by_id()/
+        find_due()) - every sibling use case (pause/resume/update/enable/
+        disable/trigger) and the in-process scheduler carry it forward
+        unchanged from their own read. The UPDATE is scoped to
+        ``WHERE id = ? AND version = ?`` and sets ``version = version + 1``;
+        if another writer already advanced the version, zero rows match and
+        ScheduleConflictError is raised - never silently overwriting, never
+        silently overwritten, never automatically retried.
+        """
         with self._session_factory.begin() as session:
             from kingsec.infrastructure.persistence.models import ScheduleORM
 
-            stmt = select(ScheduleORM).where(ScheduleORM.id == str(schedule.id))
-            orm = session.execute(stmt).scalar_one_or_none()
-            if orm is None:
-                orm = ScheduleORM(id=str(schedule.id))
+            exists = (
+                session.execute(select(ScheduleORM.id).where(ScheduleORM.id == str(schedule.id))).scalar_one_or_none()
+                is not None
+            )
+            if not exists:
+                orm = ScheduleORM(id=str(schedule.id), version=schedule.version)
                 session.add(orm)
-            self._update_orm(orm, schedule)
+                self._update_orm(orm, schedule)
+                return
+
+            result = cast(
+                "CursorResult[Any]",
+                session.execute(
+                    update(ScheduleORM)
+                    .where(ScheduleORM.id == str(schedule.id), ScheduleORM.version == schedule.version)
+                    .values(**self._field_values(schedule), version=ScheduleORM.version + 1)
+                ),
+            )
+            if result.rowcount == 0:
+                raise ScheduleConflictError(
+                    f"schedule '{schedule.id}' was modified by another request since it was last read"
+                )
 
     def find_by_id(self, schedule_id: str) -> ScanSchedule | None:
         with self._session_factory() as session:
@@ -79,8 +110,6 @@ class SqlAlchemyScheduleRepository(ScheduleRepositoryPort):
 
     @staticmethod
     def _to_domain(orm: object) -> ScanSchedule:
-        from typing import Any
-
         o: Any = orm
         return ScanSchedule(
             id=ScheduleId(value=o.id),
@@ -106,12 +135,44 @@ class SqlAlchemyScheduleRepository(ScheduleRepositoryPort):
             ),
             current_retry_count=o.current_retry_count or 0,
             status=ScheduleStatus(o.status or "active"),
+            version=o.version,
         )
 
     @staticmethod
-    def _update_orm(orm: object, s: ScanSchedule) -> None:
-        from typing import Any
+    def _field_values(s: ScanSchedule) -> dict[str, object]:
+        """The mutable column values for *s*, as a plain dict - used for the
+        Core ``update()`` statement in ``save()``'s optimistic-locked path.
+        Deliberately a separate, flat mapping from ``_update_orm`` below
+        (some duplication) rather than a shared helper: this dict feeds a
+        Core statement while ``_update_orm`` mutates an ORM instance
+        in-place for the insert path, and keeping them independent avoids
+        entangling the two very different call shapes for a handful of
+        field names."""
+        return {
+            "name": s.name,
+            "description": s.description,
+            "owner_user_id": s.owner_user_id,
+            "target": s.target,
+            "scanner_ids": list(s.scanner_ids),
+            "config": dict(s.config),
+            "schedule_type": s.schedule_type.value,
+            "cron_expression": s.cron_expression,
+            "timezone": s.timezone,
+            "enabled": s.enabled,
+            "paused": s.paused,
+            "created_at": s.created_at,
+            "updated_at": s.updated_at,
+            "last_run": s.last_run,
+            "next_run": s.next_run,
+            "retry_strategy": s.retry_policy.strategy.value,
+            "max_retries": s.retry_policy.max_retries,
+            "retry_delay_seconds": s.retry_policy.retry_delay_seconds,
+            "current_retry_count": s.current_retry_count,
+            "status": s.status.value,
+        }
 
+    @staticmethod
+    def _update_orm(orm: object, s: ScanSchedule) -> None:
         o: Any = orm
         o.name = s.name
         o.description = s.description

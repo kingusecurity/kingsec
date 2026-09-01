@@ -38,7 +38,13 @@ class ExtendedAIAdapter(AIQueryPort):
         payload = resolved.provider.build_payload(system_prompt, user_prompt, model, temperature, max_tokens)
 
         _logger.info("ai generate requested", provider=resolved.provider.name, model=model)
-        response = self._adapter._client.post_json(url, headers, payload)
+        # KSEC-85-01: mirror AIProviderAdapter._enrich()'s own allow_private
+        # override exactly - environment-sourced base_url was never subject
+        # to the private-address policy (see _validate_base_url()), only
+        # this call site's client-level resolve-and-pin (TOCTOU) protection.
+        response = self._adapter._client.post_json(
+            url, headers, payload, allow_private=True if resolved.source != "database" else None
+        )
         text = resolved.provider.extract_text(response)
         self._audit_request(resolved.provider.name, model, "generate")
         return text
@@ -67,7 +73,10 @@ class ExtendedAIAdapter(AIQueryPort):
         payload = resolved.provider.build_payload(system, chat_messages[-1]["content"] if chat_messages else "", model, temperature, max_tokens)
 
         _logger.info("ai chat requested", provider=resolved.provider.name, model=model)
-        response = self._adapter._client.post_json(url, headers, payload)
+        # KSEC-85-01: see the identical comment in generate() above.
+        response = self._adapter._client.post_json(
+            url, headers, payload, allow_private=True if resolved.source != "database" else None
+        )
         text = resolved.provider.extract_text(response)
         self._audit_request(resolved.provider.name, model, "chat")
         return text

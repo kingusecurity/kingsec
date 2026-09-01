@@ -150,7 +150,17 @@ class AIProviderAdapter(AIPort):
 
         # Metadata only — never the key, never the prompt body.
         _logger.info("ai enrichment requested", provider=resolved.provider.name, model=model, source=resolved.source)
-        response = self._client.post_json(url, headers, payload)
+        # KSEC-85-01: the client's own resolve-and-pin step runs either way
+        # (closing the TOCTOU), but its private/reserved-range *policy* must
+        # track _validate_base_url()'s own trust decision exactly - an
+        # environment-sourced base_url is deployment configuration that was
+        # never subject to that policy (see _validate_base_url()'s
+        # docstring), so it is passed as allow_private=True here too, not
+        # left to whatever policy this AIClient instance happens to be
+        # constructed with.
+        response = self._client.post_json(
+            url, headers, payload, allow_private=True if resolved.source != "database" else None
+        )
         text = resolved.provider.extract_text(response)
         enrichment = self._parser.parse(text)
         _logger.info("ai enrichment received", confidence=enrichment.confidence)

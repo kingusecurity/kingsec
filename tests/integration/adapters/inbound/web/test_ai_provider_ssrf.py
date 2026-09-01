@@ -71,7 +71,7 @@ def _build_app(*, allow_private_base_url: bool = False):
     config_repo = _InMemoryConfigRepository()
     audit = _RecordingAuditPublisher()
     url_validator = SSRFURLValidator(allow_private=allow_private_base_url)
-    tester: AIProviderTestPort = AIProviderTester(url_validator)
+    tester: AIProviderTestPort = AIProviderTester(url_validator, allow_private=allow_private_base_url)
     settings = Settings(ai=AISettings(provider="anthropic"))
 
     app = FastAPI()

@@ -14,12 +14,14 @@ from kingsec.adapters.inbound.web.error_handlers import (
     handle_invariant_violation,
     handle_kingsec_error,
     handle_report_not_found,
+    handle_schedule_conflict,
     handle_unhandled_exception,
 )
 from kingsec.application.errors import (
     AssessmentNotFoundError,
     InputValidationError,
     ReportNotFoundError,
+    ScheduleConflictError,
 )
 from kingsec.domain.errors import (
     DomainError,
@@ -82,6 +84,18 @@ class TestApplicationErrorHandlers:
         exc = ReportNotFoundError("asmt-001")
         resp = await handle_report_not_found(None, exc)
         assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_schedule_conflict_returns_409(self) -> None:
+        """KSEC-85-02: an optimistic-lock conflict on save() is a 409, not
+        a 500 - the caller lost a race, not the server."""
+        exc = ScheduleConflictError("schedule 'sch-1' was modified by another request")
+        resp = await handle_schedule_conflict(None, exc)
+        assert resp.status_code == 409
+        import json
+
+        body = json.loads(resp.body)
+        assert "modified by another request" in body["message"]
 
 
 class TestDomainErrorHandlers:

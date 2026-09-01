@@ -61,6 +61,10 @@ def register_ai(
         retry_count=ai_settings.retry_count,
         retry_delay=ai_settings.retry_delay,
         verify_ssl=ai_settings.verify_ssl,
+        # KSEC-85-01: same flag, same value as the url_validator below - the
+        # client now performs its own resolve-and-pin immediately before
+        # every connection, so it needs the identical allow_private policy.
+        allow_private=ai_settings.allow_private_base_url,
         transport=transport,
     )
     config_repo = container.resolve(AIProviderConfigRepository)

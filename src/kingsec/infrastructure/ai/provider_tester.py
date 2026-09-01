@@ -21,7 +21,7 @@ from .providers import effective_base_url as _effective_base_url
 class AIProviderTester(AIProviderTestPort):
     """Validates provider names and test-drives candidate AI provider configs."""
 
-    def __init__(self, url_validator: URLValidationPort) -> None:
+    def __init__(self, url_validator: URLValidationPort, *, allow_private: bool = False) -> None:
         """Args:
         url_validator: Validates a caller-supplied base_url before it is
             used to build an outbound request. Every base_url this method
@@ -29,8 +29,13 @@ class AIProviderTester(AIProviderTestPort):
             call, not deployment configuration), so it is always validated
             when present - unlike AIProviderAdapter, which only validates
             the database-sourced case.
+        allow_private: KSEC-85-01 - passed through to the per-call
+            ``AIClient`` so its own resolve-and-pin step (the actual SSRF
+            enforcement point) uses the identical policy as
+            ``url_validator`` above, rather than the two silently drifting.
         """
         self._url_validator = url_validator
+        self._allow_private = allow_private
 
     def validate_provider(self, provider: str) -> None:
         resolve_provider(provider)  # raises AIError (an ExternalServiceError) if unsupported
@@ -58,7 +63,9 @@ class AIProviderTester(AIProviderTestPort):
             except UnsafeURLError as exc:
                 raise AIUnsafeURLError(f"AI base_url blocked by SSRF protection: {exc}") from exc
 
-        client = AIClient(timeout=15, retry_count=0, retry_delay=0, verify_ssl=True)
+        client = AIClient(
+            timeout=15, retry_count=0, retry_delay=0, verify_ssl=True, allow_private=self._allow_private
+        )
         try:
             url = strategy.build_endpoint(resolved_base_url, resolved_model)
             headers = strategy.build_headers(api_key)

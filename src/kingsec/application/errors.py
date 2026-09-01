@@ -254,6 +254,14 @@ class ScheduleNotFoundError(ApplicationError):
     """No backup schedule exists for the requested identifier."""
 
 
+class ScheduleConflictError(ApplicationError):
+    """A schedule was modified by another request between when this caller
+    read it and when it tried to save its own change (KSEC-85-02 optimistic
+    locking) - the write was rejected rather than silently overwriting or
+    being silently overwritten. The caller must re-fetch the schedule and
+    retry with the current state; this is never retried automatically."""
+
+
 class VerificationNotFoundError(ApplicationError):
     """No backup verification exists for the requested identifier."""
 

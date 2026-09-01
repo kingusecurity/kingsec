@@ -497,7 +497,10 @@ def _register_ai_services(container: Container, settings: Any) -> None:
     # register_ai() uses for the point-of-use path.
     container.register_instance(
         AIProviderTestPort,
-        AIProviderTester(SSRFURLValidator(allow_private=settings.ai.allow_private_base_url)),
+        AIProviderTester(
+            SSRFURLValidator(allow_private=settings.ai.allow_private_base_url),
+            allow_private=settings.ai.allow_private_base_url,
+        ),
     )
     # AIProviderAdapter is the concrete class; register it by resolving AIPort
     # (which register_ai binds to the same instance).

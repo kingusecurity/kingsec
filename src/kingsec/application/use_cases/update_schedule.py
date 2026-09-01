@@ -59,6 +59,7 @@ class UpdateSchedule:
             retry_policy=existing.retry_policy,
             current_retry_count=existing.current_retry_count,
             status=existing.status,
+            version=existing.version,
         )
 
         self._repository.save(updated)

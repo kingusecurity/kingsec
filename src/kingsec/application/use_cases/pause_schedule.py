@@ -50,6 +50,7 @@ class PauseSchedule:
             retry_policy=paused.retry_policy,
             current_retry_count=paused.current_retry_count,
             status=paused.status,
+            version=paused.version,
         )
         self._repository.save(updated)
 

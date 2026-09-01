@@ -49,6 +49,7 @@ class ResumeSchedule:
             retry_policy=existing.retry_policy,
             current_retry_count=existing.current_retry_count,
             status=ScheduleStatus.ACTIVE if existing.enabled else ScheduleStatus.DISABLED,
+            version=existing.version,
         )
         self._repository.save(updated)
 

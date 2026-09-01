@@ -67,6 +67,10 @@ def _adapter(base_url: str) -> AIProviderAdapter:
         retry_count=settings.retry_count,
         retry_delay=0,
         verify_ssl=settings.verify_ssl,
+        # ai_server is a real 127.0.0.1 test server (KSEC-85-01's
+        # resolve-and-pin step would otherwise reject it, same as the
+        # opt-in flag real deployments use for local model servers).
+        allow_private=True,
     )
     resolver = AIConfigResolver(settings, _NoDbConfigRepository(), _UnusedEncryptionService())
     # source is always "environment" here (_NoDbConfigRepository never

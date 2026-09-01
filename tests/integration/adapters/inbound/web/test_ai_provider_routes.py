@@ -74,7 +74,7 @@ def _build_app(*, ai_settings: AISettings | None = None):
     # anthropic_stub_server below) - they are not testing SSRF policy, which
     # test_ai_provider_ssrf.py covers with the default (private-blocking)
     # validator instead.
-    tester: AIProviderTestPort = AIProviderTester(SSRFURLValidator(allow_private=True))
+    tester: AIProviderTestPort = AIProviderTester(SSRFURLValidator(allow_private=True), allow_private=True)
     settings = Settings(ai=ai_settings or AISettings(provider="anthropic"))
 
     app = FastAPI()

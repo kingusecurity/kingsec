@@ -64,6 +64,14 @@ class ScanSchedule:
     retry_policy: RetryPolicy = field(default_factory=RetryPolicy)
     current_retry_count: int = 0
     status: ScheduleStatus = ScheduleStatus.ACTIVE
+    # KSEC-85-02: the version this instance was read at (from
+    # ScheduleRepositoryPort.find_by_id()/find_due()) - the repository uses
+    # it to detect a lost-update race on save() (see
+    # sqlalchemy_schedule_repository.py). Every with_*() copy constructor
+    # below preserves it unchanged; only the repository itself increments
+    # it, on a successful write. Never exposed through the API/DTOs - it is
+    # a persistence concern, not a client one.
+    version: int = 1
 
     def is_due(self, now_utc_str: str) -> bool:
         if not self.enabled or self.paused:
@@ -93,6 +101,7 @@ class ScanSchedule:
             retry_policy=self.retry_policy,
             current_retry_count=self.current_retry_count,
             status=self.status,
+            version=self.version,
         )
 
     def with_status(self, status: ScheduleStatus) -> ScanSchedule:
@@ -116,6 +125,7 @@ class ScanSchedule:
             retry_policy=self.retry_policy,
             current_retry_count=self.current_retry_count,
             status=status,
+            version=self.version,
         )
 
     def with_run_completed(self, next_run: str | None, now: str) -> ScanSchedule:
@@ -139,4 +149,5 @@ class ScanSchedule:
             retry_policy=self.retry_policy,
             current_retry_count=0,
             status=self.status,
+            version=self.version,
         )

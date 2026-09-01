@@ -92,7 +92,11 @@ class _AllowAllURLValidator(URLValidationPort):
 
 def _build_app(config_repo: AIProviderConfigRepository, encryption: EncryptionServicePort, audit: AuditPublisher):
     url_validator = _AllowAllURLValidator()
-    tester: AIProviderTestPort = AIProviderTester(url_validator)
+    # allow_private=True: AIClient's own SSRF resolve-and-pin (KSEC-85-01)
+    # needs the same "SSRF already passed" treatment _AllowAllURLValidator
+    # already provides at the URLValidationPort layer - this file's local
+    # 127.0.0.1 test servers stand in for a normal destination throughout.
+    tester: AIProviderTestPort = AIProviderTester(url_validator, allow_private=True)
     settings = Settings(ai=AISettings(provider="anthropic"))
 
     app = FastAPI()
@@ -173,7 +177,7 @@ def stub_server() -> Iterator[tuple[str, dict]]:
 
 def _make_adapter(config_repo: AIProviderConfigRepository, encryption: EncryptionServicePort) -> AIProviderAdapter:
     settings = AISettings(provider="anthropic", api_key=SecretStr("unused-env-fallback"))
-    client = AIClient(timeout=5, retry_count=0, retry_delay=0, verify_ssl=True)
+    client = AIClient(timeout=5, retry_count=0, retry_delay=0, verify_ssl=True, allow_private=True)
     resolver = AIConfigResolver(settings, config_repo, encryption)
     return AIProviderAdapter(
         settings=settings, config_resolver=resolver, client=client, url_validator=_AllowAllURLValidator()

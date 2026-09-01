@@ -58,7 +58,7 @@ class TestGenerate:
 
         adapter = _extended_adapter(
             transport_from(handler),
-            AISettings(provider="openai", api_key=SecretStr("k"), base_url="http://api.test"),
+            AISettings(provider="openai", api_key=SecretStr("k"), base_url="http://127.0.0.1"),
         )
         result = adapter.generate("system", "user prompt")
 
@@ -68,7 +68,7 @@ class TestGenerate:
     def test_missing_api_key_raises_ai_authentication_error(self) -> None:
         adapter = _extended_adapter(
             transport_from(lambda r: _openai_text_response("unused")),
-            AISettings(provider="openai", base_url="http://t"),  # no api_key
+            AISettings(provider="openai", base_url="http://127.0.0.1"),  # no api_key
         )
         with pytest.raises(AIAuthenticationError):
             adapter.generate("system", "user")
@@ -84,7 +84,7 @@ class TestChat:
 
         adapter = _extended_adapter(
             transport_from(handler),
-            AISettings(provider="openai", api_key=SecretStr("k"), base_url="http://api.test"),
+            AISettings(provider="openai", api_key=SecretStr("k"), base_url="http://127.0.0.1"),
         )
         result = adapter.chat(
             [
@@ -99,7 +99,7 @@ class TestChat:
     def test_missing_api_key_raises_ai_authentication_error(self) -> None:
         adapter = _extended_adapter(
             transport_from(lambda r: _openai_text_response("unused")),
-            AISettings(provider="openai", base_url="http://t"),  # no api_key
+            AISettings(provider="openai", base_url="http://127.0.0.1"),  # no api_key
         )
         with pytest.raises(AIAuthenticationError):
             adapter.chat([{"role": "user", "content": "hi"}])
@@ -109,7 +109,7 @@ class TestHealth:
     def test_available_when_provider_responds(self) -> None:
         adapter = _extended_adapter(
             transport_from(lambda r: _openai_text_response("OK")),
-            AISettings(provider="openai", api_key=SecretStr("k"), base_url="http://t"),
+            AISettings(provider="openai", api_key=SecretStr("k"), base_url="http://127.0.0.1"),
         )
         result = adapter.health()
 
@@ -122,7 +122,7 @@ class TestHealth:
         not propagate an AttributeError from a stale attribute access."""
         adapter = _extended_adapter(
             transport_from(lambda r: _openai_text_response("unused")),
-            AISettings(provider="openai", base_url="http://t"),  # no api_key
+            AISettings(provider="openai", base_url="http://127.0.0.1"),  # no api_key
         )
         result = adapter.health()
 
@@ -143,7 +143,7 @@ class TestAuditRequestBestEffort:
 
         adapter = _extended_adapter(
             transport_from(lambda r: _openai_text_response("OK")),
-            AISettings(provider="openai", api_key=SecretStr("k"), base_url="http://t"),
+            AISettings(provider="openai", api_key=SecretStr("k"), base_url="http://127.0.0.1"),
         )
         adapter_with_audit = ExtendedAIAdapter(adapter._adapter, audit=_FailingAudit())
 
@@ -168,7 +168,7 @@ class TestAuditRequestBestEffort:
         is nothing to fail, so no log line is expected either."""
         adapter = _extended_adapter(
             transport_from(lambda r: _openai_text_response("OK")),
-            AISettings(provider="openai", api_key=SecretStr("k"), base_url="http://t"),
+            AISettings(provider="openai", api_key=SecretStr("k"), base_url="http://127.0.0.1"),
         )
         adapter._audit_request("openai", "gpt-4", "generate")  # must not raise
 

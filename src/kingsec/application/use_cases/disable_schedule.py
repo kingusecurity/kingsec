@@ -49,6 +49,7 @@ class DisableSchedule:
             retry_policy=existing.retry_policy,
             current_retry_count=existing.current_retry_count,
             status=ScheduleStatus.DISABLED,
+            version=existing.version,
         )
         self._repository.save(updated)
 

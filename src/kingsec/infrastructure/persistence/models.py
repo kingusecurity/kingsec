@@ -579,6 +579,12 @@ class ScheduleORM(Base):
     retry_delay_seconds: Mapped[int] = mapped_column(Integer, default=0)
     current_retry_count: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String, default="active")
+    # KSEC-85-02: optimistic-lock counter. Every successful UPDATE is
+    # scoped to WHERE version = <the version the caller read> and sets
+    # version = version + 1 (see SqlAlchemyScheduleRepository.save()) -
+    # a mismatch means someone else wrote first, and the write is rejected
+    # rather than silently overwriting or being silently overwritten.
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
 
 class OrganizationORM(Base):
