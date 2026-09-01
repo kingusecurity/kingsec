@@ -15,10 +15,14 @@ user-owned resource the way Assessment is. There is therefore no
 ownership dimension to test for this resource type; the correct policy
 is role-based only, matching the sibling queue_routes.py's own
 established pattern for the same conceptual operations on its own
-(user-owned) resource type: mutations require Admin, aggregate/list
-reads that carry no `payload` stay open to any authenticated user, and
-single-entry detail reads that DO carry `payload`/`target` require
-Admin (queue_routes.py's get_entry follows the same rule).
+(user-owned) resource type: mutations require Admin, and any read that
+carries per-job detail (`payload`, `target`, `error_message`, dead-letter
+`reason`) requires Admin - including `list_queue`/`list_dead_letter`,
+which are list-shaped but still leak per-job detail (KSEC-84-01; the
+original version of this file incorrectly left them open, the same class
+of gap already fixed in queue_routes.py under KSEC-71-02). Only the
+genuinely aggregate-only `queue_metrics` (counts, no per-job data) stays
+open to any authenticated user.
 """
 
 from __future__ import annotations
@@ -217,12 +221,16 @@ _MUTATIONS: list[tuple[str, str]] = [
 
 _ADMIN_ONLY_READS: list[str] = [
     "/api/v1/queue/jq-1",  # single-entry detail, carries payload/target
+    # KSEC-84-01: these two DO carry per-job detail (target, error_message,
+    # reason) despite being "list" shaped - Admin-only, matching the
+    # single-entry detail read above and the sibling queue_routes.py fix
+    # (KSEC-71-02) for the identical class of leak.
+    "/api/v1/queue",
+    "/api/v1/queue/dead-letter",
 ]
 
 _OPEN_TO_ANY_AUTHENTICATED_READS: list[str] = [
-    "/api/v1/queue",  # list, no payload
-    "/api/v1/queue/metrics",  # aggregate counts only
-    "/api/v1/queue/dead-letter",  # list, no payload
+    "/api/v1/queue/metrics",  # genuinely aggregate counts only, no per-job data
 ]
 
 
@@ -284,8 +292,9 @@ class TestQueueAuthorizationMutations:
 
 
 class TestQueueAuthorizationSingleEntryDetail:
-    """get_queue_entry returns payload/target - matches queue_routes.py's
-    get_entry rationale for requiring Admin on single-entry detail reads."""
+    """get_queue_entry, list_queue, and list_dead_letter all return
+    per-job detail (payload/target/error_message/reason) - Admin-only,
+    matching queue_routes.py's equivalent detail-bearing reads."""
 
     def setup_method(self) -> None:
         self.app, self._ur, self._qr, self._dl = _build_app()
@@ -316,8 +325,8 @@ class TestQueueAuthorizationSingleEntryDetail:
 
 
 class TestQueueAuthorizationOpenReads:
-    """List/aggregate reads carry no payload - stay open to any
-    authenticated user, matching queue_routes.py's list_queue/get_statistics."""
+    """Only genuinely aggregate reads (counts, no per-job data) stay open
+    to any authenticated user."""
 
     def setup_method(self) -> None:
         self.app, self._ur, self._qr, self._dl = _build_app()

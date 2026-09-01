@@ -69,6 +69,7 @@ class GenerateReport:
                 assessment_id=report.assessment_id,
                 state="report_ready",
                 message=f"Report generated: {rendered.filename}",
+                owner_id=assessment.owner_id,
             )
         )
 

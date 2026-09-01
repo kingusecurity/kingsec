@@ -5,6 +5,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from kingsec.application.ports.outbound.organization_repository import OrganizationRepository
@@ -118,7 +119,16 @@ class SQLAlchemyOrganizationRepository(OrganizationRepository):
                     role=membership.role.value,
                     created_at=membership.created_at,
                 ))
-            session.commit()
+            try:
+                session.commit()
+            except IntegrityError:
+                # KSEC-84-01: a concurrent add_member() for the same
+                # (user_id, organization_id) pair beat this one to the
+                # commit - the unique index rejects the duplicate insert.
+                # Treat "already a member" as success (idempotent), not an
+                # error - matching the SELECT-then-INSERT check above,
+                # which was racy without this backstop.
+                session.rollback()
 
     def remove_member(self, org_id: str, user_id: str) -> None:
         with self._session_factory() as session:
@@ -244,7 +254,11 @@ class SQLAlchemyOrganizationRepository(OrganizationRepository):
                     team_id=membership.team_id,
                     created_at=membership.created_at,
                 ))
-            session.commit()
+            try:
+                session.commit()
+            except IntegrityError:
+                # KSEC-84-01: same idempotent-on-race treatment as add_member().
+                session.rollback()
 
     def remove_team_member(self, team_id: str, user_id: str) -> None:
         with self._session_factory() as session:

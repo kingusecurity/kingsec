@@ -53,6 +53,7 @@ class CreateAssessment:
                 assessment_id=str(assessment.id),
                 state=assessment.status.value,
                 message=f"Assessment created for {assessment.target}",
+                owner_id=assessment.owner_id,
             )
         )
 

@@ -48,6 +48,7 @@ class DeleteAssessment:
                 assessment_id=request.assessment_id,
                 state="deleted",
                 message="Assessment deleted",
+                owner_id=assessment.owner_id,
             )
         )
 

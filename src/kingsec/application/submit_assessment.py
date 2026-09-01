@@ -91,6 +91,7 @@ class SubmitAssessment:
                 assessment_id=str(assessment.id),
                 state=assessment.status.value,
                 message="Background scan started",
+                owner_id=assessment.owner_id,
             )
         )
 
@@ -324,6 +325,7 @@ def _execute_scan(
                 state=assessment.status.value,
                 message=f"Scan completed with {len(assessment.findings)} findings",
                 severity_counts=_severity_counts(assessment),
+                owner_id=assessment.owner_id,
             ),
         )
 
@@ -341,6 +343,7 @@ def _execute_scan(
                     assessment_id=str(assessment.id),
                     state=assessment.status.value,
                     message=f"Scan failed: {exc}",
+                    owner_id=assessment.owner_id,
                 ),
             )
         except Exception as exc:

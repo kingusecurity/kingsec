@@ -44,7 +44,7 @@ class _StubApp:
         return self._ports[service_type]
 
 
-def _build_app(event_bus: InMemoryEventBus) -> FastAPI:
+def _build_app(event_bus: InMemoryEventBus, *, user_id: str = "test-user", role: Role = Role.VIEWER) -> FastAPI:
     """Build a FastAPI app with the given event bus."""
     app = FastAPI()
     app.state.kingsec_app = _StubApp({EventPublisher: event_bus})  # type: ignore[attr-defined]
@@ -55,9 +55,9 @@ def _build_app(event_bus: InMemoryEventBus) -> FastAPI:
     app.include_router(router)
     app.dependency_overrides[_get_event_publisher] = lambda: event_bus
     app.dependency_overrides[get_current_user] = lambda: CurrentUser(
-        user_id="test-user",
-        username="testuser",
-        role=Role.VIEWER,
+        user_id=user_id,
+        username=user_id,
+        role=role,
         claims=None,  # type: ignore[arg-type]
     )
 
@@ -219,6 +219,7 @@ class TestSSEIntegration:
                 assessment_id="asmt-int-001",
                 state="authorized",
                 message="Integration test event",
+                owner_id="test-user",
             )
 
             async def publish_event() -> None:
@@ -274,6 +275,7 @@ class TestSSEIntegration:
                 assessment_id="asmt-int-002",
                 state="completed",
                 message="Completed",
+                owner_id="test-user",
             )
             event_bus.publish(event)
 
@@ -313,12 +315,14 @@ class TestSSEIntegration:
                 assessment_id="asmt-filter-001",
                 state="authorized",
                 message="Event 1",
+                owner_id="test-user",
             )
             event2 = AssessmentEvent(
                 event_type=EVENT_ASSESSMENT_CREATED,
                 assessment_id="asmt-filter-002",
                 state="authorized",
                 message="Event 2",
+                owner_id="test-user",
             )
             event_bus.publish(event1)
             event_bus.publish(event2)
@@ -329,3 +333,86 @@ class TestSSEIntegration:
 
         assert len(received_events) == 1
         assert received_events[0]["assessment_id"] == "asmt-filter-001"
+
+
+class TestSSEOwnershipEnforcement:
+    """KSEC-84-01: the event bus is a single global broadcast with no
+    built-in per-subscriber partitioning - a non-owner, non-admin caller
+    must never receive another user's assessment events, even though
+    they're on the same shared bus."""
+
+    @pytest.mark.anyio
+    async def test_non_owner_receives_nothing_within_the_wait_window(self) -> None:
+        event_bus = InMemoryEventBus(maxsize=100)
+        app = _build_app(event_bus, user_id="bob", role=Role.VIEWER)
+        transport = _StreamingTransport(app, raise_app_exceptions=False)
+
+        received: list[str] = []
+
+        async def subscriber() -> None:
+            async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+                async with client.stream("GET", "/api/v1/events") as response:
+                    async for chunk in response.aiter_bytes():
+                        text = chunk.decode("utf-8")
+                        if "\ndata: " in text or "\nevent: " in text:
+                            received.append(text)
+                            return
+
+        async def publish_event() -> None:
+            await anyio.sleep(0.2)
+            event_bus.publish(
+                AssessmentEvent(
+                    event_type=EVENT_ASSESSMENT_CREATED,
+                    assessment_id="asmt-alice-001",
+                    state="authorized",
+                    message="Alice's assessment - must not reach bob",
+                    owner_id="alice",
+                )
+            )
+            # Give the (incorrectly, if the bug regresses) delivered event a
+            # moment to arrive before the timeout below fires either way.
+            await anyio.sleep(0.5)
+
+        with anyio.move_on_after(1.5):
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(subscriber)
+                tg.start_soon(publish_event)
+
+        assert received == []
+
+    @pytest.mark.anyio
+    async def test_admin_receives_events_regardless_of_owner(self) -> None:
+        event_bus = InMemoryEventBus(maxsize=100)
+        app = _build_app(event_bus, user_id="admin-1", role=Role.ADMIN)
+        transport = _StreamingTransport(app, raise_app_exceptions=False)
+
+        received_events: list[dict] = []
+
+        async def subscriber() -> None:
+            async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+                async with client.stream("GET", "/api/v1/events") as response:
+                    async for chunk in response.aiter_bytes():
+                        text = chunk.decode("utf-8")
+                        if "data: " in text:
+                            data_part = text.split("data: ")[1].split("\n")[0]
+                            received_events.append(json.loads(data_part))
+                            return
+
+        async def publish_event() -> None:
+            await anyio.sleep(0.2)
+            event_bus.publish(
+                AssessmentEvent(
+                    event_type=EVENT_ASSESSMENT_CREATED,
+                    assessment_id="asmt-alice-002",
+                    state="authorized",
+                    message="Alice's assessment - admin CAN see it",
+                    owner_id="alice",
+                )
+            )
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(subscriber)
+            tg.start_soon(publish_event)
+
+        assert len(received_events) == 1
+        assert received_events[0]["assessment_id"] == "asmt-alice-002"

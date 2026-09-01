@@ -20,7 +20,10 @@ from fastapi.testclient import TestClient
 from kingsec.adapters.inbound.web.auth import CurrentUser, get_current_user
 from kingsec.adapters.inbound.web.error_handlers import register_error_handlers
 from kingsec.application.ai.ai_chat import AIChatService
+from kingsec.application.ai.executive_summary import ExecutiveSummaryService
+from kingsec.application.ai.explain_finding import ExplainFindingService
 from kingsec.application.ai.ports import AIQueryPort
+from kingsec.application.ai.remediation_assistant import RemediationAssistantService
 from kingsec.application.ports import AssessmentRepository
 from kingsec.bootstrap.application import Application
 from kingsec.bootstrap.container import Container
@@ -126,3 +129,152 @@ class TestAIErrorMapsTo502:
         resp = client.post("/api/v1/ai/chat", json={"question": "What is my biggest risk?"})
         assert resp.status_code == 502
         assert resp.json() == {"detail": "[KS-EXT-001] AI provider unreachable"}
+
+
+# ── KSEC-84-01: AI endpoints must not disclose another user's assessment ────
+
+
+class _StubExecutiveSummaryService:
+    def generate(self, assessment: Assessment) -> dict[str, Any]:
+        return {"summary": "leaked cross-tenant data"}
+
+
+class _StubExplainFindingService:
+    def explain(self, finding: Any) -> dict[str, Any]:
+        return {"explanation": "leaked cross-tenant data"}
+
+
+class _StubRemediationAssistantService:
+    def plan(self, findings: list[Any]) -> dict[str, Any]:
+        return {"plan": "leaked cross-tenant data"}
+
+
+class _StubAIChatService:
+    def chat(self, question: str, history: list[Any], assessment: Assessment | None) -> dict[str, Any]:
+        return {"answer": "leaked cross-tenant data"}
+
+
+def _owned_assessment_repo() -> tuple[Any, str, str]:
+    """A real (in-memory) AssessmentRepository holding one assessment owned
+    by "alice", with one real finding - not a mock of the ownership check
+    itself."""
+    from kingsec.application import StartAssessment, StartAssessmentRequest
+    from kingsec.domain import Assessment, Authorization, Target, TargetType
+    from tests.unit.application.conftest import InMemoryAssessmentRepository, StubScanner, make_findings
+
+    repo = InMemoryAssessmentRepository()
+    assessment = Assessment.create(Target("10.0.0.5", TargetType.IP_ADDRESS))
+    assessment.authorize(Authorization.grant("tester", scope="10.0.0.5"))
+    repo.save(assessment)
+    StartAssessment(repo, StubScanner(make_findings())).execute(StartAssessmentRequest(str(assessment.id)))
+    assessment.set_ownership("alice")
+    repo.save(assessment)
+    finding_id = str(assessment.findings[0].id)
+    return repo, str(assessment.id), finding_id
+
+
+def _app_for_role(role: Role, user_id: str, repo: Any) -> FastAPI:
+    async def override_user() -> CurrentUser:
+        return CurrentUser(
+            user_id=user_id,
+            username=user_id,
+            role=role,
+            claims=TokenClaims(
+                user_id=user_id, username=user_id, role=role.name.lower(), token_type="access",
+                jti="test-jti", issued_at=None, expires_at=None,
+            ),
+        )
+
+    container = Container()
+    container.register_instance(AssessmentRepository, repo)
+    container.register_instance(ExecutiveSummaryService, _StubExecutiveSummaryService())
+    container.register_instance(ExplainFindingService, _StubExplainFindingService())
+    container.register_instance(RemediationAssistantService, _StubRemediationAssistantService())
+    container.register_instance(AIChatService, _StubAIChatService())
+
+    settings = load_settings()
+    application = Application(settings=settings, container=container, exception_handlers=None, logger=None, ensure_directories=False)
+
+    fastapi_app = FastAPI()
+    fastapi_app.state.kingsec_app = application
+    fastapi_app.dependency_overrides[get_current_user] = override_user
+
+    from kingsec.adapters.inbound.web.ai_routes import router
+
+    fastapi_app.include_router(router)
+    register_error_handlers(fastapi_app)
+    return fastapi_app
+
+
+class TestAIEndpointsEnforceAssessmentOwnership:
+    def test_executive_summary_rejects_non_owner(self) -> None:
+        repo, assessment_id, _ = _owned_assessment_repo()
+        app = _app_for_role(Role.VIEWER, "bob", repo)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/api/v1/ai/executive-summary", json={"assessment_id": assessment_id})
+        assert resp.status_code == 404
+        assert "leaked" not in resp.text
+
+    def test_executive_summary_allows_owner(self) -> None:
+        repo, assessment_id, _ = _owned_assessment_repo()
+        app = _app_for_role(Role.VIEWER, "alice", repo)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/api/v1/ai/executive-summary", json={"assessment_id": assessment_id})
+        assert resp.status_code == 200
+
+    def test_executive_summary_allows_admin(self) -> None:
+        repo, assessment_id, _ = _owned_assessment_repo()
+        app = _app_for_role(Role.ADMIN, "carol", repo)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/api/v1/ai/executive-summary", json={"assessment_id": assessment_id})
+        assert resp.status_code == 200
+
+    def test_remediation_plan_rejects_non_owner(self) -> None:
+        repo, assessment_id, _ = _owned_assessment_repo()
+        app = _app_for_role(Role.VIEWER, "bob", repo)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/api/v1/ai/remediation-plan", json={"assessment_id": assessment_id})
+        assert resp.status_code == 404
+        assert "leaked" not in resp.text
+
+    def test_explain_finding_rejects_non_owner(self) -> None:
+        repo, assessment_id, finding_id = _owned_assessment_repo()
+        app = _app_for_role(Role.VIEWER, "bob", repo)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post(
+            "/api/v1/ai/explain-finding",
+            json={"assessment_id": assessment_id, "finding_id": finding_id},
+        )
+        assert resp.status_code == 404
+        assert "leaked" not in resp.text
+
+    def test_explain_finding_allows_owner(self) -> None:
+        repo, assessment_id, finding_id = _owned_assessment_repo()
+        app = _app_for_role(Role.VIEWER, "alice", repo)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post(
+            "/api/v1/ai/explain-finding",
+            json={"assessment_id": assessment_id, "finding_id": finding_id},
+        )
+        assert resp.status_code == 200
+
+    def test_chat_with_assessment_id_rejects_non_owner(self) -> None:
+        repo, assessment_id, _ = _owned_assessment_repo()
+        app = _app_for_role(Role.VIEWER, "bob", repo)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post(
+            "/api/v1/ai/chat",
+            json={"question": "What is my biggest risk?", "assessment_id": assessment_id},
+        )
+        assert resp.status_code == 404
+        assert "leaked" not in resp.text
+
+    def test_chat_with_assessment_id_allows_owner(self) -> None:
+        repo, assessment_id, _ = _owned_assessment_repo()
+        app = _app_for_role(Role.VIEWER, "alice", repo)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post(
+            "/api/v1/ai/chat",
+            json={"question": "What is my biggest risk?", "assessment_id": assessment_id},
+        )
+        assert resp.status_code == 200

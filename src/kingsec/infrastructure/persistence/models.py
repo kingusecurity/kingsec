@@ -611,6 +611,10 @@ class OrganizationMembershipORM(Base):
     role: Mapped[str] = mapped_column(String, nullable=False, default="viewer")
     created_at: Mapped[str] = mapped_column(String, nullable=False)
 
+    __table_args__ = (
+        Index("ix_organization_memberships_user_org_unique", "user_id", "organization_id", unique=True),
+    )
+
 
 class TeamMembershipORM(Base):
     __tablename__ = "team_memberships"
@@ -619,6 +623,10 @@ class TeamMembershipORM(Base):
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=False)
     team_id: Mapped[str] = mapped_column(String, ForeignKey("teams.id"), nullable=False)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
+
+    __table_args__ = (
+        Index("ix_team_memberships_user_team_unique", "user_id", "team_id", unique=True),
+    )
 
 
 class LicenseORM(Base):

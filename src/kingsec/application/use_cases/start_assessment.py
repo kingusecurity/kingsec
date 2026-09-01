@@ -73,6 +73,7 @@ class StartAssessment:
                 assessment_id=str(assessment.id),
                 state=assessment.status.value,
                 message="Scan started",
+                owner_id=assessment.owner_id,
             )
         )
 
@@ -119,6 +120,7 @@ class StartAssessment:
                     state=assessment.status.value,
                     message=f"Scan completed with {len(assessment.findings)} findings",
                     severity_counts=self._severity_counts(assessment),
+                    owner_id=assessment.owner_id,
                 )
             )
 
@@ -152,6 +154,7 @@ class StartAssessment:
                         assessment_id=str(assessment.id),
                         state=assessment.status.value,
                         message=f"Scan failed: {exc}",
+                        owner_id=assessment.owner_id,
                     )
                 )
 

@@ -582,6 +582,11 @@ class MiddlewareSettings(BaseModel):
     trusted_hosts: list[str] = Field(default_factory=list)
     # Enable structured request logging.
     request_logging: bool = True
+    # KSEC-84-01: maximum accepted request body size, in bytes. Enforced by
+    # RequestSizeLimitMiddleware BEFORE any route parses the body - without
+    # this, every POST/PUT endpoint (including pre-auth ones like login/
+    # register) buffers an arbitrarily large body in memory first.
+    max_request_body_bytes: int = Field(default=10 * 1024 * 1024, ge=1024)
 
 
 class PerformanceSettings(BaseModel):

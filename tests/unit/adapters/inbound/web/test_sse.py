@@ -224,6 +224,7 @@ class TestSSEEndpoint:
             assessment_id="asmt-test-001",
             state="authorized",
             message="Test event",
+            owner_id="test-user",
         )
 
         async def publish_event() -> None:
@@ -259,12 +260,14 @@ class TestSSEEndpoint:
             assessment_id="asmt-001",
             state="authorized",
             message="Event 1",
+            owner_id="test-user",
         )
         event2 = AssessmentEvent(
             event_type=EVENT_ASSESSMENT_CREATED,
             assessment_id="asmt-002",
             state="authorized",
             message="Event 2",
+            owner_id="test-user",
         )
 
         async def publish_events() -> None:

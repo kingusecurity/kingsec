@@ -288,6 +288,13 @@ async def list_teams(
 ) -> dict[str, Any]:
     repo = _get_repo(request)
     if organization_id:
+        # KSEC-84-01: require_viewer is a global role check, not an
+        # organization-membership check - without this, any authenticated
+        # viewer could list ANY organization's teams by ID (same class of
+        # bug already fixed for list_members/list_activity in this file,
+        # KSEC-71-03).
+        if repo.get_member_role(organization_id, user.user_id) is None:
+            raise HTTPException(status_code=403, detail="Not a member of this organization")
         teams = repo.list_teams(organization_id)
     else:
         teams = []

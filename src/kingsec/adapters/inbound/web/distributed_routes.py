@@ -24,10 +24,10 @@ ADMIN_ONLY = Role.ADMIN
 def _require_admin(user: CurrentUser) -> None:
     """Same pattern as the sibling queue_routes.py (the other, already
     correctly-secured queue implementation mounted at this same prefix):
-    mutating operations and single-entry detail reads (which carry
-    payload/target) require Admin. List/aggregate reads that carry no
-    payload stay open to any authenticated user, matching
-    queue_routes.py's own list_queue/get_statistics."""
+    mutating operations and any read carrying per-job detail (payload,
+    target, error/failure reason) require Admin. Only the genuinely
+    aggregate-only queue_metrics() (counts, no per-job data) stays open to
+    any authenticated user."""
     if user.role != ADMIN_ONLY:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
 
@@ -53,6 +53,11 @@ async def list_queue(
     state: str | None = None,
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
+    # KSEC-84-01: this is per-job detail (scan target, error message), not
+    # an aggregate - the same class of leak already fixed in queue_routes.py's
+    # sibling /entries endpoint (KSEC-71-02). Unlike queue_metrics() below,
+    # this must be Admin-only.
+    _require_admin(user)
     repo = _get_queue_repo(request)
     if state:
         entries = repo.find_by_state(state)
@@ -150,6 +155,9 @@ async def list_dead_letter(
     request: Request,
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
+    # KSEC-84-01: leaks per-job failure detail (original_job_id, reason) -
+    # Admin-only, matching every other detail-bearing route in this file.
+    _require_admin(user)
     svc = _get_dead_letter_service(request)
     entries = svc.list()
     return {

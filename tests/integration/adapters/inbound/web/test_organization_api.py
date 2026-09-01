@@ -30,6 +30,7 @@ from kingsec.domain.organization import (
     OrgEventType,
     OrgRole,
     Team,
+    TeamId,
     TeamMembership,
 )
 
@@ -247,6 +248,54 @@ class TestOrganizationMembersAuthorization:
         client = TestClient(app)
         resp = client.get("/api/v1/organizations/does-not-exist/members")
         assert resp.status_code == 404
+
+
+class TestOrganizationTeamsListAuthorization:
+    """KSEC-84-01: list_teams(organization_id=...) previously had no
+    membership check at all - require_viewer is a global role check, not
+    an organization-membership check, so any authenticated viewer could
+    list ANY organization's teams by ID. Same class of bug as
+    list_members/list_activity (KSEC-71-03), fixed the same way."""
+
+    def test_member_can_list_teams(self, app: FastAPI, actor: ActorHolder, repo: InMemoryOrgRepo) -> None:
+        _seed_two_orgs(repo)
+        repo.save_team(Team(id=TeamId(value="team-acme-1"), organization_id=ACME, name="Red Team", description=""))
+        actor.user_id = "acme_owner"
+        client = TestClient(app)
+        resp = client.get(f"/api/v1/teams?organization_id={ACME}")
+        assert resp.status_code == 200
+        assert resp.json()["total"] == 1
+
+    def test_non_member_cannot_list_teams(self, app: FastAPI, actor: ActorHolder, repo: InMemoryOrgRepo) -> None:
+        _seed_two_orgs(repo)
+        repo.save_team(Team(id=TeamId(value="team-acme-1"), organization_id=ACME, name="Red Team", description=""))
+        actor.user_id = "mallory"
+        client = TestClient(app)
+        resp = client.get(f"/api/v1/teams?organization_id={ACME}")
+        assert resp.status_code == 403
+
+    def test_user_from_organization_b_cannot_list_organization_a_teams(
+        self, app: FastAPI, actor: ActorHolder, repo: InMemoryOrgRepo
+    ) -> None:
+        _seed_two_orgs(repo)
+        repo.save_team(Team(id=TeamId(value="team-acme-1"), organization_id=ACME, name="Red Team", description=""))
+        actor.user_id = "globex_owner"
+        client = TestClient(app)
+        resp = client.get(f"/api/v1/teams?organization_id={ACME}")
+        assert resp.status_code == 403
+        assert "Red Team" not in resp.text
+
+    def test_no_organization_id_returns_empty_without_error(
+        self, app: FastAPI, actor: ActorHolder, repo: InMemoryOrgRepo
+    ) -> None:
+        """Preserve existing behavior: omitting organization_id is not a
+        way to enumerate all teams - it returns an empty list."""
+        _seed_two_orgs(repo)
+        actor.user_id = "mallory"
+        client = TestClient(app)
+        resp = client.get("/api/v1/teams")
+        assert resp.status_code == 200
+        assert resp.json()["total"] == 0
 
 
 class TestOrganizationActivityAuthorization:

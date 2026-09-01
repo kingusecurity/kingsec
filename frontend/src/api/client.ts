@@ -73,7 +73,15 @@ async function refreshAccessToken(): Promise<string | null> {
   if (!refreshToken) return null
 
   try {
-    const res = await fetch(`${API_BASE}/auth/refresh`, {
+    // KSEC-84-01: /sessions/refresh (not /auth/refresh) - the latter never
+    // rotates or revokes the presented refresh token (stateless by design,
+    // see RefreshToken's own docstring), so a stolen refresh token could be
+    // replayed indefinitely with no reuse-detection. /sessions/refresh
+    // rotates the refresh token's JTI on every use and revokes all
+    // sessions if an already-rotated-away token is replayed. Same request
+    // body shape and a superset response shape (access_token plus extra
+    // fields this caller ignores), so no other change is needed here.
+    const res = await fetch(`${API_BASE}/sessions/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: refreshToken }),

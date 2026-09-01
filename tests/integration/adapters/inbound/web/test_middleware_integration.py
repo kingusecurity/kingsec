@@ -6,7 +6,7 @@ correlation ID, rate limiting, request logging.
 
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
 from kingsec.infrastructure.config.models import (
@@ -105,3 +105,52 @@ class TestMiddlewareStackIntegration:
         resp = client.get("/error")
         assert resp.headers["X-Content-Type-Options"] == "nosniff"
         assert resp.headers["X-Frame-Options"] == "DENY"
+
+
+class TestRequestSizeLimitIsWiredIntoTheRealApp:
+    """KSEC-84-01: RequestSizeLimitMiddleware existed and was tested in
+    isolation, but register_middleware() (the ONE function the real app
+    factory calls to assemble its middleware stack) never added it - every
+    endpoint, including pre-auth ones, buffered an unbounded request body
+    before any route-level check could run. This test goes through the
+    REAL register_middleware(), not a hand-built middleware stack, so a
+    future regression (someone removing the registration line) is caught
+    here rather than only in RequestSizeLimitMiddleware's own isolated
+    unit test."""
+
+    def _build_app_via_real_registration(self, max_request_body_bytes: int) -> FastAPI:
+        from kingsec.bootstrap.web import register_middleware
+        from kingsec.infrastructure.config import Settings
+
+        app = FastAPI()
+
+        @app.post("/api/v1/test")
+        async def echo(request: Request) -> dict[str, int]:
+            body = await request.body()
+            return {"received_bytes": len(body)}
+
+        settings = Settings()
+        settings = settings.model_copy(
+            update={"middleware": settings.middleware.model_copy(update={"max_request_body_bytes": max_request_body_bytes})}
+        )
+        register_middleware(app, settings)
+        return app
+
+    def test_oversized_request_is_rejected_before_reaching_the_route(self) -> None:
+        app = self._build_app_via_real_registration(max_request_body_bytes=100)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/api/v1/test", content=b"x" * 1000)
+        assert resp.status_code == 413
+
+    def test_request_within_the_limit_reaches_the_route(self) -> None:
+        app = self._build_app_via_real_registration(max_request_body_bytes=1_000_000)
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/api/v1/test", content=b"x" * 100)
+        assert resp.status_code == 200
+        assert resp.json()["received_bytes"] == 100
+
+    def test_default_settings_apply_a_real_finite_limit(self) -> None:
+        """Guards against a future accidental default of "unlimited"."""
+        from kingsec.infrastructure.config import Settings
+
+        assert 0 < Settings().middleware.max_request_body_bytes <= 100 * 1024 * 1024

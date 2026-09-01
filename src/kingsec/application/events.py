@@ -26,6 +26,12 @@ class AssessmentEvent:
     progress: int | None = None
     message: str | None = None
     severity_counts: dict[str, int] | None = None
+    # Server-side only - deliberately never serialized in to_dict()/SSE
+    # payloads. Used exclusively to scope event-bus delivery (KSEC-84-01:
+    # the SSE endpoint previously broadcast every assessment's events,
+    # including scan targets, to every authenticated user) to the
+    # assessment's owner.
+    owner_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a JSON-safe dictionary."""

@@ -4,12 +4,14 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from kingsec.application._support import check_assessment_access
 from kingsec.application.ai import (
     AIChatService,
     ExecutiveSummaryService,
     ExplainFindingService,
     RemediationAssistantService,
 )
+from kingsec.domain import Role
 from kingsec.domain.assessment import Assessment
 from kingsec.domain.identifiers import AssessmentId
 from kingsec.shared.errors import ExternalServiceError
@@ -36,6 +38,10 @@ def _get_repo(request: Request) -> Any:
     return _resolve(request, AssessmentRepository)
 
 
+def _is_admin(user: CurrentUser) -> bool:
+    return user.role == Role.ADMIN
+
+
 @router.post("/explain-finding")
 async def explain_finding(
     body: dict[str, Any],
@@ -51,6 +57,7 @@ async def explain_finding(
     assessment = repo.get(AssessmentId(assessment_id))
     if assessment is None:
         raise HTTPException(status_code=404, detail="Assessment not found")
+    check_assessment_access(assessment, user.user_id, _is_admin(user))
     finding = next((f for f in assessment.findings if str(f.id) == finding_id), None)
     if finding is None:
         raise HTTPException(status_code=404, detail="Finding not found")
@@ -75,6 +82,7 @@ async def executive_summary(
     assessment = repo.get(AssessmentId(assessment_id))
     if assessment is None:
         raise HTTPException(status_code=404, detail="Assessment not found")
+    check_assessment_access(assessment, user.user_id, _is_admin(user))
     try:
         result = svc.generate(assessment)
     except ExternalServiceError as e:
@@ -96,6 +104,7 @@ async def remediation_plan(
     assessment = repo.get(AssessmentId(assessment_id))
     if assessment is None:
         raise HTTPException(status_code=404, detail="Assessment not found")
+    check_assessment_access(assessment, user.user_id, _is_admin(user))
     try:
         result = svc.plan(list(assessment.findings))
     except ExternalServiceError as e:
@@ -119,6 +128,8 @@ async def ai_chat(
     assessment: Assessment | None = None
     if assessment_id:
         assessment = repo.get(AssessmentId(assessment_id))
+        if assessment is not None:
+            check_assessment_access(assessment, user.user_id, _is_admin(user))
     try:
         result = svc.chat(question, history, assessment)
     except ExternalServiceError as e:

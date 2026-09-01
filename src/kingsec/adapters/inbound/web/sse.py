@@ -45,6 +45,7 @@ from starlette.background import BackgroundTask
 
 from kingsec.application.events import AssessmentEvent
 from kingsec.application.ports.outbound.event_publisher import EventPublisher
+from kingsec.domain import Role
 
 from .auth import CurrentUser, get_current_user
 from .dependencies import get_application
@@ -83,11 +84,20 @@ async def _sse_generator(
     event_bus: InMemoryEventBus,
     assessment_id: str | None,
     client_id: str,
+    requesting_user: str,
+    is_admin: bool,
 ) -> AsyncGenerator[str, None]:
     """Generate SSE events from the event bus.
 
     Subscribes to the bus, yields formatted SSE messages, and sends
     heartbeat comments every 15 seconds. Automatically cleans up on disconnect.
+
+    KSEC-84-01: the event bus is a single global broadcast with no built-in
+    per-subscriber partitioning, so ownership is enforced HERE - every event
+    is dropped unless the connected caller owns the assessment it belongs to
+    (or is Admin). This mirrors check_assessment_access's fail-closed
+    semantics: an event with no recorded owner (owner_id is None) is
+    Admin-only, not broadcast to everyone.
     """
     subscriber = event_bus.subscribe(client_id)
     try:
@@ -104,6 +114,9 @@ async def _sse_generator(
             if event is None:
                 # Sentinel: bus shut down or subscriber removed
                 break
+
+            if not is_admin and event.owner_id != requesting_user:
+                continue
 
             # Optional filter: only send events for a specific assessment
             if assessment_id and event.assessment_id != assessment_id:
@@ -127,7 +140,7 @@ async def _sse_generator(
 async def stream_events(
     request: Request,
     assessment_id: str | None = Query(default=None, description="Filter by assessment ID"),
-    _current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
     event_bus: InMemoryEventBus = Depends(_get_event_publisher),
 ) -> StreamingResponse:
     """Stream assessment lifecycle events via Server-Sent Events.
@@ -159,7 +172,11 @@ async def stream_events(
         logger.info("SSE client disconnected", extra={"client_id": client_id})
 
     return StreamingResponse(
-        _sse_generator(event_bus, assessment_id, client_id),
+        _sse_generator(
+            event_bus, assessment_id, client_id,
+            requesting_user=current_user.user_id,
+            is_admin=current_user.role == Role.ADMIN,
+        ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

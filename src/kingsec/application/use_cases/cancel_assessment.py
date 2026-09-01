@@ -52,6 +52,7 @@ class CancelAssessment:
                 assessment_id=str(assessment.id),
                 state=assessment.status.value,
                 message="Assessment cancelled",
+                owner_id=assessment.owner_id,
             )
         )
 

@@ -33,9 +33,17 @@ def register_middleware(app: FastAPI, settings: Settings) -> None:
         RequestLoggingMiddleware,
         SecurityHeadersMiddleware,
     )
+    from kingsec.infrastructure.middleware.performance import RequestSizeLimitMiddleware
 
     # Rate limiting (innermost — runs after all other middleware).
     app.add_middleware(RateLimitMiddleware, settings=settings.rate_limit)
+
+    # KSEC-84-01: request body size limit — was implemented but never
+    # registered on the running app, leaving every endpoint (including
+    # pre-auth ones) to buffer an unbounded body before any route-level
+    # validation could reject it. Placed innermost (with rate limiting) so
+    # it runs on every request regardless of what other middleware does.
+    app.add_middleware(RequestSizeLimitMiddleware, max_body_bytes=settings.middleware.max_request_body_bytes)
 
     # Request logging.
     if settings.middleware.request_logging:
