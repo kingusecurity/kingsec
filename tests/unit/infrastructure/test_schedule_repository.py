@@ -531,27 +531,28 @@ class TestDeleteRacingUpdate:
     the INSERT branch and resurrect the deleted schedule under its own
     stale field values - the exact "does not resurrect deleted state"
     failure Section 10's Additional Verification requires ruling out.
-    save() now only takes the insert branch when schedule.version == 1
-    (create_schedule.py's own starting value - never reachable by a
-    caller that read an existing row, since only a successful update
-    increments version); any other version on a since-deleted row is
-    correctly reported as a conflict instead. See this class's own
-    docstrings for the one narrow case this fix does not cover.
+    save() originally (Phase 87) only took the insert branch when
+    schedule.version == 1, since that was the only case it couldn't
+    distinguish from a genuinely new id - any other version on a
+    since-deleted row was correctly reported as a conflict. Phase 88
+    (KSEC-88-03) closed that remaining version-1 gap structurally:
+    delete() now tombstones the row (sets ``deleted_at``) instead of
+    removing it, so save() can tell "never existed" apart from "existed
+    and was deleted" with certainty, regardless of version - see
+    TestVersionOneDeleteRace below for the case this specifically closes.
     """
 
     def test_scenario_a_delete_wins_stale_update_cannot_resurrect_or_modify(self, session_factory) -> None:
         """read schedule -> DELETE wins -> UPDATE attempts stale write.
 
         Uses a schedule already bumped to version 2 (via one prior
-        pause) before the race, not a freshly-created version-1 schedule
-        - deliberately, to exercise the fix's `version != 1` branch. A
-        schedule deleted before ever being updated (still at version 1)
-        is NOT protected by this fix: version 1 is indistinguishable
-        from "this ID never existed", since IDs are UUIDs and a genuinely
-        new schedule can never collide with one just deleted, this isn't
-        reachable except by literally racing the delete of the exact
-        schedule just read at v1 - documented here as a narrow, known
-        residual gap (see the Phase 87 report), not silently ignored.
+        pause) before the race, not a freshly-created version-1 schedule.
+        The version-1 case (a schedule deleted before its first-ever
+        update) is exercised separately below in
+        TestVersionOneDeleteRace, since Phase 88's tombstone fix now
+        closes it too - it's no longer a distinct code path here, but
+        kept as its own test for the same reason this scenario is: proof
+        specific to the exact case that was once a gap.
         """
         repo = SqlAlchemyScheduleRepository(session_factory)
         schedule_id = _make_schedule(repo)
@@ -645,3 +646,112 @@ class TestDeleteRacingUpdate:
             "delete() is unconditional by id - it removes the row (now holding the winning "
             "update's content) even though it was 'stale' relative to that update"
         )
+
+
+class TestVersionOneDeleteRace:
+    """KSEC-88-03: the residual gap Phase 87 documented but did not close -
+    a schedule deleted before its very first update (still at version 1)
+    raced by a stale save() that also read it at version 1. Phase 87's
+    `version != 1` heuristic could not detect this case at all, since a
+    stale version-1 write racing the delete of a genuinely-version-1
+    schedule was indistinguishable from a brand-new insert. The tombstone
+    fix (delete() sets deleted_at instead of removing the row) closes
+    this with certainty instead of inference: a stale save() now always
+    finds the tombstoned row present, regardless of which version it read.
+    """
+
+    def test_delete_of_a_never_updated_schedule_cannot_be_resurrected_by_a_stale_save(
+        self, session_factory
+    ) -> None:
+        """read (version 1) -> DELETE wins -> stale save(version=1)
+        attempts to write. This is exactly the case Phase 87 could not
+        protect: no prior update ever happened, so both the delete and
+        the stale save race from a freshly-created, still-version-1 row."""
+        repo = SqlAlchemyScheduleRepository(session_factory)
+        schedule_id = _make_schedule(repo)  # created at version 1, never updated
+
+        read_barrier = threading.Barrier(2)
+        delete_committed = threading.Event()
+        results: dict[str, str] = {}
+        lock = threading.Lock()
+
+        def _delete() -> None:
+            repo.find_by_id(schedule_id)
+            read_barrier.wait(timeout=5)
+            repo.delete(schedule_id)
+            delete_committed.set()
+
+        def _stale_save() -> None:
+            existing = repo.find_by_id(schedule_id)
+            assert existing.version == 1, "this test only proves something if the race starts from version 1"
+            read_barrier.wait(timeout=5)
+            assert delete_committed.wait(timeout=5), "delete must commit before the stale save is attempted"
+            try:
+                repo.save(dataclasses.replace(existing, cron_expression="0 9 * * *"))
+                with lock:
+                    results["save"] = "ok"
+            except ScheduleConflictError:
+                with lock:
+                    results["save"] = "conflict"
+
+        t_delete = threading.Thread(target=_delete)
+        t_save = threading.Thread(target=_stale_save)
+        t_delete.start()
+        t_save.start()
+        t_delete.join(timeout=10)
+        t_save.join(timeout=10)
+
+        assert results["save"] == "conflict", (
+            "a stale version-1 save racing the delete of that same version-1 schedule must be "
+            "rejected - before the tombstone fix this silently succeeded and resurrected the "
+            "deleted schedule as a 'new' insert"
+        )
+        assert repo.find_by_id(schedule_id) is None, "the schedule must remain deleted, not resurrected"
+
+    def test_legitimate_create_of_a_genuinely_new_id_still_works(self, repo: SqlAlchemyScheduleRepository) -> None:
+        """The tombstone check must not treat every version-1 save() as
+        suspect - an id with no row at all (never created, never
+        deleted) must still insert normally."""
+        schedule_id = _make_schedule(repo)
+        created = repo.find_by_id(schedule_id)
+        assert created is not None
+        assert created.version == 1
+
+    def test_legitimate_update_of_a_live_schedule_still_works(self, repo: SqlAlchemyScheduleRepository) -> None:
+        """A normal (non-racing) update against a live, non-tombstoned
+        row must still succeed exactly as before."""
+        schedule_id = _make_schedule(repo)
+        existing = repo.find_by_id(schedule_id)
+        repo.save(dataclasses.replace(existing, cron_expression="0 5 * * *"))
+
+        updated = repo.find_by_id(schedule_id)
+        assert updated.cron_expression == "0 5 * * *"
+        assert updated.version == 2
+
+    def test_failed_stale_save_does_not_partially_mutate_the_tombstoned_row(self, session_factory) -> None:
+        """The rejected stale save() must leave the tombstoned row exactly
+        as delete() left it - no field from the stale write leaking
+        through, no version bump, no un-tombstoning."""
+        repo = SqlAlchemyScheduleRepository(session_factory)
+        schedule_id = _make_schedule(repo)
+        existing = repo.find_by_id(schedule_id)
+        repo.delete(schedule_id)
+
+        with pytest.raises(ScheduleConflictError):
+            repo.save(dataclasses.replace(existing, cron_expression="0 9 * * *", name="mutated"))
+
+        assert repo.find_by_id(schedule_id) is None, "still tombstoned/invisible - the stale write did not un-delete it"
+
+        # Inspect the raw row directly (find_by_id() filters tombstoned
+        # rows out by design) to prove the stale write's fields never
+        # reached storage at all, not merely that the row stays hidden.
+        from sqlalchemy import select
+
+        from kingsec.infrastructure.persistence.models import ScheduleORM
+
+        with session_factory() as session:
+            raw = session.execute(select(ScheduleORM).where(ScheduleORM.id == str(schedule_id))).scalar_one()
+        assert raw.deleted_at is not None
+        assert raw.cron_expression == "0 2 * * *", "the stale save's cron_expression must not have been written"
+        assert raw.name == "Nightly scan", "the stale save's name must not have been written"
+        assert raw.version == 1, "the rejected save must not have incremented the version"

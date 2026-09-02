@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any, cast
 
 from sqlalchemy import CursorResult, select, update
@@ -36,33 +37,35 @@ class SqlAlchemyScheduleRepository(ScheduleRepositoryPort):
         ScheduleConflictError is raised - never silently overwriting, never
         silently overwritten, never automatically retried.
 
-        KSEC-87-03: the "row doesn't exist" branch below is ALSO reached
-        when a row that DID exist was deleted by a concurrent
-        delete_schedule() between this caller's read and this save() -
-        not only for a genuinely brand-new schedule. A version > 1 proves
-        the caller read an existing row, so treating that case as a fresh
-        insert would silently resurrect the deleted schedule under a
-        stale version instead of surfacing the conflict. Only a version
-        of exactly 1 (create_schedule.py's own starting value, never
-        incremented by anything but a successful update) is treated as
-        "genuinely new".
+        KSEC-88-03: delete() (below) is a tombstone, not a physical
+        removal - it sets ``deleted_at`` rather than dropping the row. A
+        query for the id below therefore has three outcomes, not two: no
+        row at all (genuinely never existed - safe to insert), a row with
+        ``deleted_at`` set (existed, was deleted - always a conflict,
+        regardless of the version this caller read), or a live row
+        (normal optimistic-locked update path). This closes the KSEC-87-03
+        residual gap directly: that fix could only infer "probably
+        deleted" from `version != 1`, which couldn't tell a stale
+        version-1 write (read before the schedule's first-ever update)
+        apart from a genuinely new id - the tombstone makes that
+        distinction exact instead of inferred, so the version-based check
+        this replaced is no longer needed.
         """
         with self._session_factory.begin() as session:
             from kingsec.infrastructure.persistence.models import ScheduleORM
 
-            exists = (
-                session.execute(select(ScheduleORM.id).where(ScheduleORM.id == str(schedule.id))).scalar_one_or_none()
-                is not None
-            )
-            if not exists:
-                if schedule.version != 1:
-                    raise ScheduleConflictError(
-                        f"schedule '{schedule.id}' was deleted by another request since it was last read"
-                    )
+            row = session.execute(
+                select(ScheduleORM.deleted_at).where(ScheduleORM.id == str(schedule.id))
+            ).one_or_none()
+            if row is None:
                 orm = ScheduleORM(id=str(schedule.id), version=schedule.version)
                 session.add(orm)
                 self._update_orm(orm, schedule)
                 return
+            if row[0] is not None:
+                raise ScheduleConflictError(
+                    f"schedule '{schedule.id}' was deleted by another request since it was last read"
+                )
 
             result = cast(
                 "CursorResult[Any]",
@@ -81,7 +84,7 @@ class SqlAlchemyScheduleRepository(ScheduleRepositoryPort):
         with self._session_factory() as session:
             from kingsec.infrastructure.persistence.models import ScheduleORM
 
-            stmt = select(ScheduleORM).where(ScheduleORM.id == schedule_id)
+            stmt = select(ScheduleORM).where(ScheduleORM.id == schedule_id, ScheduleORM.deleted_at.is_(None))
             orm = session.execute(stmt).scalar_one_or_none()
             if orm is None:
                 return None
@@ -91,14 +94,18 @@ class SqlAlchemyScheduleRepository(ScheduleRepositoryPort):
         with self._session_factory() as session:
             from kingsec.infrastructure.persistence.models import ScheduleORM
 
-            stmt = select(ScheduleORM).where(ScheduleORM.owner_user_id == user_id).order_by(ScheduleORM.created_at)
+            stmt = (
+                select(ScheduleORM)
+                .where(ScheduleORM.owner_user_id == user_id, ScheduleORM.deleted_at.is_(None))
+                .order_by(ScheduleORM.created_at)
+            )
             return [self._to_domain(orm) for orm in session.execute(stmt).scalars().all()]
 
     def find_all(self) -> list[ScanSchedule]:
         with self._session_factory() as session:
             from kingsec.infrastructure.persistence.models import ScheduleORM
 
-            stmt = select(ScheduleORM).order_by(ScheduleORM.created_at)
+            stmt = select(ScheduleORM).where(ScheduleORM.deleted_at.is_(None)).order_by(ScheduleORM.created_at)
             return [self._to_domain(orm) for orm in session.execute(stmt).scalars().all()]
 
     def find_due(self, now_utc_str: str) -> list[ScanSchedule]:
@@ -107,6 +114,7 @@ class SqlAlchemyScheduleRepository(ScheduleRepositoryPort):
 
             stmt = (
                 select(ScheduleORM)
+                .where(ScheduleORM.deleted_at.is_(None))
                 .where(ScheduleORM.enabled == True)  # noqa: E712
                 .where(ScheduleORM.paused == False)  # noqa: E712
                 .where((ScheduleORM.next_run.is_(None)) | (ScheduleORM.next_run <= now_utc_str))
@@ -115,13 +123,24 @@ class SqlAlchemyScheduleRepository(ScheduleRepositoryPort):
             return [self._to_domain(orm) for orm in session.execute(stmt).scalars().all()]
 
     def delete(self, schedule_id: str) -> None:
+        """Tombstone the schedule (KSEC-88-03) rather than physically
+        removing its row - see save()'s own docstring for why a hard
+        delete left an unresolvable ambiguity for a stale write racing
+        this call. Deliberately unconditional (no version check), exactly
+        matching the pre-existing, already-tested behavior
+        (test_schedule_repository.py's Scenario B): whoever calls
+        delete() wins outright, regardless of which version they last
+        read. Idempotent - a second delete() finds no live row (the
+        ``deleted_at IS NULL`` filter already excludes it) and is a
+        no-op, same as the old "already gone" case.
+        """
         with self._session_factory.begin() as session:
             from kingsec.infrastructure.persistence.models import ScheduleORM
 
-            stmt = select(ScheduleORM).where(ScheduleORM.id == schedule_id)
+            stmt = select(ScheduleORM).where(ScheduleORM.id == schedule_id, ScheduleORM.deleted_at.is_(None))
             orm = session.execute(stmt).scalar_one_or_none()
             if orm is not None:
-                session.delete(orm)
+                orm.deleted_at = datetime.now(UTC).isoformat()
 
     @staticmethod
     def _to_domain(orm: object) -> ScanSchedule:

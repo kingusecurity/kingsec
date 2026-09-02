@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import structlog
 from fastapi import APIRouter, Depends, Request
 
 from kingsec.application.ports.outbound.metrics_collector import MetricsCollectorPort
@@ -15,6 +16,12 @@ from .dependencies import get_application
 router = APIRouter(prefix="/api/v1", tags=["metrics"])
 
 ADMIN_ONLY = Role.ADMIN
+
+# KSEC-88-04: structlog directly, matching error_handlers.py/auth.py's
+# established pattern - see error_handlers.py's own comment for why
+# (adapters/infrastructure are sibling layers under the import-linter
+# "Hexagonal layering" contract and must not import each other).
+_logger = structlog.get_logger("kingsec.adapters.inbound.web.metrics_routes")
 
 
 def _get_metrics(request: Request) -> Any:
@@ -91,7 +98,16 @@ async def system_metrics(
     if collector is None:
         return {"status": "unavailable", "detail": "Metrics collector not initialized"}
     try:
-        usage = collector.collect_resource_usage()
+        # KSEC-88-04: was `collect_resource_usage()`, a method
+        # MetricsCollectorPort never declared and no concrete
+        # implementation (ProcessMetricsCollector/ResourceMonitor) ever
+        # defined - every real invocation of this endpoint raised
+        # AttributeError unconditionally. collect_all() is the port
+        # method that returns exactly the ResourceUsage fields already
+        # destructured below. Found while auditing this except block for
+        # KSEC-88-04; fixed as the smallest correct change since it's the
+        # single call this handler exists to guard.
+        usage = collector.collect_all()
         return {
             "cpu_percent": usage.cpu_percent,
             "memory_percent": usage.memory_percent,
@@ -99,8 +115,14 @@ async def system_metrics(
             "disk_percent": usage.disk_percent,
             "disk_used_gb": round(usage.disk_used_gb, 2),
         }
-    except Exception as exc:
-        return {"status": "error", "detail": str(exc)}
+    except Exception:
+        # KSEC-88-04: collect_resource_usage() wraps OS-level resource
+        # queries (e.g. psutil) whose failure messages can contain
+        # filesystem paths or other host details - str(exc) was returned
+        # to any authenticated admin verbatim. Logged server-side only,
+        # same generic-message convention as admin_operation_error().
+        _logger.exception("failed to collect system resource metrics")
+        return {"status": "error", "detail": "Failed to collect system metrics"}
 
 
 @router.get("/metrics/operations")

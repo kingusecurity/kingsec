@@ -585,6 +585,17 @@ class ScheduleORM(Base):
     # a mismatch means someone else wrote first, and the write is rejected
     # rather than silently overwriting or being silently overwritten.
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # KSEC-88-03: tombstone marker. delete() sets this instead of removing
+    # the row, so save() can distinguish "this id never existed" (no row
+    # at all) from "this id existed and was deleted" (row present,
+    # deleted_at set) - the ambiguity a physically-removed row could never
+    # resolve, which let a stale write racing the delete of a
+    # version-1 (never-yet-updated) schedule silently resurrect it. NULL
+    # for every live schedule; every read path (find_by_id/find_by_user_id/
+    # find_all/find_due) filters WHERE deleted_at IS NULL so a tombstoned
+    # row stays invisible everywhere except save()'s own existence check -
+    # behaviorally identical to a hard delete for every other caller.
+    deleted_at: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
 
 
 class OrganizationORM(Base):

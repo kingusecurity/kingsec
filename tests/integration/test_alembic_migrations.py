@@ -617,7 +617,7 @@ class TestMigrationAtomicity:
         with engine.begin() as conn:
             stamp = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
         engine.dispose()
-        assert stamp == "b61ad7b141a0"
+        assert stamp == "d72bbb65a1aa"
 
 
 class TestMigrationMetadata:
