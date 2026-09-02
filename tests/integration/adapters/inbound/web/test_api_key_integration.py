@@ -333,6 +333,45 @@ class TestApiKeyIntegration:
         )
         assert resp.status_code == 401
 
+    def test_api_key_failure_responses_do_not_reveal_key_existence(self) -> None:
+        """KSEC-90-02: ValidateApiKey distinguishes nonexistent (
+        ApiKeyNotFoundError) from revoked (ApplicationError "revoked")
+        from bad-format (ApplicationError "start with") at the
+        application layer - that distinction is legitimate there. What
+        matters is whether it leaks to the untrusted HTTP boundary.
+        auth.py's `_authenticate_api_key()` catches every one of these
+        with a single broad `except Exception` and always returns the
+        same generic "invalid API key" / 401 - this proves that
+        collapsing holds for all three failure modes side by side, so an
+        attacker probing keys cannot distinguish "never existed" from
+        "existed but was revoked" from "malformed" by response content."""
+        app, token_service, user_repo, _key_repo, _key_hasher = _build_app()
+        client = TestClient(app)
+        token = self._register_and_login(client, token_service, user_repo)
+
+        create_resp = client.post(
+            "/api/v1/apikeys",
+            json={"name": "To Revoke", "scope": "read_only"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        key_id = create_resp.json()["api_key_id"]
+        revoked_plaintext = create_resp.json()["plaintext_key"]
+        client.delete(f"/api/v1/apikeys/{key_id}", headers={"Authorization": f"Bearer {token}"})
+
+        nonexistent_resp = client.get("/api/v1/apikeys/me", headers={"X-API-Key": "ks_nonexistent_secret"})
+        revoked_resp = client.get("/api/v1/apikeys/me", headers={"X-API-Key": revoked_plaintext})
+        bad_format_resp = client.get("/api/v1/apikeys/me", headers={"X-API-Key": "not_even_ks_prefixed"})
+
+        for resp in (nonexistent_resp, revoked_resp, bad_format_resp):
+            assert resp.status_code == 401
+            assert resp.json()["detail"] == "invalid API key"
+
+        # None of the three distinct underlying failure reasons appear.
+        combined = " ".join(r.json()["detail"] for r in (nonexistent_resp, revoked_resp, bad_format_resp))
+        assert "revoked" not in combined
+        assert "not found" not in combined.lower()
+        assert "start with" not in combined
+
     def test_api_key_management_itself_rejects_api_key_auth(self) -> None:
         """API key management must stay JWT-only, or a leaked key could mint/rotate keys.
 

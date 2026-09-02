@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from kingsec.application.ports.outbound.metrics_collector import MetricsCollectorPort
 from kingsec.domain import Role
@@ -22,6 +22,20 @@ ADMIN_ONLY = Role.ADMIN
 # (adapters/infrastructure are sibling layers under the import-linter
 # "Hexagonal layering" contract and must not import each other).
 _logger = structlog.get_logger("kingsec.adapters.inbound.web.metrics_routes")
+
+
+def _require_admin(user: CurrentUser) -> None:
+    """KSEC-90-03: every other admin-gated route file (agent_routes.py,
+    backup_routes.py, deployment_routes.py, distributed_routes.py, ...)
+    rejects a non-admin with ``HTTPException(403, "Admin access
+    required")`` - this file was the one exception, returning a default
+    200 with just a body message instead. Withheld data was never at
+    risk (the metrics payload itself was correctly never returned), but
+    the status code didn't match this codebase's own established
+    authorization convention, which every status-code-aware client or
+    monitoring check relies on. Fixed to match exactly."""
+    if user.role != ADMIN_ONLY:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
 
 
 def _get_metrics(request: Request) -> Any:
@@ -48,8 +62,7 @@ async def performance_metrics(
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Get application performance metrics."""
-    if user.role != ADMIN_ONLY:
-        return {"detail": "Admin access required"}
+    _require_admin(user)
     metrics = _get_metrics(request)
     if metrics is None:
         return {"status": "unavailable", "detail": "Metrics not initialized"}
@@ -92,8 +105,7 @@ async def system_metrics(
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Get system resource metrics (CPU, memory, disk)."""
-    if user.role != ADMIN_ONLY:
-        return {"detail": "Admin access required"}
+    _require_admin(user)
     collector = _get_collector(request)
     if collector is None:
         return {"status": "unavailable", "detail": "Metrics collector not initialized"}
@@ -131,8 +143,7 @@ async def operation_metrics(
     user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Get operation-specific metrics (assessments, reports, backups)."""
-    if user.role != ADMIN_ONLY:
-        return {"detail": "Admin access required"}
+    _require_admin(user)
     metrics = _get_metrics(request)
     if metrics is None:
         return {"status": "unavailable", "detail": "Metrics not initialized"}

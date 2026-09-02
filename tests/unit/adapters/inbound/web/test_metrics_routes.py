@@ -81,9 +81,13 @@ def _make_client(collector: MagicMock | None, *, role: Role = Role.ADMIN) -> Tes
 
 class TestSystemMetricsAccessControl:
     def test_non_admin_is_refused(self, mock_collector: MagicMock) -> None:
+        """KSEC-90-03: was a default 200 with just a body message until
+        Phase 90 aligned this file with every other admin-gated route's
+        `_require_admin()` convention (403) - see metrics_routes.py's
+        own docstring on `_require_admin`."""
         client = _make_client(mock_collector, role=Role.VIEWER)
         resp = client.get("/api/v1/metrics/system")
-        assert resp.status_code == 200
+        assert resp.status_code == 403
         assert resp.json() == {"detail": "Admin access required"}
 
     def test_missing_collector_reports_unavailable(self) -> None:
@@ -184,7 +188,7 @@ class TestPerformanceMetricsEndpoint:
     def test_non_admin_is_refused(self) -> None:
         client = _make_perf_client(PerformanceMetrics(), role=Role.VIEWER)
         resp = client.get("/api/v1/metrics/performance")
-        assert resp.status_code == 200
+        assert resp.status_code == 403
         assert resp.json() == {"detail": "Admin access required"}
 
     def test_missing_metrics_reports_unavailable(self) -> None:
@@ -269,7 +273,7 @@ class TestOperationMetricsEndpoint:
     def test_non_admin_is_refused(self) -> None:
         client = _make_perf_client(PerformanceMetrics(), role=Role.VIEWER)
         resp = client.get("/api/v1/metrics/operations")
-        assert resp.status_code == 200
+        assert resp.status_code == 403
         assert resp.json() == {"detail": "Admin access required"}
 
     def test_missing_metrics_reports_unavailable(self) -> None:

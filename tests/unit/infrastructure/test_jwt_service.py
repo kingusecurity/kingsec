@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
+import jwt
 import pytest
 
-from kingsec.application.ports import TokenInvalidError
+from kingsec.application.ports import TokenExpiredError, TokenInvalidError
 from kingsec.infrastructure.auth.jwt_service import JWTTokenService
 from kingsec.infrastructure.config.models import JWTSettings
 
@@ -99,6 +102,79 @@ class TestJWTTokenService:
         service2 = JWTTokenService(settings2)
         with pytest.raises(TokenInvalidError):
             service2.verify_access_token(token)
+
+    def test_expired_token_is_rejected(self, jwt_settings: JWTSettings, token_service: JWTTokenService) -> None:
+        """KSEC-90-02: no existing test crafted an actually-expired token
+        before this - crafted directly with ``jwt.encode()`` (using the
+        same secret/algorithm/issuer the real service signs with) rather
+        than waiting for real time to pass, since a deterministic test
+        must never depend on sleeping past a token's lifetime."""
+        now = datetime.now(UTC)
+        expired_payload = {
+            "sub": "user-001",
+            "username": "testuser",
+            "role": "Viewer",
+            "type": "access",
+            "iat": now - timedelta(hours=2),
+            "exp": now - timedelta(hours=1),
+            "iss": jwt_settings.issuer,
+            "jti": "expired-token-jti",
+        }
+        expired_token = jwt.encode(
+            expired_payload, jwt_settings.secret_key.get_secret_value(), algorithm=jwt_settings.algorithm
+        )
+        with pytest.raises(TokenExpiredError):
+            token_service.verify_access_token(expired_token)
+
+    def test_token_with_wrong_issuer_is_rejected(
+        self, jwt_settings: JWTSettings, token_service: JWTTokenService
+    ) -> None:
+        """KSEC-90-02: the service passes ``issuer=self._issuer`` to
+        ``jwt.decode()``, so a token whose ``iss`` claim doesn't match
+        must be rejected even though its signature is otherwise valid -
+        no existing test crafted a mismatched-issuer token before this."""
+        now = datetime.now(UTC)
+        wrong_issuer_payload = {
+            "sub": "user-001",
+            "username": "testuser",
+            "role": "Viewer",
+            "type": "access",
+            "iat": now,
+            "exp": now + timedelta(minutes=30),
+            "iss": "not-" + jwt_settings.issuer,
+            "jti": "wrong-issuer-jti",
+        }
+        token = jwt.encode(
+            wrong_issuer_payload, jwt_settings.secret_key.get_secret_value(), algorithm=jwt_settings.algorithm
+        )
+        with pytest.raises(TokenInvalidError):
+            token_service.verify_access_token(token)
+
+    def test_algorithm_none_token_is_rejected(self, token_service: JWTTokenService) -> None:
+        """KSEC-90-02 algorithm-confusion check: JWTTokenService pins
+        verification to exactly ``[self._algorithm]`` (HS256) - PyJWT can
+        still *encode* an unsigned ``alg: none`` token (confirmed directly:
+        ``jwt.encode(..., algorithm="none")`` succeeds), so the protection
+        here is entirely on the decode side. This proves the real service's
+        ``verify_access_token()`` rejects such a token outright, not merely
+        that raw ``jwt.decode()`` would."""
+        unsigned_token = jwt.encode(
+            {"sub": "user-001", "type": "access", "jti": "none-alg-jti"}, "", algorithm="none"
+        )
+        with pytest.raises(TokenInvalidError):
+            token_service.verify_access_token(unsigned_token)
+
+    def test_malformed_token_error_does_not_leak_implementation_details(
+        self, token_service: JWTTokenService
+    ) -> None:
+        """KSEC-90-02: TokenInvalidError's message is allowed to include
+        PyJWT's own error text (it's a library-level parsing complaint
+        about the token's own malformed structure, not server internals),
+        but it must never include the service's secret or algorithm."""
+        with pytest.raises(TokenInvalidError) as excinfo:
+            token_service.verify_access_token("not.a.valid.token")
+        message = str(excinfo.value)
+        assert "test-secret-key-for-testing-only" not in message
 
     def test_token_revocation(self, token_service: JWTTokenService) -> None:
         token = token_service.create_access_token(
