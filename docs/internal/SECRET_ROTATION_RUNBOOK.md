@@ -2,7 +2,22 @@
 
 > **Status:** MANUAL ACTION REQUIRED
 > **Scope:** `KINGSEC_JWT__SECRET_KEY`, `KINGSEC_SECRETS__API_KEY_PEPPER`
-> **Created:** Phase 88 (KSEC-88-01)
+> **Created:** Phase 88 (KSEC-88-01); updated Phase 89 (KSEC-89-01)
+
+**What has and hasn't been verified by an automated coding session, at a
+glance:**
+
+- **TESTED by the coding session:** the consequences described in §2
+  (single-secret sign/verify, HMAC-only pepper verification), the
+  production placeholder/length guard (§2.3), that `.env` remains
+  untracked and unmodified, and that neither secret's value appears
+  anywhere in source control.
+- **OPERATOR ACTION REQUIRED (cannot be performed or verified by a coding
+  session):** generating and installing the actual new values (§3 Steps
+  1-2), the maintenance-window restart (§3 Step 4), and the live
+  new-token-accepted/old-token-rejected verification (§3 Step 5) — these
+  require a running production deployment and real credentials that this
+  runbook, by design, never touches.
 
 ---
 
@@ -55,10 +70,16 @@ after rotation.
 
 ### 2.3 Startup guard already in place
 
-`Settings._guard_production_secrets` (`infrastructure/config/settings.py`)
+`Settings._guard_default_secrets_in_production` (`infrastructure/config/settings.py`)
 already refuses to start in `production` if either value is still the
-literal placeholder `DEFAULT_SECRET_PLACEHOLDER` — this only catches
-"never configured," not "should be rotated on a schedule."
+literal placeholder `DEFAULT_SECRET_PLACEHOLDER`, or shorter than 32
+bytes — this only catches "never configured" or "too short," not "should
+be rotated on a schedule." Phase 89 added a direct test proving this guard
+fires in `production` for both conditions
+(`tests/unit/infrastructure/test_config_security.py::TestProductionSecretGuardRejectsPlaceholder`) —
+TESTED by that coding session, using only the public placeholder constant
+and synthetic values, never a real secret. The generation commands in
+§3 Step 1 already produce values well above the 32-byte minimum.
 
 ## 3. Rotation procedure
 
@@ -79,6 +100,21 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 
 Do not paste the output into a ticket, chat message, commit, or this
 runbook. Pipe it directly into your secret store or `.env` editor.
+
+**Avoiding accidental exposure (shell history, logs, CI output):**
+- Do not pass either value as a literal command-line argument (e.g.
+  `export KINGSEC_JWT__SECRET_KEY=abc123...`) — most shells record this in
+  history (`~/.bash_history`, `~/.zsh_history`) by default, and process
+  listings (`ps aux`) can briefly expose command-line arguments to other
+  users on the same host. Prefer piping generator output directly into an
+  editor or secret store, as shown above, so the value never appears as a
+  literal argument.
+- If rotation is ever scripted through CI, ensure the value is masked/
+  registered as a CI secret (not a plain pipeline variable) so it cannot
+  appear in build logs or console output.
+- Do not include either value in a commit message, PR description, issue,
+  or this runbook — everything in this document is written to remain
+  accurate with placeholder/example text only, never a real value.
 
 ### Step 2 — Update the deployment environment
 
@@ -121,11 +157,12 @@ Do **not** `cat .env`, `echo $KINGSEC_JWT__SECRET_KEY`, or print either
 value at any point. Verify indirectly instead:
 
 1. **Startup succeeded**: `docker compose logs kingsec --tail 50` shows
-   normal startup log lines and no `ConfigError`/`ValueError` about
+   normal startup log lines and no `ValueError` about
    `KINGSEC_JWT__SECRET_KEY`/`KINGSEC_SECRETS__API_KEY_PEPPER` still being
-   the default placeholder (the existing `_guard_production_secrets`
-   check, §2.3, would raise and crash startup if the new value were
-   accidentally left as the placeholder or empty).
+   the default placeholder or too short (the existing
+   `_guard_default_secrets_in_production` check, §2.3, would raise and
+   crash startup if the new value were accidentally left as the
+   placeholder, empty, or under 32 bytes).
 2. **JWT rotation took effect**: log in with a test account through the
    real login endpoint and confirm a **new** access token is issued and
    accepted by an authenticated request. Separately, confirm a token
@@ -151,11 +188,55 @@ session/key too). Only roll back if the new secrets themselves are wrong
 (e.g., generation error, wrong variable) — not as a way to "undo" the
 invalidation, which cannot be undone either direction.
 
-## 5. Status
+## 5. Future: could this become a graceful (non-cutover) rotation?
 
-Per Phase 88 (KSEC-88-01): rotation was **NOT PERFORMED** — this is
-correct and expected, not a gap. Phase 88's mandate was explicitly to
-investigate the token/key lifecycle and produce this runbook without
-touching real secret values or forcing an operator-facing outage as a
-side effect of an automated phase. Classification: **MANUAL ACTION
-REQUIRED**.
+Phase 89 (KSEC-89-06) analysis only — nothing below is implemented, and
+this section does not change §1-4's current, hard-cutover procedure.
+
+**JWT — key IDs (`kid`) + current-key/previous-key verification.**
+`JWTTokenService` would need to: (1) embed a `kid` claim (identifying
+which secret signed the token) in every newly-issued token; (2) hold both
+the current and previous secret in memory, keyed by `kid`; (3) on verify,
+look up the secret by the token's own `kid` instead of assuming a single
+global secret. This is the same shape already proven in this codebase for
+the encryption service's `KINGSEC_SECRETS__LEGACY_ENCRYPTION_KEYS` list —
+not a new pattern, just not yet applied to JWT signing. Retirement of the
+previous key would be controlled by time (once every token signed under
+it has expired — bounded by `refresh_token_expire_days`, currently up to
+90 days) rather than an immediate hard cutover.
+
+**API-key pepper — a genuinely harder problem.** Unlike JWTs (short-lived,
+naturally expire), API keys are long-lived by design and only their HMAC
+is ever stored — there is no plaintext to re-hash under a new pepper after
+the fact. A dual-pepper transition would require verifying against *both*
+the current and previous pepper's HMAC on every request (cheap: two HMAC
+computations, not a KDF) until every key is naturally rotated or an
+operator forces re-issuance — but every previously-issued key would need
+to remain valid under the *previous* pepper indefinitely, or until
+deliberately expired, since there is no way to know which keys are still
+in active use. This is more operationally complex than the JWT case: it
+trades "all keys break at once" for "old peppers must be retained and
+checked indefinitely, growing the attack surface of the old pepper rather
+than eliminating it on a schedule."
+
+**Operational implications of building either mechanism:** both require
+changes to how secrets are supplied (a list/history of peppers instead of
+one value, a `kid`-to-secret map instead of one value) — a schema change
+to `SecretsSettings`/`JWTSettings`, not just an operator procedure change.
+Both also require a policy decision this repository does not currently
+have an answer to: how long does a "previous" key/pepper stay valid before
+it must be purged, and who is responsible for enforcing that. Building
+this without deciding that policy first would just move the hard-cutover
+problem from "immediate" to "eventually, at an undefined time" — arguably
+worse, since it would look successful at rotation time and fail silently
+later. This is why Phase 89 does not implement either mechanism: the
+policy question is a product/security decision, not a coding one.
+
+## 6. Status
+
+Per Phase 88 (KSEC-88-01), reconfirmed Phase 89 (KSEC-89-01): rotation was
+**NOT PERFORMED** — this is correct and expected, not a gap. The mandate in
+both phases was explicitly to investigate the token/key lifecycle and
+keep this runbook actionable, without touching real secret values or
+forcing an operator-facing outage as a side effect of an automated
+coding session. Classification: **MANUAL ACTION REQUIRED**.
