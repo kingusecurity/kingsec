@@ -511,6 +511,14 @@ class InMemoryScheduleRepo(ScheduleRepositoryPort):
     def find_due(self, now_utc_str: str) -> list[ScanSchedule]:
         return []
 
+    def try_claim(self, schedule: ScanSchedule) -> ScanSchedule | None:
+        current = self._schedules.get(str(schedule.id))
+        if current is None or current.version != schedule.version:
+            return None
+        claimed = schedule.with_version(schedule.version + 1)
+        self._schedules[str(schedule.id)] = claimed
+        return claimed
+
     def delete(self, schedule_id: str) -> None:
         self._schedules.pop(schedule_id, None)
 

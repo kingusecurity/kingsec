@@ -120,24 +120,38 @@ class InProcessScheduler(SchedulerServicePort):
         due = self._repository.find_due(now_utc)
 
         for schedule in due:
+            # KSEC-93-05: find_due() is a plain read - it does not, by
+            # itself, prevent a second scheduler instance (sharing this
+            # same database) from seeing and acting on the same due
+            # schedule at the same time. try_claim() is a single atomic
+            # conditional UPDATE (see SqlAlchemyScheduleRepository's own
+            # docstring): only one caller's UPDATE can ever match a given
+            # version, so at most one InProcessScheduler instance ever
+            # proceeds past this point for a given due schedule. A losing
+            # claim (None) means another instance already claimed it, or
+            # it was paused/deleted/modified since the read - either way,
+            # this instance must not call submit_scan().
+            claimed = self._repository.try_claim(schedule)
+            if claimed is None:
+                continue
             try:
                 self._job_service.submit_scan(
-                    target=schedule.target,
+                    target=claimed.target,
                     config={
-                        "schedule_id": str(schedule.id),
-                        "scanner_ids": list(schedule.scanner_ids),
-                        **schedule.config,
+                        "schedule_id": str(claimed.id),
+                        "scanner_ids": list(claimed.scanner_ids),
+                        **claimed.config,
                     },
                 )
 
                 next_run = self.calculate_next_run(
-                    schedule_type=schedule.schedule_type.value,
-                    cron_expression=schedule.cron_expression,
-                    timezone=schedule.timezone,
+                    schedule_type=claimed.schedule_type.value,
+                    cron_expression=claimed.cron_expression,
+                    timezone=claimed.timezone,
                     after=now_utc,
                 )
 
-                updated = schedule.with_run_completed(next_run=next_run, now=now_utc)
+                updated = claimed.with_run_completed(next_run=next_run, now=now_utc)
                 self._repository.save(updated)
             except Exception:
                 _logger.exception(

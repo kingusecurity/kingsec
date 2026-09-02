@@ -151,3 +151,34 @@ class ScanSchedule:
             status=self.status,
             version=self.version,
         )
+
+    def with_version(self, version: int) -> ScanSchedule:
+        """KSEC-93-05: used by the atomic due-schedule claim
+        (SqlAlchemyScheduleRepository.try_claim()) to return an in-memory
+        copy reflecting the version the database just bumped to, so the
+        caller's subsequent with_run_completed()+save() carries the
+        POST-claim version forward - matching what's now actually stored,
+        not the stale pre-claim value the caller originally read via
+        find_due()."""
+        return ScanSchedule(
+            id=self.id,
+            name=self.name,
+            description=self.description,
+            owner_user_id=self.owner_user_id,
+            target=self.target,
+            scanner_ids=self.scanner_ids,
+            config=self.config,
+            schedule_type=self.schedule_type,
+            cron_expression=self.cron_expression,
+            timezone=self.timezone,
+            enabled=self.enabled,
+            paused=self.paused,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
+            last_run=self.last_run,
+            next_run=self.next_run,
+            retry_policy=self.retry_policy,
+            current_retry_count=self.current_retry_count,
+            status=self.status,
+            version=version,
+        )

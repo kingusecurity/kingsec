@@ -471,11 +471,16 @@ class TestSchedulerTickRace:
         assert job_service.submitted is True, "the scheduler must still submit the scan job before its own save() races"
 
         final = repo.find_by_id(schedule_id)
-        # The concurrent pause (version 1 -> 2) must survive; the
-        # scheduler's own stale with_run_completed() write (also computed
-        # from version 1) must be rejected, not silently applied on top.
+        # KSEC-93-05: the scheduler now claims the schedule (an atomic
+        # version bump, v1->v2) before calling submit_scan() at all, so
+        # the concurrent pause triggered from inside submit_scan() reads
+        # and writes from v2 (not the original v1), landing at v3 - a
+        # fresh, non-stale write from its own point of view. The
+        # scheduler's own with_run_completed() write, built from the
+        # claimed-at-v2 copy, is now the stale one and is correctly
+        # rejected against the concurrently-advanced v3.
         assert final.paused is True, "the scheduler's stale write silently overwrote the concurrent pause"
-        assert final.version == 2, "exactly one write (the concurrent pause) should have succeeded"
+        assert final.version == 3, "claim (v1->v2) + the concurrent pause's own write (v2->v3) should both have succeeded"
         assert final.last_run is None, "the scheduler's conflicting with_run_completed() write must not have been applied"
 
         # The conflict must be logged, not silently swallowed - the
@@ -513,7 +518,10 @@ class TestSchedulerTickRace:
 
         other_final = repo.find_by_id(other_id)
         assert other_final.last_run is not None, "an unrelated due schedule in the same batch must still be processed"
-        assert other_final.version == 2
+        # KSEC-93-05: claim (v1->v2) + the successful with_run_completed()
+        # write (v2->v3) - two atomic writes per successful tick now,
+        # not one; see the sibling test's identical note above.
+        assert other_final.version == 3
 
 
 class TestDeleteRacingUpdate:

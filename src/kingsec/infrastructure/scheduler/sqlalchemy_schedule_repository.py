@@ -122,6 +122,48 @@ class SqlAlchemyScheduleRepository(ScheduleRepositoryPort):
             )
             return [self._to_domain(orm) for orm in session.execute(stmt).scalars().all()]
 
+    def try_claim(self, schedule: ScanSchedule) -> ScanSchedule | None:
+        """Atomically claim a due schedule before job submission
+        (KSEC-93-05).
+
+        Same idiom as save()'s optimistic lock and Phase 87's
+        AssessmentConcurrencyPort.try_reserve_slot(): the version check
+        and the claiming write are one atomic conditional UPDATE, so two
+        callers racing the same schedule (e.g. two InProcessScheduler
+        instances sharing this database) can never both win - only one
+        UPDATE actually matches the row; the other affects zero rows and
+        returns None.
+
+        The WHERE clause re-checks deleted_at/enabled/paused at claim
+        time, not only at the caller's earlier find_due() read - closing
+        the window where the schedule was tombstoned, paused, or
+        otherwise modified (which already bumped the version) between
+        the read and this call. Any such change makes the version not
+        match, so the claim fails exactly like a losing race - the two
+        cases are indistinguishable by design, and both correctly result
+        in "do not submit a job for this."
+        """
+        with self._session_factory.begin() as session:
+            from kingsec.infrastructure.persistence.models import ScheduleORM
+
+            result = cast(
+                "CursorResult[Any]",
+                session.execute(
+                    update(ScheduleORM)
+                    .where(
+                        ScheduleORM.id == str(schedule.id),
+                        ScheduleORM.version == schedule.version,
+                        ScheduleORM.deleted_at.is_(None),
+                        ScheduleORM.enabled == True,  # noqa: E712
+                        ScheduleORM.paused == False,  # noqa: E712
+                    )
+                    .values(version=ScheduleORM.version + 1)
+                ),
+            )
+            if result.rowcount == 0:
+                return None
+        return schedule.with_version(schedule.version + 1)
+
     def delete(self, schedule_id: str) -> None:
         """Tombstone the schedule (KSEC-88-03) rather than physically
         removing its row - see save()'s own docstring for why a hard
