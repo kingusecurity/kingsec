@@ -18,15 +18,20 @@ from .cron_parser import CronParser
 _logger = get_logger("kingsec.infrastructure.scheduler.in_process_scheduler")
 
 if TYPE_CHECKING:
-    from kingsec.application.ports.job_service import JobServicePort
     from kingsec.application.ports.outbound.clock_port import ClockPort
     from kingsec.application.ports.outbound.schedule_repository import ScheduleRepositoryPort
+    from kingsec.application.use_cases.submit_scheduled_assessment import SubmitScheduledAssessment
 
 
 class InProcessScheduler(SchedulerServicePort):
     """Single-process scheduler that polls for due schedules in a background thread.
 
-    Never executes scanners directly — only submits jobs through JobServicePort.
+    KSEC-98-01: never executes scanners directly, and never touches
+    assessment creation/authorization or occurrence SQL itself - all of
+    that lives behind SubmitScheduledAssessment. This class is responsible
+    only for finding due schedules, claiming the schedule occurrence at
+    the scheduler-instance level (try_claim(), Phase 93 - unchanged), and
+    invoking the orchestrator.
     """
 
     _POLL_INTERVAL_SECONDS: int = 60
@@ -34,11 +39,11 @@ class InProcessScheduler(SchedulerServicePort):
     def __init__(
         self,
         repository: ScheduleRepositoryPort,
-        job_service: JobServicePort,
+        scheduled_assessment: SubmitScheduledAssessment,
         clock: ClockPort,
     ) -> None:
         self._repository = repository
-        self._job_service = job_service
+        self._scheduled_assessment = scheduled_assessment
         self._clock = clock
         self._running = False
         self._thread: threading.Thread | None = None
@@ -130,19 +135,23 @@ class InProcessScheduler(SchedulerServicePort):
             # proceeds past this point for a given due schedule. A losing
             # claim (None) means another instance already claimed it, or
             # it was paused/deleted/modified since the read - either way,
-            # this instance must not call submit_scan().
+            # this instance must not invoke scheduled-assessment
+            # submission for it.
             claimed = self._repository.try_claim(schedule)
             if claimed is None:
                 continue
             try:
-                self._job_service.submit_scan(
-                    target=claimed.target,
-                    config={
-                        "schedule_id": str(claimed.id),
-                        "scanner_ids": list(claimed.scanner_ids),
-                        **claimed.config,
-                    },
-                )
+                # KSEC-98-01: SubmitScheduledAssessment's own occurrence
+                # claim is a SECOND, independent protection layer, below
+                # this one - it is what prevents the same logical
+                # occurrence from producing two real assessments if THIS
+                # schedule-level claim succeeds but the finalization save()
+                # below fails, leaving the schedule due again for a later
+                # cycle to reprocess (Phase 94/96). Both a SUBMITTED and a
+                # NO_ACTION_TAKEN outcome are safe to finalize from here -
+                # only a raised exception means "do not finalize", exactly
+                # matching this method's pre-existing behavior.
+                self._scheduled_assessment.execute(claimed)
 
                 next_run = self.calculate_next_run(
                     schedule_type=claimed.schedule_type.value,

@@ -14,13 +14,13 @@ why no settings flag, why it fails closed).
 These tests use the REAL `create_wired_application()` (via a locally
 duplicated `wired_app` fixture - see test_route_composition_smoke.py's own
 identical duplication note for why it is not imported instead) and the
-REAL `create_fastapi_app()`. The only test double is `JobServicePort`,
-substituted via the real DI container (the exact technique
-test_schedule_repository.py's `TestSchedulerTickRace` already established)
-so the deterministic execution-path test (KSEC-92-08) has a synchronization
-point to wait on instead of a real scan actually running - no network
-contact, no real scanner invocation, no external service, no sleep-based
-timing.
+REAL `create_fastapi_app()`. KSEC-98-01: the deterministic execution-path
+test (KSEC-92-08) wraps the real, DI-resolved `SubmitScheduledAssessment`
+in a thin signaling decorator (substituted via the real DI container, the
+exact technique test_schedule_repository.py's `TestSchedulerTickRace`
+already established) so it has a synchronization point to wait on, while
+still delegating to the real orchestrator underneath - no network contact,
+no real scanner invocation, no external service, no sleep-based timing.
 """
 
 from __future__ import annotations
@@ -32,8 +32,7 @@ import pytest
 from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 
-from kingsec.application.jobs import InMemoryJobService, ScanJob, ScanJobResult
-from kingsec.application.ports.job_service import JobServicePort
+from kingsec.application import SubmitScheduledAssessment
 from kingsec.application.ports.outbound.audit_publisher import AuditPublisher
 from kingsec.application.ports.outbound.schedule_repository import ScheduleRepositoryPort
 from kingsec.application.ports.outbound.scheduler_service import SchedulerServicePort
@@ -66,45 +65,24 @@ def wired_app(tmp_path, monkeypatch) -> Application:
     )
 
 
-class _SignalingJobService(JobServicePort):
-    """Wraps the real InMemoryJobService, signaling an Event the instant
-    submit_scan() is actually called - the deterministic boundary
-    KSEC-92-08 asks for, distinguishing "the scheduler thread started"
-    from "the scheduled execution path was actually reached." Still a
-    real, working JobServicePort (delegates every method for real, not
-    a bare mock that only records a call) - every non-submit_scan method
-    is an explicit one-line delegation because ABCMeta requires abstract
-    methods to be literally present in the class body; a __getattr__
-    fallback does not satisfy that at instantiation time."""
+class _SignalingOrchestrator:
+    """Wraps the real, DI-resolved SubmitScheduledAssessment, signaling an
+    Event the instant execute() is actually called - the deterministic
+    boundary KSEC-92-08 asks for, distinguishing "the scheduler thread
+    started" from "the scheduled execution path was actually reached."
+    Delegates for real (not a bare mock that only records a call), so
+    this still proves a genuine assessment gets created and submitted."""
 
-    def __init__(self) -> None:
-        self._inner = InMemoryJobService()
+    def __init__(self, inner: SubmitScheduledAssessment) -> None:
+        self._inner = inner
         self.submitted_event = threading.Event()
         self.submitted_target: str | None = None
 
-    def submit_scan(self, target: str, config: dict[str, object] | None = None) -> ScanJob:
-        self.submitted_target = target
-        job = self._inner.submit_scan(target, config)
+    def execute(self, schedule):
+        self.submitted_target = schedule.target
+        result = self._inner.execute(schedule)
         self.submitted_event.set()
-        return job
-
-    def get_job(self, job_id: str) -> ScanJob:
-        return self._inner.get_job(job_id)
-
-    def list_jobs(self) -> list[ScanJob]:
-        return self._inner.list_jobs()
-
-    def cancel_job(self, job_id: str) -> ScanJob:
-        return self._inner.cancel_job(job_id)
-
-    def get_job_result(self, job_id: str) -> ScanJobResult:
-        return self._inner.get_job_result(job_id)
-
-    def transition_job(self, job_id: str, target_status: str) -> ScanJob:
-        return self._inner.transition_job(job_id, target_status)
-
-    def find_oldest_pending(self) -> ScanJob | None:
-        return self._inner.find_oldest_pending()
+        return result
 
 
 class TestSchedulerResolvedThroughRealLifecycle:
@@ -183,19 +161,20 @@ class TestScheduledExecutionPathIsReachable:
                 )
             )
 
-            signaling_jobs = _SignalingJobService()
-            app.container.register_instance(JobServicePort, signaling_jobs)
+            real_orchestrator = app.resolve(SubmitScheduledAssessment)
+            signaling_orchestrator = _SignalingOrchestrator(real_orchestrator)
+            app.container.register_instance(SubmitScheduledAssessment, signaling_orchestrator)
 
             fastapi_app = create_fastapi_app(app)
             with TestClient(fastapi_app):
-                reached = signaling_jobs.submitted_event.wait(timeout=10)
+                reached = signaling_orchestrator.submitted_event.wait(timeout=10)
 
             assert reached, (
-                "the scheduler's real poll cycle never reached submit_scan() within 10s - "
-                "either the scheduler never actually started, or find_due()/the poll loop "
-                "never ran the job-submission boundary"
+                "the scheduler's real poll cycle never reached SubmitScheduledAssessment.execute() "
+                "within 10s - either the scheduler never actually started, or find_due()/the poll "
+                "loop never ran the scheduled-assessment boundary"
             )
-            assert signaling_jobs.submitted_target == "10.0.0.99"
+            assert signaling_orchestrator.submitted_target == "10.0.0.99"
 
 
 class TestSchedulerStartStopSafety:

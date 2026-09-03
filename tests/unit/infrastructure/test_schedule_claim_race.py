@@ -37,7 +37,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from kingsec.application.errors import ScheduleConflictError
-from kingsec.application.jobs import InMemoryJobService, ScanJob
 from kingsec.application.ports.outbound.audit_publisher import AuditPublisher
 from kingsec.application.ports.outbound.clock_port import ClockPort
 from kingsec.application.use_cases.create_schedule import CreateSchedule
@@ -61,21 +60,22 @@ class _FakeClock(ClockPort):
         return 0.0
 
 
-class _RecordingJobService(InMemoryJobService):
-    """Real, working InMemoryJobService (delegates for real) that also
-    counts calls and records targets - the deterministic boundary these
-    tests need to prove "exactly one winner submitted," matching the
-    established _TriggeringJobService pattern in test_schedule_repository.py."""
+class _RecordingOrchestrator:
+    """KSEC-98-01: stands in for SubmitScheduledAssessment - counts calls
+    and records targets, the deterministic boundary these tests need to
+    prove "exactly one winner submitted," matching the established
+    _TriggeringOrchestrator pattern in test_schedule_repository.py. This
+    test's subject is the schedule-level claim race, not scheduled-
+    assessment orchestration, so a minimal fake with the same
+    execute(schedule) shape is sufficient."""
 
     def __init__(self) -> None:
-        super().__init__()
         self.call_count = 0
         self.submitted_targets: list[str] = []
 
-    def submit_scan(self, target: str, config: dict | None = None) -> ScanJob:
+    def execute(self, schedule: object) -> None:
         self.call_count += 1
-        self.submitted_targets.append(target)
-        return super().submit_scan(target, config)
+        self.submitted_targets.append(schedule.target)
 
 
 class _BarrierGatedRepo(SqlAlchemyScheduleRepository):
@@ -280,8 +280,8 @@ class TestConcurrentSchedulerInstanceRace:
         repo_a = _BarrierGatedRepo(session_factory, barrier)
         repo_b = _BarrierGatedRepo(session_factory, barrier)
 
-        job_service_a = _RecordingJobService()
-        job_service_b = _RecordingJobService()
+        job_service_a = _RecordingOrchestrator()
+        job_service_b = _RecordingOrchestrator()
         scheduler_a = InProcessScheduler(repo_a, job_service_a, _FakeClock())
         scheduler_b = InProcessScheduler(repo_b, job_service_b, _FakeClock())
 

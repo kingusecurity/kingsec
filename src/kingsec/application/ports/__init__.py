@@ -27,6 +27,7 @@ from .outbound.password_hasher import PasswordHasher
 from .outbound.plugin_installer import PluginInstallerPort
 from .outbound.rate_limiter import RateLimiterPort
 from .outbound.recovery_code_repository import RecoveryCodeRepository
+from .outbound.schedule_occurrence_repository import ScheduleOccurrenceRepositoryPort
 from .outbound.schedule_repository import ScheduleRepositoryPort
 from .outbound.scheduler_service import SchedulerServicePort
 from .outbound.secret_provider import SecretProviderPort
@@ -104,6 +105,7 @@ __all__ = [
     "ScannerPluginPort",
     "ScannerPluginRegistry",
     "ScannerPort",
+    "ScheduleOccurrenceRepositoryPort",
     "ScheduleRepositoryPort",
     "SchedulerServicePort",
     "SecretProviderPort",

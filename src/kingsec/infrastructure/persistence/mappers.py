@@ -185,6 +185,7 @@ def assessment_to_orm(assessment: Assessment) -> AssessmentORM:
         team_id=assessment.team_id,
         owner_id=assessment.owner_id,
         profile_id=assessment.profile_id,
+        schedule_occurrence_id=assessment.schedule_occurrence_id,
         scanner_summary=_scanner_summary_to_json(assessment.scanner_summary),
         findings=[finding_to_orm(finding) for finding in assessment.findings],
     )
@@ -305,6 +306,7 @@ def assessment_to_domain(orm: AssessmentORM) -> Assessment:
         findings=findings,
         profile_id=orm.profile_id,
         scanner_summary=_scanner_summary_from_json(orm.scanner_summary),
+        schedule_occurrence_id=orm.schedule_occurrence_id,
     )
     if orm.organization_id or orm.team_id or orm.owner_id:
         a.set_ownership(

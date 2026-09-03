@@ -94,6 +94,7 @@ from kingsec.application import (
     RotateSecrets,
     ScannerExecutor,
     ScannerPort,
+    ScheduleOccurrenceRepositoryPort,
     ScheduleRepositoryPort,
     SchedulerServicePort,
     SearchAuditEvents,
@@ -104,6 +105,7 @@ from kingsec.application import (
     StartAssessment,
     StoreSecret,
     SubmitAssessment,
+    SubmitScheduledAssessment,
     TerminateOtherSessions,
     TokenService,
     TotpServicePort,
@@ -286,6 +288,11 @@ def _register_adapters(
 
     # Job service: persistence-backed JobServicePort.
     _register_job_service(container, session_factory)
+
+    # KSEC-98-01: durable, database-unique schedule-occurrence claiming -
+    # the second, independent exactly-once protection layer, below the
+    # Phase 93 schedule-instance claim.
+    _register_schedule_occurrence_repository(container, session_factory)
 
     # Scheduled scan engine infrastructure.
     register_scheduler(container, session_factory)
@@ -555,6 +562,21 @@ def _register_job_service(container: Container, session_factory: Any) -> None:
     container.register_factory(JobServicePort, _factory)
 
 
+def _register_schedule_occurrence_repository(container: Container, session_factory: Any) -> None:
+    """Register ``ScheduleOccurrenceRepositoryPort`` (KSEC-98-01).
+
+    Stateless and cheap to construct - registered as a single instance,
+    the same pattern ``register_scheduler`` uses for ``ScheduleRepositoryPort``.
+    """
+    from kingsec.infrastructure.persistence.repositories.schedule_occurrence import (
+        SqlAlchemyScheduleOccurrenceRepository,
+    )
+
+    container.register_instance(
+        ScheduleOccurrenceRepositoryPort, SqlAlchemyScheduleOccurrenceRepository(session_factory)
+    )
+
+
 def _register_use_cases(app: Application) -> None:
     """Register use cases as DI factories.
 
@@ -616,6 +638,15 @@ def _register_use_cases(app: Application) -> None:
             c.resolve(AssessmentExecutionEngine),
             c.resolve(ExecutionPlanner),
             _resolve_scanner_executor(c),
+        ),
+    )
+    container.register_factory(
+        SubmitScheduledAssessment,
+        lambda c: SubmitScheduledAssessment(
+            c.resolve(ScheduleOccurrenceRepositoryPort),
+            c.resolve(CreateAssessment),
+            c.resolve(SubmitAssessment),
+            c.resolve(AuditPublisher),
         ),
     )
     container.register_factory(

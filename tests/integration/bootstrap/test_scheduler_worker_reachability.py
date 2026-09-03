@@ -1,34 +1,36 @@
-"""KSEC-95: does a scheduled scan's job-submission path reach real
+"""KSEC-95/KSEC-98-01: does a scheduled scan's submission path reach real
 assessment execution in the shipped application?
 
 Phase 94's investigation reported that `WorkerServicePort` (implemented by
 `PollingWorkerService`) is never registered in `bootstrap/composition.py`
-and never constructed anywhere outside its own unit test. That claim was
-established by static repository search. This test corroborates it
-dynamically, against the REAL, fully wired application
+and never constructed anywhere outside its own unit test - that finding is
+untouched by Phase 98 (Section 19 explicitly does not wire or remove the
+legacy worker) and is re-verified below exactly as Phase 95 left it.
+
+What Phase 98 DID change: the scheduler no longer calls
+`JobServicePort.submit_scan()` at all - it now calls
+`SubmitScheduledAssessment`, which reaches the real, already-wired
+`CreateAssessment` -> `SubmitAssessment` -> `ThreadJobRunner` ->
+`ScannerPort` pipeline instead of the inert `scan_jobs` dead end. This is
+proven below dynamically, against the REAL, fully wired application
 (`create_wired_application()` - the same composition root production
 uses) - not a parallel fake app, no production wiring changed to make
 this test possible.
 
-Two things are proven here, using only real components:
+Three things are proven here, using only real components:
 
-1. A real scheduler poll cycle against a real due schedule DOES create a
-   real, persisted `scan_jobs` row (Stage A: "job row created" - see the
-   Phase 95 report's stage taxonomy) - `PersistentJobService` and
-   `SqlAlchemyScheduleRepository` are both real, resolved from the real
-   DI container, exactly as production wires them.
+1. A real scheduler poll cycle against a real due schedule creates ZERO
+   `scan_jobs` rows - the scheduler no longer touches that pipeline at
+   all (a direct, positive regression check against Phase 95's own
+   finding, now that the reachable path has changed).
 
-2. `WorkerServicePort` cannot be resolved from that same real container
-   at all - `Container.resolve()` raises `BootstrapError` for any
-   unregistered type - proving nothing in the real composition graph is
-   capable of ever picking up the row created in (1) (Stage B: "worker
-   picks up job" is unreachable, not merely "not yet started").
+2. That same poll cycle DOES create a real, persisted Assessment, correctly
+   linked to the schedule occurrence that produced it.
 
-No fake scanner or worker is introduced. No production wiring is
-modified to make this test pass - if `WorkerServicePort` were registered
-in a future phase, this test would need updating (and should fail loudly
-until it is), which is the intended, honest behavior of a reachability
-proof rather than a behavior mock.
+3. `WorkerServicePort` still cannot be resolved from that same real
+   container at all - `Container.resolve()` raises `BootstrapError` for
+   any unregistered type - unchanged from Phase 95, since Phase 98 did
+   not wire, modify, or remove the legacy worker subsystem.
 """
 
 from __future__ import annotations
@@ -40,8 +42,8 @@ from cryptography.fernet import Fernet
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
+from kingsec.application import AssessmentRepository
 from kingsec.application.errors import LicenseRequiredError
-from kingsec.application.ports.job_service import JobServicePort
 from kingsec.application.ports.outbound import WorkerServicePort
 from kingsec.application.ports.outbound.schedule_repository import ScheduleRepositoryPort
 from kingsec.application.ports.outbound.scheduler_service import SchedulerServicePort
@@ -85,8 +87,12 @@ class TestWorkerServicePortIsUnreachableFromRealComposition:
                 app.resolve(WorkerServicePort)
 
 
-class TestSchedulerJobSubmissionReachesRealPersistenceOnly:
-    def test_a_real_poll_cycle_creates_a_real_persisted_job_row_with_no_reachable_consumer(
+class TestSchedulerReachesRealAssessmentExecutionNotTheInertJobPipeline:
+    """KSEC-98-01: the positive counterpart to Phase 95's finding - the
+    scheduler's real poll cycle now reaches CreateAssessment/SubmitAssessment,
+    not JobServicePort.submit_scan()."""
+
+    def test_a_real_poll_cycle_creates_zero_scan_jobs_rows_and_one_real_linked_assessment(
         self, wired_app: Application
     ) -> None:
         with wired_app as app:
@@ -94,15 +100,15 @@ class TestSchedulerJobSubmissionReachesRealPersistenceOnly:
             from kingsec.application.ports.outbound.audit_publisher import AuditPublisher
 
             audit = app.resolve(AuditPublisher)
-            # license_gate=None: this test's subject is job-submission
+            # license_gate=None: this test's subject is scheduled-execution
             # reachability, not CreateSchedule's own licensing - the
             # identical, already-justified pattern used in
             # test_scheduler_lifecycle.py (Phase 92) for the same reason.
             try:
                 CreateSchedule(repository, audit, license_gate=None).execute(
                     CreateScheduleRequest(
-                        name="Phase 95 reachability probe",
-                        owner_user_id="phase-95-test",
+                        name="Phase 98 reachability probe",
+                        owner_user_id="phase-98-test",
                         target="10.0.0.55",
                         cron_expression="0 4 * * *",
                         schedule_type="cron",
@@ -114,24 +120,33 @@ class TestSchedulerJobSubmissionReachesRealPersistenceOnly:
             scheduler = app.resolve(SchedulerServicePort)
             scheduler._poll_due_schedules()  # the exact method the real background thread calls
 
-            # Stage A: a real, persisted job row exists - queried directly
-            # against the real database, not through JobServicePort's own
-            # (config-dropping) read path, to see exactly what production
-            # actually wrote.
-            job_service = app.resolve(JobServicePort)
-            assert job_service is not None  # confirms this port IS real and registered
-
+            # KSEC-98-01 regression check: the scheduler no longer touches
+            # scan_jobs at all - queried directly against the real
+            # database, not through any port's own read path.
             session_factory = sessionmaker(
                 bind=create_engine(f"sqlite:///{app.settings.storage.data_dir / 'kingsec.db'}", future=True),
                 future=True,
             )
             with session_factory() as session:
-                rows = session.execute(select(JobModel)).scalars().all()
-            assert len(rows) == 1, "the real poll cycle must have created exactly one persisted scan_jobs row"
-            assert rows[0].target == "10.0.0.55"
-            assert rows[0].status == "PENDING", "nothing ever transitions it further - no registered consumer exists"
+                job_rows = session.execute(select(JobModel)).scalars().all()
+            assert len(job_rows) == 0, (
+                "the real poll cycle must no longer create any scan_jobs row - "
+                "KSEC-98-01 replaced that dead-end path entirely"
+            )
 
-            # Stage B: nothing in the real composition graph can ever pick
-            # this row up - proven, not assumed.
+            # A real, persisted, correctly-linked Assessment exists instead.
+            assessments = app.resolve(AssessmentRepository)
+            all_assessments = assessments.list(limit=50, offset=0)
+            assert len(all_assessments) == 1, "the real poll cycle must have created exactly one real assessment"
+            assessment = all_assessments[0]
+            assert assessment.target.value == "10.0.0.55"
+            assert assessment.owner_id == "scheduler-service"
+            assert assessment.authorization is not None
+            assert assessment.authorization.authorized_by == "phase-98-test"
+            assert assessment.schedule_occurrence_id is not None
+
+            # WorkerServicePort/PollingWorkerService remain untouched by
+            # Phase 98 (Section 19) - still unreachable, exactly as Phase 95
+            # found.
             with pytest.raises(BootstrapError):
                 app.resolve(WorkerServicePort)

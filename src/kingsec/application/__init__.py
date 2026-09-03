@@ -118,6 +118,7 @@ from .ports import (
     ScannerPluginRegistry,
     ScannerPort,
     ScanRepositoryPort,
+    ScheduleOccurrenceRepositoryPort,
     ScheduleRepositoryPort,
     SchedulerServicePort,
     SecretProviderPort,
@@ -314,6 +315,7 @@ from .use_cases.session_dto import (
 )
 from .use_cases.start_assessment import StartAssessment
 from .use_cases.store_secret import StoreSecret
+from .use_cases.submit_scheduled_assessment import SubmitScheduledAssessment
 from .use_cases.terminate_other_sessions import TerminateOtherSessions
 from .use_cases.trigger_schedule_now import TriggerScheduleNow
 from .use_cases.update_schedule import UpdateSchedule
@@ -567,6 +569,7 @@ __all__ = [
     "ScannerTimeoutError",
     "ScannerUnavailableError",
     "ScannerVersionError",
+    "ScheduleOccurrenceRepositoryPort",
     "ScheduleRepositoryPort",
     "ScheduleView",
     "SchedulerServicePort",
@@ -592,6 +595,7 @@ __all__ = [
     "SubmitAssessment",
     "SubmitAssessmentRequest",
     "SubmitAssessmentResponse",
+    "SubmitScheduledAssessment",
     "TerminateOtherSessions",
     "TerminateOtherSessionsRequest",
     "TerminateOtherSessionsResponse",

@@ -129,7 +129,15 @@ def app(actor: ActorHolder) -> FastAPI:
     container.register_instance(JobServicePort, job_service)
     container.register_instance(AuditPublisher, audit)
 
-    scheduler = InProcessScheduler(repo, job_service, clock)
+    class _NoOpScheduledAssessmentOrchestrator:
+        """KSEC-98-01: this file exercises the schedule CRUD/trigger-now
+        routes, never SchedulerServicePort's own poll behavior - only
+        InProcessScheduler's constructor shape matters here."""
+
+        def execute(self, schedule: Any) -> None:
+            raise AssertionError("this test file never exercises _poll_due_schedules()")
+
+    scheduler = InProcessScheduler(repo, _NoOpScheduledAssessmentOrchestrator(), clock)
     container.register_instance(SchedulerServicePort, scheduler)
 
     container.register_factory(

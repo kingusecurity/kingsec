@@ -68,6 +68,7 @@ class Assessment:
         *,
         created_at: datetime | None = None,
         profile_id: str | None = None,
+        schedule_occurrence_id: str | None = None,
     ) -> None:
         if not isinstance(assessment_id, AssessmentId):
             raise InvariantViolation("assessment_id must be an AssessmentId")
@@ -89,6 +90,12 @@ class Assessment:
         # None means "no profile" - the execution layer runs every
         # target-compatible scanner, exactly as it always has.
         self._profile_id = profile_id
+        # KSEC-98-01: opaque link to the ScheduleOccurrence that produced
+        # this assessment, if any. None for every manually-created
+        # assessment. This class never interprets the value - it is just
+        # carried through to persistence, the same treatment profile_id
+        # already gets for its own, unrelated reference.
+        self._schedule_occurrence_id = schedule_occurrence_id
         # Populated once, at completion, from the execution engine's
         # per-scanner state - empty until then, and permanently empty for
         # assessments that predate this feature.
@@ -99,10 +106,21 @@ class Assessment:
     # --- factory -------------------------------------------------------------
     @classmethod
     def create(
-        cls, target: Target, *, created_at: datetime | None = None, profile_id: str | None = None
+        cls,
+        target: Target,
+        *,
+        created_at: datetime | None = None,
+        profile_id: str | None = None,
+        schedule_occurrence_id: str | None = None,
     ) -> Assessment:
         """Create a new DRAFT assessment with a freshly generated id."""
-        return cls(AssessmentId.generate(), target, created_at=created_at, profile_id=profile_id)
+        return cls(
+            AssessmentId.generate(),
+            target,
+            created_at=created_at,
+            profile_id=profile_id,
+            schedule_occurrence_id=schedule_occurrence_id,
+        )
 
     @classmethod
     def reconstitute(
@@ -117,6 +135,7 @@ class Assessment:
         findings: list[Finding] | None = None,
         profile_id: str | None = None,
         scanner_summary: tuple[ScannerRunSummary, ...] = (),
+        schedule_occurrence_id: str | None = None,
     ) -> Assessment:
         """Rebuild an Assessment from stored state (persistence boundary).
 
@@ -135,6 +154,7 @@ class Assessment:
         a._team_id = None
         a._owner_id = None
         a._profile_id = profile_id
+        a._schedule_occurrence_id = schedule_occurrence_id
         a._scanner_summary = scanner_summary
         a._findings = {f.id: f for f in (findings or [])}
         if len(a._findings) != len(findings or []):
@@ -190,6 +210,10 @@ class Assessment:
     @property
     def profile_id(self) -> str | None:
         return self._profile_id
+
+    @property
+    def schedule_occurrence_id(self) -> str | None:
+        return self._schedule_occurrence_id
 
     @property
     def scanner_summary(self) -> tuple[ScannerRunSummary, ...]:

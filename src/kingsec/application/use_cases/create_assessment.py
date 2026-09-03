@@ -39,7 +39,9 @@ class CreateAssessment:
         # InputValidationError on bad input).
         target = build_target(request.target_value, request.target_type)
 
-        assessment = Assessment.create(target, profile_id=request.profile_id)
+        assessment = Assessment.create(
+            target, profile_id=request.profile_id, schedule_occurrence_id=request.schedule_occurrence_id
+        )
         if request.owner_id:
             assessment.set_ownership(request.owner_id)
         authorization = Authorization.grant(request.authorized_by, request.scope)

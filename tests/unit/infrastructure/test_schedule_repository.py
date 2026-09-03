@@ -33,7 +33,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from kingsec.application.errors import ScheduleConflictError
-from kingsec.application.jobs import InMemoryJobService, ScanJob
 from kingsec.application.ports.outbound.audit_publisher import AuditPublisher
 from kingsec.application.ports.outbound.clock_port import ClockPort
 from kingsec.application.use_cases.create_schedule import CreateSchedule
@@ -428,16 +427,21 @@ class TestSchedulerTickRace:
     no timing assumptions.
     """
 
-    class _TriggeringJobService(InMemoryJobService):
+    class _TriggeringOrchestrator:
+        """KSEC-98-01: stands in for SubmitScheduledAssessment - this test's
+        subject is the SCHEDULE-level race (find_due -> with_run_completed
+        -> save()), not the scheduled-assessment orchestration itself, so a
+        minimal fake with the same execute(schedule) shape is sufficient.
+        """
+
         def __init__(self, repo: SqlAlchemyScheduleRepository, schedule_id: str) -> None:
-            super().__init__()
             self._repo = repo
             self._schedule_id = schedule_id
             self.submitted = False
 
-        def submit_scan(self, target: str, config: dict | None = None) -> ScanJob:
+        def execute(self, schedule: object) -> None:
             # The competing external mutation fires exactly once (on the
-            # first submit_scan() call in the batch, regardless of which
+            # first execute() call in the batch, regardless of which
             # schedule triggered it) - another actor pauses the target
             # schedule while the scheduler is mid-tick, from the SAME
             # version the scheduler already read via find_due(). Guarded
@@ -448,7 +452,6 @@ class TestSchedulerTickRace:
                 existing = self._repo.find_by_id(self._schedule_id)
                 self._repo.save(dataclasses.replace(existing, paused=True, status=ScheduleStatus.PAUSED))
                 self.submitted = True
-            return super().submit_scan(target, config)
 
     class _FakeClock(ClockPort):
         def now(self) -> float:
@@ -460,15 +463,15 @@ class TestSchedulerTickRace:
         repo = SqlAlchemyScheduleRepository(session_factory)
         schedule_id = _make_schedule(repo)  # enabled=True, paused=False, next_run=None -> immediately due
 
-        job_service = self._TriggeringJobService(repo, schedule_id)
-        scheduler = InProcessScheduler(repo, job_service, self._FakeClock())
+        orchestrator = self._TriggeringOrchestrator(repo, schedule_id)
+        scheduler = InProcessScheduler(repo, orchestrator, self._FakeClock())
 
         recorder = _RecordingLogger()
         monkeypatch.setattr(in_process_scheduler_module, "_logger", recorder)
 
         scheduler._poll_due_schedules()
 
-        assert job_service.submitted is True, "the scheduler must still submit the scan job before its own save() races"
+        assert orchestrator.submitted is True, "the scheduler must still invoke the orchestrator before its own save() races"
 
         final = repo.find_by_id(schedule_id)
         # KSEC-93-05: the scheduler now claims the schedule (an atomic
@@ -510,8 +513,8 @@ class TestSchedulerTickRace:
             )
         ).schedule.id
 
-        job_service = self._TriggeringJobService(repo, conflicting_id)
-        scheduler = InProcessScheduler(repo, job_service, self._FakeClock())
+        orchestrator = self._TriggeringOrchestrator(repo, conflicting_id)
+        scheduler = InProcessScheduler(repo, orchestrator, self._FakeClock())
         monkeypatch.setattr(in_process_scheduler_module, "_logger", _RecordingLogger())
 
         scheduler._poll_due_schedules()

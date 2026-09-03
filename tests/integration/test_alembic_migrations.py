@@ -175,6 +175,7 @@ EXPECTED_TABLES = frozenset(
         "scan_jobs",
         "scan_reports",
         "scan_results",
+        "schedule_occurrences",
         "schedules",
         "sessions",
         "sso_sessions",
@@ -617,7 +618,7 @@ class TestMigrationAtomicity:
         with engine.begin() as conn:
             stamp = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
         engine.dispose()
-        assert stamp == "d72bbb65a1aa"
+        assert stamp == "6984c15bfb36"
 
 
 class TestMigrationMetadata:

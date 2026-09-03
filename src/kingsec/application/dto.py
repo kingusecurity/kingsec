@@ -254,6 +254,11 @@ class CreateAssessmentRequest:
     # profile" - execution runs every target-compatible scanner, exactly
     # as it always has.
     profile_id: str | None = None
+    # KSEC-98-01: opaque link to the ScheduleOccurrence that produced this
+    # request, if any. None for every manual (HTTP) creation. CreateAssessment
+    # never interprets this value - it is only carried through to the
+    # persisted Assessment, the same treatment profile_id already gets.
+    schedule_occurrence_id: str | None = None
 
 
 @dataclass(frozen=True)

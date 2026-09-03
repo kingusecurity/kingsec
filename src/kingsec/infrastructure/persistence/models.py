@@ -50,6 +50,15 @@ class AssessmentORM(Base):
     team_id: Mapped[str | None] = mapped_column(String, ForeignKey("teams.id"), nullable=True)
     owner_id: Mapped[str | None] = mapped_column(String, nullable=True)
 
+    # KSEC-98-01: set only for assessments produced by scheduled execution -
+    # NULL for every manually-created assessment. Traces
+    # assessment -> occurrence -> schedule via one join, rather than
+    # duplicating schedule_id/owner_user_id onto this row (see
+    # ScheduleOccurrenceORM and application/use_cases/submit_scheduled_assessment.py).
+    schedule_occurrence_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("schedule_occurrences.id"), nullable=True
+    )
+
     # Which AssessmentProfile this scan was planned against. NULL means "no
     # profile" - the execution layer runs every target-compatible scanner,
     # exactly as it did before this feature existed.
@@ -596,6 +605,37 @@ class ScheduleORM(Base):
     # row stays invisible everywhere except save()'s own existence check -
     # behaviorally identical to a hard delete for every other caller.
     deleted_at: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+
+
+class ScheduleOccurrenceORM(Base):
+    """Row representation of one durable, database-unique scheduled firing.
+
+    KSEC-98-01: ``schedule_id`` + ``occurrence_key`` is the exactly-once
+    identity - see ``application/schedule_occurrence.py`` for the state
+    machine this table enforces. The unique index is the actual security
+    property: an application-level "check then insert" could race, this
+    cannot.
+    """
+
+    __tablename__ = "schedule_occurrences"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    schedule_id: Mapped[str] = mapped_column(String, ForeignKey("schedules.id"), nullable=False)
+    occurrence_key: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    assessment_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    claimed_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+    __table_args__ = (
+        Index(
+            "ix_schedule_occurrences_schedule_occurrence_unique",
+            "schedule_id",
+            "occurrence_key",
+            unique=True,
+        ),
+    )
 
 
 class OrganizationORM(Base):
