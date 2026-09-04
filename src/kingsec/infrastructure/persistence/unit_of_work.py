@@ -78,6 +78,12 @@ class _SessionBoundAssessmentRepository(AssessmentRepository):
         except SQLAlchemyError as exc:
             ops.raise_persistence_error("failed to list assessments", exc, "-")
 
+    def find_by_schedule_occurrence_id(self, occurrence_id: str) -> builtins.list[Assessment]:
+        try:
+            return ops.find_assessments_by_schedule_occurrence_id(self._session, occurrence_id)
+        except SQLAlchemyError as exc:
+            ops.raise_persistence_error("failed to find assessments by schedule occurrence", exc, occurrence_id)
+
     def delete(self, assessment_id: AssessmentId) -> None:
         try:
             ops.delete_assessment(self._session, assessment_id)

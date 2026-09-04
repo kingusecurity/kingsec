@@ -64,6 +64,16 @@ class SQLAlchemyAssessmentRepository(AssessmentRepository):
         orms = self._session.execute(stmt).scalars().all()
         return [assessment_to_domain(o) for o in orms]
 
+    def find_by_schedule_occurrence_id(self, occurrence_id: str) -> builtins.list[Assessment]:
+        """Return every assessment linked to a schedule occurrence (KSEC-100-01)."""
+        stmt = (
+            select(AssessmentORM)
+            .where(AssessmentORM.schedule_occurrence_id == occurrence_id)
+            .order_by(AssessmentORM.created_at.asc())
+        )
+        orms = self._session.execute(stmt).scalars().all()
+        return [assessment_to_domain(o) for o in orms]
+
     def search_findings(
         self,
         *,

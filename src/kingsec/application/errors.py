@@ -270,6 +270,21 @@ class ScheduleConflictError(ApplicationError):
     retry with the current state; this is never retried automatically."""
 
 
+class ScheduledOccurrenceUnresolvedError(ApplicationError):
+    """A scheduled occurrence is stuck in CREATING or SUBMITTING and
+    cannot be safely, automatically resolved (KSEC-100-01).
+
+    Raised instead of silently treating the occurrence as handled -
+    InProcessScheduler's existing ``except Exception`` boundary already
+    skips schedule finalization for any raised exception, so raising this
+    (rather than returning a normal result) is what prevents next_run from
+    advancing as though the scan succeeded. Never retried automatically:
+    a later poll cycle will observe the same durable state and raise this
+    again, which is the intended, honest behavior until an operator (or a
+    future recovery mechanism with real evidence to act on) intervenes.
+    """
+
+
 class OrganizationConflictError(ApplicationError):
     """An organization was modified by another request between when this
     caller read it and when it tried to save its own change (KSEC-86-01

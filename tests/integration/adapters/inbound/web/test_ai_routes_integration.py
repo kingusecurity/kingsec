@@ -59,6 +59,9 @@ class _EmptyAssessmentRepository(AssessmentRepository):
     def list(self, *, limit: int = 50, offset: int = 0) -> list[Assessment]:
         return []
 
+    def find_by_schedule_occurrence_id(self, occurrence_id: str) -> list[Assessment]:
+        return []
+
     def delete(self, assessment_id: AssessmentId) -> None:
         pass
 

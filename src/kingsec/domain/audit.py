@@ -70,6 +70,13 @@ class AuditAction(StrEnum):
     SCHEDULE_RESUMED = "schedule_resumed"
     SCHEDULE_ENABLED = "schedule_enabled"
     SCHEDULE_DISABLED = "schedule_disabled"
+    # KSEC-100-01: a scheduled occurrence in CREATING/SUBMITTING could not
+    # be safely, automatically resolved (no linked assessment, an ambiguous
+    # number of linked assessments, an unexpected assessment status, or a
+    # SUBMITTING state that cannot be recovered without an execution
+    # ledger). Distinct from SCHEDULE_TRIGGERED so an operator/audit query
+    # can tell "this ran" apart from "this could not be confirmed to run".
+    SCHEDULE_OCCURRENCE_UNRESOLVED = "schedule_occurrence_unresolved"
 
     # Notifications
     NOTIFICATION_SENT = "notification_sent"

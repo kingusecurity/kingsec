@@ -61,6 +61,9 @@ class InMemoryAssessmentRepository(AssessmentRepository):
         ordered = sorted(self._store.values(), key=lambda a: a.created_at, reverse=True)
         return ordered[offset : offset + limit]
 
+    def find_by_schedule_occurrence_id(self, occurrence_id: str) -> list[Assessment]:
+        return [a for a in self._store.values() if a.schedule_occurrence_id == occurrence_id]
+
     def delete(self, assessment_id: AssessmentId) -> None:
         if assessment_id.value not in self._store:
             raise AssessmentNotFoundError(assessment_id.value)

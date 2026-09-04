@@ -646,6 +646,7 @@ def _register_use_cases(app: Application) -> None:
             c.resolve(ScheduleOccurrenceRepositoryPort),
             c.resolve(CreateAssessment),
             c.resolve(SubmitAssessment),
+            c.resolve(AssessmentRepository),
             c.resolve(AuditPublisher),
         ),
     )

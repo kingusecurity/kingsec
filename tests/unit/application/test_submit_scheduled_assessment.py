@@ -63,6 +63,9 @@ class FakeAssessmentRepository:
         ordered = sorted(self._assessments.values(), key=lambda a: a.created_at, reverse=True)
         return ordered[offset : offset + limit]
 
+    def find_by_schedule_occurrence_id(self, occurrence_id: str) -> list[Assessment]:
+        return [a for a in self._assessments.values() if a.schedule_occurrence_id == occurrence_id]
+
 
 class FakeScanner:
     def scan(self, target: Any, scanner_ids: Any = None) -> list:
@@ -159,7 +162,7 @@ def _build_orchestrator(session_factory) -> tuple[SubmitScheduledAssessment, Fak
     assessments = FakeAssessmentRepository()
     create_assessment = CreateAssessment(assessments)
     submit_assessment = SubmitAssessment(assessments, FakeScanner(), RecordingJobRunner())
-    orchestrator = SubmitScheduledAssessment(occurrences, create_assessment, submit_assessment)
+    orchestrator = SubmitScheduledAssessment(occurrences, create_assessment, submit_assessment, assessments)
     return orchestrator, assessments
 
 
@@ -273,7 +276,7 @@ class TestFailureSemantics:
         assessments = FakeAssessmentRepository()
         flaky_create = _RaisesOnceCreateAssessment(CreateAssessment(assessments))
         submit_assessment = SubmitAssessment(assessments, FakeScanner(), RecordingJobRunner())
-        orchestrator = SubmitScheduledAssessment(occurrences, flaky_create, submit_assessment)
+        orchestrator = SubmitScheduledAssessment(occurrences, flaky_create, submit_assessment, assessments)
 
         flaky_create.failures_remaining = 1
         with pytest.raises(RuntimeError, match="Case A"):
@@ -294,7 +297,7 @@ class TestFailureSemantics:
         assessments = FakeAssessmentRepository()
         create_assessment = CreateAssessment(assessments)
         flaky_submit = _RaisesOnceSubmitAssessment(SubmitAssessment(assessments, FakeScanner(), RecordingJobRunner()))
-        orchestrator = SubmitScheduledAssessment(occurrences, create_assessment, flaky_submit)
+        orchestrator = SubmitScheduledAssessment(occurrences, create_assessment, flaky_submit, assessments)
 
         flaky_submit.failures_remaining = 1
         with pytest.raises(RuntimeError, match="Case B"):

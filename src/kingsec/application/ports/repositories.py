@@ -74,6 +74,20 @@ class AssessmentRepository(ABC):
         """Return assessments ordered by created_at DESC with pagination."""
 
     @abstractmethod
+    def find_by_schedule_occurrence_id(self, occurrence_id: str) -> builtins.list[Assessment]:
+        """Return every assessment linked to the given schedule occurrence.
+
+        KSEC-100-01: the durable relationship
+        (``Assessment.schedule_occurrence_id``) that lets a scheduled-
+        assessment recovery mechanism distinguish "CreateAssessment already
+        committed for this occurrence" from "it never happened" - without
+        this, a crashed CREATING occurrence cannot be safely resumed
+        without risking a duplicate real assessment. Normally returns 0 or
+        1 rows; more than 1 indicates a corrupted/ambiguous state a caller
+        must not silently resolve by picking one.
+        """
+
+    @abstractmethod
     def delete(self, assessment_id: AssessmentId) -> None:
         """Delete an assessment and all its children.
 

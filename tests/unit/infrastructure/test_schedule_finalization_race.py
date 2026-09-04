@@ -99,6 +99,9 @@ class FakeAssessmentRepository:
         ordered = sorted(self._assessments.values(), key=lambda a: a.created_at, reverse=True)
         return ordered[offset : offset + limit]
 
+    def find_by_schedule_occurrence_id(self, occurrence_id: str) -> list[Assessment]:
+        return [a for a in self._assessments.values() if a.schedule_occurrence_id == occurrence_id]
+
 
 class FakeScanner:
     def scan(self, target: Any, scanner_ids: Any = None) -> list:
@@ -181,7 +184,7 @@ def _make_scheduler(
     assessments = FakeAssessmentRepository()
     create_assessment = CreateAssessment(assessments)
     submit_assessment = SubmitAssessment(assessments, FakeScanner(), RecordingJobRunner())
-    orchestrator = SubmitScheduledAssessment(occurrences, create_assessment, submit_assessment)
+    orchestrator = SubmitScheduledAssessment(occurrences, create_assessment, submit_assessment, assessments)
     scheduler = InProcessScheduler(schedule_repo, orchestrator, _FakeClock())
     return scheduler, assessments
 

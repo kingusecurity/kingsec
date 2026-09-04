@@ -149,6 +149,27 @@ def list_assessments(
     return [assessment_to_domain(orm) for orm in orms]
 
 
+def find_assessments_by_schedule_occurrence_id(session: Session, occurrence_id: str) -> list[Assessment]:
+    """Load every assessment linked to a schedule occurrence (KSEC-100-01).
+
+    Args:
+        session: The active session.
+        occurrence_id: The ScheduleOccurrence id to search by.
+
+    Returns:
+        Every matching assessment (normally 0 or 1) - callers must not
+        assume at most one; a caller-side check across >1 rows is what
+        surfaces a corrupted/ambiguous state instead of silently guessing.
+    """
+    orms = (
+        session.query(AssessmentORM)
+        .filter(AssessmentORM.schedule_occurrence_id == occurrence_id)
+        .order_by(AssessmentORM.created_at.asc())
+        .all()
+    )
+    return [assessment_to_domain(orm) for orm in orms]
+
+
 def delete_assessment(session: Session, assessment_id: AssessmentId) -> None:
     """Delete an assessment and all its children (cascade).
 

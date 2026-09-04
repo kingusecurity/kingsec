@@ -41,7 +41,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from kingsec.application.errors import AssessmentNotFoundError
+from kingsec.application.errors import AssessmentNotFoundError, ScheduledOccurrenceUnresolvedError
 from kingsec.application.ports.outbound.audit_publisher import AuditPublisher
 from kingsec.application.ports.outbound.clock_port import ClockPort
 from kingsec.application.submit_assessment import SubmitAssessment
@@ -97,6 +97,10 @@ class LockedFakeAssessmentRepository:
         with self._lock:
             ordered = sorted(self._assessments.values(), key=lambda a: a.created_at, reverse=True)
             return ordered[offset : offset + limit]
+
+    def find_by_schedule_occurrence_id(self, occurrence_id: str) -> list[Assessment]:
+        with self._lock:
+            return [a for a in self._assessments.values() if a.schedule_occurrence_id == occurrence_id]
 
 
 class FakeScanner:
@@ -154,10 +158,26 @@ def _make_schedule(session_factory) -> ScanSchedule:
 class TestConcurrentOrchestratorInvocationsForTheSameOccurrence:
     """Isolates the occurrence layer: N threads all call
     SubmitScheduledAssessment.execute() for the IDENTICAL schedule/occurrence
-    at the same instant."""
+    at the same instant - a scenario Phase 93's schedule-level claim
+    prevents in real production (only one InProcessScheduler instance ever
+    calls execute() for a given due schedule), deliberately manufactured
+    here anyway to stress-test the occurrence layer's own protection in
+    isolation.
+
+    KSEC-100-01: once some threads race far enough ahead of others (thread
+    scheduling after the shared Barrier release is not lockstep), a
+    slower thread's OWN FIRST read of the occurrence can legitimately
+    observe CREATING/SUBMITTING left by a FASTER thread that is still
+    genuinely, live, in progress - not a crashed/stale state. Per Phase
+    99/100 Step 6, this is indistinguishable from a genuinely abandoned
+    occurrence without a liveness mechanism (deliberately not built this
+    phase), so ScheduledOccurrenceUnresolvedError is the CORRECT, safe
+    outcome for such a thread - not a bug. The security property this
+    test actually proves is narrower and still holds: no thread ever
+    silently guesses, and at most one real assessment is ever created."""
 
     @pytest.mark.parametrize("run", range(5))
-    def test_n_concurrent_executions_produce_exactly_one_real_assessment(
+    def test_n_concurrent_executions_produce_at_most_one_real_assessment_never_a_silent_guess(
         self, run: int, session_factory
     ) -> None:
         schedule = _make_schedule(session_factory)
@@ -167,7 +187,7 @@ class TestConcurrentOrchestratorInvocationsForTheSameOccurrence:
             occurrences = SqlAlchemyScheduleOccurrenceRepository(session_factory)
             create_assessment = CreateAssessment(assessments)
             submit_assessment = SubmitAssessment(assessments, FakeScanner(), RecordingJobRunner())
-            return SubmitScheduledAssessment(occurrences, create_assessment, submit_assessment)
+            return SubmitScheduledAssessment(occurrences, create_assessment, submit_assessment, assessments)
 
         attempt_count = 6
         barrier = threading.Barrier(attempt_count)
@@ -189,10 +209,15 @@ class TestConcurrentOrchestratorInvocationsForTheSameOccurrence:
         for t in threads:
             t.join(timeout=15)
 
-        assert errors == [], f"run {run}: no concurrent attempt should raise - got {errors}"
+        unexpected = [e for e in errors if not isinstance(e, ScheduledOccurrenceUnresolvedError)]
+        assert unexpected == [], (
+            f"run {run}: only ScheduledOccurrenceUnresolvedError is an acceptable exception here "
+            f"(a thread honestly refusing to guess at a state another thread may still be live in) - "
+            f"got unexpected: {unexpected}"
+        )
         assert len(assessments.list()) == 1, (
             f"run {run}: {len(assessments.list())} real assessments exist after {attempt_count} "
-            "concurrent attempts for the identical occurrence - expected exactly 1"
+            "concurrent attempts for the identical occurrence - expected exactly 1, never more"
         )
 
 
@@ -222,7 +247,7 @@ class TestConcurrentSchedulerInstancesCombinedInvariant:
             occurrences = SqlAlchemyScheduleOccurrenceRepository(session_factory)
             create_assessment = CreateAssessment(assessments)
             submit_assessment = SubmitAssessment(assessments, FakeScanner(), RecordingJobRunner())
-            orchestrator = SubmitScheduledAssessment(occurrences, create_assessment, submit_assessment)
+            orchestrator = SubmitScheduledAssessment(occurrences, create_assessment, submit_assessment, assessments)
             return InProcessScheduler(schedule_repo, orchestrator, _FakeClock())
 
         scheduler_a = _new_scheduler()

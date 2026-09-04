@@ -101,6 +101,14 @@ class LegacyAssessmentRepository(AssessmentRepository):
         except SQLAlchemyError as exc:
             ops.raise_persistence_error("failed to list assessments", exc, "-")
 
+    def find_by_schedule_occurrence_id(self, occurrence_id: str) -> builtins.list[Assessment]:
+        """Return every assessment linked to a schedule occurrence (KSEC-100-01)."""
+        try:
+            with self._session_factory() as session:
+                return ops.find_assessments_by_schedule_occurrence_id(session, occurrence_id)
+        except SQLAlchemyError as exc:
+            ops.raise_persistence_error("failed to find assessments by schedule occurrence", exc, occurrence_id)
+
     def delete(self, assessment_id: AssessmentId) -> None:
         """Delete an assessment and all its children (cascade).
 
