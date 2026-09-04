@@ -638,6 +638,51 @@ class ScheduleOccurrenceORM(Base):
     )
 
 
+class AssessmentExecutionORM(Base):
+    """Row representation of one durable assessment-execution attempt
+    (KSEC-102-01).
+
+    ``assessment_id`` is the execution identity - the current Assessment
+    domain model has no transition out of a terminal status, so one
+    assessment can never legitimately have more than one execution record
+    (Phase 101 Section 4). The unique index, not application code, is the
+    actual concurrency arbiter - the same convention already established
+    by ``ScheduleOccurrenceORM``.
+
+    Deliberately NOT a foreign key to ``assessments.id`` - ``_operations.
+    persist_assessment()`` does a DELETE-then-INSERT of the assessments row
+    on every single save() (full aggregate replace, needed because Evidence/
+    Recommendation child value objects have no stable identity to merge
+    by), so any FK pointing AT ``assessments.id`` would fail with a
+    real, reproducible ``FOREIGN KEY constraint failed`` the very first time
+    an assessment with a linked execution record is saved again (proven
+    empirically during Phase 102 development - the second save(), RUNNING
+    -> COMPLETED, failed this way with PRAGMA foreign_keys=ON). This is
+    exactly why ``ScheduleOccurrenceORM.assessment_id`` (KSEC-98-01) and
+    ``MonitorEventORM``/``ExposureHistoryORM.assessment_id`` are ALSO plain,
+    unconstrained columns rather than foreign keys - not an oversight, but
+    the established, repo-wide convention for referencing an assessment
+    from another table.
+    """
+
+    __tablename__ = "assessment_executions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    assessment_id: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+    __table_args__ = (
+        Index(
+            "ix_assessment_executions_assessment_id_unique",
+            "assessment_id",
+            unique=True,
+        ),
+    )
+
+
 class OrganizationORM(Base):
     __tablename__ = "organizations"
 

@@ -136,6 +136,7 @@ EXPECTED_TABLES = frozenset(
         "ai_provider_config",
         "api_keys",
         "assessment_concurrency_slots",
+        "assessment_executions",
         "assessments",
         "asset_history",
         "asset_relationships",
@@ -618,7 +619,11 @@ class TestMigrationAtomicity:
         with engine.begin() as conn:
             stamp = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
         engine.dispose()
-        assert stamp == "6984c15bfb36"
+        # KSEC-102-01: head moved forward from 6984c15bfb36 to 22fe86d6702f
+        # (add_assessment_executions) - this must track the real head, not
+        # remain pinned to whatever revision was head when this test was
+        # first written.
+        assert stamp == "22fe86d6702f"
 
 
 class TestMigrationMetadata:

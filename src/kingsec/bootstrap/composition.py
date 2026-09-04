@@ -25,6 +25,7 @@ from kingsec.application import (
     AIPort,
     ApiKeyHasher,
     ApiKeyRepository,
+    AssessmentExecutionRepositoryPort,
     AssessmentRepository,
     AssignRole,
     AuditEventRepository,
@@ -294,6 +295,12 @@ def _register_adapters(
     # Phase 93 schedule-instance claim.
     _register_schedule_occurrence_repository(container, session_factory)
 
+    # KSEC-102-01: durable assessment-execution ledger - database-backed
+    # visibility into whether a submitted scan was requested, claimed,
+    # started, or reached a terminal outcome, independent of
+    # ThreadJobRunner/process memory.
+    _register_assessment_execution_repository(container, session_factory)
+
     # Scheduled scan engine infrastructure.
     register_scheduler(container, session_factory)
 
@@ -562,6 +569,21 @@ def _register_job_service(container: Container, session_factory: Any) -> None:
     container.register_factory(JobServicePort, _factory)
 
 
+def _register_assessment_execution_repository(container: Container, session_factory: Any) -> None:
+    """Register ``AssessmentExecutionRepositoryPort`` (KSEC-102-01).
+
+    Stateless and cheap to construct - same single-instance pattern as
+    ``_register_schedule_occurrence_repository``.
+    """
+    from kingsec.infrastructure.persistence.repositories.assessment_execution import (
+        SqlAlchemyAssessmentExecutionRepository,
+    )
+
+    container.register_instance(
+        AssessmentExecutionRepositoryPort, SqlAlchemyAssessmentExecutionRepository(session_factory)
+    )
+
+
 def _register_schedule_occurrence_repository(container: Container, session_factory: Any) -> None:
     """Register ``ScheduleOccurrenceRepositoryPort`` (KSEC-98-01).
 
@@ -638,6 +660,7 @@ def _register_use_cases(app: Application) -> None:
             c.resolve(AssessmentExecutionEngine),
             c.resolve(ExecutionPlanner),
             _resolve_scanner_executor(c),
+            c.resolve(AssessmentExecutionRepositoryPort),
         ),
     )
     container.register_factory(

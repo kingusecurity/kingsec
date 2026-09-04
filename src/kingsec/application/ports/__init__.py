@@ -8,6 +8,7 @@ from .job_service import JobServicePort
 from .notification_service import NotificationServicePort
 from .outbound.api_key_hasher import ApiKeyHasher
 from .outbound.api_key_repository import ApiKeyRepository
+from .outbound.assessment_execution_repository import AssessmentExecutionRepositoryPort
 from .outbound.audit_event_repository import AuditEventRepository
 from .outbound.audit_publisher import AuditPublisher
 from .outbound.cache_metrics import CacheMetricsPort, CacheStats
@@ -65,6 +66,7 @@ __all__ = [
     "AnalyticsServicePort",
     "ApiKeyHasher",
     "ApiKeyRepository",
+    "AssessmentExecutionRepositoryPort",
     "AssessmentRepository",
     "Asset",
     "AssetRepositoryPort",

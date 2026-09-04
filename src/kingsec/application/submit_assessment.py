@@ -48,6 +48,7 @@ from .ports import (
     ScannerExecutor,
     ScannerPort,
 )
+from .ports.outbound.assessment_execution_repository import AssessmentExecutionRepositoryPort
 
 
 class SubmitAssessment:
@@ -64,6 +65,7 @@ class SubmitAssessment:
         execution_engine: AssessmentExecutionEngine | None = None,
         planner: ExecutionPlanner | None = None,
         scanner_executor: ScannerExecutor | None = None,
+        execution_ledger: AssessmentExecutionRepositoryPort | None = None,
     ) -> None:
         self._assessments = assessments
         self._scanner = scanner
@@ -74,6 +76,13 @@ class SubmitAssessment:
         self._execution_engine = execution_engine
         self._planner = planner
         self._scanner_executor = scanner_executor
+        # KSEC-102-01: the durable execution ledger, independent of
+        # ThreadJobRunner memory / process lifetime - see
+        # assessment_execution_ledger.py. Optional so every existing test
+        # double that constructs SubmitAssessment directly (without a real
+        # database-backed ledger) keeps behaving exactly as before; only the
+        # composition-root-wired production instance gets ledger tracking.
+        self._execution_ledger = execution_ledger
 
     def execute(self, request: SubmitAssessmentRequest) -> SubmitAssessmentResponse:
         assessment_id = to_assessment_id(request.assessment_id)
@@ -84,6 +93,18 @@ class SubmitAssessment:
         # Raises IllegalStateTransition if not authorized.
         assessment.start()
         self._assessments.save(assessment)
+
+        # KSEC-102-01: create the durable REQUESTED execution record
+        # synchronously, in this request thread, right after the assessment
+        # itself is durably RUNNING and before the background job is even
+        # submitted to ThreadJobRunner - "every assessment that enters the
+        # real execution path has a durable execution record before
+        # execution is attempted" (Phase 101/102 Step 14). Unlike the
+        # best-effort event/audit publishing below, a failure here
+        # propagates: this ledger is a correctness mechanism, not a side
+        # channel, so it must never be silently swallowed.
+        if self._execution_ledger is not None:
+            self._execution_ledger.create_requested(str(assessment.id))
 
         self._publish_event(
             AssessmentEvent(
@@ -132,6 +153,7 @@ class SubmitAssessment:
             execution_engine=self._execution_engine,
             planner=self._planner,
             scanner_executor=self._scanner_executor,
+            execution_ledger=self._execution_ledger,
         )
         self._job_runner.submit(job_id, background_fn)
 
@@ -170,6 +192,7 @@ class SubmitAssessment:
         execution_engine: AssessmentExecutionEngine | None,
         planner: ExecutionPlanner | None,
         scanner_executor: ScannerExecutor | None,
+        execution_ledger: AssessmentExecutionRepositoryPort | None = None,
     ) -> Callable[[], None]:
         """Build a closure that runs the scan in the background."""
 
@@ -183,6 +206,7 @@ class SubmitAssessment:
                 execution_engine=execution_engine,
                 planner=planner,
                 scanner_executor=scanner_executor,
+                execution_ledger=execution_ledger,
             )
 
         return _run_scan
@@ -198,6 +222,7 @@ def _execute_scan(
     execution_engine: AssessmentExecutionEngine | None = None,
     planner: ExecutionPlanner | None = None,
     scanner_executor: ScannerExecutor | None = None,
+    execution_ledger: AssessmentExecutionRepositoryPort | None = None,
 ) -> None:
     """Run the scan and complete the assessment. Called from a background thread.
 
@@ -206,6 +231,39 @@ def _execute_scan(
     """
     assessment = assessments.get(assessment_id)
     tracking_id = str(assessment_id)
+
+    # KSEC-102-01: atomically claim the durable execution record and commit
+    # RUNNING BEFORE the scanner is ever invoked (Step 16) - not after,
+    # which would recreate the exact "did it start?" ambiguity Phase 101
+    # identified. A losing claimant (only reachable today via a direct,
+    # repository-level concurrency test - ThreadJobRunner's own
+    # already-running guard and Assessment's own single-entry RUNNING
+    # transition mean a real second concurrent caller cannot currently
+    # arise through the production call graph) must stop here and never
+    # reach the scanner.
+    execution_id: str | None = None
+    running_version: int | None = None
+    if execution_ledger is not None:
+        execution = execution_ledger.get_by_assessment_id(tracking_id)
+        if execution is None:
+            logging.getLogger(__name__).error(
+                "no durable execution record found for assessment %s - proceeding without ledger tracking",
+                tracking_id,
+            )
+        else:
+            execution_id = execution.id
+            claimed_version = execution_ledger.try_claim(execution.id, execution.version)
+            if claimed_version is None:
+                logging.getLogger(__name__).warning(
+                    "lost the execution claim race for assessment %s - not invoking the scanner", tracking_id
+                )
+                return
+            running_version = execution_ledger.try_mark_running(execution.id, claimed_version)
+            if running_version is None:
+                logging.getLogger(__name__).warning(
+                    "lost the RUNNING transition race for assessment %s - not invoking the scanner", tracking_id
+                )
+                return
 
     try:
         # Which scanners are allowed to run, and what the profile's plan
@@ -314,6 +372,20 @@ def _execute_scan(
             assessment.complete()
         assessments.save(assessment)
 
+        # KSEC-102-01: the ledger's terminal transition happens strictly
+        # AFTER assessments.save() above has durably committed the
+        # Assessment's own terminal status - that save() is the actual
+        # durable fact proving completion/failure, not merely "the scanner
+        # function returned" (Step 17/18). A lost transition here (None/
+        # False) means a concurrent process already reconciled or
+        # transitioned this record - never re-raised, since the Assessment
+        # itself is already correctly terminal regardless.
+        if execution_ledger is not None and execution_id is not None and running_version is not None:
+            if failed_scanners:
+                execution_ledger.try_mark_failed(execution_id, running_version)
+            else:
+                execution_ledger.try_mark_succeeded(execution_id, running_version)
+
         if execution_engine is not None:
             execution_engine.transition_phase(tracking_id, ExecutionPhase.COMPLETED)
 
@@ -335,6 +407,16 @@ def _execute_scan(
         try:
             assessment.fail(safe_failure_message(exc))
             assessments.save(assessment)
+
+            # KSEC-102-01: same evidence-after-the-fact ordering as the
+            # success path - only after the Assessment itself is durably
+            # FAILED. If running_version is still None, the exception was
+            # raised before RUNNING was ever committed (e.g. the claim
+            # itself failed) - there is no valid version to transition
+            # from, so the ledger is left at its current state rather than
+            # guessed at.
+            if execution_ledger is not None and execution_id is not None and running_version is not None:
+                execution_ledger.try_mark_failed(execution_id, running_version)
 
             _publish_event(
                 events,
