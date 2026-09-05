@@ -64,3 +64,28 @@ class GetAssessmentExecutionRequest:
     execution_id: str
     requesting_user: str = ""
     requesting_username: str = ""
+
+
+@dataclass(frozen=True)
+class ReconcileAssessmentExecutionRequest:
+    """No field here can select a terminal outcome (KSEC-105-01) - the
+    outcome is always derived server-side, exclusively from the durably
+    stored Assessment status read fresh at reconciliation time. Deliberately
+    carries nothing beyond identity/attribution."""
+
+    execution_id: str
+    requesting_user: str = ""
+    requesting_username: str = ""
+
+
+@dataclass(frozen=True)
+class ReconcileAssessmentExecutionResult:
+    """The final, authoritative state after a reconciliation attempt -
+    whether this specific call performed the mutation (``mutated=True``) or
+    found the execution already correctly resolved, by this call or a
+    concurrent one (``mutated=False``, terminal-immutability preserved
+    either way)."""
+
+    view: ExecutionInspectionView
+    previous_execution_status: AssessmentExecutionStatus
+    mutated: bool

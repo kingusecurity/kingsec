@@ -77,6 +77,7 @@ from kingsec.application import (
     PauseSchedule,
     PluginInstallerPort,
     RateLimiterPort,
+    ReconcileAssessmentExecution,
     RecordAuditEvent,
     RecordFailedAuthentication,
     RecordSuccessfulAuthentication,
@@ -687,6 +688,15 @@ def _register_use_cases(app: Application) -> None:
     container.register_factory(
         GetAssessmentExecution,
         lambda c: GetAssessmentExecution(
+            c.resolve(AssessmentExecutionRepositoryPort),
+            c.resolve(AuditPublisher),
+        ),
+    )
+    # KSEC-105-01: explicit, ADMIN-only, evidence-gated terminal
+    # reconciliation - see application/use_cases/reconcile_assessment_execution.py.
+    container.register_factory(
+        ReconcileAssessmentExecution,
+        lambda c: ReconcileAssessmentExecution(
             c.resolve(AssessmentExecutionRepositoryPort),
             c.resolve(AuditPublisher),
         ),

@@ -84,6 +84,14 @@ class AuditAction(StrEnum):
     # this is a READ, never a state transition; recorded as a best-effort
     # summary per request, not per row, to avoid audit-log noise.
     EXECUTION_INSPECTED = "execution_inspected"
+    # KSEC-105-01: an administrator attempted to reconcile a durable
+    # execution record. Recorded for every attempt that reaches the
+    # application use case, whether it actually mutated the ledger,
+    # found it already correctly resolved (idempotent no-op), or was
+    # rejected for insufficient evidence - `success`/`reason`/`metadata`
+    # (see the use case) distinguish which. Never emitted claiming a
+    # result that did not actually happen (KSEC-105-01 Step 20).
+    EXECUTION_RECONCILED = "execution_reconciled"
 
     # Notifications
     NOTIFICATION_SENT = "notification_sent"

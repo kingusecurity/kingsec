@@ -25,6 +25,7 @@ from kingsec.application.use_cases.execution_inspection_dto import (
     ExecutionInspectionView,
     GetAssessmentExecutionRequest,
     ListAssessmentExecutionsRequest,
+    ReconcileAssessmentExecutionRequest,
 )
 
 from .auth import CurrentUser, require_admin
@@ -34,6 +35,7 @@ if TYPE_CHECKING:
         GetAssessmentExecution,
         ListAssessmentExecutions,
     )
+    from kingsec.application.use_cases.reconcile_assessment_execution import ReconcileAssessmentExecution
     from kingsec.bootstrap.application import Application
 
 router = APIRouter(
@@ -55,6 +57,13 @@ def _get_single_use_case(request: Request) -> GetAssessmentExecution:
 
     app: Application = request.app.state.kingsec_app
     return cast("GetAssessmentExecution", app.resolve(GetAssessmentExecution))
+
+
+def _get_reconcile_use_case(request: Request) -> ReconcileAssessmentExecution:
+    from kingsec.application.use_cases.reconcile_assessment_execution import ReconcileAssessmentExecution
+
+    app: Application = request.app.state.kingsec_app
+    return cast("ReconcileAssessmentExecution", app.resolve(ReconcileAssessmentExecution))
 
 
 def _view_to_dict(view: ExecutionInspectionView) -> dict[str, Any]:
@@ -148,3 +157,60 @@ async def get_assessment_execution(
             detail="No execution found with that id",
         )
     return _view_to_dict(view)
+
+
+# ── POST /assessment-executions/{id}/reconcile ────────────────────────────
+#
+# KSEC-105-01: the ONLY mutation route in this module. Deliberately takes
+# no request body - the client identifies nothing but the execution_id in
+# the URL path; the outcome is derived exclusively, server-side, from a
+# fresh read of the linked Assessment's durable status inside the use
+# case. There is no field anywhere in this route or
+# ReconcileAssessmentExecutionRequest capable of selecting SUCCEEDED vs
+# FAILED, forcing a transition, or overriding the evidence gate.
+
+
+@router.post(
+    "/{execution_id}/reconcile",
+    summary="Reconcile a durable assessment execution",
+    description=(
+        "Admin-only, evidence-gated terminal ledger reconciliation. Reconciles "
+        "an execution ONLY when it is RUNNING and the linked Assessment already "
+        "shows durable terminal evidence: Assessment COMPLETED -> execution "
+        "SUCCEEDED, or Assessment FAILED -> execution FAILED. No other state is "
+        "reconciled. Never invokes a scanner, never creates or submits an "
+        "Assessment, never accepts a caller-supplied outcome, and never mutates "
+        "an already-terminal execution. Safe to call repeatedly: an execution "
+        "already resolved to the evidence-matching terminal state is returned "
+        "unchanged (mutated=false)."
+    ),
+    responses={
+        200: {"description": "Reconciliation result - either just performed or already resolved, never a guess"},
+        401: {"description": "Missing or invalid token"},
+        403: {"description": "Insufficient permissions (ADMIN required)"},
+        404: {"description": "No execution exists with that id"},
+        409: {"description": "The execution is not currently reconcilable under the permitted evidence rules"},
+    },
+)
+async def reconcile_assessment_execution(
+    execution_id: str,
+    request: Request,
+    current_user: CurrentUser = Depends(require_admin),
+) -> dict[str, Any]:
+    use_case = _get_reconcile_use_case(request)
+    result = use_case.execute(
+        ReconcileAssessmentExecutionRequest(
+            execution_id=execution_id,
+            requesting_user=current_user.user_id,
+            requesting_username=current_user.username,
+        )
+    )
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No execution found with that id",
+        )
+    body = _view_to_dict(result.view)
+    body["previous_execution_status"] = result.previous_execution_status.value
+    body["mutated"] = result.mutated
+    return body

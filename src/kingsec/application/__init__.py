@@ -51,6 +51,7 @@ from .dto import (
 )
 from .errors import (
     ApplicationError,
+    AssessmentExecutionNotReconcilableError,
     AssessmentNotFoundError,
     AssetNotFoundError,
     BackupNotFoundError,
@@ -195,6 +196,8 @@ from .use_cases.execution_inspection_dto import (
     GetAssessmentExecutionRequest,
     ListAssessmentExecutionsRequest,
     ListAssessmentExecutionsResponse,
+    ReconcileAssessmentExecutionRequest,
+    ReconcileAssessmentExecutionResult,
 )
 from .use_cases.find_due_schedules import FindDueSchedules
 from .use_cases.generate_recovery_codes import GenerateRecoveryCodes
@@ -249,6 +252,7 @@ from .use_cases.rate_limit_dto import (
     ResetFailedAttemptsRequest,
     ResetFailedAttemptsResponse,
 )
+from .use_cases.reconcile_assessment_execution import ReconcileAssessmentExecution
 from .use_cases.record_audit_event import RecordAuditEvent
 from .use_cases.record_failed_authentication import RecordFailedAuthentication
 from .use_cases.record_successful_authentication import RecordSuccessfulAuthentication
@@ -357,6 +361,7 @@ __all__ = [
     "ApplicationError",
     "AssessmentEvent",
     "AssessmentExecutionEngine",
+    "AssessmentExecutionNotReconcilableError",
     "AssessmentExecutionRepositoryPort",
     "AssessmentExecutionState",
     "AssessmentNotFoundError",
@@ -511,6 +516,9 @@ __all__ = [
     "ProductionService",
     "ProductionServicePort",
     "RateLimiterPort",
+    "ReconcileAssessmentExecution",
+    "ReconcileAssessmentExecutionRequest",
+    "ReconcileAssessmentExecutionResult",
     "RecordAuditEvent",
     "RecordAuditEventRequest",
     "RecordAuditEventResponse",

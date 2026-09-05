@@ -40,7 +40,11 @@ _NON_TERMINAL_STATUSES = (
 )
 
 
-def _to_view(row: ExecutionInspectionRow) -> ExecutionInspectionView:
+def to_execution_inspection_view(row: ExecutionInspectionRow) -> ExecutionInspectionView:
+    """Build the operator-facing view from a raw joined row - shared with
+    ``reconcile_assessment_execution.py`` (KSEC-105-01) so the reconciliation
+    response uses the exact same representation as inspection, per Phase 105
+    Step 27's "reuse rather than invent a parallel representation"."""
     return ExecutionInspectionView(
         execution_id=row.execution_id,
         assessment_id=row.assessment_id,
@@ -80,7 +84,7 @@ class ListAssessmentExecutions:
         rows, total = self._executions.list_with_context(
             statuses=statuses, limit=request.limit, offset=request.offset
         )
-        views = [_to_view(row) for row in rows]
+        views = [to_execution_inspection_view(row) for row in rows]
 
         self._publish_audit(request, views, total)
 
@@ -128,7 +132,7 @@ class GetAssessmentExecution:
         row = self._executions.get_by_id_with_context(request.execution_id)
         if row is None:
             return None
-        view = _to_view(row)
+        view = to_execution_inspection_view(row)
         self._publish_audit(request, view)
         return view
 

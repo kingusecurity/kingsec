@@ -39,6 +39,7 @@ class TestAuditAction:
             "schedule_disabled",
             "schedule_occurrence_unresolved",
             "execution_inspected",
+            "execution_reconciled",
             "notification_sent",
             "notification_failed",
             "notification_retried",

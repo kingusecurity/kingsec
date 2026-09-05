@@ -15,6 +15,7 @@ Boundary policy
     │ ScheduleConflictError           │ 409 Conflict                       │
     │ OrganizationConflictError       │ 409 Conflict                       │
     │ TeamConflictError               │ 409 Conflict                       │
+    │ AssessmentExecutionNotReconcila │ 409 Conflict                       │
     │ TooManyConcurrentAssessmentsErr │ 429 Too Many Requests              │
     │ IllegalStateTransition          │ 409 Conflict                       │
     │ InvariantViolation              │ 422 Unprocessable Entity           │
@@ -38,6 +39,7 @@ from kingsec.application.errors import (
     AgentNotFoundError,
     AlertNotFoundError,
     ApplicationError,
+    AssessmentExecutionNotReconcilableError,
     AssessmentNotFoundError,
     AssetNotFoundError,
     BackupNotFoundError,
@@ -169,6 +171,16 @@ async def handle_organization_conflict(_request: Request, exc: OrganizationConfl
 
 
 async def handle_team_conflict(_request: Request, exc: TeamConflictError) -> JSONResponse:
+    return _error_response(409, ErrorCode.UNEXPECTED, str(exc))
+
+
+async def handle_execution_not_reconcilable(
+    _request: Request, exc: AssessmentExecutionNotReconcilableError
+) -> JSONResponse:
+    """KSEC-105-01: the requested execution is not in one of the two
+    Phase 104-approved evidence classes. The exception's own message is
+    already safe-by-construction (identifiers and status values only, no
+    internals) - same trust boundary as every other ApplicationError here."""
     return _error_response(409, ErrorCode.UNEXPECTED, str(exc))
 
 
@@ -332,6 +344,7 @@ def register_error_handlers(app: object) -> None:
     app.exception_handler(OrganizationConflictError)(handle_organization_conflict)
     app.exception_handler(TeamConflictError)(handle_team_conflict)
     app.exception_handler(TooManyConcurrentAssessmentsError)(handle_too_many_concurrent_assessments)
+    app.exception_handler(AssessmentExecutionNotReconcilableError)(handle_execution_not_reconcilable)
 
     # Every other "resource not found" application error — same 404 contract,
     # previously unregistered and falling through to the generic 500 handler.

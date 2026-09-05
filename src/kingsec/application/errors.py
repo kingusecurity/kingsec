@@ -53,6 +53,18 @@ class ReportNotFoundError(ApplicationError):
     """No report exists for the requested assessment."""
 
 
+class AssessmentExecutionNotReconcilableError(ApplicationError):
+    """The execution is not currently in a state that durable Assessment
+    evidence proves safe to reconcile (KSEC-105-01).
+
+    Raised for every case outside the two Phase 104-approved evidence
+    classes (RUNNING+COMPLETED, RUNNING+FAILED) - REQUESTED, CLAIMED,
+    RUNNING paired with any non-terminal/missing Assessment status, and any
+    internally inconsistent combination. Never raised merely because a
+    record looks old; always because the current durable evidence does not
+    prove the requested transition safe."""
+
+
 class ScannerPluginError(ApplicationError):
     """Base class for all scanner plugin framework errors."""
 
