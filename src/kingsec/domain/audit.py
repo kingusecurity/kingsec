@@ -78,6 +78,13 @@ class AuditAction(StrEnum):
     # can tell "this ran" apart from "this could not be confirmed to run".
     SCHEDULE_OCCURRENCE_UNRESOLVED = "schedule_occurrence_unresolved"
 
+    # Assessment execution ledger inspection
+    # KSEC-103-01: an administrator queried the durable execution ledger
+    # (list or single lookup). Distinct from any lifecycle action above -
+    # this is a READ, never a state transition; recorded as a best-effort
+    # summary per request, not per row, to avoid audit-log noise.
+    EXECUTION_INSPECTED = "execution_inspected"
+
     # Notifications
     NOTIFICATION_SENT = "notification_sent"
     NOTIFICATION_FAILED = "notification_failed"

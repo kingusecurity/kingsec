@@ -29,6 +29,7 @@ from .copilot_routes import router as v1_copilot_router
 from .dashboard_routes import router as v1_dashboard_router
 from .deployment_routes import router as v1_deployment_router
 from .distributed_routes import router as v1_distributed_queue_router
+from .execution_inspection_routes import router as v1_execution_inspection_router
 from .execution_routes import router as v1_execution_router
 from .health_routes import router as v1_health_router
 from .identity_routes import router as v1_identity_router
@@ -72,6 +73,7 @@ def register_versioned_routes(app: FastAPI) -> None:
     app.include_router(v1_notification_router)
     app.include_router(v1_dashboard_router)
     app.include_router(v1_execution_router)
+    app.include_router(v1_execution_inspection_router)
     app.include_router(v1_plugin_router)
     app.include_router(v1_agent_router)
     app.include_router(v1_queue_router)

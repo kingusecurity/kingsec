@@ -9,8 +9,13 @@ ledger does and does not prove.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 
-from kingsec.application.assessment_execution_ledger import AssessmentExecution, AssessmentExecutionStatus
+from kingsec.application.assessment_execution_ledger import (
+    AssessmentExecution,
+    AssessmentExecutionStatus,
+    ExecutionInspectionRow,
+)
 
 
 class AssessmentExecutionRepositoryPort(ABC):
@@ -92,5 +97,45 @@ class AssessmentExecutionRepositoryPort(ABC):
         'RUNNING'`` conditional UPDATE as every other transition here, so
         two concurrent reconciliation attempts (or a genuine worker
         completing normally at the same instant) can never both succeed.
+        """
+        ...
+
+    @abstractmethod
+    def get_by_id_with_context(self, execution_id: str) -> ExecutionInspectionRow | None:
+        """Read-only, joined lookup of one execution's full inspection
+        context (KSEC-103-01) - the execution itself, its Assessment's
+        durable status, and, when the assessment was produced by a
+        schedule, the linked ``ScheduleOccurrence``/``ScanSchedule``
+        identity. Returns ``None`` if no execution exists with that id.
+
+        Purely additive to the read side: performs no write, and this
+        query alone can never cause a state transition.
+        """
+        ...
+
+    @abstractmethod
+    def list_with_context(
+        self,
+        *,
+        statuses: Sequence[AssessmentExecutionStatus] | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[ExecutionInspectionRow], int]:
+        """Read-only, joined, paginated listing for operator inspection
+        (KSEC-103-01).
+
+        ``statuses``, when given, restricts results to executions whose
+        ``execution_status`` is one of the given values (a safe, allowlisted
+        ``IN`` filter over the ``AssessmentExecutionStatus`` enum - never a
+        client-supplied raw string). ``None`` means no status filter.
+
+        Returns ``(rows, total_matching_count)`` - ``total_matching_count``
+        reflects the *filtered* set, for correct pagination, and is always
+        counted database-side, never by loading every row into memory.
+
+        Ordered deterministically by ``execution_updated_at`` ascending
+        (oldest-touched first) - Phase 103's own "what remains unresolved"
+        framing is best served by surfacing the longest-stale executions
+        first, and a fixed order is required for stable pagination.
         """
         ...

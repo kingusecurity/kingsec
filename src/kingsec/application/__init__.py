@@ -190,12 +190,19 @@ from .use_cases.disable_schedule import DisableSchedule
 from .use_cases.enable_mfa import EnableMfa
 from .use_cases.enable_schedule import EnableSchedule
 from .use_cases.encrypt_secret import EncryptSecret
+from .use_cases.execution_inspection_dto import (
+    ExecutionInspectionView,
+    GetAssessmentExecutionRequest,
+    ListAssessmentExecutionsRequest,
+    ListAssessmentExecutionsResponse,
+)
 from .use_cases.find_due_schedules import FindDueSchedules
 from .use_cases.generate_recovery_codes import GenerateRecoveryCodes
 from .use_cases.generate_report import GenerateReport
 from .use_cases.get_assessment import GetAssessment
 from .use_cases.get_mfa_status import GetMfaStatus
 from .use_cases.get_schedule import GetSchedule
+from .use_cases.inspect_assessment_executions import GetAssessmentExecution, ListAssessmentExecutions
 from .use_cases.list_api_keys import ListApiKeys
 from .use_cases.list_assessments import ListAssessments
 from .use_cases.list_findings import FindingListItem, ListFindings, ListFindingsRequest, ListFindingsResponse
@@ -430,6 +437,7 @@ __all__ = [
     "EncryptionServicePort",
     "EventPublisher",
     "ExecutionEvent",
+    "ExecutionInspectionView",
     "ExecutionPhase",
     "FindDueSchedules",
     "FindingListItem",
@@ -441,6 +449,8 @@ __all__ = [
     "GenerateReportRequest",
     "GenerateReportResponse",
     "GetAssessment",
+    "GetAssessmentExecution",
+    "GetAssessmentExecutionRequest",
     "GetAssessmentRequest",
     "GetMfaStatus",
     "GetPipeline",
@@ -458,6 +468,9 @@ __all__ = [
     "JobStatus",
     "ListApiKeys",
     "ListApiKeysRequest",
+    "ListAssessmentExecutions",
+    "ListAssessmentExecutionsRequest",
+    "ListAssessmentExecutionsResponse",
     "ListAssessments",
     "ListAssessmentsRequest",
     "ListAssessmentsResponse",

@@ -57,11 +57,13 @@ from kingsec.application import (
     GenerateRecoveryCodes,
     GenerateReport,
     GetAssessment,
+    GetAssessmentExecution,
     GetMfaStatus,
     GetSchedule,
     JobRunner,
     JobServicePort,
     ListApiKeys,
+    ListAssessmentExecutions,
     ListAssessments,
     ListFindings,
     ListReports,
@@ -670,6 +672,22 @@ def _register_use_cases(app: Application) -> None:
             c.resolve(CreateAssessment),
             c.resolve(SubmitAssessment),
             c.resolve(AssessmentRepository),
+            c.resolve(AuditPublisher),
+        ),
+    )
+    # KSEC-103-01: read-only operator inspection of the durable execution
+    # ledger - see application/use_cases/inspect_assessment_executions.py.
+    container.register_factory(
+        ListAssessmentExecutions,
+        lambda c: ListAssessmentExecutions(
+            c.resolve(AssessmentExecutionRepositoryPort),
+            c.resolve(AuditPublisher),
+        ),
+    )
+    container.register_factory(
+        GetAssessmentExecution,
+        lambda c: GetAssessmentExecution(
+            c.resolve(AssessmentExecutionRepositoryPort),
             c.resolve(AuditPublisher),
         ),
     )
