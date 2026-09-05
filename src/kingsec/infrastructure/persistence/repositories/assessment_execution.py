@@ -99,7 +99,16 @@ def _row_to_inspection(row: Any) -> ExecutionInspectionRow:
         execution_version=execution_version,
         execution_created_at=execution_created_at,
         execution_updated_at=execution_updated_at,
-        assessment_status=AssessmentStatus(assessment_status),
+        # KSEC-106-01: AssessmentORM.status stores the enum MEMBER NAME
+        # (assessment.status.name, e.g. "RUNNING"), not its value
+        # ("running") - see mappers.py's assessment_to_domain(), which
+        # already parses it the same way (AssessmentStatus[orm.status]).
+        # The previous value-based AssessmentStatus(assessment_status)
+        # lookup here raised ValueError for every real, production-created
+        # Assessment; every existing test that passed was seeding a
+        # hand-typed lowercase ORM value bypassing the real domain/mapper
+        # path entirely (Phase 106 finding).
+        assessment_status=AssessmentStatus[assessment_status],
         schedule_occurrence_id=schedule_occurrence_id,
         occurrence_key=occurrence_key,
         schedule_id=schedule_id,

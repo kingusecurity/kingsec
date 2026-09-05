@@ -112,7 +112,10 @@ def _seed_assessment(app: Application, *, assessment_id: str, status: str) -> No
                 id=assessment_id,
                 target_value="10.0.0.5",
                 target_type="ip_address",
-                status=status,
+                # KSEC-106-01: AssessmentORM.status stores the enum MEMBER
+                # NAME (e.g. "RUNNING"), not its lowercase value - matching
+                # real production data (mappers.py's assessment_to_orm()).
+                status=status.upper(),
                 created_at=_now(),
                 scanner_summary=[],
             )
@@ -477,3 +480,72 @@ class TestInjection:
             huge_id = "x" * 10000
             resp = client.post(f"/api/v1/assessment-executions/{huge_id}/reconcile")
         assert resp.status_code in (404, 400, 414, 431)
+
+
+# ── KSEC-106-01 regression: inspection/reconciliation against a REAL,
+# domain-model-created assessment (not a hand-seeded ORM row) ──────────
+#
+# Every test above (and every Phase 103/105 test before this phase) seeds
+# AssessmentORM.status with a hand-typed lowercase string, bypassing the
+# real CreateAssessment/SubmitAssessment -> assessment_to_orm() path
+# entirely. Phase 106 found that real path stores the enum MEMBER NAME
+# (e.g. "RUNNING"), not the lowercase value the hand-seeded tests used -
+# a mismatch that made GET/POST .../assessment-executions/* raise an
+# uncaught ValueError (-> HTTP 500) for every real, production-created
+# assessment, while every existing test stayed green. This class proves
+# the fix against the true, unmodified HTTP/domain/persistence path.
+
+
+class TestRealDomainModelEndToEnd:
+    def test_inspection_and_reconciliation_work_against_a_real_http_created_assessment(
+        self, wired_app: Application, scanner_spy: _CountingScanner
+    ) -> None:
+        with wired_app:
+            analyst_client = _client_as(wired_app, role=Role.ANALYST)
+            create_resp = analyst_client.post(
+                "/api/v1/assessments",
+                json={
+                    "target_value": "10.0.0.9",
+                    "target_type": "ip_address",
+                    "authorized_by": "pentester@kingusecurity.com",
+                    "scope": "10.0.0.9",
+                },
+            )
+            assert create_resp.status_code == 201
+            assessment_id = create_resp.json()["assessment_id"]
+
+            start_resp = analyst_client.post(f"/api/v1/assessments/{assessment_id}/start")
+            assert start_resp.status_code == 202
+
+            for _ in range(50):
+                poll = analyst_client.get(f"/api/v1/assessments/{assessment_id}")
+                if poll.json()["status"] == "completed":
+                    break
+                import time
+
+                time.sleep(0.1)
+            else:
+                raise AssertionError("real assessment did not complete within timeout")
+
+            admin_client = _client_as(wired_app, role=Role.ADMIN)
+
+            # Before the KSEC-106-01 fix, both of these calls raised an
+            # uncaught ValueError inside _row_to_inspection() for this
+            # real, domain-model-created assessment, surfacing as a 500.
+            list_resp = admin_client.get("/api/v1/assessment-executions")
+            assert list_resp.status_code == 200
+            matching = [i for i in list_resp.json()["items"] if i["assessment_id"] == assessment_id]
+            assert len(matching) == 1
+            execution_id = matching[0]["execution_id"]
+            assert matching[0]["assessment_status"] == "completed"
+            assert matching[0]["execution_status"] == "SUCCEEDED"
+
+            get_resp = admin_client.get(f"/api/v1/assessment-executions/{execution_id}")
+            assert get_resp.status_code == 200
+            assert get_resp.json()["assessment_status"] == "completed"
+
+            reconcile_resp = admin_client.post(f"/api/v1/assessment-executions/{execution_id}/reconcile")
+            assert reconcile_resp.status_code == 200
+            assert reconcile_resp.json()["mutated"] is False, "already SUCCEEDED via the real scan - idempotent no-op"
+
+        assert scanner_spy.invocation_count == 1, "the real scan itself ran exactly once; reconciliation added none"

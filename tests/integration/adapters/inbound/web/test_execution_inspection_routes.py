@@ -104,7 +104,10 @@ def _seed_assessment(app: Application, *, assessment_id: str, status: str, sched
                 id=assessment_id,
                 target_value="10.0.0.5",
                 target_type="ip_address",
-                status=status,
+                # KSEC-106-01: AssessmentORM.status stores the enum MEMBER
+                # NAME (e.g. "RUNNING"), not its lowercase value - matching
+                # real production data (mappers.py's assessment_to_orm()).
+                status=status.upper(),
                 created_at=_now(),
                 schedule_occurrence_id=schedule_occurrence_id,
                 scanner_summary=[],

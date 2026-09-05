@@ -66,7 +66,10 @@ def _seed_assessment(session_factory, *, assessment_id: str, status: str) -> Non
                 id=assessment_id,
                 target_value="10.0.0.5",
                 target_type="ip_address",
-                status=status,
+                # KSEC-106-01: AssessmentORM.status stores the enum MEMBER
+                # NAME (e.g. "RUNNING"), not its lowercase value - matching
+                # real production data (mappers.py's assessment_to_orm()).
+                status=status.upper(),
                 created_at=_now(),
                 scanner_summary=[],
             )
@@ -278,7 +281,7 @@ class TestInvalidEvidenceRejectedWithoutMutation:
         with session_factory() as session:
             from sqlalchemy import update
 
-            session.execute(update(AssessmentORM).where(AssessmentORM.id == "asmt-10").values(status="failed"))
+            session.execute(update(AssessmentORM).where(AssessmentORM.id == "asmt-10").values(status="FAILED"))
             session.commit()
 
         with pytest.raises(AssessmentExecutionNotReconcilableError):
