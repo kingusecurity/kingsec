@@ -13,6 +13,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from kingsec.application import AssessmentNotFoundError
+from kingsec.application.errors import AssessmentConflictError
 from kingsec.domain import (
     Assessment,
     AssessmentId,
@@ -362,15 +363,49 @@ class TestMapping:
 
 
 class TestEdgeCases:
-    def test_multiple_saves_same_id_is_idempotent(self, repo: SQLAlchemyAssessmentRepository, session: Session) -> None:
+    def test_resaving_the_same_object_twice_evolves_its_version_in_place(
+        self, repo: SQLAlchemyAssessmentRepository, session: Session
+    ) -> None:
+        """KSEC-107-01 / KSEC-108-01: saving the identical in-memory object
+        twice is no longer a blind upsert - each save is a real,
+        version-checked write. It still succeeds both times, because
+        persist_assessment() advances the object's OWN ``_version`` in
+        place immediately after a successful write (needed for callers
+        like StartAssessment, which legitimately save() the same object
+        twice in a row without re-``get()``-ing in between - see
+        test_assessment_optimistic_concurrency.py's dedicated regression
+        test for that exact scenario). What is NOT accepted is a stale
+        writer whose OWN version was never advanced attempting to save
+        after someone ELSE'S write already moved the row forward - see
+        test_resave_across_sessions_with_independent_objects_conflicts."""
+        assessment = make_assessment()
+        assert assessment.version == 0
+        repo.save(assessment)
+        session.flush()
+        assert assessment.version == 1
+
+        repo.save(assessment)  # the SAME object, saved again - succeeds
+        session.flush()
+        assert assessment.version == 2
+
+        loaded = repo.get(assessment.id)
+        assert loaded.version == 2
+
+    def test_load_mutate_save_evolves_version(self, repo: SQLAlchemyAssessmentRepository, session: Session) -> None:
+        """The correct, supported repeat-save pattern: re-``get()`` between
+        saves. Each save is a genuine, distinct, version-checked write."""
         assessment = make_assessment()
         repo.save(assessment)
         session.flush()
-        repo.save(assessment)
+
+        reloaded = repo.get(assessment.id)
+        assert reloaded.version == 1
+        repo.save(reloaded)
         session.flush()
 
         loaded = repo.get(assessment.id)
         assert loaded.id == assessment.id
+        assert loaded.version == 2
 
     def test_new_session_reads_persisted_data(
         self, engine, repo: SQLAlchemyAssessmentRepository, session: Session
@@ -397,25 +432,56 @@ class TestEdgeCases:
             with pytest.raises(AssessmentNotFoundError):
                 repo2.get(assessment.id)
 
-    def test_resave_across_sessions_does_not_corrupt(self, engine) -> None:
-        """Saving the same assessment id from two different sessions (each
-        committing) must not corrupt the row — the second write is a normal
-        upsert, and a third, unrelated session must still read a consistent
-        result."""
+    def test_resave_across_sessions_with_the_same_object_evolves_version_correctly(self, engine) -> None:
+        """KSEC-107-01 / KSEC-108-01: saving the SAME in-memory assessment
+        object from two different sessions, one after the other, succeeds
+        both times and correctly advances the version each time - the
+        object's own version is updated in place after session 1's save,
+        so session 2's save is a genuine, version-checked, non-stale write
+        (not a resurrected blind upsert). See the test immediately below
+        for what happens when the object saved a second time is NOT the
+        one that performed the first save."""
+        assessment = make_assessment()
+
+        with Session(engine) as s1:
+            SQLAlchemyAssessmentRepository(s1).save(assessment)
+            s1.commit()
+        assert assessment.version == 1
+
+        with Session(engine) as s2:
+            SQLAlchemyAssessmentRepository(s2).save(assessment)
+            s2.commit()
+        assert assessment.version == 2
+
+        with Session(engine) as s3:
+            loaded = SQLAlchemyAssessmentRepository(s3).get(assessment.id)
+            assert loaded.id == assessment.id
+            assert loaded.target.value == assessment.target.value
+            assert loaded.version == 2
+
+    def test_resave_across_sessions_with_independent_stale_object_conflicts(self, engine) -> None:
+        """The actual KSEC-107-01 protection: an INDEPENDENT object that
+        never saw session 1's write (e.g. loaded before it happened, or
+        constructed separately) must be rejected, not silently applied -
+        the row must remain exactly what session 1 committed."""
         assessment = make_assessment()
 
         with Session(engine) as s1:
             SQLAlchemyAssessmentRepository(s1).save(assessment)
             s1.commit()
 
+        stale = Assessment(assessment.id, assessment.target)  # independent, version=0
         with Session(engine) as s2:
-            SQLAlchemyAssessmentRepository(s2).save(assessment)
-            s2.commit()
+            with pytest.raises(AssessmentConflictError):
+                SQLAlchemyAssessmentRepository(s2).save(stale)
+                s2.flush()
+            s2.rollback()
 
         with Session(engine) as s3:
             loaded = SQLAlchemyAssessmentRepository(s3).get(assessment.id)
             assert loaded.id == assessment.id
             assert loaded.target.value == assessment.target.value
+            assert loaded.version == 1
 
     def test_empty_list_with_pagination(self, repo: SQLAlchemyAssessmentRepository) -> None:
         assert repo.list(limit=10, offset=0) == []

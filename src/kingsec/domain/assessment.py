@@ -69,6 +69,7 @@ class Assessment:
         created_at: datetime | None = None,
         profile_id: str | None = None,
         schedule_occurrence_id: str | None = None,
+        version: int = 0,
     ) -> None:
         if not isinstance(assessment_id, AssessmentId):
             raise InvariantViolation("assessment_id must be an AssessmentId")
@@ -81,6 +82,18 @@ class Assessment:
         self._target = target
         self._created_at = moment
         self._status = AssessmentStatus.DRAFT
+        # KSEC-107-01 / KSEC-108-01: the optimistic-concurrency version this
+        # instance was read at. 0 means "never yet persisted" (see
+        # Assessment.create()) - distinct from every real durable version,
+        # which starts at 1 on first successful save (mirrors ScanSchedule's
+        # own version convention, KSEC-85-02). persist_assessment() is the
+        # only code that ever decides the next durable version - none of
+        # THIS class's own methods (start()/complete()/fail()/etc.) ever
+        # touch it; persist_assessment() itself does advance it in place
+        # on a successful write, so a caller that legitimately reuses the
+        # same object across two sequential saves (e.g. StartAssessment)
+        # sees the correct version on its second save.
+        self._version = version
         self._authorization: Authorization | None = None
         self._failure_reason: str | None = None
         self._organization_id: str | None = None
@@ -136,18 +149,27 @@ class Assessment:
         profile_id: str | None = None,
         scanner_summary: tuple[ScannerRunSummary, ...] = (),
         schedule_occurrence_id: str | None = None,
+        version: int = 1,
     ) -> Assessment:
         """Rebuild an Assessment from stored state (persistence boundary).
 
         Bypasses lifecycle transitions — the caller (mapper) is trusted to
         provide a consistent state. Structural invariants (valid id, target type)
         are still enforced.
+
+        ``version`` defaults to 1 (every real, already-persisted row has a
+        real version >= 1 - see AssessmentORM.version) purely so existing
+        callers that construct a reconstituted Assessment without caring
+        about optimistic concurrency (most tests) keep working unchanged;
+        the real mapper (``assessment_to_domain()``) always passes the
+        row's actual version explicitly.
         """
         a = cls.__new__(cls)
         a._id = assessment_id
         a._target = target
         a._created_at = created_at
         a._status = status
+        a._version = version
         a._authorization = authorization
         a._failure_reason = failure_reason
         a._organization_id = None
@@ -190,6 +212,13 @@ class Assessment:
     @property
     def status(self) -> AssessmentStatus:
         return self._status
+
+    @property
+    def version(self) -> int:
+        """The optimistic-concurrency version this instance was read at
+        (0 = never persisted). See ``persist_assessment()``'s docstring
+        for the full contract (KSEC-107-01 / KSEC-108-01)."""
+        return self._version
 
     @property
     def created_at(self) -> datetime:
@@ -311,4 +340,7 @@ class Assessment:
         return hash(self._id)
 
     def __repr__(self) -> str:
-        return f"Assessment(id={self._id.value!r}, status={self._status.value}, findings={len(self._findings)})"
+        return (
+            f"Assessment(id={self._id.value!r}, status={self._status.value}, "
+            f"findings={len(self._findings)}, version={self._version})"
+        )

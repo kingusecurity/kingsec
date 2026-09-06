@@ -41,6 +41,16 @@ class AssessmentNotFoundError(ApplicationError):
     """No assessment exists for the requested identifier."""
 
 
+class AssessmentConflictError(ApplicationError):
+    """An assessment was modified (or deleted) by another request between
+    when this caller read it and when it tried to save its own change
+    (KSEC-107-01 / KSEC-108-01 optimistic locking, same mechanism as
+    ScheduleConflictError/OrganizationConflictError/TeamConflictError) -
+    the write was rejected rather than silently overwriting or being
+    silently overwritten. The caller must re-fetch the assessment and
+    retry with the current state; this is never retried automatically."""
+
+
 class TooManyConcurrentAssessmentsError(ApplicationError):
     """The configured `max_concurrent_assessments` limit is already reached
     (KSEC-87-02) - the caller must retry later, once a running assessment

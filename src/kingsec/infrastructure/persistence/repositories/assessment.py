@@ -18,10 +18,8 @@ from sqlalchemy.orm import Session
 from kingsec.application import AssessmentNotFoundError, AssessmentRepository
 from kingsec.application.ports.repositories import FindingProjection
 from kingsec.domain import Assessment, AssessmentId
-from kingsec.infrastructure.persistence.mappers import (
-    assessment_to_domain,
-    assessment_to_orm,
-)
+from kingsec.infrastructure.persistence import _operations as ops
+from kingsec.infrastructure.persistence.mappers import assessment_to_domain
 from kingsec.infrastructure.persistence.models import AssessmentORM, FindingORM
 
 _ALLOWED_FINDING_ORDER_COLS = frozenset({
@@ -42,11 +40,16 @@ class SQLAlchemyAssessmentRepository(AssessmentRepository):
         self._session = session
 
     def save(self, assessment: Assessment) -> None:
-        existing = self._session.get(AssessmentORM, str(assessment.id))
-        if existing is not None:
-            self._session.delete(existing)
-            self._session.flush()
-        self._session.add(assessment_to_orm(assessment))
+        """Delegates to the shared, version-gated ``persist_assessment()``
+        (KSEC-107-01 / KSEC-108-01) - previously this method carried its
+        own, independent, unconditional DELETE-then-INSERT, a duplicate of
+        (and until this phase, divergent from) the same logic already
+        shared by ``LegacyAssessmentRepository``/
+        ``_SessionBoundAssessmentRepository``. Consolidating onto one
+        primitive means the optimistic-concurrency guarantee cannot
+        silently regress in one Assessment repository implementation
+        while being fixed in another."""
+        ops.persist_assessment(self._session, assessment)
 
     def get(self, assessment_id: AssessmentId) -> Assessment:
         orm = self._session.get(AssessmentORM, assessment_id.value)

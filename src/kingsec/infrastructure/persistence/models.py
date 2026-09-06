@@ -68,6 +68,15 @@ class AssessmentORM(Base):
     # Empty for assessments that predate this feature or never completed.
     scanner_summary: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
 
+    # KSEC-107-01 / KSEC-108-01: optimistic-lock counter, same idiom as
+    # ScheduleORM.version (KSEC-85-02). persist_assessment() scopes its
+    # conditional replace to WHERE id = ? AND version = ? and writes
+    # version = version + 1; a write against a stale version matches zero
+    # rows and raises AssessmentConflictError instead of silently
+    # overwriting (or being silently overwritten by) a newer durable
+    # Assessment state.
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
     findings: Mapped[list["FindingORM"]] = relationship(
         back_populates="assessment",
         cascade="all, delete-orphan",

@@ -17,12 +17,14 @@ does, via :func:`raise_persistence_error`, so commit-time errors are caught too.
 
 from __future__ import annotations
 
-from typing import NoReturn
+from typing import Any, NoReturn, cast
 
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import CursorResult, delete
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from kingsec.application import AssessmentNotFoundError, ReportNotFoundError
+from kingsec.application.errors import AssessmentConflictError
 from kingsec.domain import Assessment, AssessmentId, Report
 from kingsec.infrastructure.logging import get_logger
 from kingsec.shared.errors import PersistenceError, log_exception
@@ -62,19 +64,96 @@ def persist_assessment(session: Session, assessment: Assessment) -> None:
     """Insert or replace an assessment aggregate within the given session.
 
     Uses DELETE-then-INSERT (full replace) because ``Evidence`` and
-    ``Recommendation`` are identity-less value objects in child collections that
-    a merge-by-primary-key cannot reliably match. ``ON DELETE CASCADE`` removes
-    the stale children before the current state is re-inserted.
+    ``Recommendation`` are identity-less value objects in child collections
+    that a merge-by-primary-key cannot reliably match. ``ON DELETE CASCADE``
+    (SQLite ``PRAGMA foreign_keys=ON``, enabled by every real engine this
+    project creates - see ``database.py``) removes the stale children
+    before the current state is re-inserted.
+
+    KSEC-107-01 / KSEC-108-01: the replace path is optimistic-locked, the
+    same idiom already proven on ``ScheduleORM``/``AssessmentExecutionORM``.
+    ``assessment.version`` must be the version this caller originally read
+    (via ``get()``) - every mutation path (``CreateAssessment``,
+    ``SubmitAssessment``, ``StartAssessment``, scheduled submission, etc.)
+    already follows the load-mutate-save pattern, so this requires no
+    change to any of them.
+
+    Two cases:
+
+    * ``assessment.version == 0`` - never yet persisted
+      (``Assessment.create()``'s own initial state). A plain insert at
+      version 1, flushed immediately so a primary-key collision (an
+      astronomically unlikely UUID collision, or a caller re-saving an
+      unrefreshed version-0 object for an id that was already inserted by
+      an earlier save) surfaces here as ``AssessmentConflictError`` rather
+      than an unhandled ``IntegrityError`` leaking past this function -
+      never a silent overwrite either way.
+    * ``assessment.version >= 1`` - this caller previously loaded a real,
+      persisted row at exactly that version. The DELETE itself IS the
+      atomic concurrency check (Phase 108 Section 31: never a separate
+      SELECT-then-compare-in-Python before an unconditional delete-by-id,
+      which would reopen the exact TOCTOU gap this closes) - scoped to
+      ``WHERE id = ? AND version = ?``. If another writer already replaced
+      this row - by advancing its version, or by a genuine
+      ``AssessmentRepository.delete()`` - zero rows match and
+      ``AssessmentConflictError`` is raised before any INSERT is
+      attempted: the stale writer never overwrites, and is never silently
+      overwritten. Never retried automatically.
+
+    On success, ``assessment``'s own ``_version`` is advanced in place to
+    match what was just durably written. Every caller that follows this
+    codebase's established load-mutate-save pattern discards the object
+    right after saving it, so this is a no-op for them - but a caller that
+    legitimately reuses the SAME object across two sequential saves (e.g.
+    ``StartAssessment``, which saves once for RUNNING and again later for
+    COMPLETED/FAILED) needs its second save to be checked against the
+    version its OWN first save just established, not the stale version it
+    was originally loaded at. Mirrors ``mappers.py``'s own reconstitution
+    style (``AssessmentORM`` -> ``Assessment`` already reaches into
+    "private" fields at the persistence boundary; this is the same trust
+    boundary in the other direction).
 
     Args:
         session: The active session (transaction owned by the caller).
-        assessment: The aggregate to persist.
+        assessment: The aggregate to persist. Its ``_version`` is mutated
+            in place on success (see above).
+
+    Raises:
+        AssessmentConflictError: If ``assessment.version >= 1`` and no row
+            currently matches both the id and that version.
     """
-    existing = session.get(AssessmentORM, str(assessment.id))
-    if existing is not None:
-        session.delete(existing)
-        session.flush()  # ensure the DELETE runs before the re-INSERT of same PK
-    session.add(assessment_to_orm(assessment))
+    if assessment.version == 0:
+        orm = assessment_to_orm(assessment)
+        orm.version = 1
+        session.add(orm)
+        try:
+            session.flush()
+        except IntegrityError as exc:
+            raise AssessmentConflictError(
+                f"assessment '{assessment.id}' already exists - a fresh-insert attempt "
+                "was made for an id that is not new"
+            ) from exc
+        assessment._version = 1
+        return
+
+    result = cast(
+        "CursorResult[Any]",
+        session.execute(
+            delete(AssessmentORM).where(
+                AssessmentORM.id == str(assessment.id), AssessmentORM.version == assessment.version
+            )
+        ),
+    )
+    if result.rowcount == 0:
+        raise AssessmentConflictError(
+            f"assessment '{assessment.id}' was modified or deleted by another request since it was last read"
+        )
+    session.flush()  # ensure the DELETE is applied before the re-INSERT of the same PK
+    new_version = assessment.version + 1
+    orm = assessment_to_orm(assessment)
+    orm.version = new_version
+    session.add(orm)
+    assessment._version = new_version
 
 
 def load_assessment(session: Session, assessment_id: AssessmentId) -> Assessment:

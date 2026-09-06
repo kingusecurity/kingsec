@@ -619,11 +619,11 @@ class TestMigrationAtomicity:
         with engine.begin() as conn:
             stamp = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
         engine.dispose()
-        # KSEC-102-01: head moved forward from 6984c15bfb36 to 22fe86d6702f
-        # (add_assessment_executions) - this must track the real head, not
-        # remain pinned to whatever revision was head when this test was
-        # first written.
-        assert stamp == "22fe86d6702f"
+        # KSEC-107-01 / KSEC-108-01: head moved forward from 22fe86d6702f to
+        # 2b2a6432bfb8 (add_assessment_version_column) - this must track
+        # the real head, not remain pinned to whatever revision was head
+        # when this test was first written.
+        assert stamp == "2b2a6432bfb8"
 
 
 class TestMigrationMetadata:

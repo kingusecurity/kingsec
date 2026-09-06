@@ -307,6 +307,7 @@ def assessment_to_domain(orm: AssessmentORM) -> Assessment:
         profile_id=orm.profile_id,
         scanner_summary=_scanner_summary_from_json(orm.scanner_summary),
         schedule_occurrence_id=orm.schedule_occurrence_id,
+        version=orm.version,
     )
     if orm.organization_id or orm.team_id or orm.owner_id:
         a.set_ownership(

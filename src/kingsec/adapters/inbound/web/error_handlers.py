@@ -15,6 +15,7 @@ Boundary policy
     │ ScheduleConflictError           │ 409 Conflict                       │
     │ OrganizationConflictError       │ 409 Conflict                       │
     │ TeamConflictError               │ 409 Conflict                       │
+    │ AssessmentConflictError         │ 409 Conflict                       │
     │ AssessmentExecutionNotReconcila │ 409 Conflict                       │
     │ TooManyConcurrentAssessmentsErr │ 429 Too Many Requests              │
     │ IllegalStateTransition          │ 409 Conflict                       │
@@ -39,6 +40,7 @@ from kingsec.application.errors import (
     AgentNotFoundError,
     AlertNotFoundError,
     ApplicationError,
+    AssessmentConflictError,
     AssessmentExecutionNotReconcilableError,
     AssessmentNotFoundError,
     AssetNotFoundError,
@@ -163,6 +165,14 @@ async def handle_report_not_found(_request: Request, exc: ReportNotFoundError) -
 
 
 async def handle_schedule_conflict(_request: Request, exc: ScheduleConflictError) -> JSONResponse:
+    return _error_response(409, ErrorCode.UNEXPECTED, str(exc))
+
+
+async def handle_assessment_conflict(_request: Request, exc: AssessmentConflictError) -> JSONResponse:
+    """KSEC-107-01 / KSEC-108-01: a stale writer lost the optimistic-
+    concurrency check on Assessment persistence. Same 409 contract as
+    ScheduleConflictError/OrganizationConflictError/TeamConflictError -
+    the caller must re-fetch and retry, never automatic."""
     return _error_response(409, ErrorCode.UNEXPECTED, str(exc))
 
 
@@ -343,6 +353,7 @@ def register_error_handlers(app: object) -> None:
     app.exception_handler(ScheduleConflictError)(handle_schedule_conflict)
     app.exception_handler(OrganizationConflictError)(handle_organization_conflict)
     app.exception_handler(TeamConflictError)(handle_team_conflict)
+    app.exception_handler(AssessmentConflictError)(handle_assessment_conflict)
     app.exception_handler(TooManyConcurrentAssessmentsError)(handle_too_many_concurrent_assessments)
     app.exception_handler(AssessmentExecutionNotReconcilableError)(handle_execution_not_reconcilable)
 
