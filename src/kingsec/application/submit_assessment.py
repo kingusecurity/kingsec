@@ -32,7 +32,7 @@ from ._support import (
 from .assessment_execution import AssessmentExecutionEngine, ExecutionPhase
 from .assessment_profiles import ExecutionPlanner
 from .dto import SubmitAssessmentRequest, SubmitAssessmentResponse
-from .errors import ExecutionPlanUnsatisfiedError
+from .errors import AssessmentConflictError, ExecutionPlanUnsatisfiedError
 from .events import (
     EVENT_ASSESSMENT_COMPLETED,
     EVENT_ASSESSMENT_FAILED,
@@ -404,6 +404,26 @@ def _execute_scan(
     except Exception as exc:
         if execution_engine is not None:
             execution_engine.fail_execution(tracking_id, str(exc))
+
+        if isinstance(exc, AssessmentConflictError):
+            # KSEC-109-01/KSEC-110-01 observability gap (Phase 111): the
+            # scan's own genuine outcome could not be durably recorded
+            # because a concurrent lifecycle change
+            # (CancelAssessment/DeleteAssessment) already won and altered
+            # the durable state first - never a stale overwrite
+            # (persist_assessment() itself prevents that), but silently
+            # invisible to an operator unless logged distinctly from any
+            # other, truly unexpected failure. The in-memory ``assessment``
+            # may already be COMPLETED here (if the scan itself succeeded
+            # and only its own save() conflicted) - attempting
+            # ``.fail()`` on it would just raise a second, unrelated-
+            # looking IllegalStateTransition, so the recovery write is
+            # skipped entirely: there is nothing safe left to persist.
+            # No finding content or exception detail is logged - ids and
+            # a fixed reason only.
+            _log_scan_result_discarded(tracking_id, execution_id)
+            return
+
         try:
             assessment.fail(safe_failure_message(exc))
             assessments.save(assessment)
@@ -428,8 +448,34 @@ def _execute_scan(
                     owner_id=assessment.owner_id,
                 ),
             )
+        except AssessmentConflictError:
+            # Same event as above (Phase 111) - this time the conflict was
+            # only discovered at the recovery-write point itself (the
+            # original failure was something else; a concurrent
+            # Cancel/Delete won in the meantime).
+            _log_scan_result_discarded(tracking_id, execution_id)
         except Exception as exc:
             logging.getLogger(__name__).warning("scan recovery failed (best-effort): %s", exc)
+
+
+def _log_scan_result_discarded(assessment_id: str, execution_id: str | None) -> None:
+    """Phase 111 (KSEC-109-01/KSEC-110-01 observability gap): a single,
+    named, structured WARNING event for the one specific case where a
+    scan's real outcome could not be durably recorded because a
+    concurrent Cancel/Delete already won. Deliberately just visibility -
+    no retry, no lease, no change to any concurrency semantics. Carries
+    only ids and a fixed reason string, never finding content or raw
+    exception text."""
+    logging.getLogger(__name__).warning(
+        "scan_result_discarded_on_concurrent_lifecycle_change",
+        extra={
+            "event": "scan_result_discarded_on_concurrent_lifecycle_change",
+            "assessment_id": assessment_id,
+            "execution_id": execution_id,
+            "reason": "a concurrent Cancel/Delete already changed this assessment's "
+            "durable state before the scan's own outcome could be recorded",
+        },
+    )
 
 
 def _enrich(finding: Finding, ai: AIPort | None) -> None:

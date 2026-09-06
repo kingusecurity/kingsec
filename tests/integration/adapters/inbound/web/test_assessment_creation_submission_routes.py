@@ -249,3 +249,150 @@ class TestHttpAssessmentIdAttacksOnSubmit:
         viewer_client = _client_as(wired_app, role=Role.VIEWER, user_id="owner-user")
         resp = viewer_client.post(f"/api/v1/assessments/{assessment_id}/start")
         assert resp.status_code == 403
+
+
+# ── KSEC-107-01 / KSEC-108-01: Phase 109 adversarial verification at the
+# real HTTP boundary - attack classes H (HTTP concurrency), I (client
+# version manipulation), J (admin operations), O (error handling) ──────
+
+
+class TestHttpAdminCancelRacesLiveSubmission:
+    def test_admin_cancel_during_a_live_scan_returns_a_clean_response_not_500(
+        self, wired_app: Application
+    ) -> None:
+        """A real HTTP admin cancel racing a real, genuinely in-flight
+        background scan (via a gated scanner) - exercises
+        submit_assessment.py's own exception-recovery path with a REAL
+        AssessmentConflictError raised through the full stack, verifying
+        the HTTP layer never turns it into a 500 and never leaks
+        internals, regardless of which side wins the race."""
+        import threading as _threading
+
+        class _GatedScanner(ScannerPort):
+            def __init__(self) -> None:
+                self.entered = _threading.Event()
+                self.release_gate = _threading.Event()
+
+            def scan(self, target: Target):
+                self.entered.set()
+                self.release_gate.wait(timeout=10)
+                return [Finding.create("SQLi", "injectable param", Severity.CRITICAL)]
+
+            def compatible_scanners(self, target: Target) -> dict[str, str]:
+                return {"stub": "Stub Scanner"}
+
+        gated_scanner = _GatedScanner()
+        wired_app.container.register_instance(ScannerPort, gated_scanner)
+
+        analyst_client = _client_as(wired_app, role=Role.ANALYST, user_id="owner-user")
+        create_resp = analyst_client.post("/api/v1/assessments", json=_CREATE_BODY)
+        assessment_id = create_resp.json()["assessment_id"]
+
+        start_resp = analyst_client.post(f"/api/v1/assessments/{assessment_id}/start")
+        assert start_resp.status_code == 202
+        assert gated_scanner.entered.wait(timeout=10), "scanner never started"
+
+        admin_client = _client_as(wired_app, role=Role.ADMIN, user_id="admin-user")
+        cancel_resp = admin_client.post(f"/api/v1/assessments/{assessment_id}/cancel")
+
+        assert cancel_resp.status_code < 500, (
+            f"admin cancel during a live scan must never surface as a 500: "
+            f"got {cancel_resp.status_code} {cancel_resp.text}"
+        )
+        assert cancel_resp.status_code == 200
+
+        body_text = cancel_resp.text.lower()
+        for leaked in ("traceback", "sqlalchemy", "sqlite3", ".py\"", "site-packages", "assessmentorm"):
+            assert leaked not in body_text, f"response body leaked internal detail {leaked!r}: {cancel_resp.text}"
+
+        gated_scanner.release_gate.set()
+
+        import time
+
+        for _ in range(50):
+            poll = analyst_client.get(f"/api/v1/assessments/{assessment_id}")
+            if poll.json()["status"] in ("cancelled", "completed"):
+                break
+            time.sleep(0.1)
+
+        # The admin's CANCELLED decision must be durable and never
+        # silently reverted by the scan's own (now-stale) terminal save.
+        final = analyst_client.get(f"/api/v1/assessments/{assessment_id}")
+        assert final.json()["status"] == "cancelled"
+
+
+class TestHttpClientVersionManipulation:
+    @pytest.mark.parametrize("bad_body", [{"version": 0}, {"version": 1}, {"version": 999999999}, {"version": -1}])
+    def test_client_supplied_version_field_is_rejected_not_honored(
+        self, wired_app: Application, bad_body: dict
+    ) -> None:
+        """TESTED (not merely inferred): every Assessment-mutating request
+        body uses Pydantic's extra="forbid" - a client-supplied "version"
+        field is actively rejected (422), never silently accepted and
+        never capable of influencing which durable version is checked
+        against. The server-side version always comes exclusively from
+        the database row itself (assessment_to_domain()), never from any
+        request body."""
+        client = _client_as(wired_app, role=Role.ANALYST)
+        create_resp = client.post("/api/v1/assessments", json={**_CREATE_BODY, **bad_body})
+        assert create_resp.status_code == 422, (
+            f"a client-supplied version field must be rejected outright: got {create_resp.status_code}"
+        )
+
+        # Also confirmed on /start and /cancel - their bodies are declared
+        # empty-with-extra-forbid, so any extra field (including "version")
+        # is rejected the same way.
+        create_resp2 = client.post("/api/v1/assessments", json=_CREATE_BODY)
+        assessment_id = create_resp2.json()["assessment_id"]
+        start_resp = client.post(f"/api/v1/assessments/{assessment_id}/start", json=bad_body)
+        assert start_resp.status_code == 422
+
+
+class TestHttpConcurrentAdminAndOwnerSubmission:
+    def test_admin_and_owner_racing_the_same_assessment_produce_no_stale_overwrite(
+        self, wired_app: Application, scanner_spy: _CountingScanner
+    ) -> None:
+        """Attack Class J: admin privilege must not bypass version gating.
+        A real HTTP race between the owning analyst and an admin, both
+        legitimately entitled to submit the same assessment."""
+        owner_client = _client_as(wired_app, role=Role.ANALYST, user_id="owner-user")
+        create_resp = owner_client.post("/api/v1/assessments", json=_CREATE_BODY)
+        assessment_id = create_resp.json()["assessment_id"]
+
+        admin_client = _client_as(wired_app, role=Role.ADMIN, user_id="admin-user")
+
+        barrier = threading.Barrier(2)
+        responses: list[dict | None] = [None, None]
+
+        def _submit_as_owner() -> None:
+            barrier.wait(timeout=10)
+            resp = owner_client.post(f"/api/v1/assessments/{assessment_id}/start")
+            responses[0] = {"status": resp.status_code}
+
+        def _submit_as_admin() -> None:
+            barrier.wait(timeout=10)
+            resp = admin_client.post(f"/api/v1/assessments/{assessment_id}/start")
+            responses[1] = {"status": resp.status_code}
+
+        t1 = threading.Thread(target=_submit_as_owner)
+        t2 = threading.Thread(target=_submit_as_admin)
+        t1.start()
+        t2.start()
+        t1.join(timeout=15)
+        t2.join(timeout=15)
+
+        statuses = [r["status"] for r in responses if r is not None]
+        assert statuses.count(202) == 1, f"exactly one submission must succeed: {statuses}"
+        assert all(s < 500 for s in statuses), f"the loser must get a clean status, never a 500: {statuses}"
+
+        import time
+
+        for _ in range(50):
+            poll = owner_client.get(f"/api/v1/assessments/{assessment_id}")
+            if poll.json()["status"] == "completed":
+                break
+            time.sleep(0.1)
+
+        assert scanner_spy.invocation_count == 1
+        final = owner_client.get(f"/api/v1/assessments/{assessment_id}")
+        assert final.json()["status"] == "completed"

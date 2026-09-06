@@ -158,7 +158,22 @@ class ReportORM(Base):
 
     __tablename__ = "reports"
 
-    assessment_id: Mapped[str] = mapped_column(String, primary_key=True)
+    # KSEC-110-01: real FK with ON DELETE CASCADE, matching FindingORM's
+    # own established pattern. Safe here (unlike AssessmentExecutionORM/
+    # ScheduleOccurrenceORM, which are deliberately left unconstrained -
+    # see assessment_execution.py's own migration docstring) because
+    # persist_report() always upserts via session.merge() (never
+    # DELETE-then-INSERT), so this FK is never transiently violated by a
+    # report's own save() the way it would be by Assessment's replace
+    # strategy. Before this, deleting an Assessment that already had a
+    # generated report left the report row permanently orphaned (found by
+    # Phase 110's adversarial deletion testing) - inert (no route can ever
+    # read an orphaned report back, since GenerateReport always re-fetches
+    # the live Assessment first), but real, needless storage waste with no
+    # corresponding live record.
+    assessment_id: Mapped[str] = mapped_column(
+        String, ForeignKey("assessments.id", ondelete="CASCADE"), primary_key=True
+    )
     target: Mapped[str] = mapped_column(String, nullable=False)
     generated_at: Mapped[str] = mapped_column(String, nullable=False)  # ISO-8601
 

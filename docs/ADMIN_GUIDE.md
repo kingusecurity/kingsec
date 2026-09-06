@@ -220,28 +220,33 @@ To trigger an immediate backup from the web interface:
 2. Click "Create Backup Now"
 3. The backup file is created and listed on the page
 
-Alternatively, use the CLI:
-
-    docker exec kingsec kingsec db backup --output /opt/kingsec/backups/manual-$(date +%Y%m%d).sqlite
+There is currently no CLI equivalent. KingSec ships only the `kingsec`,
+`kingsec-migrate`, and `kingsec-bootstrap` entry points; none of them expose
+a `db backup` / `db restore` / `db check` subcommand. Manage backups from
+the web interface (Admin > Backups), or take a filesystem-level snapshot of
+the database file directly.
 
 ### Restoring from Backup
 
-1. Navigate to Admin > Backups
-2. Select the backup file from the list
-3. Click "Restore"
-4. Confirm the action
+**Current limitation:** the "Restore" action in Admin > Backups (and the
+equivalent snapshot / scoped-restore actions) decrypts, decompresses, and
+checksum-verifies the selected backup artifact, but it does **not** write
+the recovered data back into the live database. Today this action verifies
+that a backup is intact and recoverable — it is not yet a data-recovery
+operation, and clicking it does not affect the running system's data.
 
-**Warning:** Restoring a backup overwrites all current data. Ensure the KingSec service is not running any assessments during restore.
-
-CLI restore:
-
-    docker exec kingsec kingsec db restore --input /opt/kingsec/backups/<filename>.sqlite
+To actually recover data from a backup, stop the KingSec service, replace
+the live database file with the (decrypted/decompressed) backup artifact
+manually, restart the service, and run `kingsec-migrate` to bring the
+schema up to date. Treat this as a manual, operator-driven procedure until
+in-application restore is implemented.
 
 ### Backup Verification
 
-Periodically verify backup integrity:
-
-    docker exec kingsec kingsec db check --input /opt/kingsec/backups/<filename>.sqlite
+Backup integrity can be checked using the same "Restore" action described
+above: select a backup file in Admin > Backups and click "Restore" — this
+performs decrypt/decompress/checksum verification without modifying any
+live data (see the limitation above).
 
 ---
 

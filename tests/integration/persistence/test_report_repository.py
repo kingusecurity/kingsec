@@ -29,6 +29,7 @@ from kingsec.infrastructure.persistence import (
     create_schema,
 )
 from kingsec.infrastructure.persistence.repositories import (
+    SQLAlchemyAssessmentRepository,
     SQLAlchemyReportRepository,
 )
 
@@ -65,11 +66,16 @@ def repo(session):
 
 
 def make_report(
+    session: Session,
     assessment_id: AssessmentId | None = None,
     *,
     generated_at: datetime | None = None,
 ) -> Report:
-    """Build a Report from a completed assessment."""
+    """Build a Report from a completed assessment, and durably persist
+    that assessment first (KSEC-110-01: reports.assessment_id now has a
+    real FK to assessments.id, matching what GenerateReport always does
+    in production - a report is only ever derived from an already-
+    persisted, COMPLETED Assessment, never a purely in-memory one)."""
     a_id = assessment_id or AssessmentId.generate()
     target = Target("example.com", TargetType.HOSTNAME)
     assessment = Assessment(a_id, target)
@@ -82,6 +88,9 @@ def make_report(
     assessment.record_finding(Finding.create("Info", "TLS version", Severity.INFORMATIONAL))
     assessment.complete()
 
+    SQLAlchemyAssessmentRepository(session).save(assessment)
+    session.flush()
+
     return Report.from_assessment(assessment, generated_at=generated_at)
 
 
@@ -92,7 +101,7 @@ def make_report(
 
 class TestSaveAndGet:
     def test_save_and_get(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
-        report = make_report()
+        report = make_report(session)
         repo.save(report)
         session.flush()
 
@@ -101,7 +110,7 @@ class TestSaveAndGet:
         assert loaded.target == str(Target("example.com", TargetType.HOSTNAME))
 
     def test_get_returns_domain_object(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
-        report = make_report()
+        report = make_report(session)
         repo.save(report)
         session.flush()
 
@@ -113,7 +122,7 @@ class TestSaveAndGet:
             repo.get(AssessmentId("nonexistent"))
 
     def test_save_persists_to_database(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
-        report = make_report()
+        report = make_report(session)
         repo.save(report)
         session.flush()
 
@@ -131,7 +140,7 @@ class TestSaveAndGet:
 
 class TestUpdate:
     def test_save_twice_overwrites(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
-        report = make_report()
+        report = make_report(session)
         repo.save(report)
         session.flush()
 
@@ -152,7 +161,7 @@ class TestUpdate:
         assert loaded.target == str(Target("example.com", TargetType.HOSTNAME))
 
     def test_overwrite_new_target(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
-        report = make_report()
+        report = make_report(session)
         repo.save(report)
         session.flush()
 
@@ -178,7 +187,7 @@ class TestUpdate:
 
 class TestMapping:
     def test_round_trip_preserves_verdict(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
-        report = make_report()
+        report = make_report(session)
         repo.save(report)
         session.flush()
 
@@ -187,7 +196,7 @@ class TestMapping:
         assert loaded.verdict.headline == report.verdict.headline
 
     def test_round_trip_preserves_entries(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
-        report = make_report()
+        report = make_report(session)
         repo.save(report)
         session.flush()
 
@@ -196,7 +205,7 @@ class TestMapping:
         assert loaded.entries[0].title == report.entries[0].title
 
     def test_round_trip_preserves_severity_counts(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
-        report = make_report()
+        report = make_report(session)
         repo.save(report)
         session.flush()
 
@@ -209,7 +218,7 @@ class TestMapping:
     def test_round_trip_preserves_authorization_metadata(
         self, repo: SQLAlchemyReportRepository, session: Session
     ) -> None:
-        report = make_report()
+        report = make_report(session)
         repo.save(report)
         session.flush()
 
@@ -218,7 +227,7 @@ class TestMapping:
         assert loaded.scope == "*"
 
     def test_round_trip_preserves_ai_explanations(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
-        report = make_report()
+        report = make_report(session)
         enriched_entries = tuple(
             dataclasses.replace(e, ai_explanation=f"Business risk for {e.title}") for e in report.entries
         )
@@ -231,7 +240,7 @@ class TestMapping:
         assert loaded.entries[0].ai_explanation == f"Business risk for {report.entries[0].title}"
 
     def test_report_without_ai_defaults_to_disabled(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
-        report = make_report()
+        report = make_report(session)
         repo.save(report)
         session.flush()
 
@@ -241,7 +250,7 @@ class TestMapping:
 
     def test_round_trip_preserves_generated_at(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
         generated_at = datetime(2025, 6, 15, 14, 30, 0, 123456, tzinfo=UTC)
-        report = make_report(generated_at=generated_at)
+        report = make_report(session, generated_at=generated_at)
         repo.save(report)
         session.flush()
 
@@ -263,6 +272,8 @@ class TestEdgeCases:
         assessment.start()
         assessment.record_finding(Finding.create("Öné", "Desc", Severity.LOW))
         assessment.complete()
+        SQLAlchemyAssessmentRepository(session).save(assessment)
+        session.flush()
         report = Report.from_assessment(assessment)
 
         repo.save(report)
@@ -272,8 +283,8 @@ class TestEdgeCases:
         assert "unicode-test.example.com" in loaded.target or "Öné" in loaded.entries[0].title
 
     def test_multiple_reports(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
-        r1 = make_report(AssessmentId.generate())
-        r2 = make_report(AssessmentId.generate())
+        r1 = make_report(session, AssessmentId.generate())
+        r2 = make_report(session, AssessmentId.generate())
         repo.save(r1)
         repo.save(r2)
         session.flush()
@@ -285,7 +296,7 @@ class TestEdgeCases:
     def test_rollback_discards_save(self, engine) -> None:
         with Session(engine) as s:
             repo = SQLAlchemyReportRepository(s)
-            report = make_report()
+            report = make_report(s)
             repo.save(report)
             s.rollback()
 
@@ -295,7 +306,7 @@ class TestEdgeCases:
                 repo2.get(AssessmentId(report.assessment_id))
 
     def test_new_session_reads_committed(self, engine, repo: SQLAlchemyReportRepository, session: Session) -> None:
-        report = make_report()
+        report = make_report(session)
         repo.save(report)
         session.commit()
 

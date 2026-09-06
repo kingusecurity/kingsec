@@ -253,8 +253,12 @@ def delete_assessment(session: Session, assessment_id: AssessmentId) -> None:
     """Delete an assessment and all its children (cascade).
 
     Uses the database-level ON DELETE CASCADE to remove findings, evidence,
-    and recommendations in one operation. The ORM-level cascade provides
-    defense-in-depth.
+    recommendations, and (KSEC-110-01) any generated report in one
+    operation. The ORM-level cascade (findings only, via AssessmentORM's
+    own relationship) provides defense-in-depth; reports rely on the
+    database-level FK cascade alone (see ReportORM.assessment_id) since
+    they are a separate table/repository with no ORM relationship declared
+    on AssessmentORM.
 
     Args:
         session: The active session.
