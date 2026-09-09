@@ -141,3 +141,35 @@ Per the plan's own rule ("Do not start a phase until the previous one's acceptan
 2. **Two account-lockout implementations exist; the one covered by tests (`AccountLockoutService`, fixed in Phase 0) is not the one the live login path actually uses** (`CheckAccountLockout` + a DB-backed `lockout_repo`, reading the `account_lockouts` table). Phase 0's fix changed no live behavior as a result. Whether the DB-backed mechanism has an analogous escalation-reset defect is unknown — not investigated. Move to Phase 3 scope (auth hardening).
 3. **Phase 0 added only 1 regression test for 6 fixed defects.** Missing dedicated regression tests for: the `find_oldest_pending` tie-order fix (both `InMemoryJobService` and `PersistentJobService` variants), and the `AccountLockoutService.clear()` escalation-preservation fix (beyond the one pre-existing test it was verified against, `test_progressive_lockout_duration`, no *new* test was added asserting escalation survives a clear specifically). Should be added before this class of defect is considered closed out.
 4. **Unconfirmed: is the `rowid` tiebreaker in `SQLAlchemyJobRepository.list()` actually safe long-term?** It relies on SQLite's implicit `rowid` being monotonically increasing for this table. Not yet confirmed whether `scan_jobs` is declared with `AUTOINCREMENT` (which prevents rowid reuse after deletes) or is a plain rowid table (where SQLite *can* reuse a deleted row's rowid for a later insert, which would silently reintroduce the exact tie-order bug this was meant to fix, just under a different trigger condition). Needs verification before relying on this fix indefinitely.
+
+---
+
+## Phase 1 — End-to-end proof
+
+**Branch:** `chore/phase-1-e2e-evidence` (based on `fix/phase-0-green-baseline`)
+**Status:** COMPLETE — acceptance criteria met, awaiting go-ahead to proceed. **Full details in `docs/E2E-EVIDENCE.md`** — this section is a summary only.
+
+### What happened
+
+- Installed 5 previously-absent scanner binaries this phase (with explicit per-tool approval): nuclei, ffuf, gobuster, amass (all now genuinely working), and OWASP ZAP (installed, but confirmed **not actually invokable** by KingSec's scanner-execution pattern on Windows — see E2E-EVIDENCE.md Defect 7). Nikto could not be installed — the downloaded Perl script was quarantined by Windows Defender; not worked around.
+- Ran DVWA (`vulnerables/web-dvwa`) locally in Docker, loopback-only, as the scan target.
+- **A real mistake happened and was corrected**: an env-file `source` with an unquoted path (containing spaces) silently dropped a `KINGSEC_STORAGE__DATA_DIR` override, and `kingsec-migrate` ran against the real `~/.kingsec/kingsec.db` instead of the intended isolated directory. Caught immediately; the real database was backed up (`kingsec.db.bak-phase1`) before proceeding; confirmed via direct query that no data was lost (the 3 migrations applied were additive schema changes only, and the one pre-existing assessment row was untouched). Corrected the approach per explicit instruction for the remainder of the phase: never `source` an env file again; every env var passed explicitly per-command, all paths quoted. Re-verified the isolation this way — proved the override actually resolved (read-only check) *before* any write, then confirmed post-migration that the new DB existed at the isolated path and the real DB's mtime was unchanged.
+- Ran 4 real assessments end-to-end (register → login → create → start → poll to completion → generate report → download real PDF) against the real, isolated KingSec instance: Quick Host Scan (ip target), Web Application Scan (url target), Full Assessment (url target), and a supplementary Full Assessment (ip target) added to confirm a hypothesis formed mid-phase.
+- Found **8 numbered defects/observations**, all TESTED with real command output or real artifacts — most significantly: HTML reports are completely unreachable in any real deployment (hardcoded default, never wired to config); scanners incompatible with an assessment's target type are left permanently `"pending"` instead of `"skipped"`, and this does not block the assessment from reaching `"completed"`; the report's own "coverage incomplete" warning only accounts for `"failed"` scanners, so a report can look clean while 6 of 9 configured scanners never ran at all.
+- **No web-application-layer scanner (Gobuster/FFUF/Nuclei/ZAP/Nikto) ever completed a scan against DVWA in this environment**, for a mix of genuine environment gaps (no wordlist, no templates, ZAP's Windows packaging, Nikto blocked by Defender) — meaning **zero Critical/High/Medium findings were observed in this phase**, despite DVWA being specifically designed to have them. This is an important, honest limit on what Phase 2's scoring-formula calibration can be checked against using only this phase's data.
+
+### ACCEPTANCE
+
+- [x] `docs/E2E-EVIDENCE.md` exists with a real severity distribution table (Section 4)
+- [x] At least one real PDF report exists and has been opened and inspected — two were (60,266-byte and 34,588-byte PDFs, both read page-by-page)
+- [x] Actual run times recorded for 4 profiles (exceeds the minimum of 3)
+- [x] Defect list produced — 8 numbered items, all TESTED
+- [x] `docs/STATUS.md` updated (this section)
+
+### Cleanup
+
+The isolated KingSec server, the DVWA container, and the isolated data directory were torn down at the end of this phase (server process stopped; `dvwa-p1-target` container removed). The real `~/.kingsec/kingsec.db` remains as migrated (see above — additive, non-destructive, confirmed) plus its `kingsec.db.bak-phase1` backup, which was **not** removed and is left for you to delete once you've confirmed you're satisfied with the outcome.
+
+### What's next
+
+Per the plan's own rule and this session's explicit instruction, **Phase 2 has not been started.** `docs/E2E-EVIDENCE.md` is ready to be reviewed — per the plan's own text, "if a real scan does not produce a coherent report, the remediation plan changes and Phase 2 waits." A real scan *did* produce a coherent report (twice), so that condition is met — but the severity-range limitation above (no Critical/High/Medium data) is worth weighing before Phase 2's scoring-model calibration step specifically.
