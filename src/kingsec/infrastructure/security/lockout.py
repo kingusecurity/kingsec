@@ -61,10 +61,20 @@ class _AttemptRecord:
         return max(0.0, self.lockout_until - time.monotonic())
 
     def clear(self) -> None:
-        """Successful login — reset all failure state."""
+        """Successful login — reset failure state, but not the progressive
+        lockout escalation.
+
+        ``lockout_count`` deliberately survives a clear: it tracks how many
+        times this account has been locked out, not whether it is currently
+        locked out. If a single successful login reset it, an attacker who
+        occasionally succeeds (or simply waits out a lockout) would keep
+        resetting the delay back to its shortest tier, defeating the
+        escalation this class exists to provide. The count only fully
+        resets when the record is evicted after a full lockout_window of no
+        further failures (see ``AccountLockoutService._evict``).
+        """
         self.failures.clear()
         self.lockout_until = 0.0
-        self.lockout_count = 0
 
 
 class AccountLockoutService:

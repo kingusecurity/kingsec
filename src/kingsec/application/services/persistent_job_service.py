@@ -19,6 +19,7 @@ from kingsec.application.jobs import (
     JobStatus,
     ScanJob,
     ScanJobResult,
+    next_timestamp,
     validate_transition,
 )
 from kingsec.application.ports.job_service import JobServicePort
@@ -73,14 +74,13 @@ class PersistentJobService(JobServicePort):
         with self._new_uow() as uow:
             job = uow.job_repository.get(job_id)
             validate_transition(job.status, JobStatus.CANCELLED)
-            now = datetime.now(UTC)
             updated = ScanJob(
                 id=job.id,
                 target=job.target,
                 config=job.config,
                 status=JobStatus.CANCELLED,
                 created_at=job.created_at,
-                updated_at=now,
+                updated_at=next_timestamp(job.updated_at),
             )
             uow.job_repository.save(updated)
             uow.commit()
@@ -91,14 +91,13 @@ class PersistentJobService(JobServicePort):
         with self._new_uow() as uow:
             job = uow.job_repository.get(job_id)
             validate_transition(job.status, target)
-            now = datetime.now(UTC)
             updated = ScanJob(
                 id=job.id,
                 target=job.target,
                 config=job.config,
                 status=target,
                 created_at=job.created_at,
-                updated_at=now,
+                updated_at=next_timestamp(job.updated_at),
             )
             uow.job_repository.save(updated)
             uow.commit()
@@ -106,12 +105,18 @@ class PersistentJobService(JobServicePort):
 
     def find_oldest_pending(self) -> ScanJob | None:
         with self._new_uow() as uow:
+            # job_repository.list() is newest-first with a deterministic
+            # tiebreak (see SQLAlchemyJobRepository.list()); the oldest
+            # pending job is therefore the *last* matching entry, not
+            # min(..., key=created_at) — min() would pick whichever tied
+            # row list() happened to return first, which is the newer one
+            # under the now-deterministic tiebreak.
             jobs = uow.job_repository.list()
             uow.commit()
         pending = [j for j in jobs if j.status == JobStatus.PENDING]
         if not pending:
             return None
-        return min(pending, key=lambda j: j.created_at)
+        return pending[-1]
 
     def get_job_result(self, job_id: str) -> ScanJobResult:
         with self._new_uow() as uow:

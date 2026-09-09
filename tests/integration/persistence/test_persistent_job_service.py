@@ -13,6 +13,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from kingsec.application.errors import IllegalJobTransitionError, JobNotFoundError
+from kingsec.application.job import JobId
 from kingsec.application.jobs import JobStatus, ScanJob
 from kingsec.application.ports.job_service import JobServicePort
 from kingsec.application.services.persistent_job_service import PersistentJobService
@@ -138,6 +139,48 @@ class TestListJobs:
         jobs = service.list_jobs()
         assert jobs[0].id == j2.id
         assert jobs[1].id == j1.id
+
+    def test_list_jobs_tiebreaks_identical_created_at_by_insertion_order(
+        self, session: Session
+    ) -> None:
+        """Regression test for the Phase 0 ORDER BY tiebreaker.
+
+        Forces two jobs to share the exact same ``created_at`` (real
+        submissions can tie under coarse clock resolution, which is what
+        made ``test_list_jobs_newest_first`` flaky before this fix). Against
+        the pre-fix query (``ORDER BY created_at DESC`` alone), this is
+        exactly the tie scenario where row order is undefined — SQLite is
+        free to return either row first, so this test fails intermittently
+        against the old query and passes deterministically against the new
+        one (``ORDER BY created_at DESC, rowid DESC``).
+        """
+        tied_at = datetime.now(UTC)
+        repo = SQLAlchemyJobRepository(session)
+        older = ScanJob(
+            id=JobId("11111111-1111-1111-1111-111111111111"),
+            target="first-inserted.com",
+            config={},
+            status=JobStatus.PENDING,
+            created_at=tied_at,
+            updated_at=tied_at,
+        )
+        newer = ScanJob(
+            id=JobId("22222222-2222-2222-2222-222222222222"),
+            target="second-inserted.com",
+            config={},
+            status=JobStatus.PENDING,
+            created_at=tied_at,
+            updated_at=tied_at,
+        )
+        repo.save(older)
+        session.flush()
+        repo.save(newer)
+        session.flush()
+
+        jobs = repo.list()
+
+        assert jobs[0].id == newer.id
+        assert jobs[1].id == older.id
 
 
 # ===========================================================================
