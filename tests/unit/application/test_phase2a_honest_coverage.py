@@ -184,26 +184,27 @@ def _authorized_assessment(*, profile_id: str, target_type: TargetType = TargetT
 # things); nuclei installed but NOT usable (no templates - Defect 5,
 # "Missing Nuclei templates: nuclei -update-templates", the exact message
 # reproduced here); nikto not installed (Defect 8, blocked by Windows
-# Defender). Under the real registry, gobuster/ffuf/semgrep/trivy/amass/zap
-# are all structurally incompatible with ip_address regardless of discovery
-# status, so their entries below are illustrative only (compatibility is
-# checked first and wins).
+# Defender). Under the real registry, gobuster/ffuf/zap are all structurally
+# incompatible with ip_address regardless of discovery status, so their
+# entries below are illustrative only (compatibility is checked first and
+# wins).
 #
-# Real outcome this produces: 1 of 9 succeeds (Nmap) - matching BOTH Phase
+# Real outcome this produces: 1 of 6 succeeds (Nmap) - matching BOTH Phase
 # 1's actual recorded Run #4 result (E2E-EVIDENCE.md: "Nmap... actually ran
 # and completed with 9 real findings" while every other scanner was either
 # stuck pending or correctly skipped, never succeeded) AND this phase's own
-# live DVWA re-verification (docs/STATUS.md: "1 of 9 (Nmap)"). The
-# previous "3 of 9" was neither.
+# live DVWA re-verification (docs/STATUS.md: "1 of 9 (Nmap)"). Phase 1's
+# real full-assessment run scheduled 9 scanners; Phase 2B Decision 1/2
+# removed semgrep, trivy, and amass from the profile (they cannot take any
+# target type KingSec's current model expresses - see
+# assessment_profiles.py), so this fixture now only needs discovery
+# statuses for full-assessment's current 6 scanners.
 _STATUSES = {
     "nmap": _status("nmap", "Nmap", installed=True, usable=True),
     "nuclei": _status("nuclei", "Nuclei", installed=True, usable=False),
     "gobuster": _status("gobuster", "Gobuster", installed=True, usable=True),
     "ffuf": _status("ffuf", "FFUF", installed=True, usable=True),
     "zap": _status("zap", "OWASP ZAP", installed=True, usable=True),
-    "semgrep": _status("semgrep", "Semgrep", installed=True, usable=True),
-    "trivy": _status("trivy", "Trivy", installed=True, usable=True),
-    "amass": _status("amass", "Amass", installed=True, usable=True),
     "nikto": _status("nikto", "Nikto", installed=False, usable=False),
 }
 
@@ -231,8 +232,17 @@ class TestReferenceCaseRun4Reproduction:
     (Nmap) ever actually running — 6 were silently stuck at "pending"
     and 2 (Nuclei, Nikto) were correctly skipped but undisclosed. This
     test would fail against that code (it asserts ``COMPLETED_WITH_GAPS``
-    and a verdict naming all 8 non-running scanners) and passes against
+    and a verdict naming every non-running scanner) and passes against
     the fixed code.
+
+    Phase 2B Decision 1/2 note: ``full-assessment`` now schedules 6
+    scanners, not the original 9 (semgrep, trivy, and amass were removed
+    from the profile — see assessment_profiles.py). The fixture below
+    still models Phase 1's real 9-scanner environment via ``_STATUSES``
+    for historical accuracy, but the planner only ever consults the
+    scanners actually listed in the profile, so the assertions here
+    check 6 scheduled / 1 succeeded / 5 non-succeeded, matching
+    ``full-assessment``'s current shape.
     """
 
     def test_status_is_completed_with_gaps_not_completed(self) -> None:
@@ -245,12 +255,12 @@ class TestReferenceCaseRun4Reproduction:
 
         result = repo.saved[-1]
         assert result.status == AssessmentStatus.COMPLETED_WITH_GAPS
-        assert len(result.scanner_summary) == 9
+        assert len(result.scanner_summary) == 6
 
         succeeded = [s for s in result.scanner_summary if s.status.is_success]
         non_succeeded = failed_scanners_in(result.scanner_summary)
         assert len(succeeded) == 1
-        assert len(non_succeeded) == 8
+        assert len(non_succeeded) == 5
         assert {s.name for s in succeeded} == {"Nmap"}
 
     def test_report_verdict_names_every_non_running_scanner(self) -> None:
@@ -269,7 +279,7 @@ class TestReferenceCaseRun4Reproduction:
         # regardless (this is the exact Run #4 defect: a clean-looking
         # score hiding a scan that mostly didn't happen).
         assert report.verdict.action_required is True
-        for name in ("Nuclei", "Gobuster", "FFUF", "Semgrep", "Trivy", "Amass", "OWASP ZAP", "Nikto"):
+        for name in ("Nuclei", "Gobuster", "FFUF", "OWASP ZAP", "Nikto"):
             assert name in report.verdict.headline, f"{name!r} missing from verdict headline"
 
 
@@ -336,33 +346,40 @@ def _all_profile_target_type_pairs() -> list[tuple[str, TargetType]]:
 
 
 class TestProfileRequiredScannersAreTargetTypeCompatible:
-    """Correction 2(d) review, class-level fix: a profile must never
-    declare a required scanner that is incompatible with EVERY one of its
-    own supported target types — if it does, that profile can never
-    proceed, for any target, and nothing catches it structurally. This is
-    exactly the web-scan/nmap defect (Q found via Correction 1's real
-    5-run timing test): web-scan supports only URL, requires nmap, and
-    nmap never declares URL support.
+    """Phase 2B Task 1 review: the original spec here was wrong. "Compatible
+    with at least one supported target type" lets a profile declare support
+    for a target type under which its required scanner can NEVER run - the
+    exact shape of the code-review/container-scan defect (semgrep/trivy
+    declare HOSTNAME only, but both profiles also claim IP_ADDRESS support).
+    A profile that "can proceed" for HOSTNAME but silently can never proceed
+    for one of its OTHER declared types is exactly the web-scan/nmap defect
+    class, just confined to a subset of the profile's targets instead of
+    all of them.
+
+    Strengthened: every required scanner must be compatible with EVERY
+    target type the profile declares it supports - not merely one of them.
 
     Uses the REAL plugin registry's declared target_types (see
     _real_registry()), not a stub — a fake registry could never fail this
     test even with a genuinely broken profile.
     """
 
-    def test_every_required_scanner_supports_at_least_one_profile_target_type(self) -> None:
+    def test_every_required_scanner_supports_every_declared_profile_target_type(self) -> None:
         registry = _real_registry()
         planner = ExecutionPlanner()
         violations = []
         for profile in planner.list_profiles():
             for scanner_id in profile.required_scanners:
-                compatible_types = [
-                    tt for tt in profile.supported_target_types if registry.is_compatible(ScannerId(scanner_id), tt)
+                incompatible_types = [
+                    tt
+                    for tt in profile.supported_target_types
+                    if not registry.is_compatible(ScannerId(scanner_id), tt)
                 ]
-                if not compatible_types:
+                if incompatible_types:
                     violations.append(
-                        f"profile {profile.id!r}: required scanner {scanner_id!r} is compatible "
-                        f"with none of its supported target types "
-                        f"{[t.value for t in profile.supported_target_types]}"
+                        f"profile {profile.id!r}: required scanner {scanner_id!r} is NOT compatible "
+                        f"with {[t.value for t in incompatible_types]}, a target type this profile "
+                        f"declares support for"
                     )
         assert not violations, "\n".join(violations)
 

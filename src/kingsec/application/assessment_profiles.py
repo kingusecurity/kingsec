@@ -133,47 +133,54 @@ _DEFAULT_PROFILES: dict[str, AssessmentProfile] = {
         required_scanners=(),
         tags=("api", "vulnerability"),
     ),
-    "code-review": AssessmentProfile(
-        id="code-review",
-        name="Source Code Review",
-        description="Static analysis of source code using Semgrep. Detects security anti-patterns, injection flaws, and hardcoded secrets.",
-        supported_target_types=(TargetType.HOSTNAME, TargetType.IP_ADDRESS),
-        scanners=("semgrep",),
-        estimated_duration_minutes=15,
-        required_scanners=("semgrep",),
-        tags=("code", "static-analysis", "semgrep"),
-    ),
-    "container-scan": AssessmentProfile(
-        id="container-scan",
-        name="Container Assessment",
-        description="Vulnerability scanning of container images and filesystems using Trivy. Detects known CVEs in system packages and application dependencies.",
-        supported_target_types=(TargetType.HOSTNAME, TargetType.IP_ADDRESS),
-        scanners=("trivy",),
-        estimated_duration_minutes=10,
-        required_scanners=("trivy",),
-        tags=("container", "vulnerability", "cve"),
-    ),
+    # Phase 2B Decision 1: code-review and container-scan are DELETED, not
+    # fixed. semgrep and trivy cannot take any input KingSec's current
+    # target model (IP_ADDRESS/HOSTNAME/NETWORK/URL) expresses - both need
+    # a source checkout, image reference, or filesystem path, none of
+    # which exist as a target type yet. Both profiles were structurally
+    # incoherent (a required scanner incompatible with IP_ADDRESS, one of
+    # the profile's own declared supported types) - see
+    # docs/STATUS.md's Phase 2B roadmap item: source/supply-chain
+    # scanning needs real `repository`/`image`/`path` target types before
+    # semgrep/trivy can be wired to anything again. The adapters and their
+    # tests are kept, not deleted - see the module docstrings in
+    # infrastructure/scanner/plugins/semgrep/adapter.py and
+    # infrastructure/scanner/plugins/trivy/adapter.py.
     "external-footprint": AssessmentProfile(
         id="external-footprint",
         name="External Footprint Mapping",
-        description="Discovers the external attack surface using Amass for subdomain enumeration and Nmap for service discovery.",
+        description="Discovers the external attack surface using Nmap for service discovery.",
         supported_target_types=(TargetType.HOSTNAME, TargetType.IP_ADDRESS),
-        scanners=("amass", "nmap"),
-        estimated_duration_minutes=20,
+        # Phase 2B Decision 2: amass removed. It only works against a real,
+        # registrable public domain, and KingSec's HOSTNAME target
+        # currently accepts anything syntactically hostname-shaped
+        # (including "localhost") - the target model cannot yet
+        # distinguish the two. It also performs active DNS enumeration and
+        # certificate-transparency lookups against third-party
+        # infrastructure, which is the scanner most likely to reach
+        # outside an authorized scope in a product with no scope
+        # enforcement yet (Phase 4). See
+        # infrastructure/scanner/plugins/amass/adapter.py's module
+        # docstring and docs/STATUS.md's Phase 4 roadmap item.
+        scanners=("nmap",),
+        estimated_duration_minutes=15,
         required_scanners=("nmap",),
         tags=("footprint", "discovery", "reconnaissance"),
     ),
     "full-assessment": AssessmentProfile(
         id="full-assessment",
         name="Full Assessment",
-        description="Runs every available scanner against the target. Maximum coverage: network discovery, vulnerability scanning, web fuzzing, static analysis, and container scanning. Unavailable scanners are automatically skipped.",
+        description="Runs every available network scanner against the target. Maximum coverage: network discovery, vulnerability scanning, and web fuzzing. Unavailable scanners are automatically skipped.",
         supported_target_types=(
             TargetType.IP_ADDRESS,
             TargetType.HOSTNAME,
             TargetType.URL,
         ),
-        scanners=("nmap", "nuclei", "gobuster", "ffuf", "semgrep", "trivy", "amass", "zap", "nikto"),
-        estimated_duration_minutes=90,
+        # Phase 2B: semgrep, trivy, and amass removed - see the profile
+        # deletion comment above and Decision 2 above. The honest network
+        # scanner count is now SIX: nmap, nuclei, nikto, ffuf, gobuster, zap.
+        scanners=("nmap", "nuclei", "gobuster", "ffuf", "zap", "nikto"),
+        estimated_duration_minutes=60,
         required_scanners=(),
         tags=("comprehensive", "maximum-coverage"),
     ),

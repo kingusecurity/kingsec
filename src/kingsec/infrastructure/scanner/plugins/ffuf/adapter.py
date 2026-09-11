@@ -63,10 +63,21 @@ class FfufPlugin(ScannerPluginPort):
         )
 
     def capabilities(self) -> tuple[ScannerCapability, ...]:
-        """Declare ffuf's scanning capabilities."""
+        """Declare ffuf's scanning capabilities.
+
+        Phase 2B Decision 4: URL only, not HOSTNAME. The underlying
+        implementation (infrastructure/scanner/ffuf.py's _build_args())
+        passes target.value directly as the -u base URL with no scheme
+        handling - a bare HOSTNAME target would produce an invalid,
+        scheme-less URL. Rather than silently assume http:// (a guess
+        that would produce quietly wrong results against an HTTPS-only
+        target - a redirect, a refused connection, or worse, fuzzing the
+        wrong protocol entirely), require the caller to supply a real URL
+        with an explicit scheme.
+        """
         return (
             ScannerCapability(
-                target_types=frozenset({TargetType.HOSTNAME, TargetType.URL}),
+                target_types=frozenset({TargetType.URL}),
                 scan_categories=frozenset({ScanCategory.DISCOVERY, ScanCategory.VULNERABILITY}),
                 output_format=OutputFormat.STRUCTURED_JSON,
             ),

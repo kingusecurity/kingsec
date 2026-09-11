@@ -5,6 +5,17 @@ interface. All subprocess execution, argument building, and JSON parsing are
 delegated to the already-tested adapter — this class adds only the metadata,
 capability declaration, and availability check that the plugin framework
 requires.
+
+Phase 2B Decision 2: NOT WIRED TO ANY PROFILE. Amass only produces useful
+results against a real, registrable public domain — KingSec's HOSTNAME
+target today accepts anything syntactically hostname-shaped (including
+"localhost"), which the target model cannot yet distinguish from a real
+domain. Amass also performs active DNS enumeration and certificate-
+transparency lookups against third-party infrastructure, making it the
+scanner most likely to reach outside an authorized scope in a product
+with no scope enforcement yet (Phase 4). Kept registered and tested so it
+is ready once a real ``registrable_domain`` target type with public-suffix
+validation exists (see docs/STATUS.md's Phase 4 roadmap item).
 """
 
 from __future__ import annotations

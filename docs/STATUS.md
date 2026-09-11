@@ -353,3 +353,78 @@ Regenerated the report directly from the real persisted Run #4 assessment in `C:
 ### What's next
 
 **Phase 2A is not closed until Abdul has visually reviewed the PDF.** Phase 2B has not been started. Logged for it: the nmap port-range disclosure item and the open-port severity model item above, plus the two carried over from Phase 2A (web-scan/nmap URL-host-derivation, FIX 9 `validate_migrations`-proxy).
+
+---
+
+## Phase 2B — Real coverage
+
+**Branch:** `feat/phase-2b-real-coverage`
+**Status:** Task 1 IN PROGRESS. This section covers Task 1's decisions only; Task 2 has not started.
+
+### Task 1 — Profile/scanner target-type fit
+
+Full investigation delivered separately: `docs/audits/KINGSEC-PHASE-2B-TASK1-PROFILE-SCANNER-FIT-AUDIT.txt`. This section records the decisions actually applied and their evidence.
+
+**Decision 5 — the static compatibility test's own spec was wrong, fixed first.** `TestProfileRequiredScannersAreTargetTypeCompatible` previously asserted a required scanner need only be compatible with *at least one* of its profile's declared target types — which let `code-review` and `container-scan` both declare `IP_ADDRESS` support while their required scanner (semgrep, trivy respectively) could never run against it. Strengthened to assert every required scanner is compatible with *every* target type its profile declares. Run standalone against the pre-deletion profile set, it failed exactly as expected:
+
+```
+AssertionError: profile 'code-review': required scanner 'semgrep' is NOT compatible with ['ip_address'], a target type this profile declares support for
+profile 'container-scan': required scanner 'trivy' is NOT compatible with ['ip_address'], a target type this profile declares support for
+```
+
+This is the proof the strengthened test now catches the web-scan/nmap defect class generally, not just the one instance already fixed in Phase 2A. Confirmed failing *before* Decisions 1/2 below were applied, per explicit instruction.
+
+**Decision 1 — `code-review` and `container-scan` profiles DELETED, not fixed.** Semgrep and trivy cannot take any target type KingSec's current model expresses (`IP_ADDRESS`/`HOSTNAME`/`NETWORK`/`URL`) — both need a source checkout, image reference, or filesystem path. Both profiles were structurally incoherent from the start. The `semgrep` and `trivy` adapters (and their existing tests) are **kept, not deleted**, with a module-level docstring on each stating they are not wired to any profile and naming what they need.
+
+**Roadmap item (source/supply-chain scanning):** a `repository`, `image`, and `path` target type all need to exist in the domain target model before semgrep or trivy can be wired to anything again. Not scheduled to a phase yet.
+
+**Decision 2 — Amass removed from `external-footprint` and `full-assessment`.** Amass only produces useful results against a real, registrable public domain; `domain/target.py`'s `_validate_hostname()` validates RFC 1034/1123 label syntax only — it accepts `"localhost"` and cannot distinguish a real domain from any syntactically valid hostname-shaped string. Amass also performs active DNS/certificate-transparency lookups against third-party infrastructure with no scope enforcement in the product yet, making it the highest-risk scanner to leave wired under a validation gap. The `amass` adapter and its tests are kept, same docstring treatment as Decision 1.
+
+**Roadmap item (Phase 4 prerequisite for re-enabling amass):** a `registrable_domain` target type with real validation (public suffix check, not RFC 1123 syntax) is a prerequisite for putting amass back into any profile.
+
+**The honest network scanner count is now SIX: nmap, nuclei, nikto, ffuf, gobuster, zap.** `full-assessment` now schedules exactly these six (was nine). Phase 5's claim audit must use six, not nine, as the baseline.
+
+**Decision 3 — nmap stays in `web-scan` (optional, unchanged from Phase 2A); nuclei does NOT get NETWORK added.** Read `infrastructure/scanner/nuclei.py`'s `_build_args()` directly: it passes a single `-u target.value` flag, with no CIDR-expansion or multi-host logic anywhere in the adapter. Nuclei genuinely does not accept a CIDR/NETWORK target as a single invocation. No declaration change made — `network-scan`'s existing nuclei entry (no `NETWORK` in its `target_types`) was already correct; adding it would have reintroduced a declared-but-non-functional capability, the same defect class Decision 5's test now guards against structurally.
+
+**Decision 4 — ffuf and gobuster's `HOSTNAME` declaration was a lie; fixed by dropping `HOSTNAME`, not by deriving a URL.** Both plugins declared `target_types={HOSTNAME, URL}`, but their underlying adapters (`infrastructure/scanner/ffuf.py`, `gobuster.py`) pass `target.value` straight through as the `-u` base URL with no scheme handling — a bare hostname produces an invalid, scheme-less URL at the command-construction layer, not at the declaration layer. Chose **(b): drop `HOSTNAME` from both declarations, URL only** — recommended over (a) deriving `http://<host>` because guessing the scheme is a silent, wrong-by-default assumption for any HTTPS-only target (a redirect, a refused connection, or fuzzing the wrong protocol entirely), and `nikto.py`'s `_parse_target()` proves the codebase already has a correct pattern for genuine dual-mode URL/host handling when an adapter actually implements it — ffuf/gobuster never did. Applied to both plugins' `capabilities()`.
+
+**Third compatibility state — sketch only, not implemented, for Phase 4:**
+
+Today `ScannerCapability.target_types` expresses exactly one binary fact: is this *type* of target structurally acceptable to this scanner at all. It cannot express "acceptable in principle, but only under an additional precondition the target model doesn't capture yet" — which is exactly amass's situation (`HOSTNAME` is structurally fine; a *registrable public domain* is what's actually required) and, on a smaller scale, the general shape of "syntactically valid but semantically useless" inputs.
+
+Proposed shape (not built): add an optional `precondition: TargetPrecondition | None` field to `ScannerCapability`, where `TargetPrecondition` is a small closed set of named, independently-testable predicates (e.g. `REGISTRABLE_DOMAIN`, `ROUTABLE_IP` — non-loopback/non-private — `RESOLVABLE_HOSTNAME`). `ScannerPluginRegistry.is_compatible()` would gain a second, distinct return channel from "no" — something like a three-valued `Compatibility = COMPATIBLE | INCOMPATIBLE_TYPE | INCOMPATIBLE_PRECONDITION` — so the planner can produce a *third* skip reason (`SKIPPED_PRECONDITION_NOT_MET`, alongside the existing `SKIPPED_INCOMPATIBLE`/`SKIPPED_BINARY_MISSING`/`SKIPPED_ASSET_MISSING`) with real user-facing text ("amass requires a registrable public domain; 'localhost' is not one") instead of either silently running uselessly or being unconditionally removed from every profile as this round did. This is the mechanism that would let amass (and, later, semgrep/trivy once `repository`/`image`/`path` exist) come back into a profile honestly instead of needing the type-model itself extended just to express "usually fine, sometimes not."
+
+Not implemented this round — deferred to Phase 4 alongside the `registrable_domain` target type it depends on.
+
+### Gate
+
+```
+$ uv run pytest tests/unit/application/test_phase2a_honest_coverage.py -v
+27 passed
+```
+
+Re-running the full suite surfaced 6 additional stale tests, none of them a new defect — each a direct, mechanical consequence of Decisions 1/2/4 already applied to production code, fixed to match:
+
+- `TestReferenceCaseRun4Reproduction` (2 tests): hardcoded `== 9` scanner counts and an 8-name verdict-headline tuple including Semgrep/Trivy/Amass, stale against `full-assessment`'s new 6-scanner list. Updated to 6/1/5 and the 5 real remaining names; also dropped the now-dead `semgrep`/`trivy`/`amass` entries from the `_STATUSES` discovery fixture.
+- `test_ffuf_plugin.py` / `test_gobuster_plugin.py` (4 tests): `TestCapabilities::test_correct_target_types` still asserted `HOSTNAME` was declared, and both files' module-level `_TARGET` fixture (`TargetType.HOSTNAME`) broke every provisioning/orchestrator-resolution test the moment the plugins stopped declaring it. Moved `_TARGET` to a real `TargetType.URL` value and one exact-match gobuster assertion (`test_build_args_includes_target`) from `"example.com"` to `"http://example.com"`.
+
+Final, full-repo gate, all green:
+
+```
+$ uv run pytest -q
+exit code: 0, 0 FAILED entries, all collected tests passed
+```
+
+```
+$ uv run ruff check .
+All checks passed!
+```
+
+```
+$ uv run mypy src
+Success: no issues found in 599 source files
+```
+
+### What's next
+
+Task 2 has not started. Waiting for explicit go-ahead per this round's own instruction ("Then STOP. Report back before starting Task 2").

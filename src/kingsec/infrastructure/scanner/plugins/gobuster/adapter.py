@@ -63,10 +63,16 @@ class GobusterPlugin(ScannerPluginPort):
         )
 
     def capabilities(self) -> tuple[ScannerCapability, ...]:
-        """Declare Gobuster's scanning capabilities."""
+        """Declare Gobuster's scanning capabilities.
+
+        Phase 2B Decision 4: URL only, not HOSTNAME - same reasoning as
+        ffuf (infrastructure/scanner/gobuster.py's _build_args() passes
+        target.value directly as the -u argument with no scheme handling).
+        Require an explicit-scheme URL rather than silently guess http://.
+        """
         return (
             ScannerCapability(
-                target_types=frozenset({TargetType.HOSTNAME, TargetType.URL}),
+                target_types=frozenset({TargetType.URL}),
                 scan_categories=frozenset({ScanCategory.DISCOVERY}),
                 output_format=OutputFormat.RAW_TEXT,
             ),

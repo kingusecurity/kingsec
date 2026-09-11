@@ -19,7 +19,7 @@ from kingsec.infrastructure.scanner.plugins.ffuf import FfufPlugin
 from kingsec.infrastructure.scanner.runner import CommandResult
 from tests.unit.infrastructure.scanner.conftest import FakeRunner
 
-_TARGET = Target("example.com", TargetType.HOSTNAME)
+_TARGET = Target("http://example.com", TargetType.URL)
 
 _SAMPLE_JSONL = (
     '{"input":{"FUZZ":"admin"},"position":1,"status":200,"length":1234,'
@@ -83,8 +83,8 @@ class TestCapabilities:
         caps = _make_plugin().capabilities()
         assert len(caps) == 1
         target_types = caps[0].target_types
-        assert TargetType.HOSTNAME in target_types
         assert TargetType.URL in target_types
+        assert TargetType.HOSTNAME not in target_types
         assert TargetType.IP_ADDRESS not in target_types
 
     def test_discovery_category(self) -> None:
