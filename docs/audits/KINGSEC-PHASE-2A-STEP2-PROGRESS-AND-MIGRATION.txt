@@ -1,0 +1,314 @@
+KINGSEC — PHASE 2A STEP 2 (HONEST EXECUTION & COVERAGE)
+PROGRESS REPORT + PENDING MIGRATION FOR APPROVAL
+Generated: 2026-09-11
+Branch base: chore/phase-1-e2e-evidence (not yet switched to fix/phase-2a-honest-coverage)
+
+================================================================================
+1. STATUS SUMMARY
+================================================================================
+
+Full gate result: GREEN
+  - uv run pytest -q         -> exit code 0 (entire suite passing)
+  - uv run ruff check .      -> All checks passed (full repo, not touched-files-only)
+  - uv run mypy src          -> Success: no issues found in 599 source files
+
+Completed this session (continuing from an earlier context reset):
+  - FIX 4  — cover-page scanner coverage callout (names every scanner, plain
+             English reasons, unmissable when coverage is incomplete)
+  - FIX 6  — verified Verdict.from_findings()/failed_scanners_in() consistency
+             with the new ScannerRunState enum (already correct from before
+             the context reset; no changes needed)
+  - FIX 7  — decided the dead HTML report path question: EXPOSED it rather
+             than deleted it (to_html()/to_pdf() already share the same
+             templates.py HTML generation, so the HTML branch is cheap and
+             correct — the only gap was that nothing could ever request it).
+             Added an optional `format` query param to
+             GET /reports/{id}/download (?format=html|pdf, default pdf,
+             preserves all existing behavior).
+  - FIX 9  — new ResolveOrphanedAssessments use case: on startup, forces any
+             assessment left RUNNING by a prior crash to FAILED (never
+             COMPLETED_WITH_GAPS — a crash is a genuinely indeterminate,
+             interrupted outcome, not a measured partial result). Wired into
+             create_wired_application(), gated on validate_migrations so it
+             never runs before a test's own schema exists.
+  - Alembic migration 64e10236c8c1 written (see section 3) — NOT YET APPLIED
+    to any database, per the standing MIGRATION WARNING rule.
+  - Wrote the required Phase 2A regression tests, including the reference-
+    case test reproducing Run #4 exactly (full-assessment profile vs an
+    IP_ADDRESS target, 3 of 9 scanners succeed, 6 skipped for a mix of
+    reasons) and asserting COMPLETED_WITH_GAPS with all 6 named in the
+    verdict headline.
+
+--------------------------------------------------------------------------------
+1a. A REAL REGRESSION FOUND AND FIXED DURING THE GATE RUN
+--------------------------------------------------------------------------------
+While running the full test suite, found that the FIX 3 status-decision
+block in submit_assessment.py had been rewritten (earlier in this session,
+before the context reset) in a way that dropped a documented invariant from
+Phase 06: the block that reads execution_engine's per-scanner state to decide
+FAILED / COMPLETED_WITH_GAPS / COMPLETED was gated only on
+`execution_engine is not None`, not also on `scanner_executor is not None`.
+
+Effect: any assessment run through the plain `scanner.scan()` fallback path
+(no profile, no scanner_executor — e.g. a test double ScannerPort with no
+matching ScannerExecutor) would have its scanner_progress seeded at PENDING
+via set_scanner_plan() and then NEVER advanced, because only the
+scanner_executor path reports start/complete/fail events back to the engine.
+The status-decision block would then read "0 succeeded out of 1 scheduled"
+and mark the assessment FAILED — even though the scan itself completed
+successfully with real findings.
+
+Confirmed via direct reproduction against a real wired FastAPI app + stub
+scanner: before the fix, a fully successful scan ended as
+  status=failed, failure_reason="The configured scanner failed to complete:
+  Stub Scanner. No results are available for this assessment."
+After the fix (restoring the `and scanner_executor is not None` gate):
+  status=completed, findings=[the real finding], scanner_summary=[].
+
+This also fixed 4 previously-failing integration tests
+(test_create_start_get_report, test_starting_an_already_completed_assessment_
+returns_a_clean_error_not_500, test_admin_and_owner_racing_the_same_
+assessment_produce_no_stale_overwrite, test_inspection_and_reconciliation_
+work_against_a_real_http_created_assessment) that had been reported as
+"assessment did not complete within timeout."
+
+--------------------------------------------------------------------------------
+1b. Other pre-existing tests fixed (stale vocabulary / superseded assumptions)
+--------------------------------------------------------------------------------
+Found and fixed ~20 test call sites across 8 files still using the old
+pre-Phase-2A string-based ScannerRunSummary/PlanScannerEntry status
+vocabulary (status="completed"/"failed"/"skipped"/"selected" as raw strings),
+broken by the earlier ScannerRunState enum migration:
+  - tests/unit/application/test_submit_assessment.py
+  - tests/unit/application/test_start_assessment.py
+  - tests/unit/application/test_scanner_failure_policy.py
+  - tests/unit/domain/test_report_domain.py
+  - tests/unit/infrastructure/reporting/test_templates.py
+  - tests/integration/reporting/test_partial_coverage_verdict_rendering.py
+  - tests/unit/application/test_assessment_execution.py (also: skip_scanner()
+    no longer exists — rewrote test_skip_scanner to use set_scanner_plan())
+  - tests/unit/infrastructure/scanner/test_orchestrator_error_sanitization.py
+
+Two of these tests had assertions encoding a Phase 06/10 assumption that
+Phase 2A's own (already-decided, unchanged) FIX 3/FIX 6 rules deliberately
+supersede — not something I'm newly deciding, just discovering the old tests
+contradicted the already-implemented fix:
+  - "all pre-planned skips stays COMPLETED" -> now correctly FAILED (zero
+    scanners succeeded, regardless of why)
+  - "a pre-planned skip is not qualified" -> now correctly qualified
+    (any non-SUCCEEDED scanner, including a clean skip, is a real coverage
+    gap — this is literally the Run #4 defect this whole phase exists to fix)
+
+Also fixed a real bug found via mypy: application/dto.py's
+ScannerSummaryView.from_domain() was assigning the raw ScannerRunState enum
+into a `status: str` field instead of `.value` — caught by mypy, fixed at
+the actual DTO boundary (not by re-adding a wrong `.value` call downstream
+in routes.py, which I'd initially done before finding the real boundary).
+
+Also fixed a real ordering bug: create_wired_application()'s new FIX 9
+startup call was running unconditionally, including in test fixtures that
+pass validate_migrations=False and create the schema themselves AFTER the
+function returns — causing "no such table: assessments" in ~60 integration
+tests. Fixed by gating the FIX 9 call on `validate_migrations` (the same
+flag that already means "assume the schema is ready to query").
+
+================================================================================
+2. WHAT'S LEFT (Phase 2A Step 2, per the original approved prompt)
+================================================================================
+  [ ] Apply the migration below to the ISOLATED C:\kingsec-e2e directory
+      (never ~/.kingsec) — BLOCKED ON YOUR APPROVAL (see section 3).
+  [ ] Re-run Run #4's exact scenario against real DVWA, generate the PDF,
+      open and inspect it — must show COMPLETED_WITH_GAPS and name all 6
+      non-running scanners.
+  [ ] Compare old vs. new PDF cover pages side by side in docs/STATUS.md.
+  [ ] Create/switch to branch fix/phase-2a-honest-coverage (currently still
+      on chore/phase-1-e2e-evidence).
+  [ ] git status --short + git diff --stat before committing; stage explicit
+      paths (never `git add .`).
+  [ ] Update docs/STATUS.md with the full Phase 2A section, then STOP —
+      explicit instruction: do not start Phase 2B.
+
+================================================================================
+3. THE PENDING MIGRATION (64e10236c8c1) — NOT YET APPLIED
+================================================================================
+File: src/kingsec/alembic/versions/
+      2026_09_10_120000__add_report_assessment_status_and_backfill_scanner_status.py
+Revises: da4b78614806 (current real head)
+
+WHAT IT DOES:
+  1. Adds reports.assessment_status (String, NOT NULL, server_default
+     'completed') — SQLite backfills every existing row atomically via the
+     server_default itself.
+  2. Refines that column per-row: if a report's (already-backfilled)
+     scanner_summary shows ANY scanner that didn't reach SUCCEEDED, that
+     report is re-labelled 'completed_with_gaps' instead of the default
+     'completed' — an honest correction for historical reports rather than
+     silently claiming full coverage they may not have had. Reports with
+     no scanner_summary at all (predate the coverage feature) are left at
+     'completed'.
+  3. Backfills the `status` field inside every JSON entry of BOTH
+     assessments.scanner_summary and reports.scanner_summary, from the old
+     vocabulary to the new ScannerRunState vocabulary:
+         pending  -> pending
+         running  -> running
+         completed -> succeeded
+         failed   -> failed
+         skipped  -> skipped_incompatible   (lossy: old data has no record
+                                              of WHY a scanner was skipped,
+                                              so this is the closest
+                                              available meaning, not
+                                              necessarily the true original
+                                              reason)
+  4. Deliberately does NOT touch assessments.status itself (the top-level
+     lifecycle column) — retroactively reclassifying a historical
+     Assessment's own COMPLETED/FAILED verdict is a materially bigger claim
+     than relabelling its scanner-status vocabulary, and was judged out of
+     scope for this migration.
+  5. downgrade() only reverses the schema addition (drops the column) — the
+     vocabulary backfill is deliberately NOT reversed, because mapping
+     "succeeded" back to "completed" etc. cannot distinguish entries that
+     were already old-vocabulary before this migration from ones it just
+     changed, so a downgrade would be a guess, not a true inverse.
+
+FULL SOURCE:
+--------------------------------------------------------------------------------
+"""add reports.assessment_status and backfill legacy scanner-status vocabulary
+
+Phase 2A: ``ScannerRunSummary.status`` moved from a free-form ``str`` to
+the ``ScannerRunState`` enum (PENDING/RUNNING/SUCCEEDED/FAILED/TIMED_OUT/
+SKIPPED_INCOMPATIBLE/SKIPPED_BINARY_MISSING/SKIPPED_ASSET_MISSING), and
+``Report`` gained an ``assessment_status`` field recording whether the
+assessment it was generated from was COMPLETED or COMPLETED_WITH_GAPS.
+Both changes need a real data migration, not just a schema change:
+existing rows have the OLD status vocabulary ("pending", "completed",
+"failed", "skipped") baked into their ``scanner_summary`` JSON blobs, and
+existing ``reports`` rows have no ``assessment_status`` at all.
+
+Two independent backfills:
+
+1. ``reports.assessment_status`` (new column, default 'completed' for the
+   ADD COLUMN itself so SQLite backfills every existing row atomically),
+   then refined per-row: a report whose (already-backfilled)
+   ``scanner_summary`` shows any scanner that didn't reach SUCCEEDED is
+   re-labelled 'completed_with_gaps' - an honest, best-effort correction
+   for historical reports rather than silently claiming full coverage
+   they may not have had. Reports predating the scanner-coverage feature
+   entirely (empty ``scanner_summary``) are left at 'completed', matching
+   ``Report.assessment_status``'s own default for pre-existing callers.
+
+2. The ``scanner_summary`` JSON blobs on BOTH ``assessments`` and
+   ``reports`` - each entry's ``status`` string is remapped to the new
+   vocabulary via the best-effort table below. This is necessarily lossy
+   for "skipped": the old vocabulary had no concept of WHY a scanner was
+   skipped, so every old "skipped" becomes SKIPPED_INCOMPATIBLE, the
+   closest available meaning ("this scanner was not applicable"), not
+   necessarily the true original reason.
+
+Deliberately does NOT touch ``assessments.status`` itself (the
+top-level lifecycle column) - retroactively reclassifying a historical
+Assessment's own COMPLETED/FAILED verdict is a materially bigger claim
+than relabelling its scanner-status vocabulary, and out of scope here.
+
+Revision ID: 64e10236c8c1
+Revises: da4b78614806
+Create Date: 2026-09-10 12:00:00.000000
+"""
+
+from __future__ import annotations
+
+import json
+
+import sqlalchemy as sa
+from alembic import op
+
+# revision identifiers, used by Alembic.
+revision: str = "64e10236c8c1"
+down_revision: str | None = "da4b78614806"
+branch_labels: str | None = None
+depends_on: str | None = None
+
+# Old (pre-Phase-2A) -> new ScannerRunState.value vocabulary. Only keys
+# actually seen in production data are listed; anything else is left
+# untouched (defensive - never guess at a value this migration doesn't
+# recognise).
+_STATUS_MAP: dict[str, str] = {
+    "pending": "pending",
+    "running": "running",
+    "completed": "succeeded",
+    "failed": "failed",
+    "skipped": "skipped_incompatible",
+}
+
+_SUCCESS_VALUE = "succeeded"
+
+
+def _backfill_scanner_summary(table_name: str, pk_col: str) -> None:
+    conn = op.get_bind()
+    rows = conn.execute(sa.text(f"SELECT {pk_col}, scanner_summary FROM {table_name}")).fetchall()  # noqa: S608
+    for pk, raw in rows:
+        if not raw:
+            continue
+        entries = json.loads(raw)
+        if not entries:
+            continue
+        changed = False
+        for entry in entries:
+            old_status = entry.get("status")
+            new_status = _STATUS_MAP.get(old_status)
+            if new_status is not None and new_status != old_status:
+                entry["status"] = new_status
+                changed = True
+        if changed:
+            conn.execute(
+                sa.text(f"UPDATE {table_name} SET scanner_summary = :val WHERE {pk_col} = :pk"),  # noqa: S608
+                {"val": json.dumps(entries), "pk": pk},
+            )
+
+
+def _refine_report_assessment_status() -> None:
+    """Re-label a report 'completed_with_gaps' if its backfilled
+    scanner_summary shows any scanner that didn't reach SUCCEEDED."""
+    conn = op.get_bind()
+    rows = conn.execute(sa.text("SELECT assessment_id, scanner_summary FROM reports")).fetchall()
+    for assessment_id, raw in rows:
+        if not raw:
+            continue
+        entries = json.loads(raw)
+        if not entries:
+            continue
+        if any(entry.get("status") != _SUCCESS_VALUE for entry in entries):
+            conn.execute(
+                sa.text("UPDATE reports SET assessment_status = 'completed_with_gaps' WHERE assessment_id = :pk"),
+                {"pk": assessment_id},
+            )
+
+
+def upgrade() -> None:
+    with op.batch_alter_table("reports") as batch_op:
+        batch_op.add_column(
+            sa.Column("assessment_status", sa.String(), nullable=False, server_default="completed")
+        )
+
+    _backfill_scanner_summary("assessments", "id")
+    _backfill_scanner_summary("reports", "assessment_id")
+    _refine_report_assessment_status()
+
+
+def downgrade() -> None:
+    # The scanner_summary vocabulary backfill is intentionally not
+    # reversed: mapping "succeeded" back to "completed" etc. cannot
+    # distinguish entries that were already in the new vocabulary before
+    # this migration ran (there are none, pre-Phase-2A) from ones this
+    # migration itself just changed, so a downgrade would be a guess, not
+    # a true inverse. Only the schema addition is reversed.
+    with op.batch_alter_table("reports") as batch_op:
+        batch_op.drop_column("assessment_status")
+--------------------------------------------------------------------------------
+
+================================================================================
+4. NEXT ACTION NEEDED FROM YOU
+================================================================================
+Reply to approve applying this migration to the isolated C:\kingsec-e2e
+database (never ~/.kingsec), so I can continue to the real DVWA re-run of
+Run #4's scenario, the PDF comparison, docs/STATUS.md, and the branch/commit
+— then stop, per the standing "do not start Phase 2B" instruction.

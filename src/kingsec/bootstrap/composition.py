@@ -88,6 +88,7 @@ from kingsec.application import (
     ReportGeneratorPort,
     ReportRepository,
     ResetFailedAttempts,
+    ResolveOrphanedAssessments,
     ResumeSchedule,
     RetrieveSecret,
     RevokeAllSessions,
@@ -190,6 +191,23 @@ def create_wired_application(
         validate_migrations=validate_migrations,
     )
     _register_use_cases(app)
+
+    # Phase 2A FIX 9: resolve any assessment a prior process crash left
+    # stuck at RUNNING before this instance serves any new work - see
+    # ResolveOrphanedAssessments' module docstring for why this is not a
+    # reuse of ReconcileAssessmentExecution. Runs once, synchronously,
+    # here rather than in Application.start(). Gated on validate_migrations
+    # - the same flag that already means "the schema is assumed ready to
+    # query" for the migration-version check above - because some callers
+    # (validate_migrations=False, e.g. tests that call create_schema()
+    # themselves AFTER this function returns) have no table to query yet.
+    if validate_migrations:
+        orphaned_resolved = ResolveOrphanedAssessments(
+            app.resolve(AssessmentRepository), app.resolve(AuditPublisher)
+        ).execute()
+        if orphaned_resolved:
+            app.logger.warning("orphaned assessments resolved at startup", count=orphaned_resolved)
+
     app.logger.info(
         "application composed",
         provider=app.settings.ai.provider,
@@ -395,9 +413,32 @@ def _register_adapters(
 
     # Execution Planner: matches assessment profiles against targets and
     # scanner health, stateless so a single shared instance is fine.
+    #
+    # Phase 2A Correction 2a: wired with the SAME ScannerPluginRegistry
+    # instance register_scanner() above already registered on the
+    # container, so plan()'s target-type compatibility check
+    # (registry.is_compatible()) is identical to what the orchestrator
+    # itself uses — never a second, independently-derived answer that can
+    # drift out of sync (the Run #4 reference-case root cause).
+    #
+    # Correction 4: ScannerDiscoveryService gets the operator's actual
+    # configured wordlist paths, not a hardcoded Linux default, so making
+    # the wordlist requirement non-optional doesn't report "missing" on
+    # every Windows host regardless of configuration.
     from kingsec.application.assessment_profiles import ExecutionPlanner
+    from kingsec.application.ports.scanner_registry import ScannerPluginRegistry
+    from kingsec.application.scanner_discovery import ScannerDiscoveryService
 
-    container.register_instance(ExecutionPlanner, ExecutionPlanner())
+    container.register_instance(
+        ExecutionPlanner,
+        ExecutionPlanner(
+            discovery=ScannerDiscoveryService(
+                ffuf_wordlist=settings.ffuf.wordlist,
+                gobuster_wordlist=settings.gobuster.wordlist,
+            ),
+            registry=container.resolve(ScannerPluginRegistry),
+        ),
+    )
 
     # Enterprise integration services (Phase 13).
     _register_integration_services(container, settings)

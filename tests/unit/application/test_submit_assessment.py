@@ -16,7 +16,7 @@ from kingsec.application.errors import AssessmentNotFoundError
 from kingsec.application.submit_assessment import SubmitAssessment
 from kingsec.domain import Assessment, AssessmentId, Finding, Severity, Target, TargetType
 from kingsec.domain.authorization import Authorization
-from kingsec.domain.enums import AssessmentStatus
+from kingsec.domain.enums import AssessmentStatus, ScannerRunState
 from kingsec.domain.errors import IllegalStateTransition
 from kingsec.domain.evidence import Recommendation
 
@@ -538,8 +538,16 @@ class TestSubmitAssessmentProfileGating:
             profile_name="Quick Host Scan",
             target_value="10.0.0.5",
             target_type=TargetType.IP_ADDRESS,
-            selected_scanners=(PlanScannerEntry(scanner_id="nmap", name="Nmap", status="selected"),),
-            skipped_scanners=(PlanScannerEntry(scanner_id="nuclei", name="Nuclei", status="skipped", reason="not selected"),),
+            selected_scanners=(PlanScannerEntry(scanner_id="nmap", name="Nmap", selected=True),),
+            skipped_scanners=(
+                PlanScannerEntry(
+                    scanner_id="nuclei",
+                    name="Nuclei",
+                    selected=False,
+                    skip_state=ScannerRunState.SKIPPED_INCOMPATIBLE,
+                    reason="not selected",
+                ),
+            ),
             unavailable_scanners=(),
             warnings=(),
             estimated_duration_minutes=5,
@@ -575,7 +583,11 @@ class TestSubmitAssessmentProfileGating:
             skipped_scanners=(),
             unavailable_scanners=(
                 PlanScannerEntry(
-                    scanner_id="nmap", name="Nmap", status="required_unavailable", reason="'Nmap' is not installed"
+                    scanner_id="nmap",
+                    name="Nmap",
+                    selected=False,
+                    skip_state=ScannerRunState.SKIPPED_BINARY_MISSING,
+                    reason="'Nmap' is not installed",
                 ),
             ),
             warnings=("Required scanner 'Nmap' is not installed.",),

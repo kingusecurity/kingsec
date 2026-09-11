@@ -196,6 +196,13 @@ class ReportORM(Base):
     # over from the assessment at generation time - same shape as
     # AssessmentORM.scanner_summary.
     scanner_summary: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    # Phase 2A: the AssessmentStatus value (e.g. "completed",
+    # "completed_with_gaps") the assessment held at report-generation time,
+    # so a report generated under partial-coverage conditions carries that
+    # fact with it even if the assessment's own status later changes.
+    assessment_status: Mapped[str] = mapped_column(
+        String, nullable=False, default="completed"
+    )
 
 
 class UserORM(Base):

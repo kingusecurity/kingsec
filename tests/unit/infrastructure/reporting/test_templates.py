@@ -323,18 +323,27 @@ class TestScannerCoverage:
 
     def test_profile_gated_outcome_groups_by_status_and_reason(self) -> None:
         from kingsec.domain import ScannerRunSummary
+        from kingsec.domain.enums import ScannerRunState
 
         summary = (
-            ScannerRunSummary(scanner_id="nmap", name="Nmap", status="completed", findings_count=7),
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=7),
             ScannerRunSummary(
-                scanner_id="nuclei", name="Nuclei", status="skipped", skipped_reason="excluded by profile"
+                scanner_id="nuclei",
+                name="Nuclei",
+                status=ScannerRunState.SKIPPED_INCOMPATIBLE,
+                skipped_reason="excluded by profile",
             ),
             ScannerRunSummary(
-                scanner_id="nikto", name="Nikto", status="skipped", skipped_reason="excluded by profile"
+                scanner_id="nikto",
+                name="Nikto",
+                status=ScannerRunState.SKIPPED_INCOMPATIBLE,
+                skipped_reason="excluded by profile",
             ),
-            ScannerRunSummary(scanner_id="trivy", name="Trivy", status="failed", skipped_reason="binary not found"),
             ScannerRunSummary(
-                scanner_id="semgrep", name="Semgrep", status="failed", skipped_reason="binary not found"
+                scanner_id="trivy", name="Trivy", status=ScannerRunState.FAILED, skipped_reason="binary not found"
+            ),
+            ScannerRunSummary(
+                scanner_id="semgrep", name="Semgrep", status=ScannerRunState.FAILED, skipped_reason="binary not found"
             ),
         )
         html = render_report_html(build_report(scanner_summary=summary))
@@ -349,12 +358,13 @@ class TestScannerCoverage:
         tag + 'unexpected error in plugin' wrapper) must never leak into a
         customer-facing report verbatim."""
         from kingsec.domain import ScannerRunSummary
+        from kingsec.domain.enums import ScannerRunState
 
         summary = (
             ScannerRunSummary(
                 scanner_id="trivy",
                 name="Trivy",
-                status="failed",
+                status=ScannerRunState.FAILED,
                 skipped_reason="unexpected error in plugin 'trivy': [KS-SCAN-001] scan timed out after 600s",
             ),
         )
@@ -367,17 +377,26 @@ class TestScannerCoverage:
 
     def test_singular_finding_count_has_no_trailing_s(self) -> None:
         from kingsec.domain import ScannerRunSummary
+        from kingsec.domain.enums import ScannerRunState
 
-        summary = (ScannerRunSummary(scanner_id="nmap", name="Nmap", status="completed", findings_count=1),)
+        summary = (
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=1),
+        )
         html = render_report_html(build_report(scanner_summary=summary))
         section = html.split('id="scanner-coverage"')[1].split("</section>")[0]
         assert "Nmap: completed, 1 finding." in section
 
     def test_scanner_names_are_escaped(self) -> None:
         from kingsec.domain import ScannerRunSummary
+        from kingsec.domain.enums import ScannerRunState
 
         summary = (
-            ScannerRunSummary(scanner_id="x", name="<script>alert('x')</script>", status="completed", findings_count=0),
+            ScannerRunSummary(
+                scanner_id="x",
+                name="<script>alert('x')</script>",
+                status=ScannerRunState.SUCCEEDED,
+                findings_count=0,
+            ),
         )
         html = render_report_html(build_report(scanner_summary=summary))
         assert "<script>alert('x')</script>" not in html

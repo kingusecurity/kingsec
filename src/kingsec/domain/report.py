@@ -41,18 +41,24 @@ _INFORMATIONAL_HEADLINE_WHEN_INCOMPLETE = "Informational observations only in th
 
 
 def failed_scanners_in(scanner_summary: tuple[ScannerRunSummary, ...]) -> tuple[ScannerRunSummary, ...]:
-    """Scanners that were attempted and did not complete.
+    """Scanners that did not reach SUCCEEDED — the only category that
+    makes coverage incomplete.
 
-    Phase 10: the only category that makes coverage incomplete. A scanner
-    absent from ``scanner_summary`` entirely (never applicable to this
-    target - confirmed live in Phase 09 §5 Scenario 3 for Amass/Trivy/
-    Semgrep against a URL target) did not fail to run. A scanner present
-    with ``status == "skipped"`` (a profile's pre-planned skip) was
-    deliberately not attempted, which is also not a failure. Getting this
-    wrong would mark almost every assessment partial and make the signal
-    useless - so only the literal ``"failed"`` status counts.
+    Phase 2A FIX 3/6 (superseding the Phase 10 version of this function):
+    every scanner in ``scanner_summary`` now has a real, terminal
+    ``ScannerRunState`` — there is no longer a category of scanner that
+    is silently absent from this tuple because it was "never applicable"
+    (Phase 2A Correction 2b made the planner decide every scanner in the
+    profile, always). So "incomplete coverage" is now simply: did every
+    scanner that was scheduled for this assessment SUCCEED? A scanner
+    that was skipped as genuinely inapplicable (SKIPPED_INCOMPATIBLE) is
+    still, honestly, a scanner whose coverage this assessment does not
+    have — the Run #4 reference case is exactly this: 6 scanners the
+    operator would reasonably expect to run, that didn't, none of them
+    literally "failed" in the old narrow sense. Undercounting this is
+    the false-assurance defect this phase exists to close.
     """
-    return tuple(s for s in scanner_summary if s.status == "failed")
+    return tuple(s for s in scanner_summary if not s.status.is_success)
 
 
 def _coverage_caveat(failed: tuple[ScannerRunSummary, ...], total_attempted: int) -> str:
@@ -286,11 +292,32 @@ class Report:
     # assessment as-is, so a reader never needs to return to the live app to
     # see it. Empty for assessments that predate this feature.
     scanner_summary: tuple[ScannerRunSummary, ...] = ()
+    # Phase 2A FIX 3/4: the assessment's actual terminal status
+    # (COMPLETED or COMPLETED_WITH_GAPS) at the moment this report was
+    # generated - the report must say which one it was, not silently
+    # assume "Completed" the way it safely could before COMPLETED_WITH_GAPS
+    # existed. Defaults to COMPLETED only for pre-existing callers/fixtures
+    # that never set it explicitly.
+    assessment_status: AssessmentStatus = AssessmentStatus.COMPLETED
 
     @classmethod
     def from_assessment(cls, assessment: Assessment, *, generated_at: datetime | None = None) -> Report:
-        """Build a report from a COMPLETED assessment (else raise)."""
-        if assessment.status is not AssessmentStatus.COMPLETED:
+        """Build a report from a COMPLETED or COMPLETED_WITH_GAPS assessment.
+
+        Phase 2A FIX 5: a FAILED assessment (zero scanners succeeded) is
+        deliberately excluded here — there is no real data to report on,
+        and generating a normal, scored report over an empty result set
+        would itself be the false-assurance problem this phase exists to
+        close. The caller gets a specific, honest reason why, not a
+        generic state-transition error.
+        """
+        if assessment.status not in (AssessmentStatus.COMPLETED, AssessmentStatus.COMPLETED_WITH_GAPS):
+            if assessment.status is AssessmentStatus.FAILED:
+                raise IllegalStateTransition(
+                    "no report can be generated: every scanner failed to complete for this "
+                    "assessment, so no assessment data was collected",
+                    current=assessment.status,
+                )
             raise IllegalStateTransition(
                 "a report can only be generated from a completed assessment",
                 current=assessment.status,
@@ -334,6 +361,7 @@ class Report:
             authorized_by=authorization.authorized_by if authorization else "",
             scope=authorization.scope if authorization else "",
             scanner_summary=assessment.scanner_summary,
+            assessment_status=assessment.status,
         )
 
     # --- convenience ---------------------------------------------------------

@@ -74,6 +74,16 @@ class AssessmentRepository(ABC):
         """Return assessments ordered by created_at DESC with pagination."""
 
     @abstractmethod
+    def find_running(self) -> builtins.list[Assessment]:
+        """Return every assessment currently in RUNNING status.
+
+        Phase 2A FIX 9: the startup orphan-recovery pass uses this to find
+        assessments a prior process crash left stuck mid-execution - a
+        fresh process start means nothing returned here can legitimately
+        still be executing.
+        """
+
+    @abstractmethod
     def find_by_schedule_occurrence_id(self, occurrence_id: str) -> builtins.list[Assessment]:
         """Return every assessment linked to the given schedule occurrence.
 

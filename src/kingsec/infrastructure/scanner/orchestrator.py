@@ -29,6 +29,7 @@ from kingsec.domain import (
     Target,
 )
 from kingsec.infrastructure.logging import get_logger
+from kingsec.infrastructure.scanner.errors import ScannerExecutionError
 
 _logger = get_logger("kingsec.infrastructure.scanner.orchestrator")
 
@@ -90,33 +91,50 @@ class ScannerOrchestrator(ScannerPort, ScannerExecutor):
         execution_engine: AssessmentExecutionEngine | None = None,
         tracking_id: str | None = None,
     ) -> tuple[ScannerResult, ...]:
-        """Execute all compatible plugins for a target.
+        """Execute plugins for a target.
 
-        Iterates over plugins resolved by the registry. Per-plugin errors
-        (including an unavailable/missing tool) are logged and that plugin
-        is skipped — execution continues with the remaining plugins, the
-        same graceful-degradation contract already used by ``shutdown()``.
+        Phase 2A Correction 2c: when ``scanner_ids`` is given (the normal,
+        profile-driven path), this method executes EXACTLY that set and
+        performs NO further target-type filtering of its own — that
+        decision was already made, once, by ``ExecutionPlanner.plan()``
+        (Correction 2a/2b), which is now the single source of truth. A
+        ``scanner_ids`` entry that cannot be resolved to a registered
+        plugin is a bug in that invariant, not a run-time skip condition:
+        it is raised, never silently dropped (Correction 2d — the planner
+        and orchestrator's selected sets must always be identical, and a
+        violation must fail loudly).
 
-        ``scanner_ids``, when given, narrows the resolved plugins to that
-        subset (e.g. a profile's selected scanners) instead of every
-        target-compatible one. ``None`` runs every compatible plugin,
-        exactly as before this parameter existed.
+        ``scanner_ids=None`` is the legacy, no-profile fallback path
+        (``StartAssessment``'s direct ``scan()`` call, unreached via any
+        HTTP route) — unchanged: every target-compatible plugin runs, via
+        the registry's own resolution, since there is no plan to be the
+        source of truth here.
+
+        Per-plugin runtime errors (including an unavailable/missing tool)
+        are logged and that plugin's result is skipped — execution
+        continues with the remaining plugins, the same graceful-
+        degradation contract already used by ``shutdown()``. A
+        subprocess-timeout error is reported to the execution engine as
+        TIMED_OUT, distinct from any other FAILED outcome (Phase 2A FIX 1
+        / Correction 3).
 
         When ``execution_engine`` and ``tracking_id`` are both given, each
-        plugin's start/completion/failure is reported to the engine as it
-        happens, so a caller can read back the real final per-scanner
-        outcome after this call returns.
+        plugin's start/completion/failure/timeout is reported to the
+        engine as it happens, so a caller can read back the real final
+        per-scanner outcome after this call returns.
         """
-        plugins = self._registry.resolve(target)
         if scanner_ids is not None:
-            allowed = set(scanner_ids)
-            plugins = tuple(p for p in plugins if p.metadata().id.value in allowed)
-        if not plugins:
-            _logger.warning(
-                "no scanner plugin is compatible with this target type; "
-                "scan will produce zero findings",
-                target_type=str(target.type),
+            plugins: tuple[ScannerPluginPort, ...] = tuple(
+                self._registry.get(ScannerId(sid)) for sid in scanner_ids
             )
+        else:
+            plugins = self._registry.resolve(target)
+            if not plugins:
+                _logger.warning(
+                    "no scanner plugin is compatible with this target type; "
+                    "scan will produce zero findings",
+                    target_type=str(target.type),
+                )
         results: list[ScannerResult] = []
         engine, tid = execution_engine, tracking_id
 
@@ -144,16 +162,22 @@ class ScannerOrchestrator(ScannerPort, ScannerExecutor):
                 # THAT in full for operators (logging is unaffected by this
                 # phase's sanitization; the redaction processor is the
                 # correct, separate layer for secrets in log output), while
-                # the product-facing engine.fail_scanner() call only ever
-                # sees the already-sanitized wrapper text.
+                # the product-facing engine call only ever sees the
+                # already-sanitized wrapper text.
                 original = exc.__cause__ if exc.__cause__ is not None else exc
+                is_timeout = (
+                    isinstance(original, ScannerExecutionError) and "timeout_seconds" in original.context
+                )
                 _logger.warning(
-                    "scanner plugin failed, skipping",
+                    "scanner plugin timed out" if is_timeout else "scanner plugin failed, skipping",
                     plugin_id=str(plugin_id),
                     error=str(original),
                 )
                 if engine is not None and tid is not None:
-                    engine.fail_scanner(tid, plugin_id.value, safe_failure_message(exc))
+                    if is_timeout:
+                        engine.timeout_scanner(tid, plugin_id.value, safe_failure_message(exc))
+                    else:
+                        engine.fail_scanner(tid, plugin_id.value, safe_failure_message(exc))
 
         return tuple(results)
 

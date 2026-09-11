@@ -109,6 +109,14 @@ class LegacyAssessmentRepository(AssessmentRepository):
         except SQLAlchemyError as exc:
             ops.raise_persistence_error("failed to find assessments by schedule occurrence", exc, occurrence_id)
 
+    def find_running(self) -> builtins.list[Assessment]:
+        """Return every assessment currently in RUNNING status (Phase 2A FIX 9)."""
+        try:
+            with self._session_factory() as session:
+                return ops.find_running_assessments(session)
+        except SQLAlchemyError as exc:
+            ops.raise_persistence_error("failed to find running assessments", exc, "-")
+
     def delete(self, assessment_id: AssessmentId) -> None:
         """Delete an assessment and all its children (cascade).
 

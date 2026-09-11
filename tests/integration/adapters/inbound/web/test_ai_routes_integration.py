@@ -62,6 +62,9 @@ class _EmptyAssessmentRepository(AssessmentRepository):
     def find_by_schedule_occurrence_id(self, occurrence_id: str) -> list[Assessment]:
         return []
 
+    def find_running(self) -> list[Assessment]:
+        return []
+
     def delete(self, assessment_id: AssessmentId) -> None:
         pass
 

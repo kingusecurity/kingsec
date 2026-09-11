@@ -260,6 +260,7 @@ from .use_cases.refresh_session import RefreshSession
 from .use_cases.refresh_token import RefreshToken, TokenRefreshError
 from .use_cases.register_user import RegisterUser, RegistrationError
 from .use_cases.reset_failed_attempts import ResetFailedAttempts
+from .use_cases.resolve_orphaned_assessments import ResolveOrphanedAssessments
 from .use_cases.resume_schedule import ResumeSchedule
 from .use_cases.retrieve_secret import RetrieveSecret
 from .use_cases.revoke_all_sessions import RevokeAllSessions
@@ -550,6 +551,7 @@ __all__ = [
     "ResetFailedAttemptsRequest",
     "ResetFailedAttemptsResponse",
     "ResetPasswordRequest",
+    "ResolveOrphanedAssessments",
     "RestoreBackup",
     "RestoreNotFoundError",
     "RestoreSnapshot",

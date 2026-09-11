@@ -50,20 +50,30 @@ class ReportGeneratorAdapter(ReportGeneratorPort):
         self._format = fmt
         self._renderer = renderer or ReportRenderer(brand_name=brand_name)
 
-    def render(self, report: Report) -> RenderedReport:
+    def render(self, report: Report, *, format: str | None = None) -> RenderedReport:
         """Render the report into a deliverable artifact.
 
         Args:
             report: The domain report snapshot.
+            format: Optional per-call override (``"pdf"`` or ``"html"``).
+                ``None`` uses the format this adapter was constructed with
+                (Phase 2A FIX 7: lets a single running adapter serve either
+                format on request instead of the format being fixed for the
+                life of the process).
 
         Returns:
             A ``RenderedReport`` with the artifact bytes, media type, and filename.
 
         Raises:
-            ReportGenerationError: If rendering fails.
+            ReportGenerationError: If rendering fails, or ``format`` is unsupported.
         """
-        media_type, extension = _FORMATS[self._format]
-        if self._format == "pdf":
+        fmt = self._format if format is None else format.lower()
+        if fmt not in _FORMATS:
+            raise ReportGenerationError(
+                f"unsupported report format {format!r}; supported: {', '.join(sorted(_FORMATS))}"
+            )
+        media_type, extension = _FORMATS[fmt]
+        if fmt == "pdf":
             content = self._renderer.to_pdf(report)
         else:
             content = self._renderer.to_html(report).encode("utf-8")
@@ -72,7 +82,7 @@ class ReportGeneratorAdapter(ReportGeneratorPort):
         _logger.info(
             "report generated",
             assessment_id=report.assessment_id,
-            format=self._format,
+            format=fmt,
             bytes=len(content),
         )
         return RenderedReport(content=content, media_type=media_type, filename=filename)

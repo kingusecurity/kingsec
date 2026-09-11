@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from .authorization import Authorization
-from .enums import AssessmentStatus, Severity
+from .enums import AssessmentStatus, ScannerRunState, Severity
 from .errors import IllegalStateTransition, InvariantViolation
 from .finding import Finding
 from .identifiers import AssessmentId, FindingId
@@ -39,7 +39,7 @@ class ScannerRunSummary:
 
     scanner_id: str
     name: str
-    status: str  # "completed" | "failed" | "skipped" | ... (mirrors ScannerProgress.status)
+    status: ScannerRunState
     findings_count: int = 0
     skipped_reason: str | None = None
 
@@ -49,10 +49,12 @@ _ALLOWED_ASSESSMENT_TRANSITIONS: dict[AssessmentStatus, set[AssessmentStatus]] =
     AssessmentStatus.AUTHORIZED: {AssessmentStatus.RUNNING, AssessmentStatus.CANCELLED},
     AssessmentStatus.RUNNING: {
         AssessmentStatus.COMPLETED,
+        AssessmentStatus.COMPLETED_WITH_GAPS,
         AssessmentStatus.FAILED,
         AssessmentStatus.CANCELLED,
     },
     AssessmentStatus.COMPLETED: set(),
+    AssessmentStatus.COMPLETED_WITH_GAPS: set(),
     AssessmentStatus.CANCELLED: set(),
     AssessmentStatus.FAILED: set(),
 }
@@ -306,8 +308,25 @@ class Assessment:
         self._scanner_summary = summary
 
     def complete(self) -> None:
-        """Finish successfully: RUNNING -> COMPLETED."""
+        """Finish successfully: RUNNING -> COMPLETED.
+
+        Reserved for the case every scheduled scanner reached
+        SUCCEEDED. See ``complete_with_gaps()`` for any other outcome
+        short of a full failure (Phase 2A FIX 3) - callers must not call
+        this method unless that condition genuinely holds.
+        """
         self._transition_to(AssessmentStatus.COMPLETED)
+
+    def complete_with_gaps(self) -> None:
+        """Finish with incomplete coverage: RUNNING -> COMPLETED_WITH_GAPS.
+
+        Used whenever at least one scheduled scanner did not reach
+        SUCCEEDED (skipped, failed, or timed out) but at least one did -
+        the assessment produced some real evidence, but not a full
+        picture. A partial run must never be labelled COMPLETED (Phase 2A
+        FIX 3, the Run #4 reference-case defect this exists to close).
+        """
+        self._transition_to(AssessmentStatus.COMPLETED_WITH_GAPS)
 
     def fail(self, reason: str) -> None:
         """Abort due to error: RUNNING -> FAILED, recording why."""

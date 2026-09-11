@@ -43,7 +43,7 @@ from kingsec.domain import (
     Target,
     TargetType,
 )
-from kingsec.domain.enums import AssessmentStatus
+from kingsec.domain.enums import AssessmentStatus, ScannerRunState
 from kingsec.infrastructure.scanner.orchestrator import ScannerOrchestrator
 from kingsec.infrastructure.scanner.registry import InMemoryPluginRegistry
 
@@ -218,6 +218,11 @@ class TestAllAttemptedScannersFailed:
 
 
 class TestPartialFailureStaysCompleted:
+    # Phase 2A FIX 3 (already-decided, unchanged by this phase) introduced
+    # a third status, COMPLETED_WITH_GAPS, for exactly this row: some
+    # scanners succeeded, some didn't. This class predates that status
+    # (Phase 06 only had COMPLETED/FAILED) - the assertions below reflect
+    # the current, correct behavior, not the class name's original framing.
     def test_some_failed_some_succeeded_with_findings_stays_completed(self) -> None:
         result = _run(
             [
@@ -225,7 +230,7 @@ class TestPartialFailureStaysCompleted:
                 _StubPlugin(plugin_id="nmap", findings=(_finding(),)),
             ]
         )
-        assert result.status == AssessmentStatus.COMPLETED
+        assert result.status == AssessmentStatus.COMPLETED_WITH_GAPS
         assert result.failure_reason is None
         assert len(result.findings) == 1
 
@@ -240,7 +245,7 @@ class TestPartialFailureStaysCompleted:
                 _StubPlugin(plugin_id="nmap", findings=()),
             ]
         )
-        assert result.status == AssessmentStatus.COMPLETED
+        assert result.status == AssessmentStatus.COMPLETED_WITH_GAPS
         assert result.failure_reason is None
         assert len(result.findings) == 0
 
@@ -271,16 +276,28 @@ class TestEmptyAttemptedSetGuard:
 class TestAllPreplannedSkipsStayCompleted:
     def test_all_scanners_preplanned_skipped_stays_completed(self) -> None:
         # A profile whose plan deliberately selects nothing (e.g. every
-        # compatible scanner excluded by profile policy) - these are
-        # "skipped", not "failed": nothing was ever attempted, so nothing
-        # can have failed. Must not be conflated with the all-failed row.
+        # compatible scanner excluded by profile policy). Phase 06 treated
+        # this as "nothing attempted, so nothing failed -> COMPLETED", but
+        # Phase 2A FIX 3 (already-decided, unchanged by this phase)
+        # generalized "zero scanners succeeded" to FAILED regardless of
+        # why - a report with literally zero collected evidence must never
+        # present as an ordinary successful outcome, even when every
+        # scanner was skipped rather than erroring.
         plan = ExecutionPlan(
             profile_id="quick-scan",
             profile_name="Quick Scan",
             target_value="10.0.0.5",
             target_type=TargetType.IP_ADDRESS,
             selected_scanners=(),
-            skipped_scanners=(PlanScannerEntry(scanner_id="nikto", name="Nikto", status="skipped", reason="excluded by profile"),),
+            skipped_scanners=(
+                PlanScannerEntry(
+                    scanner_id="nikto",
+                    name="Nikto",
+                    selected=False,
+                    skip_state=ScannerRunState.SKIPPED_INCOMPATIBLE,
+                    reason="excluded by profile",
+                ),
+            ),
             unavailable_scanners=(),
             warnings=(),
             estimated_duration_minutes=0,
@@ -291,6 +308,6 @@ class TestAllPreplannedSkipsStayCompleted:
             planner=_ScriptedPlanner(plan),
             profile_id="quick-scan",
         )
-        assert result.status == AssessmentStatus.COMPLETED
-        assert result.failure_reason is None
-        assert any(s.status == "skipped" for s in result.scanner_summary)
+        assert result.status == AssessmentStatus.FAILED
+        assert result.failure_reason is not None
+        assert any(s.status.is_skip for s in result.scanner_summary)

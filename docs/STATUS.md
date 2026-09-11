@@ -173,3 +173,116 @@ The isolated KingSec server, the DVWA container, and the isolated data directory
 ### What's next
 
 Per the plan's own rule and this session's explicit instruction, **Phase 2 has not been started.** `docs/E2E-EVIDENCE.md` is ready to be reviewed — per the plan's own text, "if a real scan does not produce a coherent report, the remediation plan changes and Phase 2 waits." A real scan *did* produce a coherent report (twice), so that condition is met — but the severity-range limitation above (no Critical/High/Medium data) is worth weighing before Phase 2's scoring-model calibration step specifically.
+
+---
+
+## Phase 2A — Honest execution and coverage
+
+**Branch:** `fix/phase-2a-honest-coverage` (based on `chore/phase-1-e2e-evidence`)
+**Status:** COMPLETE — full gate green, real DVWA re-verification passed, awaiting review before Phase 2B.
+
+### What this phase fixed
+
+The Run #4 reference-case defect from Phase 1: a Full Assessment against an `ip_address` target where 6 of 9 configured scanners never ran, yet the assessment reported `"completed"` with **no coverage-incompleteness disclosure at all** ("Minor issues found — review advised", 88.0/100 "Sound"). Root cause: two independent, drifting scanner-selection mechanisms — `ExecutionPlanner.plan()` (checked only binary/asset availability) and `ScannerOrchestrator.execute_all()`'s own registry-based target-type filtering (silent, no engine notification). A scanner the orchestrator would never dispatch could still be left at `"pending"` in the plan, uncounted by the old "did anything fail" check.
+
+Fixed by making the planner the single source of truth for every scanner's disposition (selected, or one of `SKIPPED_INCOMPATIBLE` / `SKIPPED_BINARY_MISSING` / `SKIPPED_ASSET_MISSING`), seeded immediately — structurally impossible for a scanner that will never run to exist even transiently as "pending". `AssessmentStatus` gained `COMPLETED_WITH_GAPS`, distinct from `COMPLETED`: only every-scanner-succeeded reaches plain `COMPLETED`; any gap (skip, failure, or timeout) reaches `COMPLETED_WITH_GAPS`; zero successes reaches `FAILED`. The report's cover page now carries an unmissable coverage block naming every scanner and its outcome in plain English, and the verdict headline itself is qualified whenever coverage is incomplete — this was the core "invisible failure" the phase exists to close.
+
+Also implemented: `?format=html|pdf` on the report download route (the HTML path was previously dead code — kept and exposed rather than deleted, since it shares the same template generator as the PDF path at zero marginal cost); a startup pass (`ResolveOrphanedAssessments`) that resolves any assessment a prior crash left stuck at `RUNNING` to `FAILED`; and an Alembic migration backfilling the old string-based scanner-status vocabulary to the new enum and adding `reports.assessment_status`.
+
+### A real regression found and fixed during this phase's own gate run
+
+The FIX 3 status-decision block in `submit_assessment.py` was, partway through this phase's own implementation, rewritten in a way that dropped a documented Phase 06 invariant: the block reading `execution_engine`'s per-scanner state was gated only on `execution_engine is not None`, not also on `scanner_executor is not None`. Effect: any assessment run through the plain `scanner.scan()` fallback path (no profile) would have its `scanner_progress` seeded at `PENDING` and never advanced (only the `scanner_executor` path reports lifecycle events back to the engine) — the decision block would then read "0 succeeded" and mark the assessment `FAILED`, even though the scan itself completed successfully with real findings.
+
+Confirmed via direct reproduction against a real wired app + stub scanner: before the fix, a fully successful scan ended `status=failed`; after (restoring the `and scanner_executor is not None` gate), `status=completed`. This also fixed 4 integration tests that had been failing with "assessment did not complete within timeout".
+
+### Also fixed during the gate run (pre-existing, unrelated to the above)
+
+- ~20 test call sites across 8 files still using the old string-based `ScannerRunSummary`/`PlanScannerEntry` status vocabulary (`status="completed"` etc.), broken by the enum migration earlier in this phase.
+- Two tests whose assertions encoded a Phase 06/10 assumption ("a skipped scanner doesn't count against coverage") that this phase's own FIX 6 deliberately supersedes — corrected the assertions, not the fix.
+- `application/dto.py`'s `ScannerSummaryView.from_domain()` was assigning the raw `ScannerRunState` enum into a `status: str` DTO field instead of `.value` — caught by mypy, fixed at the actual boundary.
+- `create_wired_application()`'s new orphan-recovery startup call was running unconditionally, including in test fixtures that create their schema *after* the function returns (`validate_migrations=False`) — caused "no such table" in ~60 integration tests. Fixed by gating the call on `validate_migrations`.
+
+### The web-scan / nmap profile defect
+
+Correction 1's real 5-run timing test (see below) surfaced a genuine, previously-masked defect: the `web-scan` profile (`supported_target_types=(URL,)`) declared `nmap` as a **required** scanner, but nmap's real plugin capabilities (`infrastructure/scanner/plugins/nmap/adapter.py`) never include `URL` — only `IP_ADDRESS`/`HOSTNAME`/`NETWORK`. Under this phase's now-correct compatibility check (target-type checked first, before binary/asset checks), this meant `web-scan` could **never** proceed, for any target — `plan.can_proceed` was unconditionally `False`.
+
+This was not a regression introduced by this phase's logic — it's a real, pre-existing profile-definition bug this phase's own correctness newly exposed. Before this phase, the planner never checked target-type compatibility when deciding "is a required scanner available"; only the orchestrator's own registry filtering did, silently, at dispatch time. So under the old code, `nmap` was marked "selected" at planning time, the assessment proceeded to `RUNNING`, and the orchestrator silently dropped `nmap` from actual execution — the assessment still reported `COMPLETED`. This is corroborated by Phase 1's own evidence: Run #2 (`web-scan`) completed successfully in Phase 1, before this class of check existed.
+
+**Fixed at two levels**, per explicit review:
+- **Instance:** `nmap` is now optional in `web-scan` (`required_scanners=()`) but **stays in the profile's scanner list** — removing it entirely would hide a real coverage gap, which is the opposite of this phase's purpose. It is now scheduled, correctly reported as `SKIPPED_INCOMPATIBLE` with the plain-English reason "does not support target type 'url'", and counted honestly toward `COMPLETED_WITH_GAPS`.
+- **Class:** added `TestProfileRequiredScannersAreTargetTypeCompatible` (`tests/unit/application/test_phase2a_honest_coverage.py`), a static check across every profile from `ExecutionPlanner.list_profiles()`, using the **real** plugin registry's declared `target_types` (not a stub) — asserts every required scanner is compatible with at least one of its profile's supported target types. Confirmed failing against the pre-fix `web-scan` definition (`AssertionError: profile 'web-scan': required scanner 'nmap' is compatible with none of its supported target types ['url']`) before the fix was applied, and passing after.
+
+**Logged for Phase 2B** (not fixed now): a URL target contains a real host and port. The correct fix is for host-oriented scanners like nmap to derive and scan them, so nmap *can* run against `http://127.0.0.1:18080` instead of being structurally incompatible with every URL. Keeping nmap listed-but-skipped in `web-scan` leaves room for that later.
+
+### Question 1 — the matrix test's registry was a stub, now fixed
+
+The full-matrix planner/orchestrator invariant test (`TestPlannerOrchestratorInvariantAcrossFullMatrix`, 16 real `(profile_id, target_type)` combinations generated from `ExecutionPlanner.list_profiles()` itself) originally used `_PermissiveRegistry`, a fake that reported every scanner compatible with every target type unconditionally. **That stub could never have caught the web-scan/nmap defect above** — a test asserting an invariant against a fabricated registry proves less than it appears to. Rewritten to use the real registry (`register_scanner()` wired with default `Settings()`, the exact function `composition.py` uses in production), and the expected outcome per combination is now *computed from real compatibility data*, not hardcoded: a required-and-incompatible combination must reach `FAILED` at planning time; an optional-and-incompatible one must reach `COMPLETED_WITH_GAPS` naming the gap; only full compatibility reaches `COMPLETED`. All 16 combinations pass against the real registry, post-fix.
+
+### Question 2 — Step 1's Q6 and this phase's Correction 4 both correct; the code changed between them
+
+`PHASE_2A_STEP1_INVESTIGATION.md` Q6 stated the wordlist check "probes hardcoded `/usr/share/wordlists` plus two Linux fallbacks and doesn't even reflect the actual config value." This session's Correction 4 work found the check reading the real configured `FfufSettings.wordlist`/`GobusterSettings.wordlist` path correctly. **Both are accurate — for different points in time.** `git diff` against the pre-session `HEAD` shows the literal old code Step 1 described:
+
+```
+-                name="Wordlist directory",
+-                path="/usr/share/wordlists",
++                name="Wordlist file",
+...
+-            Path("/usr/share/wordlists").is_dir()
+-            or any(Path(p).is_dir() for p in (
+-                str(Path.home() / "wordlists"),
+-                "/usr/share/dict",
+-                "/usr/share/seclists",
+```
+
+Step 1's description was correct for the code as it existed at Step 1's time; Correction 4 (this phase, Step 2) is what removed the hardcoded paths and wired in the real configured value. Not a Step 1 inaccuracy — the code changed between the two reports. Verified live on this Windows host, both directions: a real configured path to a file that exists → `usable=True, missing_assets=()`; unconfigured → `usable=False, missing_assets=('Wordlist file',)` with a `KINGSEC_FFUF__WORDLIST`/`KINGSEC_GOBUSTER__WORDLIST` hint. Step 1's other findings should be weighted as accurate-for-their-time, same as this one — no reason found to doubt them generally.
+
+### Correction 1 — Q7, recorded accurately
+
+Re-ran the 5 repeated `web-scan` runs for real (the earlier result existed only in conversation, never persisted — corrected that here). Against real DVWA, isolated `C:\kingsec-e2e`:
+
+| Run | Elapsed | Status |
+|---|---|---|
+| 1 | 22.99s | FAILED |
+| 2 | 6.78s | FAILED |
+| 3 | 6.42s | FAILED |
+| 4 | 6.55s | FAILED |
+| 5 | 6.36s | FAILED |
+
+5 of 5 distinct values — **Q7 is proven**: elapsed time is genuinely measured per run, not cached or hardcoded (run 1's outlier is cold-start import/connection-pool warmup on the first request).
+
+**Recorded accurately, per explicit instruction:** the original 18.28s/18.28s anomaly (Phase 1, Run #2 vs Run #3) is **CLOSED because the code path that produced it no longer exists**, not because it was reproduced and explained. All 5 of these re-runs failed at planning time (the web-scan/nmap defect above, since fixed) before ZAP or any other scanner was ever invoked — the exact code path that ran ZAP-then-timed-out-near-instantly in Phase 1 was never re-exercised here. Do not read this as "the 18.28s behavior was reproduced and understood" — it was not; the reason it can never recur is that Correction 2a now fails the plan before that code path is reached at all.
+
+### FIX 9 follow-up (logged, not fixed)
+
+`ResolveOrphanedAssessments`'s startup call is gated on `validate_migrations`, using it as a proxy for "the schema is ready to query." These are two different concepts — a deployment that sets `validate_migrations=False` for any other reason would silently skip orphan resolution entirely. Needs its own flag, or a lazy first-request trigger, instead of reusing `validate_migrations`.
+
+### Real DVWA re-verification: Run #4 reproduced and fixed
+
+Re-ran Run #4's exact scenario (`full-assessment` profile, `127.0.0.1` `ip_address` target) against real DVWA, isolated `C:\kingsec-e2e` (migrated to head `64e10236c8c1`), through the real HTTP route layer. Generated the PDF, downloaded it, and inspected its actual rendered content (the same `render_report_html()`/`session.merge()`-persisted `Report` object WeasyPrint converts to PDF — no PDF-rendering tool was available in this environment to rasterize pages directly, so the equivalent HTML was regenerated from the identical persisted `Report` row and inspected instead; the real PDF file itself was also delivered for direct visual review).
+
+**Cover page — old vs. new:**
+
+| | Phase 1 (pre-fix) | Phase 2A (post-fix, this re-run) |
+|---|---|---|
+| Assessment status | `completed` | `completed_with_gaps` |
+| Scanners that ran | 1 of 9 (Nmap) — undisclosed | 1 of 9 (Nmap) — disclosed |
+| Coverage statement | **none** | *"Incomplete coverage — only 1 of 9 scanners ran"* |
+| Non-running scanners named | **none** (6 silently at `"pending"`, uncounted) | All 8, each with a real reason: Nuclei (missing templates), Gobuster/FFUF/Semgrep/Trivy/Amass/OWASP ZAP/Nikto (target-type incompatible with `ip_address`) |
+| Verdict headline | *"Minor issues found — review advised."* | *"Minor issues found — review advised. Coverage was incomplete: 8 of 9 configured scanners did not complete (Nuclei, Gobuster, FFUF, Semgrep, Trivy, Amass, OWASP ZAP, Nikto). This verdict reflects only the scanners that ran — see Scanner Coverage for details."* |
+| Score framing | "88.0 / 100 (Sound)" | Same underlying findings (9 Nmap findings, 6 Low/3 Info), but `action_required=True` is now forced by incomplete coverage regardless of severity — an operator can no longer read this as an unqualified clean result |
+
+(Scanner count differs slightly from Phase 1's original 6-of-9-pending — 8 of 9 here, since this environment currently has no Nuclei templates installed, an environment difference, not a regression; the structural fix — naming every non-running scanner with a real reason, on the cover page, unmissable — is what was being verified, and it holds.)
+
+### ACCEPTANCE
+
+- [x] Full gate green: `pytest` exit 0 (entire suite), `ruff check .` clean (full repo), `mypy src` clean (599 files)
+- [x] Reference-case regression test reproducing Run #4 exactly, asserting `COMPLETED_WITH_GAPS` — passes against fixed code
+- [x] Planner/orchestrator invariant test across every real `(profile, target_type)` combination, against the real plugin registry
+- [x] Static class-level validation preventing a future profile from repeating the web-scan/nmap defect
+- [x] Migration `64e10236c8c1` applied to `C:\kingsec-e2e` only (confirmed head + schema); `~/.kingsec` confirmed still at `da4b78614806`, untouched
+- [x] Real DVWA re-run of Run #4's exact scenario: PDF generated, downloaded, and its actual content inspected — `COMPLETED_WITH_GAPS`, every non-running scanner named with a real reason
+- [x] `docs/STATUS.md` updated (this section)
+
+### What's next
+
+Per explicit instruction, **Phase 2B has not been started.** Logged for that phase: the web-scan/nmap URL-host-derivation item above, and the FIX 9 `validate_migrations`-proxy item above.

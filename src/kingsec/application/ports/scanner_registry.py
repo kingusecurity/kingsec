@@ -13,7 +13,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from kingsec.application.ports.scanner_plugin import ScannerPluginPort
-from kingsec.domain import PluginAvailability, ScannerId, ScannerPluginMetadata, Target
+from kingsec.domain import PluginAvailability, ScannerId, ScannerPluginMetadata, Target, TargetType
 
 
 class ScannerPluginRegistry(ABC):
@@ -60,6 +60,23 @@ class ScannerPluginRegistry(ABC):
         1. Plugins whose capabilities include the target's type.
         2. Ordered by scan category priority (VULNERABILITY first).
         3. Ordered by number of matching target types (most specific first).
+        """
+        ...
+
+    @abstractmethod
+    def is_compatible(self, scanner_id: ScannerId, target_type: TargetType) -> bool:
+        """Return whether a specific scanner declares support for a target type.
+
+        The single source of truth for scanner/target-type compatibility.
+        ``resolve()`` is defined in terms of this method, and
+        ``ExecutionPlanner.plan()`` must call this method directly rather
+        than re-deriving compatibility itself — this is what keeps the
+        planner's selection and the orchestrator's execution from ever
+        drifting apart again (Phase 2A Correction 2).
+
+        Returns ``False`` for an unregistered scanner_id rather than
+        raising — an unknown scanner is, definitionally, not compatible
+        with anything.
         """
         ...
 

@@ -29,6 +29,7 @@ from kingsec.domain import (
     Target,
     TargetType,
 )
+from kingsec.domain.enums import ScannerRunState
 from kingsec.infrastructure.scanner.orchestrator import ScannerOrchestrator
 from kingsec.infrastructure.scanner.registry import InMemoryPluginRegistry
 from kingsec.shared.errors import ScannerError
@@ -126,7 +127,7 @@ class TestFailScannerReceivesSanitizedText:
         state = engine.get_state("asmt-1")
         assert state is not None
         entry = next(p for p in state.scanner_progress if p.scanner_id == "nuclei")
-        assert entry.status == "failed"
+        assert entry.status == ScannerRunState.FAILED
         assert entry.error is not None
         assert "internal-scanner.corp.local" not in entry.error
         assert "9200" not in entry.error

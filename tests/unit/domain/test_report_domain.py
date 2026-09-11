@@ -13,7 +13,17 @@ from kingsec.domain import (
     ScannerRunSummary,
     Severity,
 )
+from kingsec.domain.enums import ScannerRunState
 from kingsec.domain.report import compute_executive_score, generic_remediation_for
+
+# Old (pre-Phase-2A) string vocabulary -> ScannerRunState, for the test
+# helpers/fixtures below that still spell statuses the old way.
+_STATUS_MAP = {
+    "completed": ScannerRunState.SUCCEEDED,
+    "failed": ScannerRunState.FAILED,
+    "skipped": ScannerRunState.SKIPPED_INCOMPATIBLE,
+    "pending": ScannerRunState.PENDING,
+}
 
 
 def _complete(running, findings) -> None:
@@ -67,7 +77,7 @@ class TestVerdict:
 
 
 def _summary(scanner_id: str, name: str, status: str, findings_count: int = 0) -> ScannerRunSummary:
-    return ScannerRunSummary(scanner_id=scanner_id, name=name, status=status, findings_count=findings_count)
+    return ScannerRunSummary(scanner_id=scanner_id, name=name, status=_STATUS_MAP[status], findings_count=findings_count)
 
 
 # Phase 09 Scenario 3's exact live shape: one scanner completed with
@@ -173,22 +183,29 @@ class TestPartialCoverageVerdict:
         assert report.verdict.action_required is False
         assert report.verdict.headline == "No security issues identified."
 
-    def test_preplanned_skip_not_qualified(self, running) -> None:
-        """A profile-driven pre-planned skip (status == "skipped") is not a
-        failure either - only status == "failed" counts."""
+    def test_preplanned_skip_is_qualified(self, running) -> None:
+        """Phase 2A FIX 6 (already-decided, unchanged by this phase)
+        superseded this Phase 10 assumption: a skipped scanner is still,
+        honestly, a scanner whose coverage this assessment does not have
+        (the Run #4 reference case is exactly six scanners skipped, none
+        of them literally "failed" in the old narrow sense). Only a fully
+        SUCCEEDED scanner set is unqualified now."""
         running.record_scanner_summary(
             (
                 _summary("nuclei", "Nuclei Scanner", "completed"),
                 ScannerRunSummary(
-                    scanner_id="amass", name="Amass", status="skipped", skipped_reason="not applicable to this profile"
+                    scanner_id="amass",
+                    name="Amass",
+                    status=ScannerRunState.SKIPPED_INCOMPATIBLE,
+                    skipped_reason="not applicable to this profile",
                 ),
             )
         )
         running.complete()
 
         report = Report.from_assessment(running)
-        assert report.verdict.action_required is False
-        assert report.verdict.headline == "No security issues identified."
+        assert report.verdict.action_required is True
+        assert "Amass" in report.verdict.headline
 
     def test_all_attempted_failed_stays_failed_no_report(self, running) -> None:
         """Phase 06's policy is unchanged: an assessment where every
@@ -199,7 +216,11 @@ class TestPartialCoverageVerdict:
         )
         running.fail("All 2 configured scanners failed to complete: Nuclei Scanner, Nmap Scanner.")
 
-        with pytest.raises(IllegalStateTransition, match="completed assessment"):
+        # Phase 2A FIX 5 gives the FAILED case its own specific, honest
+        # message (superseding the old generic "completed assessment"
+        # text) - there is no real data to report on, so from_assessment
+        # says exactly that rather than a generic state-transition error.
+        with pytest.raises(IllegalStateTransition, match="no report can be generated"):
             Report.from_assessment(running)
 
     def test_qualified_headline_leaks_no_raw_exception_text(self, running) -> None:
@@ -210,7 +231,9 @@ class TestPartialCoverageVerdict:
         running.record_scanner_summary(
             (
                 _summary("nuclei", "Nuclei Scanner", "completed"),
-                ScannerRunSummary(scanner_id="nmap", name="Nmap Scanner", status="failed", findings_count=0),
+                ScannerRunSummary(
+                    scanner_id="nmap", name="Nmap Scanner", status=ScannerRunState.FAILED, findings_count=0
+                ),
             )
         )
         running.complete()

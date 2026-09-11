@@ -37,6 +37,7 @@ class AssessmentStatus(Enum):
     AUTHORIZED = "authorized"
     RUNNING = "running"
     COMPLETED = "completed"
+    COMPLETED_WITH_GAPS = "completed_with_gaps"
     CANCELLED = "cancelled"
     FAILED = "failed"
 
@@ -45,9 +46,62 @@ class AssessmentStatus(Enum):
         """True if no further transitions are allowed from this state."""
         return self in {
             AssessmentStatus.COMPLETED,
+            AssessmentStatus.COMPLETED_WITH_GAPS,
             AssessmentStatus.CANCELLED,
             AssessmentStatus.FAILED,
         }
+
+
+class ScannerRunState(Enum):
+    """Every state a single scanner's run through one assessment can be in.
+
+    Phase 2A Correction 3: replaces a raw ``str`` field on
+    ``ScannerRunSummary``/``ScannerProgress``, where "terminal" was
+    convention only — exactly how a scanner could be left at PENDING
+    forever with nothing structurally preventing it. Terminality is a
+    property of the enum itself, not a hand-maintained list.
+
+    Lives in the domain layer (not application, where the execution
+    tracker that produces it lives) because ``ScannerRunSummary`` below
+    is a domain object, and domain may not import from application.
+    """
+
+    PENDING = "pending"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    TIMED_OUT = "timed_out"
+    SKIPPED_INCOMPATIBLE = "skipped_incompatible"
+    SKIPPED_BINARY_MISSING = "skipped_binary_missing"
+    SKIPPED_ASSET_MISSING = "skipped_asset_missing"
+
+    @property
+    def is_terminal(self) -> bool:
+        return self in _TERMINAL_SCANNER_RUN_STATES
+
+    @property
+    def is_success(self) -> bool:
+        return self is ScannerRunState.SUCCEEDED
+
+    @property
+    def is_skip(self) -> bool:
+        return self in (
+            ScannerRunState.SKIPPED_INCOMPATIBLE,
+            ScannerRunState.SKIPPED_BINARY_MISSING,
+            ScannerRunState.SKIPPED_ASSET_MISSING,
+        )
+
+
+_TERMINAL_SCANNER_RUN_STATES = frozenset(
+    {
+        ScannerRunState.SUCCEEDED,
+        ScannerRunState.FAILED,
+        ScannerRunState.TIMED_OUT,
+        ScannerRunState.SKIPPED_INCOMPATIBLE,
+        ScannerRunState.SKIPPED_BINARY_MISSING,
+        ScannerRunState.SKIPPED_ASSET_MISSING,
+    }
+)
 
 
 class FindingStatus(Enum):

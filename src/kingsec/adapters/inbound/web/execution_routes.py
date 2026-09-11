@@ -69,7 +69,7 @@ def _scanner_progress_to_dict(sp: Any) -> dict[str, Any]:
     return {
         "scanner_id": sp.scanner_id,
         "name": sp.name,
-        "status": sp.status,
+        "status": sp.status.value,
         "start_time": sp.start_time,
         "end_time": sp.end_time,
         "duration_seconds": sp.duration_seconds,

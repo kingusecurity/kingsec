@@ -25,12 +25,22 @@ import math
 import re
 from html import escape
 
-from kingsec.domain import HistoryPoint, Report, Severity
+from kingsec.domain import HistoryPoint, Report, ScannerRunSummary, Severity
+from kingsec.domain.enums import AssessmentStatus, ScannerRunState
 from kingsec.domain.report import FindingSummary, failed_scanners_in
 
-# Reports are only ever generated from a COMPLETED assessment (domain-enforced),
-# so the status shown is a safe constant rather than guesswork.
-_ASSESSMENT_STATUS = "Completed"
+# Phase 2A: reports are now generated from either a COMPLETED or a
+# COMPLETED_WITH_GAPS assessment (domain-enforced in Report.from_assessment),
+# so the status shown must reflect which one this actually is - see
+# _assessment_status_label() below.
+_ASSESSMENT_STATUS_LABELS: dict[str, str] = {
+    "completed": "Completed",
+    "completed_with_gaps": "Completed with gaps",
+}
+
+
+def _assessment_status_label(status: AssessmentStatus) -> str:
+    return _ASSESSMENT_STATUS_LABELS.get(status.value, status.value)
 
 _SEVERITY_ORDER = (
     Severity.CRITICAL,
@@ -82,6 +92,18 @@ _STYLESHEET = """
      font-size: 11.5px; font-weight: 500; word-break: break-all; }
 .confidential-note { color: #94a3b8; font-size: 9.5px; margin: 40px 0 0; padding-top: 14px;
      border-top: 1px solid #e2e8f0; position: absolute; bottom: 2cm; left: 2cm; right: 2cm; }
+/* Phase 2A FIX 4: cover-page scanner coverage callout. Stays within the
+   navy/slate palette (no new saturated color) per this stylesheet's own
+   rule that severity is the only reserved use of color - prominence here
+   comes from border weight, uppercase label, and position, not hue. */
+.coverage-alert { margin: 22px 0 0; padding: 14px 16px; border-radius: 3px;
+     border: 1.5px solid #0b3d63; background: #eef4f9; }
+.coverage-alert-title { font-size: 12px; font-weight: 700; margin: 0 0 6px;
+     text-transform: uppercase; letter-spacing: 0.04em; color: #0b3d63; }
+.coverage-alert p { margin: 0 0 4px; font-size: 11px; line-height: 1.5; color: #1e293b; }
+.coverage-alert p:last-child { margin-bottom: 0; }
+.coverage-alert--ok { border-color: #cbd5e1; background: #f8fafc; }
+.coverage-alert--ok .coverage-alert-title { color: #475569; }
 
 /* ---- Body typography --------------------------------------------------- */
 body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -263,6 +285,64 @@ def _cover_field(label: str, value: str, *, mono: bool = False, full: bool = Fal
     )
 
 
+def _coverage_status_block(report: Report) -> str:
+    """Cover-page scanner coverage callout, for a non-technical SME reader.
+
+    Phase 2A FIX 4: the Run #4 reference-case defect was a report that read
+    as a clean, scored result while 6 of 9 scheduled scanners never
+    executed, with nothing on the cover page (or anywhere else prominent)
+    to say so. This block makes that fact impossible to miss - it lives on
+    the cover page itself, not an appendix, names every scanner in plain
+    English, and its own headline states outright whether coverage was
+    complete before the reader ever reaches a score or a finding.
+    """
+    summary = report.scanner_summary
+    if not summary:
+        return (
+            '<div class="coverage-alert">'
+            '<p class="coverage-alert-title">Scanner coverage not recorded</p>'
+            "<p>No scanner outcome was recorded for this assessment. "
+            "The findings below cannot be assumed complete.</p>"
+            "</div>"
+        )
+
+    succeeded = [s.name for s in summary if s.status.is_success]
+    skipped = [s for s in summary if s.status.is_skip]
+    failed = [s for s in summary if not s.status.is_success and not s.status.is_skip]
+    total = len(summary)
+    incomplete = bool(skipped or failed)
+
+    def _named_with_reasons(entries: list[ScannerRunSummary]) -> str:
+        parts = []
+        for s in entries:
+            reason = _clean_scanner_reason(s.skipped_reason) if s.skipped_reason else "did not complete"
+            parts.append(f"{escape(s.name)} ({escape(reason)})")
+        return ", ".join(parts)
+
+    lines = [
+        f"<strong>{len(succeeded)} of {total}</strong> scanners ran successfully"
+        + (f": {escape(', '.join(succeeded))}." if succeeded else ".")
+    ]
+    if skipped:
+        lines.append(f"<strong>{len(skipped)}</strong> did not run: {_named_with_reasons(skipped)}.")
+    if failed:
+        lines.append(f"<strong>{len(failed)}</strong> failed or timed out: {_named_with_reasons(failed)}.")
+
+    if incomplete:
+        headline = f"Incomplete coverage — only {len(succeeded)} of {total} scanners ran"
+        css = "coverage-alert"
+    else:
+        headline = f"Full coverage — all {total} scanners ran successfully"
+        css = "coverage-alert coverage-alert--ok"
+
+    return (
+        f'<div class="{css}">'
+        f'<p class="coverage-alert-title">{escape(headline)}</p>'
+        f"<p>{' '.join(lines)}</p>"
+        "</div>"
+    )
+
+
 def _cover_page(report: Report, *, brand_name: str) -> str:
     scan_date = report.generated_at.strftime("%Y-%m-%d")
     highest = report.verdict.highest_severity
@@ -288,6 +368,7 @@ def _cover_page(report: Report, *, brand_name: str) -> str:
         '<p class="cover-target-label">Target</p>'
         f'<p class="cover-target">{escape(report.target)}</p>'
         f'<div class="cover-grid">{fields}</div>'
+        f"{_coverage_status_block(report)}"
         "</div>"
         '<p class="confidential-note">This report is confidential and prepared solely for the '
         "recipient named above. Point-in-time snapshot — see Limitations for scope and caveats.</p>"
@@ -612,7 +693,7 @@ def _assessment_information(report: Report) -> str:
         "Target": report.target,
         "Assessment ID": report.assessment_id,
         "Scan Date": scan_date,
-        "Assessment Status": _ASSESSMENT_STATUS,
+        "Assessment Status": _assessment_status_label(report.assessment_status),
     }
     body = "".join(f"<tr><th>{escape(k)}</th><td>{escape(str(v))}</td></tr>" for k, v in rows.items())
     return f'<section id="assessment-information"><h2>Assessment Information</h2><table>{body}</table></section>'
@@ -651,10 +732,10 @@ def _scanner_summary(report: Report) -> str:
             "</section>"
         )
 
-    groups: dict[tuple[str, str], list[str]] = {}
-    order: list[tuple[str, str]] = []
+    groups: dict[tuple[ScannerRunState, str], list[str]] = {}
+    order: list[tuple[ScannerRunState, str]] = []
     for s in report.scanner_summary:
-        if s.status == "completed":
+        if s.status.is_success:
             detail = f"{s.findings_count} finding" + ("" if s.findings_count == 1 else "s")
         else:
             detail = _clean_scanner_reason(s.skipped_reason) if s.skipped_reason else "did not complete"
@@ -666,7 +747,7 @@ def _scanner_summary(report: Report) -> str:
     sentences = []
     for status, detail in order:
         names = ", ".join(escape(n) for n in groups[(status, detail)])
-        if status == "completed":
+        if status.is_success:
             sentences.append(f"{names}: completed, {escape(detail)}.")
         else:
             sentences.append(f"{names}: not run ({escape(detail)}).")
