@@ -24,10 +24,7 @@ from .errors import IllegalStateTransition
 from .evidence import Evidence, Recommendation
 
 # Plain-language headlines keyed by the overall (highest actionable) severity.
-# Used only when scanner coverage was complete - see
-# _NO_ISSUES_HEADLINE_WHEN_INCOMPLETE / _INFORMATIONAL_HEADLINE_WHEN_INCOMPLETE
-# for the two variants substituted when it was not (both explicitly avoid
-# claiming "no action required" of a scan that didn't fully run).
+# Used only when scanner coverage was complete.
 _VERDICT_HEADLINES: dict[Severity, str] = {
     Severity.CRITICAL: "Critical security issues found — immediate action required.",
     Severity.HIGH: "High-risk issues found — prompt remediation recommended.",
@@ -36,8 +33,21 @@ _VERDICT_HEADLINES: dict[Severity, str] = {
     Severity.INFORMATIONAL: "Informational observations only — no action required.",
 }
 _NO_ISSUES_HEADLINE = "No security issues identified."
-_NO_ISSUES_HEADLINE_WHEN_INCOMPLETE = "No actionable findings in the portion of the scan that completed."
-_INFORMATIONAL_HEADLINE_WHEN_INCOMPLETE = "Informational observations only in the portion of the scan that completed."
+
+# Phase 2A-b: when coverage is incomplete, the headline must LEAD with that
+# fact, never a reassuring findings clause (the Run #4 defect reproduced on
+# the report's own score/gauge page, behind a caveat most readers never
+# reach). "Among the scanners that completed" versions of the severity
+# clauses replace the old, ordering-agnostic _VERDICT_HEADLINES text for
+# this case - deliberately worded to never sound like a clean-bill verdict.
+_SEVERITY_AMONG_COMPLETED: dict[Severity, str] = {
+    Severity.CRITICAL: "Among the scanners that completed, Critical severity issues were found.",
+    Severity.HIGH: "Among the scanners that completed, High-risk issues were found.",
+    Severity.MEDIUM: "Among the scanners that completed, Moderate issues were found.",
+    Severity.LOW: "Among the scanners that completed, minor (Low-severity) issues were found.",
+    Severity.INFORMATIONAL: "Among the scanners that completed, only informational-level observations were found.",
+}
+_NO_ACTIONABLE_AMONG_COMPLETED = "No actionable findings were recorded among the scanners that completed."
 
 
 def failed_scanners_in(scanner_summary: tuple[ScannerRunSummary, ...]) -> tuple[ScannerRunSummary, ...]:
@@ -61,19 +71,24 @@ def failed_scanners_in(scanner_summary: tuple[ScannerRunSummary, ...]) -> tuple[
     return tuple(s for s in scanner_summary if not s.status.is_success)
 
 
-def _coverage_caveat(failed: tuple[ScannerRunSummary, ...], total_attempted: int) -> str:
-    """A safe, specific caveat naming which scanners didn't complete.
+def _coverage_lead(failed: tuple[ScannerRunSummary, ...], total_attempted: int) -> str:
+    """The LEADING statement of an incomplete-coverage verdict headline.
 
-    Only scanner display names (``ScannerRunSummary.name``) and counts are
-    interpolated - both are on Phase 08 §2's explicit safe list. Never a
-    path, binary location, command line, internal hostname, or raw
-    ``str(exc)`` - none of that is available on ``ScannerRunSummary`` at
-    all, so there is nothing unsafe here to accidentally include.
+    Phase 2A-b: this must be the first thing the headline says, never
+    appended after a findings-severity clause — a reader who never gets
+    past the first sentence must not be able to read this as a clean
+    result. Only scanner display names (``ScannerRunSummary.name``) and
+    counts are interpolated - both are on Phase 08 §2's explicit safe
+    list. Never a path, binary location, command line, internal hostname,
+    or raw ``str(exc)`` - none of that is available on
+    ``ScannerRunSummary`` at all, so there is nothing unsafe here to
+    accidentally include.
     """
+    succeeded = total_attempted - len(failed)
     names = ", ".join(s.name for s in failed)
     return (
-        f" Coverage was incomplete: {len(failed)} of {total_attempted} configured scanners "
-        f"did not complete ({names}). This verdict reflects only the scanners that ran — "
+        f"Incomplete assessment — {succeeded} of {total_attempted} scanners ran; "
+        f"findings are partial. {len(failed)} scanner(s) did not complete ({names}) — "
         "see Scanner Coverage for details."
     )
 
@@ -175,7 +190,9 @@ class Verdict:
         actionable = [f for f in findings if f.status is not FindingStatus.FALSE_POSITIVE]
         if not actionable:
             if incomplete:
-                headline = _NO_ISSUES_HEADLINE_WHEN_INCOMPLETE + _coverage_caveat(failed, len(scanner_summary))
+                # Phase 2A-b: coverage leads; the "nothing actionable" note
+                # is a subordinate clause, never the opening claim.
+                headline = f"{_coverage_lead(failed, len(scanner_summary))} {_NO_ACTIONABLE_AMONG_COMPLETED}"
                 return cls(None, headline, action_required=True)
             return cls(None, _NO_ISSUES_HEADLINE, action_required=False)
 
@@ -185,8 +202,12 @@ class Verdict:
         # the scanners that didn't run is itself the required action.
         action_required = highest >= Severity.LOW or incomplete
         if incomplete:
-            base = _INFORMATIONAL_HEADLINE_WHEN_INCOMPLETE if highest is Severity.INFORMATIONAL else _VERDICT_HEADLINES[highest]
-            headline = base + _coverage_caveat(failed, len(scanner_summary))
+            # Phase 2A-b: coverage leads, severity is a subordinate clause -
+            # never the reverse. The old ordering put "Minor issues found —
+            # review advised." first and the coverage gap second, which a
+            # reader could stop after the first sentence and walk away
+            # reassured; this is the exact defect this phase exists to fix.
+            headline = f"{_coverage_lead(failed, len(scanner_summary))} {_SEVERITY_AMONG_COMPLETED[highest]}"
         else:
             headline = _VERDICT_HEADLINES[highest]
         return cls(highest, headline, action_required)

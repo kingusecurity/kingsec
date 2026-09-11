@@ -288,3 +288,58 @@ Re-ran Run #4's exact scenario (`full-assessment` profile, `127.0.0.1` `ip_addre
 ### What's next
 
 Per explicit instruction, **Phase 2B has not been started.** Logged for that phase: the web-scan/nmap URL-host-derivation item above, and the FIX 9 `validate_migrations`-proxy item above.
+
+---
+
+## Phase 2A-b — Coverage-aware verdict, score, and report page 2
+
+**Branch:** `fix/phase-2a-honest-coverage`
+**Status:** COMPLETE — full gate green, PDF regenerated from real persisted data. **Phase 2A stays open until Abdul has visually reviewed the PDF; Phase 2B not started.**
+
+### What this phase fixed
+
+Page 1's cover-page coverage callout (Phase 2A FIX 4) was correct and accepted. Page 2 (Executive Summary) still reproduced the Run #4 defect in a different place: a large score gauge, a "SOUND" band label, and "generally sound standing" narrative text for an assessment where only 1 of 9 scanners ran — with the actual coverage caveat appended as a trailing clause on the verdict headline, easy to stop reading before reaching. `Verdict.from_findings()`'s own coverage handling (Phase 2A FIX 6) only ever adjusted `action_required` and appended a caveat; it never touched the score, band, gauge color, or narrative, and never reordered the headline itself.
+
+Fixed, when `assessment_status is COMPLETED_WITH_GAPS`:
+1. **Verdict headline now leads with coverage.** `domain/report.py`'s `_coverage_lead()` produces the opening sentence ("Incomplete assessment — N of M scanners ran; findings are partial. ..."); the findings-severity clause is now a subordinate sentence appended after it, never before.
+2. **The reassuring band label is suppressed entirely.** `templates.py`'s `_executive_summary()` forces `"Partial Coverage"` (a neutral slate color reused from elsewhere in the module, not a new saturated color) instead of calling `_score_band(score)`, which would otherwise return "Sound"/"Strong"/etc. based on the raw number alone.
+3. **The gauge no longer renders in a reassuring color.** `_risk_gauge()` now takes its color as an explicit parameter from the caller instead of deriving it internally from the raw score — the caller (already coverage-aware) supplies the neutral color when coverage is incomplete.
+4. **The score string always carries its scanner denominator** when incomplete: `"88.0 / 100 — based on 1 of 9 scanners. Not a posture score."`, replacing the normal narrative text entirely for this case.
+5. **The contradiction is gone** — "generally sound standing" and "Action required" can no longer both appear on the same page, since the narrative text itself is now coverage-aware rather than independently derived from the raw score.
+
+Also fixed, same phase:
+6. The findings table's "Recommendations" column showed `0` for every finding while the separate Remediation Steps section listed a real recommendation for each of the same findings — the table read `entry.recommendation_count` (raw AI/analyst recommendations only, empty here since no AI provider was configured) while the section below it read `entry.effective_recommendations` (which includes a generic fallback for well-known finding types, e.g. "Open port N"). Fixed the table to read the same effective count the section actually renders.
+7. Removed operator-facing setup instructions ("Configure a provider in Settings to include them in future reports") from the AI-unavailable callout — this is a customer-facing deliverable; a customer reading it has no "Settings" to configure. Replaced with a plain factual statement, no instructions.
+
+### A note on trust going forward
+
+This phase's own prompt flagged that my Step 2 report claimed FIX 6 was "already correct from before the context reset; no changes needed" — a claim that turned out to be false (it covered `action_required`/the caveat text, but never the score/band/gauge, and never headline ordering). That is the third instance this engagement of a conclusion carried over from before a context reset being reported as done without being re-verified in the current session (the others: the wordlist check's "no fix needed", and the fabricated 3-of-9 scanner count). Per the new CLAUDE.md rule, any such carried-over conclusion is now treated as unverified until re-checked in the current session, not reported as settled.
+
+### Verified against real, persisted data (not a new scan)
+
+Regenerated the report directly from the real persisted Run #4 assessment in `C:\kingsec-e2e` (`Report.from_assessment()` on the stored `Assessment`, not a re-fetch of the already-generated `Report` row, which would still carry the old pre-fix verdict text baked in at generation time). Confirmed:
+
+- `report.verdict.headline` now starts with `"Incomplete assessment — 1 of 9 scanners ran; findings are partial."`
+- Rendered HTML contains no instance of `"SOUND"`, `"Sound"`, `"Strong"`, or `"generally sound standing"`; contains `"Partial Coverage"`.
+- Rendered HTML contains `"based on 1 of 9 scanners"` and `"Not a posture score"`.
+- Findings table recommendation counts now match the Remediation Steps section (no `<td>0</td>` where a generic fallback recommendation exists).
+- AI-unavailable callout no longer tells the reader to "Configure a provider in Settings."
+- PDF regenerated: `C:\kingsec-e2e\run4-coverage-report.pdf`.
+
+### LOG FOR LATER — Phase 2B and 2C (not fixed now, per explicit instruction)
+
+- **Phase 2B:** nmap's scanned port range is never disclosed anywhere in the report. It scans roughly the top ~1,000 of 65,535 ports by default, and DVWA's own mapped port (18080 in this environment) is outside that range and was never actually looked at. The Limitations section must state the actual port coverage, not imply a full port scan occurred.
+- **Phase 2C:** open-port severity assignment currently appears to follow "recognised service name → Low, unrecognised → Informational." That rates an exposed RDP port (3389) as Low and an exposed SMB port (445) as Informational — the two most-exploited Windows services on the public internet. This is not a real severity model and will not withstand professional review; needs a proper design pass, not a quick patch.
+
+### ACCEPTANCE
+
+- [x] `pytest` exit 0 (full suite), `ruff check .` clean (full repo), `mypy src` clean (599 files)
+- [x] Test: a `COMPLETED_WITH_GAPS` report never renders a reassuring band label or a reassuring verdict headline (`TestCoverageAwareVerdictAndScore`, `tests/unit/application/test_phase2a_honest_coverage.py`)
+- [x] Test: the score string includes its scanner denominator
+- [x] Run #4 PDF regenerated from `C:\kingsec-e2e`'s real persisted data — page 2 no longer says "SOUND" or "generally sound standing"
+- [x] Committed separately from the rest of Phase 2A
+- [x] `docs/STATUS.md` updated (this section)
+
+### What's next
+
+**Phase 2A is not closed until Abdul has visually reviewed the PDF.** Phase 2B has not been started. Logged for it: the nmap port-range disclosure item and the open-port severity model item above, plus the two carried over from Phase 2A (web-scan/nmap URL-host-derivation, FIX 9 `validate_migrations`-proxy).

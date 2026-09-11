@@ -211,19 +211,32 @@ _SCORE_BAND_TINTS: dict[str, str] = {
     "#f9a825": "#fdf3dc",
     "#e65100": "#fde6d8",
     "#b00020": "#fbdde1",
+    "#546e7a": "#e7ebee",
 }
 
+# Phase 2A-b: forced band color/label when assessment_status is
+# COMPLETED_WITH_GAPS, overriding whatever the raw score would otherwise
+# imply. A score computed from 1 of 9 scanners is a measure of one
+# scanner, not of security posture - "Sound"/"Strong" and their green/
+# amber colors must never appear on a report with incomplete coverage.
+# Reuses the neutral slate already used elsewhere in this module for
+# "no severity" rather than inventing a new color.
+_PARTIAL_COVERAGE_COLOR = "#546e7a"
+_PARTIAL_COVERAGE_LABEL = "Partial Coverage"
 
-def _risk_gauge(score: float) -> str:
+
+def _risk_gauge(score: float, color: str) -> str:
     """A hand-rolled inline SVG semicircular gauge for the 0-100 risk score.
 
     Two concentric arcs sharing one center: a light grey track spanning the
-    full 0-100 range, and a colored arc spanning 0-score on top of it. Color
-    comes from _score_band so the gauge and the surrounding text narrative
-    always agree.
+    full 0-100 range, and a colored arc spanning 0-score on top of it.
+    ``color`` is supplied by the caller (not derived internally from
+    ``_score_band``) so a coverage-incomplete report can force the neutral
+    "Partial Coverage" color instead of whatever the raw score would imply
+    — the gauge and the surrounding text narrative always agree because
+    they share the one decision, made once, by the caller.
     """
     score = max(0.0, min(100.0, score))
-    color, _ = _score_band(score)
     cx, cy, r, sw = 88, 84, 68, 15
 
     def point(angle_deg: float) -> tuple[float, float]:
@@ -427,7 +440,32 @@ def _executive_summary(report: Report) -> str:
     verdict = report.verdict
     highest = verdict.highest_severity.label if verdict.highest_severity else "None"
     score = report.executive_score
-    band_color, band_label = _score_band(score)
+    incomplete = report.assessment_status is AssessmentStatus.COMPLETED_WITH_GAPS
+
+    if incomplete:
+        # Phase 2A-b: a score derived from a fraction of the configured
+        # scanners is not a posture measure - force the neutral band/color
+        # and state the real denominator, never the reassuring narrative a
+        # complete run would get.
+        band_color, band_label = _PARTIAL_COVERAGE_COLOR, _PARTIAL_COVERAGE_LABEL
+        succeeded_count = sum(1 for s in report.scanner_summary if s.status.is_success)
+        total_count = len(report.scanner_summary)
+        score_copy = (
+            f"Overall Risk Score: <strong>{score:.1f} / 100</strong> — based on "
+            f"{succeeded_count} of {total_count} scanners. Not a posture score. "
+            "This figure reflects only the scanners that completed and must not be "
+            "read as an overall security rating."
+        )
+    else:
+        band_color, band_label = _score_band(score)
+        score_copy = (
+            f"Overall Risk Score: <strong>{score:.1f} / 100</strong>. "
+            f"{escape(_score_narrative(score))} "
+            "This score deducts fixed points per finding by severity "
+            "(Critical 25, High 10, Medium 5, Low 2) from a 100-point baseline — "
+            "a simple, explainable measure, not a formal risk-modeling output."
+        )
+
     action = (
         '<p class="callout action-required"><strong>Action required.</strong> '
         "Remediation is recommended for the issues identified below.</p>"
@@ -436,15 +474,11 @@ def _executive_summary(report: Report) -> str:
     )
     score_panel = (
         '<div class="score-panel">'
-        f"{_risk_gauge(score)}"
+        f"{_risk_gauge(score, band_color)}"
         '<div class="score-copy">'
         f'<span class="score-band-label" style="background: {_SCORE_BAND_TINTS[band_color]}; color: {band_color};">'
         f"{escape(band_label)}</span>"
-        f"<p>Overall Risk Score: <strong>{score:.1f} / 100</strong>. "
-        f"{escape(_score_narrative(score))} "
-        "This score deducts fixed points per finding by severity "
-        "(Critical 25, High 10, Medium 5, Low 2) from a 100-point baseline — "
-        "a simple, explainable measure, not a formal risk-modeling output.</p>"
+        f"<p>{score_copy}</p>"
         "</div>"
         "</div>"
     )
@@ -483,14 +517,15 @@ def _business_impact(report: Report) -> str:
     # degradation is surfaced, so it can't be hidden behind an early return
     # for the no-findings case.
     ai_available = any(e.ai_explanation for e in report.entries)
+    # Phase 2A-b: this is a customer deliverable - no operator setup
+    # instructions ("Configure a provider in Settings...") belong here.
+    # State the fact in customer-appropriate language and stop.
     ai_status = (
         ""
         if ai_available
         else (
             '<p class="callout">AI-generated, plain-language business-impact explanations are not '
-            "available for this report — either no AI provider is configured, or the provider "
-            "could not be reached. Configure a provider in Settings to include them in future "
-            "reports.</p>"
+            "available for this report.</p>"
         )
     )
     critical = [e for e in report.entries if e.severity in (Severity.CRITICAL, Severity.HIGH)]
@@ -781,7 +816,13 @@ def _findings(report: Report) -> str:
         f"<td>{escape(entry.title)}</td>"
         f"<td>{escape(entry.status.value)}</td>"
         f"<td>{entry.evidence_count}</td>"
-        f"<td>{entry.recommendation_count}</td>"
+        # Phase 2A-b: the raw entry.recommendation_count (len(recommendations))
+        # undercounts against what the reader actually sees in the Remediation
+        # Steps section, which renders effective_recommendations (real ones,
+        # or the generic fallback for well-known finding types) - use the
+        # same effective count here so the table never contradicts the
+        # section below it.
+        f"<td>{len(entry.effective_recommendations)}</td>"
         "</tr>"
         for entry in report.entries
     )

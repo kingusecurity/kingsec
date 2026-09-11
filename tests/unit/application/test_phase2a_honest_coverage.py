@@ -42,6 +42,7 @@ from kingsec.domain.authorization import Authorization
 from kingsec.domain.enums import AssessmentStatus
 from kingsec.domain.report import failed_scanners_in
 from kingsec.infrastructure.config import Settings
+from kingsec.infrastructure.reporting.templates import render_report_html
 from kingsec.infrastructure.scanner.provisioning import register_scanner
 from kingsec.infrastructure.scanner.registry import InMemoryPluginRegistry
 
@@ -533,3 +534,71 @@ class TestResolveOrphanedAssessments:
 
         assert resolved_count == 0
         assert repo.get(assessment.id).status == AssessmentStatus.AUTHORIZED
+
+
+# --- 6. Phase 2A-b: coverage-aware verdict, score, and rendered report ----
+
+
+class TestCoverageAwareVerdictAndScore:
+    """Phase 2A-b: the Run #4 defect reproduced itself on the report's own
+    score/gauge page - a reassuring "SOUND" band and score narrative sat
+    right next to a cover-page coverage warning nobody reading page 2
+    would ever see. A COMPLETED_WITH_GAPS report must never render a
+    reassuring band label or a reassuring verdict headline, and the score
+    must always carry its real scanner denominator.
+    """
+
+    def _completed_with_gaps_report(self) -> Report:
+        assessment = _authorized_assessment(profile_id="full-assessment")
+        repo = _FakeAssessmentRepository({str(assessment.id): assessment})
+        engine = AssessmentExecutionEngine()
+        use_case = _build_reference_case_submit_assessment(repo, engine)
+        use_case.execute(SubmitAssessmentRequest(assessment_id=str(assessment.id), is_admin=True))
+        result = repo.saved[-1]
+        assert result.status == AssessmentStatus.COMPLETED_WITH_GAPS
+        return Report.from_assessment(result, generated_at=datetime.now(UTC))
+
+    def test_verdict_headline_leads_with_coverage_not_findings(self) -> None:
+        report = self._completed_with_gaps_report()
+        headline = report.verdict.headline
+        assert headline.startswith("Incomplete assessment"), (
+            f"headline must lead with coverage, not findings: {headline!r}"
+        )
+        # The old ordering put the reassuring findings clause first; make
+        # sure it is not merely reworded but genuinely demoted to second.
+        assert "scanners ran" in headline.split(".")[0]
+
+    def test_rendered_report_never_shows_a_reassuring_band_or_headline(self) -> None:
+        report = self._completed_with_gaps_report()
+        html = render_report_html(report)
+        for reassuring in ("SOUND", "Sound", "generally sound standing", "Strong"):
+            assert reassuring not in html, f"reassuring text {reassuring!r} must never appear"
+        assert "Partial Coverage" in html
+        exec_section = html.split('<section id="executive-summary">')[1].split("</section>")[0]
+        assert "Minor issues found" not in exec_section.split(".")[0], (
+            "the findings clause must not be the first sentence"
+        )
+
+    def test_score_string_includes_scanner_denominator(self) -> None:
+        report = self._completed_with_gaps_report()
+        html = render_report_html(report)
+        succeeded = sum(1 for s in report.scanner_summary if s.status.is_success)
+        total = len(report.scanner_summary)
+        assert f"based on {succeeded} of {total} scanners" in html
+        assert "Not a posture score" in html
+
+    def test_findings_table_recommendation_count_matches_remediation_section(self) -> None:
+        report = self._completed_with_gaps_report()
+        html = render_report_html(report)
+        # Every entry here (Nmap "Open port N/tcp" findings) has a generic
+        # fallback recommendation - the table's count column must reflect
+        # that, not the raw (often-empty) AI/analyst recommendations list.
+        for entry in report.entries:
+            assert len(entry.effective_recommendations) > 0
+        assert "<td>0</td>" not in html.split('<section id="findings">')[1].split("</section>")[0]
+
+    def test_ai_unavailable_callout_has_no_operator_setup_instructions(self) -> None:
+        report = self._completed_with_gaps_report()
+        html = render_report_html(report)
+        assert "Configure a provider in Settings" not in html
+        assert "not available for this report" in html
