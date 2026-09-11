@@ -358,8 +358,8 @@ Regenerated the report directly from the real persisted Run #4 assessment in `C:
 
 ## Phase 2B — Real coverage
 
-**Branch:** `feat/phase-2b-real-coverage`
-**Status:** Task 1 IN PROGRESS. This section covers Task 1's decisions only; Task 2 has not started.
+**Branch:** `fix/phase-2a-honest-coverage` (verified via `git branch --show-current` at commit time — a separate `feat/phase-2b-real-coverage` branch does not exist; this phase's work landed on the same branch Phase 2A/2A-b used).
+**Status:** Task 1 committed (`13947e5`). This section covers Task 1's decisions only; Task 2 has not started.
 
 ### Task 1 — Profile/scanner target-type fit
 
