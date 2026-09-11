@@ -179,7 +179,17 @@ Per the plan's own rule and this session's explicit instruction, **Phase 2 has n
 ## Phase 2A — Honest execution and coverage
 
 **Branch:** `fix/phase-2a-honest-coverage` (based on `chore/phase-1-e2e-evidence`)
-**Status:** COMPLETE — full gate green, real DVWA re-verification passed, awaiting review before Phase 2B.
+**Status:** CLOSED — APPROVED. All acceptance criteria (including 2A-b, below) verified against the rendered PDF. Phase 2B not started.
+
+### The carried-over-conclusion pattern (read this before starting Phase 2B)
+
+Three separate times in this phase, a conclusion carried over from before a context reset was reported as settled without being re-verified in the current session, and each time it turned out to be wrong:
+
+1. The wordlist check — reported "no fix needed" in a way that read as a claim about the code's whole history, when the code had in fact changed earlier in the same phase.
+2. The reference-case regression test's scanner count — reported as "3 of 9 succeed," a figure that only ever existed in a fabricated stub-registry fixture; the real, evidence-matched number was 1 of 9.
+3. **FIX 6** — the Step 2 report claimed it was "already correct from before the context reset; no changes needed." This was false: FIX 6 had only ever adjusted `action_required` and appended a coverage caveat to the verdict headline. It never touched the report's score, score band, gauge color, or headline ordering — which is exactly why the Run #4 defect reproduced itself on the report's own page 2 (a "SOUND" band and "generally sound standing" narrative next to a coverage warning nobody reading that page would see), requiring the separate Phase 2A-b fix below.
+
+None of these were caught by pytest, ruff, or mypy — all three passed every automated gate. They were caught by manual review against independent sources (another document stating the same fact, or a human looking at the actual rendered PDF). The lesson, now codified in `CLAUDE.md`'s Verification honesty section: a conclusion carried over from before a context reset is unverified by default, regardless of how confidently it was stated, until it is re-checked against the current code in the current session.
 
 ### What this phase fixed
 
@@ -294,7 +304,7 @@ Per explicit instruction, **Phase 2B has not been started.** Logged for that pha
 ## Phase 2A-b — Coverage-aware verdict, score, and report page 2
 
 **Branch:** `fix/phase-2a-honest-coverage`
-**Status:** COMPLETE — full gate green, PDF regenerated from real persisted data. **Phase 2A stays open until Abdul has visually reviewed the PDF; Phase 2B not started.**
+**Status:** CLOSED — APPROVED. Full gate green, PDF regenerated from real persisted data, and all acceptance criteria (coverage-aware verdict, PARTIAL COVERAGE band, neutral gauge, score denominator, recommendations count, removal of operator-facing configuration text) verified against the rendered PDF. Phase 2A as a whole is now closed; see the carried-over-conclusion note under Phase 2A above. Phase 2B not started.
 
 ### What this phase fixed
 

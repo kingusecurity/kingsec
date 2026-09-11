@@ -31,6 +31,7 @@ Any number stated in a report (counts, percentages, timings, pass/fail totals) m
 - Label every claim TESTED / INFERRED / NOT TESTED / MISSING. A claim marked TESTED needs real command output or a real artifact behind it, not an assumption that it would pass.
 - "No fix needed" is ambiguous on its own — say "no further fix needed at this point in this investigation" instead, so it can never be read as a claim about the code's entire history.
 - Never substitute a stub, fake, or double for a component the real one could be wired to instead. When a test genuinely must fake something, fake the narrowest possible seam and state in the test which seam is fake and why. (A stub plugin registry let a scanner "succeed" against a target type it can never actually support in production, and that fabricated number passed every automated gate undetected.)
+- Any conclusion carried over from before a context reset is UNVERIFIED. Re-check it in the current session before reporting it as done. Never report "already correct, no changes needed" about work from an earlier context. (Phase 2A's FIX 6 was reported this way and was false — it had only ever touched `action_required` and a headline caveat, never the report's score, band, or gauge, which is exactly why the same defect reproduced itself on the report's own page 2 and needed a separate follow-up fix.)
 
 ## Session discipline
 
