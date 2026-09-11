@@ -103,18 +103,6 @@ class _NullScanner:
         return {}
 
 
-class _FakeRegistry:
-    """ScannerPluginRegistry double: declares a fixed set of scanner_ids
-    incompatible with whatever target_type is asked, everything else
-    compatible."""
-
-    def __init__(self, incompatible_ids: frozenset[str]) -> None:
-        self._incompatible = incompatible_ids
-
-    def is_compatible(self, scanner_id: Any, target_type: Any) -> bool:
-        return str(scanner_id) not in self._incompatible
-
-
 class _FakeDiscovery:
     """ScannerDiscoveryService double returning scripted statuses."""
 
@@ -184,26 +172,45 @@ def _authorized_assessment(*, profile_id: str, target_type: TargetType = TargetT
 # --- 1. Reference case: Run #4 reproduction -------------------------------
 
 
-# full-assessment's 9 scanners, split exactly like the real Run #4 defect:
-# 3 succeed, 3 are incompatible with an IP_ADDRESS target, 3 have no binary.
-_INCOMPATIBLE = frozenset({"gobuster", "ffuf", "zap"})
+# Phase 2A migration review (item 2): the previous version of this fixture
+# used a FAKE registry that reported trivy/nuclei as compatible and
+# "succeeding" against an ip_address target. Under the REAL registry, trivy
+# only declares HOSTNAME support - it can never run against ip_address, so
+# "3 of 9 succeed" was fabricated, not a real possible outcome. Rebuilt
+# against the REAL registry (_real_registry(), defined below) with discovery
+# statuses matching Phase 1's OWN actually-recorded environment exactly
+# (docs/E2E-EVIDENCE.md): nmap installed and usable (it ran and found 9
+# things); nuclei installed but NOT usable (no templates - Defect 5,
+# "Missing Nuclei templates: nuclei -update-templates", the exact message
+# reproduced here); nikto not installed (Defect 8, blocked by Windows
+# Defender). Under the real registry, gobuster/ffuf/semgrep/trivy/amass/zap
+# are all structurally incompatible with ip_address regardless of discovery
+# status, so their entries below are illustrative only (compatibility is
+# checked first and wins).
+#
+# Real outcome this produces: 1 of 9 succeeds (Nmap) - matching BOTH Phase
+# 1's actual recorded Run #4 result (E2E-EVIDENCE.md: "Nmap... actually ran
+# and completed with 9 real findings" while every other scanner was either
+# stuck pending or correctly skipped, never succeeded) AND this phase's own
+# live DVWA re-verification (docs/STATUS.md: "1 of 9 (Nmap)"). The
+# previous "3 of 9" was neither.
 _STATUSES = {
     "nmap": _status("nmap", "Nmap", installed=True, usable=True),
-    "nuclei": _status("nuclei", "Nuclei", installed=True, usable=True),
-    "trivy": _status("trivy", "Trivy", installed=True, usable=True),
+    "nuclei": _status("nuclei", "Nuclei", installed=True, usable=False),
     "gobuster": _status("gobuster", "Gobuster", installed=True, usable=True),
     "ffuf": _status("ffuf", "FFUF", installed=True, usable=True),
     "zap": _status("zap", "OWASP ZAP", installed=True, usable=True),
-    "semgrep": _status("semgrep", "Semgrep", installed=False, usable=False),
-    "amass": _status("amass", "Amass", installed=False, usable=False),
-    # "nikto" deliberately absent -> planner's "unknown scanner" branch.
+    "semgrep": _status("semgrep", "Semgrep", installed=True, usable=True),
+    "trivy": _status("trivy", "Trivy", installed=True, usable=True),
+    "amass": _status("amass", "Amass", installed=True, usable=True),
+    "nikto": _status("nikto", "Nikto", installed=False, usable=False),
 }
 
 
 def _build_reference_case_submit_assessment(
     repo: _FakeAssessmentRepository, engine: AssessmentExecutionEngine, *, leave_pending: frozenset[str] = frozenset()
 ) -> SubmitAssessment:
-    planner = ExecutionPlanner(discovery=_FakeDiscovery(_STATUSES), registry=_FakeRegistry(_INCOMPATIBLE))
+    planner = ExecutionPlanner(discovery=_FakeDiscovery(_STATUSES), registry=_real_registry())
     return SubmitAssessment(
         assessments=repo,
         scanner=_NullScanner(),
@@ -219,10 +226,12 @@ class TestReferenceCaseRun4Reproduction:
 
     Under pre-Phase-2A code this scenario produced
     ``AssessmentStatus.COMPLETED`` ("88.0/100 — Sound") with no coverage
-    warning anywhere, despite 6 of the 9 scheduled scanners never
-    executing. This test would fail against that code (it asserts
-    ``COMPLETED_WITH_GAPS`` and a verdict naming all 6 non-running
-    scanners) and passes against the fixed code.
+    warning anywhere, despite only 1 of the 9 scheduled scanners
+    (Nmap) ever actually running — 6 were silently stuck at "pending"
+    and 2 (Nuclei, Nikto) were correctly skipped but undisclosed. This
+    test would fail against that code (it asserts ``COMPLETED_WITH_GAPS``
+    and a verdict naming all 8 non-running scanners) and passes against
+    the fixed code.
     """
 
     def test_status_is_completed_with_gaps_not_completed(self) -> None:
@@ -239,9 +248,9 @@ class TestReferenceCaseRun4Reproduction:
 
         succeeded = [s for s in result.scanner_summary if s.status.is_success]
         non_succeeded = failed_scanners_in(result.scanner_summary)
-        assert len(succeeded) == 3
-        assert len(non_succeeded) == 6
-        assert {s.name for s in succeeded} == {"Nmap", "Nuclei", "Trivy"}
+        assert len(succeeded) == 1
+        assert len(non_succeeded) == 8
+        assert {s.name for s in succeeded} == {"Nmap"}
 
     def test_report_verdict_names_every_non_running_scanner(self) -> None:
         assessment = _authorized_assessment(profile_id="full-assessment")
@@ -259,7 +268,7 @@ class TestReferenceCaseRun4Reproduction:
         # regardless (this is the exact Run #4 defect: a clean-looking
         # score hiding a scan that mostly didn't happen).
         assert report.verdict.action_required is True
-        for name in ("Gobuster", "FFUF", "OWASP ZAP", "Semgrep", "Amass", "nikto"):
+        for name in ("Nuclei", "Gobuster", "FFUF", "Semgrep", "Trivy", "Amass", "OWASP ZAP", "Nikto"):
             assert name in report.verdict.headline, f"{name!r} missing from verdict headline"
 
 
@@ -452,7 +461,7 @@ class TestPlannerOrchestratorInvariantAcrossFullMatrix:
 
 class TestPlanCoversEveryScanner:
     def test_full_assessment_plan_decides_every_scanner_exactly_once(self) -> None:
-        planner = ExecutionPlanner(discovery=_FakeDiscovery(_STATUSES), registry=_FakeRegistry(_INCOMPATIBLE))
+        planner = ExecutionPlanner(discovery=_FakeDiscovery(_STATUSES), registry=_real_registry())
         plan = planner.plan("full-assessment", "10.0.0.5", TargetType.IP_ADDRESS)
 
         profile = planner.get_profile("full-assessment")

@@ -273,6 +273,8 @@ Re-ran Run #4's exact scenario (`full-assessment` profile, `127.0.0.1` `ip_addre
 
 (Scanner count differs slightly from Phase 1's original 6-of-9-pending — 8 of 9 here, since this environment currently has no Nuclei templates installed, an environment difference, not a regression; the structural fix — naming every non-running scanner with a real reason, on the cover page, unmissable — is what was being verified, and it holds.)
 
+**Correction to `TestReferenceCaseRun4Reproduction` (this phase's own regression test), found via review:** the test originally asserted 3 of 9 scanners succeed (Nmap, Nuclei, Trivy), using a stub registry that incorrectly treated Trivy as compatible with an `ip_address` target. Trivy's real, declared capability (`infrastructure/scanner/plugins/trivy/adapter.py`) is `target_types={HOSTNAME}` only — it can never run against `ip_address` in production, so "3 of 9 succeed" was never a real possible outcome. Phase 1's actual recorded Run #4 (`docs/E2E-EVIDENCE.md`) shows exactly **1 of 9 succeeded (Nmap)**, with Nuclei and Nikto correctly skipped (not succeeded) and 6 stuck pending. Rewrote the test's fixture to use the real plugin registry with discovery statuses matching Phase 1's actual environment (Nuclei installed but missing templates; Nikto not installed) — now correctly asserts 1 of 9 succeeds, 8 of 9 don't, matching both the real Phase 1 evidence and this phase's own live DVWA re-verification above. Full details: `docs/audits/KINGSEC-PHASE-2A-FOLLOWUP-RESPONSE.txt`.
+
 ### ACCEPTANCE
 
 - [x] Full gate green: `pytest` exit 0 (entire suite), `ruff check .` clean (full repo), `mypy src` clean (599 files)
