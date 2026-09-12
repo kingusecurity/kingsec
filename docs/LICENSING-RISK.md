@@ -29,39 +29,106 @@ it stops holding for any one scanner (KingSec starts bundling that scanner's
 binary or data files in an installer/Docker image), that scanner's verdict
 must be re-evaluated, not assumed to still be CLEAR.
 
+**This "non-bundling" fact does NOT settle every scanner's verdict on its
+own** — it answers the redistribution question but not necessarily the
+*use* question. nmap's entry below is the case where that distinction
+matters: the NPSL prohibits "redistribution **and use**" within a
+proprietary product, and non-bundling only addresses the first half.
+
 ---
 
 ## 1. nmap — NPSL (Nmap Public Source License)
 
-**Source:** `https://nmap.org/npsl/` (project's own license page).
+**CORRECTION (this round):** the first version of this entry verdicted nmap
+CLEAR-conditioned-on-never-bundling. That answers only the redistribution
+half of the question and was wrong to present as a full clearance. Rewritten
+below to NEEDS LEGAL REVIEW, per the same standard applied to nikto's entry
+— this scanner matters more than nikto's, since it is the only one that
+works in every profile.
 
-**Key terms (quoted/paraphrased from the page):** grounded in GPLv2 with
-additional terms. Explicitly states a goal to "prohibit redistribution and
-use of Nmap within proprietary hardware and software products" — a company
-wanting to embed Nmap in a commercial product must obtain a separate **Nmap
-OEM license**. The standard NPSL is the free/public one; the OEM license is
-the paid commercial-embedding path.
+**Source:** `https://nmap.org/npsl/` (project's own license page) and
+`https://nmap.org/oem/` (project's own OEM licensing page).
 
-**How KingSec interacts with it:** KingSec does not embed, redistribute, or
-bundle the nmap binary — the operator installs their own copy. This was the
-exact question this session already investigated in depth for
-`nmap_default_ports.py` (the `nmap-services` frequency-data file): NPSL
-covers Nmap's own source and data files, not an external program that merely
-invokes the already-installed `nmap` binary via its command-line interface
-and reads its output. KingSec's own 61-port list was rebuilt from scratch
-using only public IANA documentation specifically to keep zero NPSL-licensed
-material in KingSec's source tree — see `docs/STATUS.md`'s Decision 4
-correction.
+**The exact clause that changes the analysis:** the NPSL's stated goal is to
+"**prohibit redistribution and use of Nmap within proprietary hardware and
+software products**" (`https://nmap.org/npsl/`, emphasis added — the
+original entry quoted this same sentence but only acted on the
+"redistribution" half). "Use," not only "redistribution," is named as
+prohibited within a proprietary product absent an OEM license.
 
-**Verdict: CLEAR**, conditioned on KingSec continuing to (a) never bundle the
-`nmap` binary or any of its data files (`nmap-services`, NSE scripts, etc.)
-into KingSec's own source, installer, or Docker image, and (b) never require
-KingSec's own commercial license to cover use of the operator's separately-
-installed nmap. Both conditions hold today. If KingSec ever ships nmap
-bundled (e.g., baking it into a Docker image or installer for convenience),
-that specific change would need an Nmap OEM license and should trigger a
-NEEDS LEGAL REVIEW re-evaluation before shipping — not assumed clear by
-extension of this verdict.
+**The OEM page's own description of what it covers:** `https://nmap.org/oem/`
+states Nmap's *recommended* integration approach for a proprietary product is
+exactly KingSec's own design — "install Nmap on the end-user system using
+the silent-install feature and then have your application execute Nmap when
+needed, requesting XML formatted results (-oX) which you would then parse
+with any XML parser" — and then adds: "the license also allows other
+integration approaches, such as **parsing of Nmap's normal output format**,
+processing Nmap data files directly, or even integrating Nmap source code
+into your application." That sentence is on the OEM page, describing what
+the **paid** OEM license permits — not the free NPSL. KingSec's own nmap
+adapter does precisely this: invokes an operator-installed `nmap` binary via
+subprocess and parses its XML output (`-oX -`, piped to `parse_nmap_xml()`).
+
+**The unresolved question, stated explicitly:** does a commercial product
+that invokes an operator-installed nmap binary and parses its XML output
+constitute "use... within a proprietary software product" under the NPSL —
+triggering the OEM license requirement even though KingSec never
+redistributes the nmap binary itself? The prior version of this entry
+treated "we don't bundle/redistribute nmap" as sufficient to clear the whole
+question; the NPSL's own wording (prohibiting use, not only redistribution)
+and the OEM page's own listing of XML-parsing among the integration
+approaches it describes do not support treating that as settled.
+
+**This cannot be resolved by reading code or licenses further.** Both
+source documents have now been read directly and quoted above; the
+remaining ambiguity is a legal interpretation question (what "use... within
+a proprietary... product" means for an arm's-length subprocess invocation
+with no code linking, no redistribution, and no bundled data), not a
+factual one this investigation can close by more reading. It needs either
+Nmap's own answer or independent legal counsel.
+
+**Verdict: NEEDS LEGAL REVIEW.** Not CLEAR, not blocked — open. KingSec does
+not currently redistribute or bundle the nmap binary or its data files (that
+much remains true and unconditionally good), but that fact does not resolve
+whether invoking-and-parsing itself requires an OEM license. Do not treat
+this as CLEAR by extension of the redistribution analysis.
+
+**Draft email to Nmap sales, NOT SENT — Abdul sends it if he chooses to:**
+
+> To: sales@nmap.com
+> Subject: OEM license question — commercial product invoking Nmap via subprocess, parsing XML output
+>
+> Hello,
+>
+> We're building a commercial security-assessment product (KingSec) that
+> uses Nmap as one of several external scanning tools. I want to check
+> whether our integration model requires an Nmap OEM license before we
+> ship it commercially.
+>
+> Our model, factually:
+> - We do not bundle, redistribute, or ship the Nmap binary or any of its
+>   data files with our product.
+> - The operator installs Nmap themselves, separately, on their own system.
+> - Our product invokes that operator-installed `nmap` binary via a
+>   subprocess call (passing `-oX -` for XML output) and parses the XML
+>   output our product receives back.
+> - We do not link against Nmap's source code, modify Nmap, or
+>   redistribute Nmap's own data files (e.g. `nmap-services`, NSE scripts).
+>
+> Your OEM page (nmap.org/oem) describes "parsing of Nmap's normal output
+> format" as one of the integration approaches your license covers, and
+> the NPSL states a goal of prohibiting "redistribution and use of Nmap
+> within proprietary hardware and software products." We want to confirm
+> whether our model — invoking an operator-installed Nmap binary and
+> parsing its output, with no redistribution or bundling on our part —
+> requires an Nmap OEM license, or whether it falls outside what the NPSL
+> restricts.
+>
+> Happy to answer any follow-up questions about our architecture.
+>
+> Thank you,
+> Abdul Mannan
+> KingSec
 
 ---
 
@@ -189,15 +256,22 @@ own source/modified files.
 
 | Scanner | License | Verdict | Condition |
 |---|---|---|---|
-| nmap | NPSL (GPLv2-based) | CLEAR | Never bundle the nmap binary or its data files |
+| nmap | NPSL (GPLv2-based) | **NEEDS LEGAL REVIEW** | Unresolved: does invoke-and-parse-XML constitute "use... within a proprietary software product" under the NPSL, independent of never bundling/redistributing? Needs Nmap's own answer or counsel — see the draft email above. |
 | nuclei (+ templates) | MIT | CLEAR | None |
 | nikto | GPLv3 + proprietary DB files | CLEAR (judgment call) | Never bundle nikto's binary/DB files; keep to arm's-length subprocess invocation; re-review before any packaging change |
 | ffuf | MIT | CLEAR | None |
 | gobuster | Apache-2.0 | CLEAR | None |
 | OWASP ZAP | Apache-2.0 | CLEAR | None |
 
-Two scanners (nmap, nikto) carry a real but currently-satisfied condition
-tied to KingSec's packaging model rather than a permanent, unconditional
-clearance — both should be re-checked specifically if KingSec's distribution
-model ever changes to bundle scanner binaries or data (a Docker image that
-installs scanners into the same image, an all-in-one installer, etc.).
+**nmap is the one scanner this table cannot mark CLEAR without an outside
+answer**, and it is the highest-stakes of the six precisely because it is
+the only scanner that works in every profile — a NEEDS LEGAL REVIEW verdict
+here is a real, load-bearing open item, not a formality. nikto carries a
+real but currently-satisfied condition tied to KingSec's packaging model
+(never bundle its binary/DB files) — that one should be re-checked
+specifically if KingSec's distribution model ever changes to bundle scanner
+binaries or data (a Docker image that installs scanners into the same
+image, an all-in-one installer, etc.). nmap's open question is different in
+kind: it does not resolve itself even under KingSec's current, unchanged
+packaging model — it needs a real answer from Nmap or counsel regardless of
+whether anything about KingSec's distribution changes.
