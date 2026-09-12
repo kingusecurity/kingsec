@@ -1,0 +1,271 @@
+================================================================================
+KINGSEC PHASE 2B TASK 2 STEP 2 - FINAL REPORT
+Two-invocation nmap redesign, Conditions 1/2, Decision 3, licensing
+investigation, full gate, commit split, push.
+================================================================================
+
+Branch: feat/phase-2b-real-coverage
+Starting HEAD: 738ce02 (docs: correct Phase 2B branch claim in STATUS.md)
+Ending HEAD:   a2666b2 (7 commits, pushed to origin)
+
+This report covers everything done in response to the "APPROVED:
+non-URL targets unchanged..." prompt, in the order it specified.
+
+
+--------------------------------------------------------------------------------
+1. TWO-INVOCATION NMAP DESIGN - IMPLEMENTATION
+--------------------------------------------------------------------------------
+
+Requirement 1 - non-URL targets unchanged:
+  IP_ADDRESS/HOSTNAME/NETWORK targets get exactly one nmap invocation, no
+  port flag at all - byte-identical to before this feature existed.
+  Regression test added: TestNonUrlTargetsNeverGetAPortFlag
+  (test_nmap_plugin.py), parametrized over all three target types, fails
+  if -p/--top-ports/-p-/-F is ever introduced for any of them.
+
+Requirement 2 - URL targets, two invocations, merge+dedupe:
+  (a) host sweep - no port flag at all, nmap's own real default.
+  (b) explicit port - "-p <port>" only, never combined with a range or
+      --top-ports in the same invocation (the one case verified safe
+      against a real nmap 7.99 binary - see the port-scope-measurement
+      report for the empirical flag-conflict testing).
+  Results merged and deduplicated by (port, protocol), extracted from
+  each Finding's "Open port N/proto" title via regex. Tests:
+  TestUrlTwoInvocationMerge - two invocations issued, sweep has no -p,
+  explicit invocation has only the URL's port, a duplicate open port from
+  both invocations collapses to one Finding, distinct ports from each
+  invocation both survive.
+
+  BUG FOUND WHILE WRITING THESE TESTS, FIXED: the "sweep" invocation only
+  stripped an operator-configured -p from scan_args when port_spec was
+  not None - but the sweep call always passes port_spec=None, so an
+  operator's own -p in scan_args would silently survive into the sweep,
+  making it scan the operator's configured port instead of an actual
+  unconstrained default. Fixed in _build_single_invocation_args(): port
+  selector flags are now stripped for BOTH of a URL target's invocations
+  (keyed off target.type is TargetType.URL), never for non-URL targets
+  (which must stay byte-identical, operator -p included).
+
+Requirement 3 - failure semantics:
+  Both invocations succeed -> clean success, no warning.
+  Both fail -> ScannerExecutionError, scan reaches FAILED.
+  Exactly one fails -> SUCCEEDED with a warning naming which sweep
+  failed, via the new ScannerRunSummary.warnings plumbing (your stated
+  preference - "SUCCEEDED with partial results and no disclosure" was
+  rejected, not adopted).
+  Tests: TestUrlTwoInvocationFailureSemantics - both-succeed-no-warning,
+  both-fail-raises, sweep-fails-explicit-succeeds-warns,
+  explicit-fails-sweep-succeeds-warns. A test-local _BranchingRunner
+  double was needed (the shared FakeRunner returns the same canned result
+  for every call; this one branches on whether -p appears in the args to
+  tell the two invocations apart).
+
+Requirement 4 - honest port_specification:
+  Now reads "nmap's own default port sweep + explicit port <N>" - never
+  a literal port list KingSec cannot verify. TestPortSpecification was
+  rewritten (its old assertions expected a comma-joined port list from
+  the now-abandoned 61-port-default design and would have silently
+  passed against the wrong invariant otherwise).
+
+Requirement 5 - the 61-port list's docstring:
+  nmap_default_ports.py's module docstring now states plainly that
+  nothing in the live scan path references DEFAULT_PORTS or
+  DEFAULT_PORTS_SPEC - it is a documented, licensing-clean floor for a
+  future scenario (nmap's own default data unavailable/disabled), not a
+  default. The data itself is unchanged.
+
+Requirement 6 - timing (measured BEFORE this report, as required):
+  Real nmap 7.99 binary, target 127.0.0.1:
+    Sweep invocation (no -p, nmap's own default):        13.284s
+    Explicit invocation (-p 18080 only):                  0.555s
+    Combined, sequential (as the real code path runs it): 12.704s
+  The sweep dominates total time almost completely - the explicit
+  invocation adds roughly 4% on top of it. This is NOT simply "double"
+  the pre-existing single-invocation time; it depends entirely on what a
+  URL target's ONE invocation looked like before this feature existed.
+  On this host, expect a URL-target nmap scan to take on the order of
+  nmap's own default sweep time, plus a small fixed overhead - worth
+  knowing before Task 6's E2E run, since it is the single largest latency
+  contributor in a URL-target assessment.
+
+Requirement 7 - duck-typed fakes backlog:
+  Logged in docs/STATUS.md (new section, this round) with all 4 file
+  names, explicitly not fixed:
+    tests/unit/application/test_submit_assessment.py
+    tests/unit/application/test_submit_assessment_execution_ledger.py
+    tests/unit/application/test_submit_scheduled_assessment.py
+    tests/unit/infrastructure/test_schedule_finalization_race.py
+
+
+--------------------------------------------------------------------------------
+2. ALEMBIC "PRE-EXISTING FAILURE" CLAIM - VERIFIED, NOT CURRENTLY REPRODUCIBLE
+--------------------------------------------------------------------------------
+
+Could not locate a single specific test name tied to a documented
+"pre-existing alembic failure" claim in any committed doc, STATUS.md
+section, or memory file - the closest match found was a prior round's
+own text ("waiting for approval before... verifying the alembic claim,
+Decision 3..."), which itself doesn't name a specific test.
+
+What was actually done: discovered the branch's own HEAD commit AT THE
+START of this task's work IS 738ce02 itself (all Task 2 work was sitting
+uncommitted on top of it) - so a worktree at 738ce02 is exactly "the
+committed baseline, with none of this round's uncommitted work."
+
+  git worktree add ../kingsec-alembic-verify-738ce02 738ce02
+  cd ../kingsec-alembic-verify-738ce02 && uv run pytest \
+    tests/integration/test_alembic_migrations.py -q
+  -> 13 passed, 0 failed
+
+Also ran the identical file against the main working tree (with all of
+this round's uncommitted changes, before any of today's commits) ->
+13 passed, 0 failed. Both clean. Checked for the known
+alembic-pollution-file bug (test_alembic_migrations.py's autogenerate
+test writing stray *__no_changes.py files into versions/ on a
+full-suite run) in both trees - none present in either.
+
+CONCLUSION: no alembic test is currently failing, at the clean 738ce02
+baseline or in this round's changes. Historical FAILED lines for
+several alembic tests do appear earlier in this session's own
+transcript, but they do not reproduce now in either tree - most likely
+a transient artifact of mid-session state (e.g. temporarily-present
+pollution files from an earlier full-suite run) rather than a real,
+persistent defect. The worktree has been removed
+(git worktree remove --force) now that the check is done.
+
+
+--------------------------------------------------------------------------------
+3. DECISION 3 - TARGET VALIDATION TIGHTENING
+--------------------------------------------------------------------------------
+
+Moved the credential/port-range/unbracketed-IPv6 checks from
+decompose_url() up into Target._validate_format()'s URL branch. A
+Target can no longer be constructed with embedded credentials, a
+non-numeric or out-of-range port, or an unbracketed IPv6-shaped
+authority - InvariantViolation now, at construction, not
+TargetDecompositionError later, at decompose_url() time.
+
+Probed the "unbracketed IPv6" case directly against Python's
+urllib.parse before implementing: an unbracketed IPv6 authority
+("http://::1/") already surfaces as a ValueError from parsed.port (the
+extra colons make the port ambiguous) - no separate check was needed,
+it falls out of the same port-parsing path as a non-numeric port.
+
+ANSWER TO "can decompose_url() still raise for a constructed Target?":
+  Yes, but only for ONE reason now, not four. Calling decompose_url() on
+  a Target whose type isn't URL at all still raises
+  TargetDecompositionError - that's a caller-contract violation
+  Target._validate_format() has no way to prevent (it only runs for
+  TargetType.URL values). The other four rejection branches inside
+  decompose_url() (credentials, non-numeric port, out-of-range port, no
+  usable host) are now provably unreachable for any Target actually
+  reachable in this codebase: every construction site
+  (infrastructure/persistence/mappers.py, the only place URL Targets are
+  reconstructed from persisted data) uses the normal Target(value, type)
+  constructor, which always runs __post_init__ -> _validate_format()
+  first. They are kept in decompose_url() anyway, as cheap
+  defense-in-depth against a future bypass, not deleted - deleting them
+  would make decompose_url() silently trust a precondition it cannot
+  itself verify.
+
+6 tests in test_target_decomposition.py that previously called
+decompose_url() to trigger these rejections now fail at Target()
+construction instead - moved to a new TestTargetUrlConstructionRejects
+class, asserting InvariantViolation directly. Verified via C1 (this
+session's earlier read-only query against both databases): the one
+distinct URL target_value in either database
+("http://127.0.0.1:18080") passes all four tightened checks cleanly -
+zero existing rows would be rejected retroactively.
+
+
+--------------------------------------------------------------------------------
+4. docs/LICENSING-RISK.md - INVESTIGATION (new file)
+--------------------------------------------------------------------------------
+
+All six wired scanners' own license text fetched directly (not a
+third-party summary) and checked against how KingSec actually uses each
+one. The deciding fact: KingSec never bundles, vendors, or ships any
+scanner binary or data file - every binary_path defaults to a bare,
+PATH-resolved command name; the Dockerfile installs none of them;
+nuclei's templates_dir and ffuf/gobuster's wordlist paths all default to
+"operator supplies their own."
+
+  nmap     - NPSL (GPLv2-based)         - CLEAR, conditioned on never
+                                           bundling the binary/data files
+  nuclei   - MIT (code + templates)     - CLEAR, unconditional
+  nikto    - GPLv3 + proprietary DB     - CLEAR (judgment call - standard
+             files                        GPL subprocess-invocation
+                                           interpretation), conditioned
+                                           on never bundling
+  ffuf     - MIT                        - CLEAR, unconditional
+  gobuster - Apache-2.0                 - CLEAR, unconditional
+  ZAP      - Apache-2.0                 - CLEAR, unconditional
+
+Logged as a Phase 5 BLOCKER pointer in docs/STATUS.md, ranked above the
+lower-risk wordlist/template licensing mentions already in that file.
+
+
+--------------------------------------------------------------------------------
+5. FULL GATE
+--------------------------------------------------------------------------------
+
+pytest tests/unit -q            -> exit 0, every run (verified 4 times
+                                    across this round's changes, and once
+                                    more against the final committed HEAD)
+ruff check . (full repo)        -> 1 error found and fixed (a mechanical
+                                    __all__ sort-order issue introduced by
+                                    Condition 1's AssessmentDataCorruptedError
+                                    export in application/__init__.py,
+                                    fixed via ruff --fix) -> then clean
+mypy src                        -> Success: no issues found in 600 source
+                                    files
+
+
+--------------------------------------------------------------------------------
+6. COMMIT SPLIT AND PUSH
+--------------------------------------------------------------------------------
+
+75 changed files (63 modified + 12 new) split into 7 commits by module
+boundary, each verified independently green before committing. Several
+files carried changes belonging to two different decisions in the same
+function-level diff (domain/__init__.py's export list,
+domain/target.py's _validate_format()/decompose_url(), mappers.py's
+warnings-JSON/try_assessment_to_domain) - these were split at the exact
+hunk boundary via temporary reversion-then-restoration, not just
+assigned whole-file to one bucket, so each commit's own diff only
+contains what it claims to.
+
+ONE DELIBERATE DEVIATION from the original 7-group plan, done openly
+rather than silently: Condition 1 and Condition 2 were merged into a
+single commit instead of two. Every file touching one also touched the
+other with zero exceptions (they were investigated and implemented
+together, per this session's own C1/C2 report), and the fake
+AssessmentRepository test doubles needed both new methods added
+simultaneously to stay conformant - splitting them would have meant one
+of the two commits leaving those fakes broken on its own. This makes
+the split 6 code commits + 1 docs commit = 7 total, not 8.
+
+  0ce0f14 feat(scanner): capability-based target compatibility
+  898f66a feat(domain): URL target decomposition (UrlComponents/decompose_url)
+  aa87b87 feat(nmap): URL/IPv6 port handling via two independent invocations
+  462cabb feat(reporting): thread scanner warnings into the persisted report
+  19af20c feat(persistence): honest handling of corrupted assessment rows
+  9a3d39d feat(domain): reject malformed URL targets at construction, not decomposition
+  a2666b2 docs: Phase 2B Task 2 status log, audit trail, and scanner licensing risk
+
+Pushed: 738ce02..a2666b2 -> origin/feat/phase-2b-real-coverage
+
+NOT included in any commit (left untouched, pre-existing, unrelated to
+this task): docs/PRODUCT-INVENTORY.md, docs/REMEDIATION-PLAN.md,
+docs/audits/KINGSEC-PHASE-2A-COMPLETION-REPORT.txt,
+docs/audits/KINGSEC-PHASE-2A-FOLLOWUP-RESPONSE.txt - all four predate
+this round's work (dated Sep 10-11, referencing an unrelated commit,
+4e24e3b) and are still sitting untracked in the working tree exactly as
+found.
+
+
+--------------------------------------------------------------------------------
+STANDING INSTRUCTION
+--------------------------------------------------------------------------------
+"Do not start Task 3." Stopping here.
+================================================================================
