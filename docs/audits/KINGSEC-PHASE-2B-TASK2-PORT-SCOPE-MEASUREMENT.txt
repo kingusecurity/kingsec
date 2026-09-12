@@ -1,0 +1,260 @@
+KINGSEC — PHASE 2B TASK 2: PORT-SCOPE MEASUREMENT + REVISED DESIGN
+Report before implementing, as instructed. Nothing in this section has
+been applied to code yet. Phase 2A fake fix (Conditions A/B) is done -
+see the end of this file.
+
+================================================================================
+YOU ARE RIGHT: THE 61-PORT LIST IS A REGRESSION, STRUCTURALLY
+================================================================================
+
+Today, with no -p at all, nmap uses its own real default: ~1000 ports.
+My fix ran -p <61 ports + explicit> unconditionally, for every target
+type - not just URL. That silently narrowed EVERY nmap scan (IP_ADDRESS,
+HOSTNAME, NETWORK included) from ~1000 candidate ports to 61, whether or
+not a URL's explicit port was even involved. This is the same defect
+class as the rejected "1-1000" range, in a different, more numerically
+severe form (1000 -> 61, not 1000 -> 1000-but-wrong-1000).
+
+================================================================================
+2a. RE-TESTING THE FLAG CONFLICT PROPERLY
+================================================================================
+
+Exact command, exact output, run on this machine's real nmap 7.99:
+
+    $ nmap --top-ports 1000 -p 18080 -n 127.0.0.1
+
+    Starting Nmap 7.99 ( https://nmap.org ) at 2026-09-12 12:36 +0500
+    Nmap scan report for 127.0.0.1
+    Host is up (0.0010s latency).
+
+    PORT      STATE  SERVICE
+    18080/tcp closed unknown
+
+    Nmap done: 1 IP address (1 host up) scanned in 0.54 seconds
+    Exit code: 0
+
+No error. -p wins cleanly - exactly 1 port scanned (confirmed via XML
+scaninfo: numservices="1"). Reversing the order, and adding -sV -n to
+match KingSec's real scan_args, gave the identical result four times:
+
+    nmap --top-ports 1000 -p 18080 -n ...          -> numservices=1
+    nmap -p 18080 --top-ports 1000 -n ...          -> numservices=1
+    nmap -sV -n --top-ports 1000 -p 18080 ...      -> numservices=1
+    nmap -sV -n -p 18080 --top-ports 1000 ...      -> numservices=1
+
+This CONTRADICTS what I reported last round as a blanket "unpredictable"
+finding. Re-investigating why: the earlier finding was real, but it was
+specific to what VALUE -p carries, not to combining the two flags in
+general. Isolated it precisely, reproduced each case multiple times:
+
+    -p <single port>              + --top-ports  -> -p ALWAYS wins
+    -p <port>,<port> (two singles)+ --top-ports  -> -p ALWAYS wins
+    -p <port>,<range> (a dash-range anywhere in the list) + --top-ports
+                                                   -> --top-ports ALWAYS wins
+    -p <range only>                + --top-ports  -> --top-ports ALWAYS wins
+
+Order on the command line never mattered in any of these; only whether
+-p's value contains a numeric RANGE (a "-") does. This is exactly why my
+first attempt (a range default, "1-1000") behaved unpredictably when
+combined with --top-ports, and why 18080 alone did not - I conflated the
+two cases into one blanket claim last round without re-testing the
+specific single-port case. Corrected here, with the evidence shown, not
+just re-asserted.
+
+Practical consequence: nmap --top-ports 1000 -p 18080 <host> IS usable,
+reliably, for a single explicit port. It is NOT usable if I also want a
+literal port RANGE in the same -p value - which is exactly why the
+revised design below never puts a range into the same -p as the explicit
+port; see 2c.
+
+================================================================================
+2b. EMPIRICAL COMPARISON: TODAY'S DEFAULT vs. THE 61-PORT LIST
+================================================================================
+
+Both run against 127.0.0.1 on this machine, same session, same host state:
+
+    $ nmap -sV -n 127.0.0.1                          (today's real default)
+    numservices="1000"
+    Individually-reported (non-closed-consolidated) ports:
+      135, 445, 902, 912, 1001, 3000, 3389, 5357, 5678
+    (all nine open - same nine Phase 1 found; the rest of the 1000 were
+    closed and consolidated into <extraports>, standard nmap XML behavior)
+
+    $ nmap -sV -n -p <61-port list> 127.0.0.1        (my rejected fix)
+    numservices="61"
+    Individually-reported ports:
+      135, 445, 902, 912, 1001, 3000, 3389, 5357, 5678
+    (identical set)
+
+RESULT ON THIS HOST: zero difference. The 61-list happens to catch
+everything the real 1000-port default catches here, TODAY.
+
+THIS DOES NOT VINDICATE THE 61-LIST, and I am not presenting it as if it
+does. One host, one point in time, proves nothing about a host running a
+service on a port outside both KingSec's 61 and outside nmap's top 1000
+by coincidence, or - more relevantly - a service on a port that's in
+nmap's real top-1000 (frequency-ranked, drawing on real-world telemetry
+Nmap has that KingSec's from-scratch list does not) but NOT in KingSec's
+61. The structural gap (1000 candidate ports narrowed to 61, applied
+unconditionally) is real regardless of what one test host shows. This
+comparison quantifies today's specific result; it does not bound the
+general risk, which is exactly your point about the regression test.
+
+================================================================================
+2c. TWO-INVOCATION MERGE OPTION - EVALUATED, NOT YET IMPLEMENTED
+================================================================================
+
+Checked what merging would actually require by reading nmap_parser.py's
+parse_nmap_xml() directly, not assuming:
+
+  - Only OPEN ports ever produce a Finding at all (nmap_parser.py:101-102:
+    "if port_state != 'open': continue" - closed/filtered ports are
+    already silently dropped before a Finding is ever built).
+  - Each open-port Finding has a structured, parseable title:
+    f"Open port {portid}/{protocol}" (nmap_parser.py:118) - portid is
+    right there in the title string, not buried in free text.
+
+CONCLUSION: the merge is CLEAN, not messy. Two separate nmap invocations,
+two separate parse_nmap_xml() calls, concatenate the two Finding lists,
+and de-duplicate on the (portid, protocol) pair extracted from each
+Finding's own title before returning - a small, independently-testable
+post-processing step, not XML surgery or cross-invocation state tracking.
+Deduplication is only needed for the rare case where the URL's explicit
+port ALSO happens to fall inside nmap's own default top-N (both
+invocations would then independently report the same open port).
+
+Cost, measured on this machine: the default -sV scan (1000 ports) took
+13.27s; a single-port -sV scan is a small fraction of that (well under a
+second of actual port-probing work, dominated by -sV's per-open-port
+service-detection cost, which only applies to the few open ports found
+either way). The second invocation adds real subprocess-launch overhead
+and a second nmap process spin-up, but not a second full 1000-port sweep
+in wall-clock terms - it prevents the URL's own port from ever being
+missed at negligible added cost.
+
+--------------------------------------------------------------------------
+RECOMMENDATION
+--------------------------------------------------------------------------
+
+1. Non-URL targets (IP_ADDRESS, HOSTNAME, NETWORK): NO -p, NO change from
+   today. resolve_port_specification() already returns None for these -
+   this is what it should continue to do; the REGRESSION was in
+   NmapSettings.host_port_range's default reaching every target type
+   through the settings layer, not in the per-target-type gating logic
+   itself, which was already correct. Licensing-clean per your
+   reasoning: nmap reads its own bundled/updatable data file on the
+   operator's machine to pick these ~1000 ports; KingSec never touches,
+   copies, or redistributes that file.
+
+2. URL targets: two invocations, merged, per 2c above.
+     Invocation A: settings.scan_args + no port flag at all -> nmap's own
+       real default (~1000 ports, whatever nmap itself decides).
+     Invocation B: settings.scan_args + -p <the URL's single explicit
+       port> -> guarantees that exact port is always checked, using the
+       flag-behavior confirmed safe in 2a (a single port in -p, no range,
+       never contends with anything since invocation A carries no
+       port-selector flag to conflict with).
+     Merge: concatenate both invocations' parse_nmap_xml() results,
+     de-duplicate by (portid, protocol).
+
+3. KingSec's own 61-port list (nmap_default_ports.py) is NOT deleted, but
+   its role changes: it is no longer nmap's port selection for anything.
+   Docstring/comment updated to state plainly it is currently unused by
+   the live scan path, kept as a documented, deliberately-curated floor
+   for a future case (e.g., an environment where nmap's real default
+   port data is unavailable or needs to be overridden for a licensing/
+   sandboxing reason not present today) - not deleted outright, since it
+   is real, reviewed work with a legitimate documented rationale, but its
+   docstring must stop implying it is the operative default, since it no
+   longer is once this design lands.
+
+4. port_specification recording (bullet 3 of the blocking section):
+     - Non-URL targets: None, unchanged (nmap's own default was used;
+       nothing for KingSec to claim credit for or disclose beyond "no
+       explicit port constraint was applied").
+     - URL targets: a string that says what actually happened, honestly,
+       e.g. "nmap's own default port selection, plus explicit port 18080"
+       - NOT a list of numbers, since KingSec does not know and must not
+         claim to know which ~1000 ports nmap's own default actually used
+         on the machine that ran it (that's exactly the licensed data
+         KingSec doesn't possess). Task 4's disclosure text should say
+         "nmap's own default scan range plus the target's explicit port"
+         for a URL target, not enumerate ports it cannot verify.
+
+Not yet implemented. Files this would touch when approved: nmap.py
+(resolve_port_specification()/_build_args() split into two invocations
+for URL targets, a merge/dedupe helper), NmapSettings (host_port_range's
+role and default reconsidered per point 3), nmap_default_ports.py
+(docstring correction), the plugin wrapper (still calls resolve_port_
+specification() for ScannerResult.port_specification, now returning the
+descriptive string above for URL targets), and the regression test
+(asserts the merge behavior and the explicit-port guarantee, not a fixed
+literal port list).
+
+================================================================================
+PHASE 2A FAKE FIX (Conditions A/B) - DONE, see diff below
+================================================================================
+
+Applied to tests/unit/application/test_phase2a_honest_coverage.py.
+27/27 tests in this file pass, unchanged.
+
+CONDITION A - diff shown, assertions byte-identical:
+
+  diff --git a/tests/unit/application/test_phase2a_honest_coverage.py
+  +from kingsec.application.ports import AssessmentRepository
+  +from kingsec.application.ports.repositories import AssessmentPage
+  ...
+  -class _FakeAssessmentRepository:
+  +class _FakeAssessmentRepository(AssessmentRepository):
+  ...
+  -    def list(self, *, limit: int = 50, offset: int = 0) -> list[Assessment]:
+  -        return list(self._assessments.values())[offset : offset + limit]
+  +    def list(self, *, limit: int = 50, offset: int = 0) -> AssessmentPage:
+  +        return AssessmentPage(items=tuple(list(self._assessments.values())[offset : offset + limit]))
+  ...
+  +    def find_running_ids(self) -> list[str]:
+  +        return [str(a.id) for a in self._assessments.values() if a.status is AssessmentStatus.RUNNING]
+  +
+  +    def force_fail_running(self, assessment_id: str, reason: str) -> bool:
+  +        a = self._assessments.get(assessment_id)
+  +        if a is None or a.status is not AssessmentStatus.RUNNING:
+  +            return False
+  +        a.fail(reason)
+  +        return True
+
+  No test function, fixture, or assertion line changed. .list() is never
+  called anywhere in this file (confirmed by grep before editing) so its
+  return-type correction (required for formal ABC inheritance to even
+  compile/instantiate) has zero observable effect on any test in it.
+
+CONDITION B - confirmed, and a broader finding surfaced:
+
+  _FakeAssessmentRepository did NOT inherit from AssessmentRepository -
+  confirmed by reading its class definition before any edit ("class
+  _FakeAssessmentRepository:", no base class). It failed loudly not
+  because of ABC enforcement but because ResolveOrphanedAssessments.
+  execute() calls self._assessments.find_running_ids() directly at
+  runtime - a duck-typed fake fails just as loudly as a formal subclass
+  the moment a CALLED method is missing; the difference only shows up for
+  methods nothing in this file's tests happens to call, like list().
+  Made it inherit, as instructed.
+
+  BROADER FINDING, not yet acted on: four MORE fake AssessmentRepository
+  implementations duck-type the same way and were not part of this
+  fix - tests/unit/application/test_submit_assessment.py,
+  test_submit_assessment_execution_ledger.py,
+  test_submit_scheduled_assessment.py, and
+  tests/unit/infrastructure/test_schedule_finalization_race.py. None of
+  these call find_running_ids()/force_fail_running() today, so they are
+  not currently stale, but your own concern (a future port change leaving
+  duck-typed fakes silently stale) applies to all four identically. Not
+  fixed here since it wasn't part of what failed or what was asked this
+  round - flagging it rather than silently expanding scope.
+
+================================================================================
+STOPPING HERE per "Stop and report after step 2's measurement."
+================================================================================
+Nothing beyond the Phase 2A fake fix has been applied. The revised port-
+scope design (2c) is recommended but not implemented. Waiting for
+approval before implementing it, verifying the alembic claim, Decision 3,
+docs/LICENSING-RISK.md, or any commit/push.

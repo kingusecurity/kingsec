@@ -427,4 +427,72 @@ Success: no issues found in 599 source files
 
 ### What's next
 
-Task 2 has not started. Waiting for explicit go-ahead per this round's own instruction ("Then STOP. Report back before starting Task 2").
+Task 1 approved. Task 2 (URL target model) is IN PROGRESS — see the section below. Full write-up: `docs/audits/KINGSEC-PHASE-2B-TASK2-STEP2-C1-C2-REPORT.txt`.
+
+---
+
+## Phase 2B Task 2 — URL target model (Step 2, in progress)
+
+**Status:** Decisions 1, 2, 4 and Additions 1, 2 implemented and gate-green. Decision 3 (moving URL validation into `Target._validate_format()`) is DESIGNED but NOT APPLIED — gated behind C1 (persisted-data check, done) and C2 (graceful-load-failure design, proposed) per explicit instruction to stop there for approval. Not committed yet.
+
+Capability-based compatibility is live: `ScannerRequirement` (`REACHABLE_HOST`/`HTTP_BASE_URL`/`NETWORK_RANGE`) replaced `ScannerCapability.target_types`; `is_compatible()` keeps its exact signature. `UrlComponents`/`decompose_url()` (domain/target.py) do the actual URL decomposition, computed on demand, never persisted. nmap now runs against `URL` targets (the Task 2 goal) and against an IP_ADDRESS/NETWORK IPv6 literal (Addition 1's pre-existing bug, found and fixed alongside it — without `-6`, nmap silently skips an IPv6 target as "invalid" rather than erroring, verified against a real nmap 7.99 binary). nikto's compatibility also expanded to `IP_ADDRESS` (Decision 1, approved) — its own `_parse_target()` already handled a bare IP correctly, this only recognizes it.
+
+Decision 4's nmap port scope required empirically testing real nmap CLI behavior (`-p` combined with `--top-ports` on the same command line does not reliably resolve to "the last flag wins" — verified three different orderings, got three different winners depending on port-list content, not position). The fix: never combine the two flags at all — a URL-derived scan always gets exactly one `-p <explicit-port>,<host_port_range>` list, and any operator-configured `-p`/`--top-ports`/`-p-`/`-F` in `scan_args` is stripped out first (with a warning logged naming what was overridden) rather than left to an unreliable flag-precedence race. The exact resolved spec is recorded on `ScannerResult.port_specification` via the same pure function `_build_args()` itself calls, so the recorded and scanned specs cannot drift apart.
+
+**CORRECTION, same round:** the default range as first implemented (`"1-1000"`, a literal contiguous numeric range) was a coverage regression, not a fix — flagged and confirmed before being shipped further. Checked against Phase 1 Run #4's nine real found ports (135, 445, 902, 912, 1001, 3000, 3389, 5357, 5678): five of nine (1001, 3000, 3389 — RDP, 5357, 5678) fall outside `1-1000` and would have been missed. Verified nmap's REAL frequency-ranked `--top-ports 1000` (extracted from this machine's own `nmap-services` file, not the literal range that was actually implemented) DOES include all nine (ranks 7–812) — the mistake was implementing a numeric range instead of nmap's actual ranking. Proposed fix (not yet applied): freeze a snapshot of nmap's real top-1000-by-frequency list as KingSec's own explicit, documented, version-controlled constant (not a runtime read of nmap's own data file, which is fragile across installs/versions), unioned with the URL's explicit port. Full write-up: `docs/audits/KINGSEC-PHASE-2B-TASK2-DECISION4-CORRECTION-AND-CONDITIONS.txt`.
+
+### Recurring defect class: "nothing found" vs. "nothing looked"
+
+Named pattern, logged for future phases to hunt for actively rather than rediscover by accident. Three confirmed instances so far, all this engagement:
+1. Pre-Phase-2A: scanners silently stuck `PENDING` forever read identically to "nothing to report" (the original Run #4 defect).
+2. Pre-Phase-2A-b: an 88/100 "Sound" verdict on 1-of-9 real coverage read identically to a genuinely clean, fully-scanned result.
+3. Phase 2B Task 2: nmap silently skipping an IPv6 target as "invalid" produces zero findings, exit success — identical to a real clean scan of a real reachable host (Addition 1).
+
+A fourth is what Conditions 1/2 (see the Decision 4 correction report above) exist to close before it ships: a corrupted assessment row silently dropped from a list, or from startup orphan-recovery, would read identically to "that row doesn't exist" or "nothing was orphaned."
+
+**Phase 5 BLOCKER — scanner licensing risk, investigated and documented:** `docs/LICENSING-RISK.md` (new, this round) reviews all six wired scanners' own license text (nmap NPSL, nuclei MIT, nikto GPLv3 + proprietary DB files, ffuf MIT, gobuster Apache-2.0, ZAP Apache-2.0) against how KingSec actually uses each one (arm's-length external subprocess invocation only — no scanner binary or data file is ever bundled, vendored, or shipped; every `binary_path` defaults to a bare PATH-resolved command name, confirmed by reading `infrastructure/config/models.py` and the `Dockerfile`). Verdict: CLEAR for all six today, with two flagged conditions — nmap and nikto's clearance depends on KingSec never bundling their binaries/data files into a future installer or Docker image, and nikto's clearance additionally rests on the standard (not codified-in-law) GPL subprocess-invocation interpretation. Rank this above the wordlist/Nuclei-template licensing items already logged elsewhere in this file — those are lower-risk instances of the same underlying question this document settles more thoroughly.
+
+**Addition 2 — Phase 5 claim-audit item, data handling:** a URL containing embedded credentials is logged verbatim at INFO by all six wired scanner adapters' `_logger.info(..., target=target.value, ...)` calls (nmap, nuclei, nikto, ffuf, gobuster, zap — confirmed by reading each) and persisted to the `assessments.target_value` column as plain, unencrypted text. Decision 3 (once applied) closes the *input* path — a credentialed URL will be rejected at `Target` construction and can never reach a scan or a log line — but the claim audit still needs to state plainly what the product does and does not protect: target values are not encrypted at rest, and were not redacted in logs before this fix. Log this alongside the existing "local-first" class of product claims.
+
+### C1 — persisted data check (read-only, both databases)
+
+```
+C:\kingsec-e2e\kingsec.db      : 10 rows with target_type='URL', all identical value
+                                  "http://127.0.0.1:18080" (the Phase 1/2A DVWA
+                                  target, reused across runs)
+~/.kingsec\kingsec.db          : 0 rows with target_type='URL' (1 row total, IP_ADDRESS)
+```
+
+Queried via Python's `sqlite3` module opened `file:...?mode=ro` (read-only URI — never plain `sqlite3.connect(path)`, which can create `-wal`/`-shm` files as a side effect of opening even for a read). First pass used `target_type = 'url'` and found nothing — caught before reporting: `mappers.py` stores the enum's `.name` ("URL"), not `.value` ("url"); re-queried with the correct casing and cross-checked against the real total row count and full `target_type` distribution before trusting the result.
+
+Ran the actual `decompose_url()` (not a re-implementation) against the one distinct persisted value: **accepted cleanly** — `http://127.0.0.1:18080` has no credentials, a valid in-range numeric port, no IPv6 ambiguity. **No existing row in either database would fail the new validation.**
+
+### C2 — graceful handling for a persisted row that fails validation (proposed, not implemented)
+
+Traced every caller of `assessment_to_domain()` (`mappers.py`): `get()`/`load_assessment()` (single-fetch by id, 2 call sites) and **6 separate list-building call sites** across `repositories/assessment.py` and `_operations.py` (`list()`, `find_by_schedule_occurrence_id()`, `find_running()` — the last one backs the **startup** orphan-recovery pass, `ResolveOrphanedAssessments`, not just an HTTP endpoint). All 6 list sites use a bare `[assessment_to_domain(o) for o in orms]` — one bad row raises and the entire list call fails, confirming the exact risk flagged: a validation tightening could turn one corrupted row into a failure for every unrelated request that lists assessments, or worse, a failure at process startup.
+
+**Proposed fix (not applied):**
+- The 6 list-building call sites: wrap each row's `assessment_to_domain(o)` in a per-row try/except catching `InvariantViolation`/`TargetDecompositionError`, log the assessment `id` only (never `target_value` — that is exactly the class of value Decision 3 exists to stop leaking, so it must not leak through this path instead), and skip that row — the rest of the list loads normally. `find_running_assessments()` specifically logs at ERROR (not WARNING): a RUNNING row the orphan-recovery pass can't even evaluate needs operator visibility, not a quiet skip.
+- The 2 single-fetch call sites (`get()`/`load_assessment()`): do NOT skip silently — the caller asked for that specific row. Propose translating the validation error into a new, narrowly-scoped `AssessmentDataCorruptedError` (application/errors.py, sibling to `AssessmentNotFoundError` — not reusing it, since "not found" and "found but unloadable" are different facts an operator needs to distinguish), mapped at the HTTP boundary to a clear, honest error response instead of a raw traceback.
+- Noted, not fixed here: `repositories/assessment.py`'s `list()`/`find_running()`/`find_by_schedule_occurrence_id()` and `_operations.py`'s `list_assessments()`/`find_running_assessments()`/`find_assessments_by_schedule_occurrence_id()` are two independent implementations of the same three queries (one SQLAlchemy 2.x `select()`-style, one older `session.query()`-style) — both need this fix since they don't share code today. Worth its own consolidation pass eventually; out of scope for this fix.
+
+Touches 4 files: `mappers.py`, `_operations.py`, `repositories/assessment.py`, `application/errors.py`. Not yet implemented — stopping here per instruction, for approval before applying Decision 3's actual `Target._validate_format()` change.
+
+### Decision 4, SECOND correction — the 61-port list itself was still a regression; superseded by a two-invocation design
+
+The "Proposed fix" above (freeze nmap's real top-1000-by-frequency list as a KingSec-owned constant) was implemented, then rejected on **licensing** grounds: nmap's frequency data (`nmap-services`) is Nmap Public Source Licensed, incompatible with committing it into KingSec's own commercially-licensed source tree. Rebuilt from scratch as `nmap_default_ports.py` — 61 ports sourced only from public IANA documentation plus Phase 1's own evidence, applied unconditionally via `-p` to every nmap invocation (including non-URL targets).
+
+That 61-port list was then flagged as **still** a coverage regression (1000 real default ports narrowed to 61, applied even where no URL/port question exists at all). Resolved by replacing the single-invocation `-p <61-port list>` design entirely:
+- **Non-URL targets** (`IP_ADDRESS`/`HOSTNAME`/`NETWORK`): single invocation, no port flag at all — byte-identical to before this whole feature existed. Regression-tested (`TestNonUrlTargetsNeverGetAPortFlag`, `test_nmap_plugin.py`): fails if a port flag is ever reintroduced for these target types.
+- **URL targets**: two invocations — (a) a host sweep with no port flag (nmap reads its own real default port data itself; KingSec never touches, copies, or redistributes it), (b) the URL's explicit port alone (`-p <port>`, verified against a real nmap 7.99 binary to be the one case where `-p` reliably wins over any operator-configured `--top-ports`/range). Results are merged and deduplicated by `(port, protocol)` (`_dedupe_findings()`, `nmap.py`).
+- **Failure semantics** (`_scan_url_two_invocations()`): both invocations succeed → clean success, no warning. Both fail → `ScannerExecutionError`, scan reaches FAILED. Exactly one fails → SUCCEEDED with a warning naming which sweep failed, via `ScannerRunSummary.warnings` — a silent partial result was explicitly rejected as unacceptable.
+- `nmap_default_ports.py`'s 61-port list is kept, committed, and documented, but its docstring now states plainly that nothing in the live scan path references it — it is a documented floor, not a default, for a future scenario (nmap's own default data unavailable/disabled) where a licensing-clean KingSec-owned override is needed.
+
+### Backlog — 4 duck-typed `AssessmentRepository` fakes (logged, not fixed)
+
+A 5th duck-typed fake (`_FakeAssessmentRepository` in `test_phase2a_honest_coverage.py`) was found breaking after `ResolveOrphanedAssessments` was rewired onto the new `find_running_ids()`/`force_fail_running()` abstract methods, and was fixed this round (now formally inherits `AssessmentRepository`). The following 4 are the **same defect class** — a plain `class FakeAssessmentRepository:` with no base class, so a signature change to the real `AssessmentRepository` port would fail silently (an `AttributeError` at call time, not an interface-conformance error at definition time) instead of loudly. **Not fixed — logged as a backlog item only, per explicit instruction; each is its own change with its own blast radius:**
+
+1. `tests/unit/application/test_submit_assessment.py`
+2. `tests/unit/application/test_submit_assessment_execution_ledger.py`
+3. `tests/unit/application/test_submit_scheduled_assessment.py`
+4. `tests/unit/infrastructure/test_schedule_finalization_race.py`

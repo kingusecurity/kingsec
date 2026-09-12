@@ -1,0 +1,272 @@
+KINGSEC — PHASE 2B TASK 2, STEP 2: IMPLEMENTATION PROGRESS + C1/C2
+Branch: feat/phase-2b-real-coverage. NOT committed yet - stopping here per
+explicit instruction ("Stop at C1/C2 for my approval").
+
+================================================================================
+WHAT'S DONE AND GATE-GREEN
+================================================================================
+
+Decisions 1, 2, 4 and Additions 1, 2 are implemented. Decision 3 is designed
+and its enforcement logic already exists (inside decompose_url()) but has
+NOT been moved into Target._validate_format() - that move is gated behind
+C1/C2 below, per explicit instruction.
+
+--------------------------------------------------------------------------
+DECISION 1/2 - capability-based compatibility (domain model)
+--------------------------------------------------------------------------
+- domain/scanner.py: new ScannerRequirement enum (REACHABLE_HOST,
+  HTTP_BASE_URL, NETWORK_RANGE) and provided_requirements(target_type),
+  replacing ScannerCapability.target_types: frozenset[TargetType] with a
+  single requirement: ScannerRequirement field - one source of truth, no
+  two independently-declared sets that could drift (the exact class of
+  bug Phase 2A already fixed once between the planner and orchestrator).
+- infrastructure/scanner/registry.py: is_compatible()'s SIGNATURE is
+  unchanged - only its internal data source changed (capability-lookup
+  instead of raw set membership). Both existing callers (ExecutionPlanner.
+  plan(), ScannerOrchestrator's fallback resolve() path) work unmodified.
+- All 9 scanner plugin adapters (nmap, nuclei, nikto, ffuf, gobuster, zap,
+  amass, semgrep, trivy) migrated their capabilities() declarations to the
+  new model, per the approved Step 1 matrix:
+    nmap      -> REACHABLE_HOST + NETWORK_RANGE (two entries)
+    nuclei    -> REACHABLE_HOST (its -u flag already accepts a bare host)
+    nikto     -> REACHABLE_HOST (Decision 1 - its _parse_target() already
+                 handles a bare host; this recognizes real behaviour that
+                 existed before this task, doesn't add new logic)
+    ffuf/gobuster/zap -> HTTP_BASE_URL (unchanged real compatibility)
+    amass/semgrep/trivy (unwired) -> REACHABLE_HOST, mechanical migration,
+                 no behaviour change
+
+--------------------------------------------------------------------------
+DECISION 4 - nmap port scope
+--------------------------------------------------------------------------
+Your override (explicit port + host range, not port alone) required
+determining the correct nmap invocation empirically, not guessing - a real
+nmap 7.99 binary is installed on this machine, so it was tested directly
+rather than inferred from documentation:
+
+  nmap -p 18080,1-1000 --top-ports 50 ...   -> 50 services (--top-ports won)
+  nmap --top-ports 50 -p 18080,1-1000 ...   -> 50 services (--top-ports won)
+  nmap -p 18080 --top-ports 10 ...          -> 1 service  (-p won)
+
+Combining -p and --top-ports as two SEPARATE flags does not reliably
+resolve to "the last one wins" - which flag survives depends on the
+CONTENT of the -p list (a range vs. only single ports), not command-line
+position. This is not a documented, trustworthy contract to build a
+"structural guarantee" on, so the design does not rely on it at all:
+
+  nmap -p 18080,1-1000 ...   -> 1001 services (18080 + the 1-1000 range,
+                                 combined WITHIN one -p list, not competing
+                                 with a separate --top-ports flag) - VERIFIED
+
+The fix: a URL-derived scan gets exactly one -p list combining the URL's
+explicit port with NmapSettings.host_port_range (default "1-1000",
+configurable). Requirement (d) - an operator-configured -p in scan_args
+must not be able to silently drop the URL's port - is met by STRIPPING any
+of -p/--top-ports/-p-/-F out of scan_args before appending our own -p,
+rather than trying to out-position an unreliable flag (a warning is logged
+naming exactly what was removed, so the override is visible, not silent).
+Requirement (c) - the resolved spec recorded per run - is
+ScannerResult.port_specification, populated by the SAME pure function
+(resolve_port_specification()) _build_args() itself calls, so what's
+recorded and what's scanned cannot drift apart.
+
+Required test written and passing: a test asserting on the RECORDED SPEC
+(ScannerResult.port_specification), not on flag presence, covering the
+Phase 1 case by name (http://127.0.0.1:18080 -> "18080,1-1000") and an
+operator-scan_args-collision case.
+
+--------------------------------------------------------------------------
+ADDITION 1 - IPv6, both paths
+--------------------------------------------------------------------------
+Verified against the real nmap binary: without -6, nmap treats a
+bracket-stripped IPv6 literal as invalid and skips it outright -
+"status=skipped reason=invalid", 0 hosts scanned, exit success. This is a
+REAL, currently-reachable bug: any existing IP_ADDRESS target holding an
+IPv6 value would silently produce zero findings today, indistinguishable
+from a clean scan. Fixed for every target type, not just URL -
+_resolve_host_and_ipv6() checks IP_ADDRESS via is_ipv6_literal(), NETWORK
+via ipaddress.ip_network().version, URL via decompose_url()'s is_ipv6.
+Required test (IPv6 IP_ADDRESS target) written and passing.
+
+--------------------------------------------------------------------------
+ADDITION 2 - logged in docs/STATUS.md
+--------------------------------------------------------------------------
+A URL containing embedded credentials is logged verbatim at INFO by all
+six wired adapters (confirmed by reading each: nmap, nuclei, nikto, ffuf,
+gobuster, zap all call _logger.info(..., target=target.value, ...)) and
+persisted as plain, unencrypted text in assessments.target_value. Decision
+3 closes the INPUT path once applied; the claim audit still needs to state
+this plainly as a data-handling fact, alongside the existing "local-first"
+class of product claims. Logged in docs/STATUS.md's Phase 2B Task 2
+section.
+
+--------------------------------------------------------------------------
+GATE
+--------------------------------------------------------------------------
+Full Phase 2A invariant suite (tests/unit/application/
+test_phase2a_honest_coverage.py, 27 tests, including
+TestPlannerOrchestratorInvariantAcrossFullMatrix - the planner/orchestrator
+matrix test across every real profile x target_type, auto-generated from
+ExecutionPlanner.list_profiles() so it needed no manual update): PASSES
+UNCHANGED. Zero edits were needed to this file for Task 2 - confirming the
+Step 1 design's own claim (Section 8) that no profile becomes newly valid
+or invalid as a side effect of this change.
+
+    $ uv run pytest -q
+    exit code: 0, 0 FAILED entries in the full run
+
+    $ uv run ruff check .
+    All checks passed!
+
+    $ uv run mypy src
+    Success: no issues found in 599 source files
+
+--------------------------------------------------------------------------
+ACTUAL vs ESTIMATED TEST-COUNT IMPACT (you asked for this explicitly)
+--------------------------------------------------------------------------
+Estimated in Step 1: 20-35 test functions.
+
+Actual: 28 new test functions (19 in the new test_target_decomposition.py,
+8 in test_nmap_plugin.py's new TestPortSpecification/TestIpv6 classes, 1
+nikto bare-IP test) PLUS roughly 30 pre-existing test functions/fixtures
+edited across 20 additional files - 9 capability-declaration tests (one
+per scanner plugin test file), 2 in test_registry.py, 8 rejection tests in
+test_scanner_domain.py, 1 in test_orchestrator.py, and fixture-only
+ScannerCapability(...) constructions in 9 more files (integration and unit
+tests outside the scanner-plugin suite) that were never individually
+counted as "capability tests" but would have raised TypeError the moment
+this suite ran. Combined: roughly 58 test functions touched or added -
+higher than the 20-35 estimate.
+
+Why the estimate was low: Step 1 enumerated the 6 scanner-plugin test
+files explicitly (the ones with a TestCapabilities class) but did not do
+a full-repo grep for every place a bare ScannerCapability(...) gets
+constructed. That grep, run only after the real migration surfaced ruff/
+pytest failures, found 8 more files (integration boundary tests, error-
+sanitization tests, orchestrator tests) that build a fake plugin inline
+and declare its capability directly. None of these needed new test LOGIC -
+every one was a mechanical target_types= -> requirement= substitution -
+but the estimate should have accounted for their existence before, not
+after.
+
+================================================================================
+C1 - PERSISTED DATA CHECK (read-only, both databases)
+================================================================================
+
+Queried via Python's sqlite3 module opened as a read-only URI
+(file:<path>?mode=ro) - never a plain sqlite3.connect(path), which can
+create -wal/-shm files as a side effect of opening even for a read query.
+No write occurred against either database.
+
+    C:\kingsec-e2e\kingsec.db   : 11 total assessment rows
+                                    - 1 IP_ADDRESS
+                                    - 10 URL, ALL the identical value
+                                      "http://127.0.0.1:18080" (the
+                                      Phase 1/2A DVWA target, reused
+                                      across repeated runs)
+
+    ~/.kingsec\kingsec.db       : 1 total assessment row
+                                    - 1 IP_ADDRESS
+                                    - 0 URL rows
+
+A real mistake, caught before reporting: the first query used
+target_type = 'url' (lowercase, TargetType's .value) and found zero rows
+in EITHER database - which would have been reported as "nothing to worry
+about" if taken at face value. Cross-checked against the total row count
+and the real target_type distribution first (this session's own
+CLAUDE.md rule: cross-check any number against an independent source
+before it goes in a report) and found the distribution didn't add up -
+mappers.py stores the enum's .name ("URL"), not .value ("url")
+(assessment_to_orm(): target_type=assessment.target.type.name). Re-ran
+with the correct casing and got the real answer above.
+
+Ran the ACTUAL decompose_url() (not a re-implementation of its rules)
+against the one distinct persisted value:
+
+    Target("http://127.0.0.1:18080", TargetType.URL) -> decompose_url()
+    ACCEPTED: UrlComponents(scheme='http', host='127.0.0.1', is_ipv6=False,
+              port=18080, port_is_explicit=True, path='')
+
+CONCLUSION: no existing row in either database would fail the new
+validation. No embedded credentials, a valid in-range numeric port, no
+IPv6 ambiguity. Safe to apply Decision 3's tightening with respect to
+currently-persisted data - this says nothing about future data, which is
+what C2 addresses.
+
+================================================================================
+C2 - GRACEFUL HANDLING FOR A ROW THAT FAILS VALIDATION (proposed, NOT applied)
+================================================================================
+
+Traced every caller of assessment_to_domain() (mappers.py:287, which
+constructs Target(orm.target_value, TargetType[orm.target_type]) - the
+exact line that would start raising once Decision 3 lands):
+
+  Single-fetch (2 call sites):
+    - repositories/assessment.py: SQLAlchemyAssessmentRepository.get()
+    - _operations.py: load_assessment()
+
+  List-building (6 call sites, ALL a bare list comprehension today):
+    - repositories/assessment.py: list(), find_by_schedule_occurrence_id(),
+      find_running()
+    - _operations.py: list_assessments(), find_running_assessments(),
+      find_assessments_by_schedule_occurrence_id()
+
+Every list site is exactly `[assessment_to_domain(o) for o in orms]` - one
+bad row raises and the ENTIRE list call fails. This confirms the exact
+risk you flagged, and it is worse than "a 500 on an unrelated HTTP
+request": find_running_assessments() backs the STARTUP orphan-recovery
+pass (ResolveOrphanedAssessments, Phase 2A FIX 9) - one corrupted row
+there could fail application startup, not just one endpoint.
+
+Also found, not previously documented: repositories/assessment.py and
+_operations.py contain TWO INDEPENDENT implementations of the same three
+queries (list/find_running/find_by_schedule_occurrence_id) - one using
+SQLAlchemy 2.x select(), one using the older session.query() style. They
+don't share code today, so any fix has to be applied in both places or it
+silently only half-covers the risk. Flagging this now; not fixing the
+duplication itself here - out of scope for this decision.
+
+PROPOSED FIX (not implemented - shown for approval first, as instructed):
+
+1. List-building call sites (all 6): wrap each row's
+   assessment_to_domain(o) in a per-row try/except catching
+   InvariantViolation and TargetDecompositionError. On catch: log the
+   assessment's id ONLY - never target_value, which is exactly the class
+   of value Decision 3 exists to stop exposing, so it must not leak
+   through this error path instead - and skip that row; the rest of the
+   list loads normally. find_running_assessments() specifically logs at
+   ERROR, not WARNING: a RUNNING row the orphan-recovery pass can't even
+   evaluate needs operator visibility, not a quiet skip that leaves it
+   stuck RUNNING forever with no trace of why.
+
+2. Single-fetch call sites (get()/load_assessment()): do NOT skip
+   silently - the caller asked for this specific row, so silently
+   returning nothing (or a confusing NotFound) would be dishonest.
+   Propose a new, narrowly-scoped AssessmentDataCorruptedError
+   (application/errors.py, sibling to AssessmentNotFoundError, not reusing
+   it - "not found" and "found but unloadable" are different facts an
+   operator needs to tell apart), mapped at the HTTP boundary to a clear,
+   honest error response instead of a raw, opaque 500 traceback.
+
+3. Not fixed here, flagged: the SQLAlchemyAssessmentRepository / _operations
+   duplication above. Both need the same per-row handling since they don't
+   share an implementation.
+
+Files this would touch, not yet edited: mappers.py (or a new shared
+helper), _operations.py, repositories/assessment.py, application/errors.py
+(new error class). Four files, all shown above, none applied.
+
+================================================================================
+STOPPING HERE
+================================================================================
+
+Per explicit instruction: "Stop at C1/C2 for my approval." Nothing further
+has been done - Decision 3's actual Target._validate_format() change has
+NOT been applied, the C2 fix has NOT been applied, and nothing has been
+committed or pushed. Everything else (Decisions 1/2/4, Additions 1/2,
+required tests, full gate) is complete and green, sitting as uncommitted
+working-tree changes on feat/phase-2b-real-coverage.
+
+Waiting for: approval of C2's proposed handling (or a different design),
+then explicit go-ahead to apply Decision 3's Target-level validation
+tightening, then the final gate/commit/push.
