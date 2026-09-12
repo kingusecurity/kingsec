@@ -689,7 +689,16 @@ class TestCoverageAwareVerdictAndScore:
         assert "<td>0</td>" not in html.split('<section id="findings">')[1].split("</section>")[0]
 
     def test_ai_unavailable_callout_has_no_operator_setup_instructions(self) -> None:
+        """Phase 2A-b closed the operator-instruction leak ("Configure a
+        provider in Settings"). Task 4 FIX 2 went further: a customer
+        report must not mention AI/provider availability AT ALL, not
+        even in customer-friendly phrasing - "not available for this
+        report" was itself still plumbing language, and could
+        contradict "no analysis is required" when no Critical/High
+        findings existed. Both standards checked here so this test keeps
+        guarding the original regression while covering the newer one."""
         report = self._completed_with_gaps_report()
         html = render_report_html(report)
         assert "Configure a provider in Settings" not in html
-        assert "not available for this report" in html
+        assert "not available for this report" not in html
+        assert "AI" not in html

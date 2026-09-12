@@ -539,38 +539,22 @@ def _executive_summary(report: Report) -> str:
 
 
 def _business_impact(report: Report) -> str:
-    """AI-generated, plain-language business-risk framing for Critical/High findings.
+    """Plain-language business-risk framing for Critical/High findings.
 
-    This section serves two roles in the required report structure: the
-    "Business Impact" section (per-critical-finding business translation) and
-    the "AI-Generated Explanations" section (same content, same graceful
-    degradation) — the two ask for the same underlying content at different
-    granularity, so this renders it once rather than duplicating identical
-    text under two headings.
+    Task 4 FIX 2: this is a customer deliverable, and an optional
+    integration the assessor has or hasn't configured is internal
+    plumbing - never something the customer's own report should
+    disclose. Previously rendered a top-level "AI-generated... are not
+    available for this report" callout whenever no finding had a real
+    explanation, INDEPENDENT of whether any explanation was even
+    relevant - so a report with no Critical/High findings at all still
+    got that sentence, directly contradicting the very next sentence
+    ("no business-impact analysis is required"). Fixed: no top-level
+    callout about explanation availability at all, ever. If no analysis
+    is required, the report says only that. If findings exist without a
+    real explanation, each card says so in plain terms with no mention
+    of AI, a provider, or configuration - see _business_impact_card().
     """
-    # Checks the OBSERVABLE outcome (did any finding actually get a real
-    # explanation) rather than report.ai_enabled alone: an AI adapter is
-    # always injected in this deployment regardless of whether an API key is
-    # configured (ai_enabled=True in both cases), so ai_enabled by itself
-    # can't distinguish "AI worked" from "AI was attempted and failed for
-    # everything" (e.g. no key). Checking the actual per-finding outcome
-    # covers both that case and the "no adapter at all" case correctly. Must
-    # be visible regardless of whether this assessment has Critical/High
-    # findings — it's the only place "AI-Generated Explanations" graceful
-    # degradation is surfaced, so it can't be hidden behind an early return
-    # for the no-findings case.
-    ai_available = any(e.ai_explanation for e in report.entries)
-    # Phase 2A-b: this is a customer deliverable - no operator setup
-    # instructions ("Configure a provider in Settings...") belong here.
-    # State the fact in customer-appropriate language and stop.
-    ai_status = (
-        ""
-        if ai_available
-        else (
-            '<p class="callout">AI-generated, plain-language business-impact explanations are not '
-            "available for this report.</p>"
-        )
-    )
     critical = [e for e in report.entries if e.severity in (Severity.CRITICAL, Severity.HIGH)]
     if not critical:
         body = (
@@ -579,11 +563,16 @@ def _business_impact(report: Report) -> str:
         )
     else:
         body = "".join(_business_impact_card(e) for e in critical)
-    return f'<section id="business-impact"><h2>Business Impact</h2>{ai_status}{body}</section>'
+    return f'<section id="business-impact"><h2>Business Impact</h2>{body}</section>'
 
 
 def _business_impact_card(entry: FindingSummary) -> str:
-    text = entry.ai_explanation or "The AI provider did not return a business-impact explanation for this finding."
+    # Task 4 FIX 2: no mention of AI, a provider, or configuration here -
+    # this is a customer deliverable, and which optional integration the
+    # assessor has or hasn't set up is not the customer's business. State
+    # the plain fact (no explanation is available for this finding) and
+    # nothing about why.
+    text = entry.ai_explanation or "No business-impact explanation is available for this finding."
     return (
         '<div class="finding-card">'
         f"<h3>{_badge(entry.severity)} {escape(entry.title)}</h3>"

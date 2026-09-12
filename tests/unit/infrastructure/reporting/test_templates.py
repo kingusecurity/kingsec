@@ -86,11 +86,22 @@ class TestDeterminism:
 
 
 class TestBusinessImpact:
-    def test_ai_status_note_shows_even_with_no_critical_or_high_findings(self) -> None:
-        # Regression test: a real assessment with only Low/Informational
-        # findings (e.g. plain open-port scans) and no AI provider configured
-        # previously rendered NOTHING about AI at all — the "no critical/high
-        # findings" early return skipped the AI-status note entirely.
+    """Task 4 FIX 2: this is a customer deliverable - whether the assessor
+    has an AI provider configured is internal plumbing, never something
+    the customer's own report should disclose. Previously, a report with
+    no Critical/High findings AND no AI configured rendered BOTH "no
+    business-impact analysis is required" AND "AI-generated... are not
+    available for this report" together - directly contradictory (the
+    second sentence implies analysis WAS needed and just isn't
+    available). Fixed: no top-level AI-availability callout at all,
+    ever; a report needing no analysis says only that.
+    """
+
+    def test_no_critical_or_high_findings_says_only_that_no_ai_mention(self) -> None:
+        """The exact regression this fix closes: no Critical/High
+        findings (analysis genuinely not required) must render ONLY that
+        sentence - no AI/provider/configuration language alongside it,
+        contradictory or otherwise."""
         from kingsec.domain import Severity
 
         report = build_report()
@@ -98,13 +109,30 @@ class TestBusinessImpact:
         report = dataclasses.replace(report, entries=low_entries)  # ai_enabled stays False
         html = render_report_html(report)
         assert "No Critical or High severity findings" in html
-        assert "are not available for this report" in html
+        assert "AI" not in html
+        assert "provider" not in html.lower()
 
-    def test_no_ai_configured_shows_honest_note(self) -> None:
-        # build_report()'s critical finding has no ai_explanation and
-        # ai_enabled defaults to False.
-        html = render_report_html(build_report())
-        assert "are not available for this report" in html
+    def test_no_ai_provider_configured_contains_no_reference_to_it_at_all(self) -> None:
+        """Required test (Task 4 FIX 2): a report rendered with no AI
+        provider configured contains no reference to provider
+        availability, configuration, or AI at all - even though this
+        report DOES have a Critical finding that would benefit from a
+        business-impact explanation (build_report()'s default fixture),
+        making this the harder case than the no-findings one above.
+        "configuration" is checked within the Business Impact section
+        specifically, not the whole document - the unrelated Limitations
+        sentence about the SCANNED TARGET's configuration is a different,
+        legitimate use of the same English word."""
+        html = render_report_html(build_report())  # ai_enabled=False by default
+        assert "AI" not in html
+        assert "provider" not in html.lower()
+        start = html.find('<section id="business-impact">')
+        end = html.find("</section>", start) + len("</section>")
+        business_impact_html = html[start:end]
+        assert "configur" not in business_impact_html.lower()
+        # Still honest that no explanation exists for this finding -
+        # just without saying why.
+        assert "No business-impact explanation is available for this finding" in business_impact_html
 
     def test_ai_enabled_renders_explanation_text(self) -> None:
         report = build_report()
@@ -115,12 +143,14 @@ class TestBusinessImpact:
         report = dataclasses.replace(report, entries=enriched_entries, ai_enabled=True)
         html = render_report_html(report)
         assert "could expose customer data" in html
-        assert "are not available for this report" not in html
+        assert "No business-impact explanation is available" not in html
 
-    def test_ai_enabled_but_call_failed_shows_per_finding_note(self) -> None:
+    def test_ai_enabled_but_call_failed_shows_per_finding_note_no_ai_mention(self) -> None:
         report = dataclasses.replace(build_report(), ai_enabled=True)  # entries keep ai_explanation=None
         html = render_report_html(report)
-        assert "did not return a business-impact explanation" in html
+        assert "No business-impact explanation is available for this finding" in html
+        assert "AI" not in html
+        assert "provider" not in html.lower()
 
     def test_no_critical_or_high_findings_skips_analysis(self) -> None:
         report = build_report(title="Missing headers")
