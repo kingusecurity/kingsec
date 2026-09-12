@@ -401,6 +401,13 @@ def _execute_scan(
                     # real outcome reason lives in whichever of the two
                     # its terminal status actually set.
                     skipped_reason=p.skipped_reason or p.error,
+                    # Phase 2B Task 2: a scanner can succeed but still
+                    # carry a warning (e.g. nmap's URL-derived port
+                    # overriding an operator-configured -p) - this is what
+                    # makes that fact survive into the persisted report
+                    # instead of dead-ending in the in-memory execution
+                    # state once the assessment completes.
+                    warnings=p.warnings,
                 )
                 for p in progress
             )

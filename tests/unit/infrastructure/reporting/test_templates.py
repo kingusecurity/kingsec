@@ -386,6 +386,43 @@ class TestScannerCoverage:
         section = html.split('id="scanner-coverage"')[1].split("</section>")[0]
         assert "Nmap: completed, 1 finding." in section
 
+    def test_succeeded_scanner_warning_is_rendered(self) -> None:
+        """Phase 2B Task 2: a scanner that succeeded but not quite as
+        configured (e.g. nmap's URL-derived port overriding an operator's
+        own -p) must say so in the report, not only in a log line - the
+        report is the user surface, the log is not."""
+        from kingsec.domain import ScannerRunSummary
+        from kingsec.domain.enums import ScannerRunState
+
+        summary = (
+            ScannerRunSummary(
+                scanner_id="nmap",
+                name="Nmap",
+                status=ScannerRunState.SUCCEEDED,
+                findings_count=9,
+                warnings=("Operator-configured port selection (-p 9999) was overridden by the URL's own port.",),
+            ),
+        )
+        html = render_report_html(build_report(scanner_summary=summary))
+        section = html.split('id="scanner-coverage"')[1].split("</section>")[0]
+        assert "Nmap: completed, 9 findings" in section
+        assert "Operator-configured port selection" in section
+        assert "was overridden by the URL" in section
+
+    def test_no_warning_produces_unchanged_sentence(self) -> None:
+        """A scanner with no warnings renders exactly as before this task -
+        no stray separator or empty warning clause."""
+        from kingsec.domain import ScannerRunSummary
+        from kingsec.domain.enums import ScannerRunState
+
+        summary = (
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=9),
+        )
+        html = render_report_html(build_report(scanner_summary=summary))
+        section = html.split('id="scanner-coverage"')[1].split("</section>")[0]
+        assert "Nmap: completed, 9 findings." in section
+        assert "—" not in section
+
     def test_scanner_names_are_escaped(self) -> None:
         from kingsec.domain import ScannerRunSummary
         from kingsec.domain.enums import ScannerRunState

@@ -42,6 +42,14 @@ class ScannerRunSummary:
     status: ScannerRunState
     findings_count: int = 0
     skipped_reason: str | None = None
+    # Phase 2B Task 2: a scanner that SUCCEEDED but not quite as configured
+    # (e.g. nmap's URL-derived port silently overriding an operator's own
+    # -p in scan_args) needs a way to say so on the report - "the scanner
+    # ran" and "it ran exactly as configured" are different facts, and
+    # collapsing them is the same "nothing found vs nothing looked" defect
+    # class logged in docs/STATUS.md, just for a successful run instead of
+    # a skipped one.
+    warnings: tuple[str, ...] = ()
 
 # Legal state transitions. An empty set marks a terminal state.
 _ALLOWED_ASSESSMENT_TRANSITIONS: dict[AssessmentStatus, set[AssessmentStatus]] = {

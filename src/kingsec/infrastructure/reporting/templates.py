@@ -774,6 +774,13 @@ def _scanner_summary(report: Report) -> str:
             detail = f"{s.findings_count} finding" + ("" if s.findings_count == 1 else "s")
         else:
             detail = _clean_scanner_reason(s.skipped_reason) if s.skipped_reason else "did not complete"
+        if s.warnings:
+            # Phase 2B Task 2: a scanner can succeed but not quite as
+            # configured (e.g. an operator's own port selection silently
+            # overridden) - folded into the grouping key itself so two
+            # scanners with the same finding count but different warnings
+            # never merge into one misleading sentence.
+            detail = f"{detail} — {'; '.join(s.warnings)}"
         key = (s.status, detail)
         groups.setdefault(key, []).append(s.name)
         if key not in order:
