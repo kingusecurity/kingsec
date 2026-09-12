@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 
+from kingsec.domain import ScannerRunState, ScannerRunSummary
 from kingsec.infrastructure.reporting import render_report_html
 from tests.unit.infrastructure.reporting.conftest import build_report
 
@@ -213,6 +214,71 @@ class TestLimitations:
         assert "does not correlate findings to specific CVE identifiers" not in html
         assert "CVE-2026-53666" in html
         assert "6.1 (CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N)" in html
+
+
+class TestPortCoverageDisclosure:
+    """Task 4: the Limitations section must state real nmap port coverage,
+    derived from ScannerRunSummary.port_specification - never a fixed
+    sentence that could go stale relative to what the scanner actually
+    recorded. The required test is test_disclosure_changes_with_the_recorded_specification
+    below: it asserts the LINKAGE (different spec -> different rendered
+    text), not just that some particular wording appears once.
+    """
+
+    def _nmap_summary(self, *, port_specification: str | None, status: ScannerRunState = ScannerRunState.SUCCEEDED) -> ScannerRunSummary:
+        return ScannerRunSummary(
+            scanner_id="nmap",
+            name="Nmap",
+            status=status,
+            findings_count=1,
+            port_specification=port_specification,
+        )
+
+    def test_no_disclosure_when_nmap_did_not_run(self) -> None:
+        html = render_report_html(build_report(scanner_summary=()))
+        assert "Nmap's port scan" not in html
+
+    def test_url_target_specification_appears_verbatim(self) -> None:
+        spec = "nmap default port sweep + explicit port 18080"
+        html = render_report_html(build_report(scanner_summary=(self._nmap_summary(port_specification=spec),)))
+        assert spec in html
+        assert "not every possible port" in html
+
+    def test_disclosure_changes_with_the_recorded_specification(self) -> None:
+        """THE required linkage test (Task 4, point 4): a test that only
+        asserted fixed wording would pass even if _port_coverage_note()
+        silently stopped reading port_specification at all. Assert the
+        actual linkage instead - two different recorded specifications
+        must produce two different rendered disclosures, each containing
+        its OWN specification text and not the other's."""
+        spec_a = "nmap default port sweep + explicit port 18080"
+        spec_b = "nmap default port sweep + explicit port 9443"
+
+        html_a = render_report_html(build_report(scanner_summary=(self._nmap_summary(port_specification=spec_a),)))
+        html_b = render_report_html(build_report(scanner_summary=(self._nmap_summary(port_specification=spec_b),)))
+
+        assert spec_a in html_a
+        assert spec_b not in html_a
+        assert spec_b in html_b
+        assert spec_a not in html_b
+
+    def test_non_url_target_states_nmaps_own_default_not_a_kingsec_choice(self) -> None:
+        """port_specification is None for a non-URL target (nmap's plain
+        default, nothing explicit to disclose) - the Limitations section
+        must still disclose real coverage, and must attribute the default
+        to nmap, never imply KingSec selected the ports (Task 4, point 3)."""
+        html = render_report_html(build_report(scanner_summary=(self._nmap_summary(port_specification=None),)))
+        assert "nmap's own default port selection" in html
+        assert "uncommon port" in html
+
+    def test_failed_nmap_gets_no_default_port_claim(self) -> None:
+        """A FAILED nmap must not be silently read as "used the default" -
+        port_specification is None here too, but for a different reason
+        (nmap never completed), and the two must not be conflated."""
+        html = render_report_html(
+            build_report(scanner_summary=(self._nmap_summary(port_specification=None, status=ScannerRunState.FAILED),))
+        )
+        assert "Nmap's port scan" not in html
 
 
 class TestVisualElements:

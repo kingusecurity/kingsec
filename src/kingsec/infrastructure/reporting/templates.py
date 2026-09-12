@@ -389,6 +389,41 @@ def _cover_page(report: Report, *, brand_name: str) -> str:
     )
 
 
+def _port_coverage_note(report: Report) -> str:
+    """Task 4: what nmap's port scan actually covered, for the Limitations
+    section - derived from the recorded ScannerRunSummary.port_specification,
+    never a hardcoded sentence, so this text cannot silently go stale
+    relative to what the scanner actually recorded (see the linkage test,
+    test_templates.py).
+
+    Only a SUCCEEDED nmap entry counts - port_specification is None both
+    for "non-URL target, nmap's plain default, nothing extra to disclose"
+    and for "nmap never completed", and those are different facts; a
+    FAILED/SKIPPED nmap must not be silently read as "used the default."
+    """
+    nmap_runs = [s for s in report.scanner_summary if s.scanner_id == "nmap" and s.status.is_success]
+    if not nmap_runs:
+        return ""
+    spec = nmap_runs[0].port_specification
+    if spec is not None:
+        # URL target, two-invocation design: spec already states this
+        # plainly (e.g. "nmap's own default port sweep + explicit port
+        # 18080") - embed it verbatim rather than paraphrase, so this
+        # sentence and the recorded fact can never drift apart.
+        return (
+            f" Nmap's port scan of this target covered: {escape(spec)}. This is not every "
+            "possible port — a service running on a port outside that coverage would not "
+            "have been seen by this assessment."
+        )
+    # Non-URL target: nmap's own unmodified default port set was used -
+    # "nmap's own", never implying KingSec selected the ports itself.
+    return (
+        " Nmap's port scan of this target used nmap's own default port selection, not an "
+        "exhaustive scan of every possible port — a service running on an uncommon port "
+        "outside that default set would not have been seen by this assessment."
+    )
+
+
 def _limitations(report: Report) -> str:
     """A general, honest limitations statement.
 
@@ -430,7 +465,8 @@ def _limitations(report: Report) -> str:
         "constitute a comprehensive security audit. Automated tools carry an inherent risk "
         "of false negatives (real issues not detected) and false positives (flagged issues "
         "that are not actually exploitable) — findings above should be independently verified "
-        f"before remediation is prioritized on their basis alone. {cve_note} A change to "
+        f"before remediation is prioritized on their basis alone. {cve_note}"
+        f"{_port_coverage_note(report)} A change to "
         "the target's configuration after this assessment invalidates these results.</p>"
         "</section>"
     )

@@ -154,6 +154,7 @@ def _scanner_summary_to_json(summary: tuple[ScannerRunSummary, ...]) -> list[dic
             "findings_count": s.findings_count,
             "skipped_reason": s.skipped_reason,
             "warnings": list(s.warnings),
+            "port_specification": s.port_specification,
         }
         for s in summary
     ]
@@ -168,6 +169,7 @@ def _scanner_summary_from_json(entries: list[Any]) -> tuple[ScannerRunSummary, .
             findings_count=e.get("findings_count", 0),
             skipped_reason=e.get("skipped_reason"),
             warnings=tuple(e.get("warnings", ())),
+            port_specification=e.get("port_specification"),
         )
         for e in (entries or [])
     )

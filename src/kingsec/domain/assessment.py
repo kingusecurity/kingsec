@@ -50,6 +50,14 @@ class ScannerRunSummary:
     # class logged in docs/STATUS.md, just for a successful run instead of
     # a skipped one.
     warnings: tuple[str, ...] = ()
+    # Task 4: what was actually scanned, in the scanner's own words (e.g.
+    # nmap's resolve_port_specification() - "nmap's own default port
+    # sweep + explicit port 18080" for a URL target, or None for a
+    # non-URL target where nmap's unmodified default applies and there is
+    # nothing KingSec chose to disclose). Survives to the persisted
+    # report so the Limitations section can state real port coverage
+    # instead of implying "assessment of <target>" means every port.
+    port_specification: str | None = None
 
 # Legal state transitions. An empty set marks a terminal state.
 _ALLOWED_ASSESSMENT_TRANSITIONS: dict[AssessmentStatus, set[AssessmentStatus]] = {

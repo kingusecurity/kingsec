@@ -154,6 +154,7 @@ class ScannerOrchestrator(ScannerPort, ScannerExecutor):
                         plugin_id.value,
                         findings_count=len(result.findings),
                         warnings=result.warnings,
+                        port_specification=result.port_specification,
                     )
             except Exception as exc:
                 # `exc` here is the (now-sanitized, per execute()'s own

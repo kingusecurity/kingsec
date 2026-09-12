@@ -408,6 +408,9 @@ def _execute_scan(
                     # instead of dead-ending in the in-memory execution
                     # state once the assessment completes.
                     warnings=p.warnings,
+                    # Task 4: survives to the persisted report so the
+                    # Limitations section can state real port coverage.
+                    port_specification=p.port_specification,
                 )
                 for p in progress
             )
