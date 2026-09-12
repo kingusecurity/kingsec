@@ -77,6 +77,25 @@ class ScannerHealthReport:
 
 PlatformHint = str  # "windows" | "linux" | "macos"
 
+# Task 3 Addition 1: a named file, not just "go get a wordlist from this
+# 3.6GB repository" — Discovery/Web-Content/common.txt is SecLists' own
+# conventional choice for web content discovery (ffuf/gobuster's actual
+# use case): small (a few thousand common paths/filenames, not the full
+# collection), MIT-licensed (see docs/LICENSING-RISK.md), and the file
+# this project's own licence spot-check actually inspected. The default
+# path is KingSec's own established home-directory convention
+# (~/.kingsec, already used for its data directory) rather than
+# reinventing one — "somewhere obvious to put it," not a guess.
+_WORDLIST_FILENAME = "common.txt"
+_WORDLIST_SOURCE_URL = (
+    "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt"
+)
+
+
+def _default_wordlist_path() -> Path:
+    return Path.home() / ".kingsec" / "wordlists" / _WORDLIST_FILENAME
+
+
 _INSTALL_HINTS: dict[str, dict[PlatformHint, str]] = {
     "nmap": {
         "windows": "choco install nmap  (or  winget install Insecure.Nmap)",
@@ -178,13 +197,16 @@ _SCANNER_MANIFEST: dict[str, dict[str, Any]] = {
         # request time (see get_scanner_status()'s wordlist substitution
         # below), never this hardcoded Linux default. A missing wordlist
         # is now a real, required asset (optional=False) matching Nuclei's
-        # templates requirement, not a silently-ignored one.
+        # templates requirement, not a silently-ignored one. install_hint
+        # below is a placeholder — always overridden by
+        # get_scanner_status() with _wordlist_setup_command()'s
+        # platform-aware, pasteable command (Task 3 Addition 1).
         "assets": [
             AssetRequirement(
                 name="Wordlist file",
                 kind="file",
                 path=None,
-                install_hint="Configure KINGSEC_FFUF__WORDLIST, e.g. a SecLists path: https://github.com/danielmiessler/SecLists",
+                install_hint="(overridden at runtime — see _wordlist_setup_command())",
             ),
         ],
         "extra_checks": {},
@@ -201,7 +223,7 @@ _SCANNER_MANIFEST: dict[str, dict[str, Any]] = {
                 name="Wordlist file",
                 kind="file",
                 path=None,
-                install_hint="Configure KINGSEC_GOBUSTER__WORDLIST, e.g. a SecLists path: https://github.com/danielmiessler/SecLists",
+                install_hint="(overridden at runtime — see _wordlist_setup_command())",
             ),
         ],
         "extra_checks": {},
@@ -278,6 +300,22 @@ def _current_platform() -> PlatformHint:
     if "linux" in p:
         return "linux"
     return "macos"
+
+
+def _wordlist_setup_command(env_var: str) -> str:
+    """One pasteable command (per this machine's real platform) that
+    downloads the recommended wordlist to the conventional default path
+    and points *env_var* at it. Task 3 Addition 1: doctor must give an
+    operator something they can paste and run, not a research pointer.
+    """
+    target = _default_wordlist_path()
+    if _current_platform() == "windows":
+        return (
+            f'New-Item -ItemType Directory -Force -Path "{target.parent}" | Out-Null; '
+            f'Invoke-WebRequest -Uri "{_WORDLIST_SOURCE_URL}" -OutFile "{target}"; '
+            f'$env:{env_var} = "{target}"'
+        )
+    return f'mkdir -p "{target.parent}" && curl -sSL -o "{target}" {_WORDLIST_SOURCE_URL} && export {env_var}="{target}"'
 
 
 # ---------------------------------------------------------------------------
@@ -469,7 +507,7 @@ class ScannerDiscoveryService:
                     name=assets[0].name,
                     kind=assets[0].kind,
                     path=self._ffuf_wordlist or None,
-                    install_hint=assets[0].install_hint,
+                    install_hint=_wordlist_setup_command("KINGSEC_FFUF__WORDLIST"),
                     optional=assets[0].optional,
                 )
             ]
@@ -479,7 +517,7 @@ class ScannerDiscoveryService:
                     name=assets[0].name,
                     kind=assets[0].kind,
                     path=self._gobuster_wordlist or None,
-                    install_hint=assets[0].install_hint,
+                    install_hint=_wordlist_setup_command("KINGSEC_GOBUSTER__WORDLIST"),
                     optional=assets[0].optional,
                 )
             ]
@@ -509,7 +547,11 @@ class ScannerDiscoveryService:
             if not _check_asset(asset):
                 missing_assets.append(asset.name)
                 if not asset.optional:
-                    warnings.append(f"Missing {asset.name}: {asset.install_hint}")
+                    # Short prose here - the actionable fix (which can now
+                    # be a full pasteable command, Task 3 Addition 1) lives
+                    # in install_hints/recommendations, not embedded in
+                    # this one-line reason sentence.
+                    warnings.append(f"Missing {asset.name}")
 
         usable = len(missing_assets) == 0 or all(
             a.optional for a in assets if a.name in missing_assets

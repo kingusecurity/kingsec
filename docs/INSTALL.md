@@ -445,7 +445,56 @@ scanners installed, it just skips any assessment that requires one that
 is missing.
 
 **Note:** After installing a scanner, restart KingSec so scanner
-discovery re-detects it.
+discovery re-detects it. Run `kingsec doctor` at any point to see
+exactly which scanners are usable and the exact fix for any that
+aren't — it is the fastest way to check the steps below actually
+worked.
+
+### Step: Nuclei templates
+
+Nuclei needs its template database before it can find anything. Run
+nuclei's own update command once after installing it (and periodically
+afterward — new templates ship continuously):
+```
+nuclei -update-templates
+```
+
+### Step: A wordlist for FFUF and Gobuster
+
+FFUF and Gobuster both need a `-w <wordlist>` to fuzz with — there is no
+default bundled with KingSec (a wordlist is a real, required asset, and
+KingSec does not choose one on your behalf; see
+`docs/audits/KINGSEC-TASK3B-ASSET-PROVISIONING-PROPOSAL.txt` for why).
+The recommended file is SecLists' `Discovery/Web-Content/common.txt` — a
+small, focused list of common web paths/filenames (not the full ~3.6 GB
+SecLists collection), MIT-licensed. KingSec's conventional location for
+it is `~/.kingsec/wordlists/common.txt`, matching the same `~/.kingsec`
+home directory KingSec's own data storage already uses
+(`KINGSEC_STORAGE__DATA_DIR`'s default).
+
+**Windows (PowerShell):**
+```powershell
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.kingsec\wordlists" | Out-Null
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt" -OutFile "$env:USERPROFILE\.kingsec\wordlists\common.txt"
+$env:KINGSEC_FFUF__WORDLIST = "$env:USERPROFILE\.kingsec\wordlists\common.txt"
+$env:KINGSEC_GOBUSTER__WORDLIST = "$env:USERPROFILE\.kingsec\wordlists\common.txt"
+```
+
+**Linux / macOS (bash):**
+```bash
+mkdir -p ~/.kingsec/wordlists
+curl -sSL -o ~/.kingsec/wordlists/common.txt https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt
+export KINGSEC_FFUF__WORDLIST=~/.kingsec/wordlists/common.txt
+export KINGSEC_GOBUSTER__WORDLIST=~/.kingsec/wordlists/common.txt
+```
+
+`kingsec doctor` prints this exact command (in the form matching the
+platform it's actually running on) as the `fix:` line for ffuf/gobuster
+whenever the wordlist is missing — it never has to be looked up
+separately. The `export`/`$env:` forms above only last for the current
+shell session; add the variable to your `.env` file (or a permanent
+shell profile / System Environment Variable) to make it stick across
+restarts.
 
 ---
 
