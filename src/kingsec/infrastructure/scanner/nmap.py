@@ -69,16 +69,30 @@ def _strip_port_selector_flags(scan_args: tuple[str, ...]) -> tuple[tuple[str, .
     return tuple(filtered), tuple(removed)
 
 
-def resolve_port_specification(target: Target, settings: NmapSettings) -> str | None:
-    """Return a plain-English description of what was scanned, or ``None``.
+#: Task 4 FIX 1: the recorded fact for a non-URL run, not an absent key.
+#: Before this fix, resolve_port_specification() returned None for a
+#: non-URL target - collapsing three different meanings into one
+#: identical Python value at the report layer: (a) a genuine non-URL run
+#: (nmap's own default, nothing explicit - the actual case here), (b) a
+#: row persisted before this field existed at all, and (c) a URL-target
+#: row from before the two-invocation design ran. All three rendered as
+#: the SAME sentence, which happened to be true for (a) and false for
+#: (b)/(c) - the exact "nothing found vs nothing looked" defect class
+#: already logged in docs/STATUS.md, reintroduced inside the very phase
+#: that named it (instance five). Returning this explicit string instead
+#: of None makes (a) a recorded, present fact - only a genuinely absent
+#: key (never explicitly written) can mean "not recorded" now.
+NON_URL_DEFAULT_PORT_SPECIFICATION = "nmap's own default port selection (no explicit port added)"
+
+
+def resolve_port_specification(target: Target, settings: NmapSettings) -> str:
+    """Return a plain-English description of what was scanned.
 
     Pure function of (target, settings) - called by ``NmapPlugin.scan()``
     to populate ``ScannerResult.port_specification`` for Task 4's
-    disclosure work.
-
-    Non-URL targets (IP_ADDRESS, HOSTNAME, NETWORK) return None - no
-    explicit port constraint is applied; nmap's own default is used
-    unchanged, and there is nothing KingSec chose to disclose.
+    disclosure work. Always returns a real string now (Task 4 FIX 1) -
+    see NON_URL_DEFAULT_PORT_SPECIFICATION's docstring for why None must
+    never mean "nmap's own default was used" anymore.
 
     URL targets return a description, never a literal port list KingSec
     cannot verify: nmap's own default sweep uses whatever ~1000 ports
@@ -87,7 +101,7 @@ def resolve_port_specification(target: Target, settings: NmapSettings) -> str | 
     would be dishonest. States what actually happened instead.
     """
     if target.type is not TargetType.URL:
-        return None
+        return NON_URL_DEFAULT_PORT_SPECIFICATION
     components = decompose_url(target)
     return f"nmap's own default port sweep + explicit port {components.port}"
 

@@ -234,11 +234,17 @@ class TestPortSpecification:
         assert "nmap" in result.port_specification.lower()
         assert "default" in result.port_specification.lower()
 
-    def test_non_url_target_has_no_port_specification(self) -> None:
+    def test_non_url_target_records_an_explicit_default_sentinel_not_none(self) -> None:
+        """Task 4 FIX 1: a non-URL run must RECORD its specification
+        explicitly (a sentinel meaning "nmap's own unmodified default"),
+        never leave the field absent/None - None must mean "not recorded
+        at all" going forward, not "nmap's own default was used"."""
         runner = FakeRunner(CommandResult(0, _SAMPLE_XML, "", 0.1))
         plugin = _make_plugin(runner=runner)
         result = plugin.scan(_TARGET, PluginConfig())
-        assert result.port_specification is None
+        assert result.port_specification is not None
+        assert "nmap" in result.port_specification.lower()
+        assert "default" in result.port_specification.lower()
 
     def test_explicit_port_reaches_the_real_nmap_invocation(self) -> None:
         """Not just recorded - actually present in the -p argument one of

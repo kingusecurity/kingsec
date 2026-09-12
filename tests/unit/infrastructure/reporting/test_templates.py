@@ -6,6 +6,7 @@ import dataclasses
 
 from kingsec.domain import ScannerRunState, ScannerRunSummary
 from kingsec.infrastructure.reporting import render_report_html
+from kingsec.infrastructure.scanner.nmap import NON_URL_DEFAULT_PORT_SPECIFICATION
 from tests.unit.infrastructure.reporting.conftest import build_report
 
 _SECTIONS = (
@@ -263,13 +264,16 @@ class TestPortCoverageDisclosure:
         assert spec_a not in html_b
 
     def test_non_url_target_states_nmaps_own_default_not_a_kingsec_choice(self) -> None:
-        """port_specification is None for a non-URL target (nmap's plain
-        default, nothing explicit to disclose) - the Limitations section
-        must still disclose real coverage, and must attribute the default
-        to nmap, never imply KingSec selected the ports (Task 4, point 3)."""
-        html = render_report_html(build_report(scanner_summary=(self._nmap_summary(port_specification=None),)))
-        assert "nmap's own default port selection" in html
-        assert "uncommon port" in html
+        """Task 4 FIX 1: a genuine non-URL run now RECORDS the explicit
+        sentinel (never None - None means "not recorded" now, a
+        different fact). The Limitations section must disclose real
+        coverage and attribute the default to nmap, never imply KingSec
+        selected the ports (Task 4, point 3)."""
+        html = render_report_html(
+            build_report(scanner_summary=(self._nmap_summary(port_specification=NON_URL_DEFAULT_PORT_SPECIFICATION),))
+        )
+        assert "own default port selection" in html
+        assert "not every possible port" in html
 
     def test_failed_nmap_gets_no_default_port_claim(self) -> None:
         """A FAILED nmap must not be silently read as "used the default" -
@@ -279,6 +283,34 @@ class TestPortCoverageDisclosure:
             build_report(scanner_summary=(self._nmap_summary(port_specification=None, status=ScannerRunState.FAILED),))
         )
         assert "Nmap's port scan" not in html
+
+    def test_absent_key_disclosure_says_not_recorded(self) -> None:
+        """port_specification=None (a genuinely absent key - a row
+        persisted before this field existed) must disclose as unknown,
+        never assert nmap's default was used when the record doesn't
+        say so (Task 4 FIX 1)."""
+        html = render_report_html(build_report(scanner_summary=(self._nmap_summary(port_specification=None),)))
+        assert "was not recorded" in html
+        assert "unknown" in html
+        assert "own default port selection" not in html
+
+    def test_absent_key_and_explicit_non_url_sentinel_render_different_disclosures(self) -> None:
+        """THE required test for FIX 1: a summary with an ABSENT key
+        (port_specification=None, e.g. a pre-Task-2 row) and a summary
+        with the explicit non-URL sentinel (a genuine current non-URL
+        run) must render DIFFERENT disclosures. If they render the same,
+        the fix has not landed - that collapse is exactly the "nothing
+        found vs nothing looked" defect this fix exists to close."""
+        html_absent = render_report_html(build_report(scanner_summary=(self._nmap_summary(port_specification=None),)))
+        html_explicit = render_report_html(
+            build_report(scanner_summary=(self._nmap_summary(port_specification=NON_URL_DEFAULT_PORT_SPECIFICATION),))
+        )
+
+        assert html_absent != html_explicit
+        assert "was not recorded" in html_absent
+        assert "was not recorded" not in html_explicit
+        assert "own default port selection" in html_explicit
+        assert "own default port selection" not in html_absent
 
 
 class TestVisualElements:

@@ -396,31 +396,38 @@ def _port_coverage_note(report: Report) -> str:
     relative to what the scanner actually recorded (see the linkage test,
     test_templates.py).
 
-    Only a SUCCEEDED nmap entry counts - port_specification is None both
-    for "non-URL target, nmap's plain default, nothing extra to disclose"
-    and for "nmap never completed", and those are different facts; a
-    FAILED/SKIPPED nmap must not be silently read as "used the default."
+    Task 4 FIX 1: None now means exactly one thing - genuinely never
+    recorded (a row persisted before this field existed at all, or
+    before the two-invocation design ran for a URL target). Every REAL
+    nmap run, URL or not, now records a real string
+    (resolve_port_specification() in nmap.py never returns None any
+    more - a non-URL run gets an explicit sentinel, not an absent key).
+    Collapsing "nmap's own default was genuinely used" and "we don't
+    know what was used" into the same None value - and thus the same
+    sentence - was the exact "nothing found vs nothing looked" defect
+    already logged in docs/STATUS.md, reintroduced inside the very
+    phase that named it. Only a SUCCEEDED nmap entry counts at all - a
+    FAILED/SKIPPED nmap must not get any port-coverage claim, known or
+    unknown.
     """
     nmap_runs = [s for s in report.scanner_summary if s.scanner_id == "nmap" and s.status.is_success]
     if not nmap_runs:
         return ""
     spec = nmap_runs[0].port_specification
-    if spec is not None:
-        # URL target, two-invocation design: spec already states this
-        # plainly (e.g. "nmap's own default port sweep + explicit port
-        # 18080") - embed it verbatim rather than paraphrase, so this
-        # sentence and the recorded fact can never drift apart.
+    if spec is None:
+        # Genuinely never recorded - never guess what nmap's default was,
+        # never imply "nmap's own default" when the record doesn't say so.
         return (
-            f" Nmap's port scan of this target covered: {escape(spec)}. This is not every "
-            "possible port — a service running on a port outside that coverage would not "
-            "have been seen by this assessment."
+            " Port coverage for this scan was not recorded; treat the port scope as unknown "
+            "— a service on any port may or may not have been seen by this assessment."
         )
-    # Non-URL target: nmap's own unmodified default port set was used -
-    # "nmap's own", never implying KingSec selected the ports itself.
+    # Recorded fact - embed verbatim rather than paraphrase (covers both
+    # the non-URL sentinel and a URL target's two-invocation description),
+    # so this sentence and the recorded fact can never drift apart.
     return (
-        " Nmap's port scan of this target used nmap's own default port selection, not an "
-        "exhaustive scan of every possible port — a service running on an uncommon port "
-        "outside that default set would not have been seen by this assessment."
+        f" Nmap's port scan of this target covered: {escape(spec)}. This is not every "
+        "possible port — a service running on a port outside that coverage would not "
+        "have been seen by this assessment."
     )
 
 
