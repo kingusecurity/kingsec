@@ -49,10 +49,20 @@ the backend section. If you want the browser UI, do both.
 ### Supported Operating Systems
 
 KingSec has no OS-specific code paths beyond scanner-executable discovery
-(see the Scanner Dependency table in `README.md`). It has been verified in
-this audit on Windows 10/11; the general requirement is any OS with a
-supported Python (and, for Docker installs, any OS Docker Desktop/Engine
-supports).
+(see the Scanner Dependency table in `README.md`); the general requirement
+is any OS with a supported Python (and, for Docker installs, any OS Docker
+Desktop/Engine supports).
+
+**Correction — what was actually tested on Windows:** an earlier version of
+this guide claimed Windows 10/11 was "verified in this audit." That
+overstated it. What was actually tested was Docker Desktop's **Linux
+container** running on a Windows 10/11 host (the "Docker Installation"
+section above) — the container itself is Linux; Windows only hosts it. The
+**Direct (non-Docker) Installation** section below, run natively against a
+real Windows Python install with no container involved, remains **NOT
+TESTED**. If you follow the native path on Windows and hit something this
+guide doesn't cover, that is expected, not a sign you did something wrong —
+please report it.
 
 ---
 
@@ -374,6 +384,26 @@ recommended without a reverse proxy):
 ```powershell
 New-NetFirewallRule -DisplayName "KingSec API" -Direction Inbound -Protocol TCP -LocalPort 8765 -Action Allow
 ```
+
+### Nikto: Windows Defender Quarantine
+
+**Known environment issue, reproduced in this project's own testing:**
+Nikto ships as a Perl script, and downloading it on Windows has been
+observed to trigger Windows Defender (or another antivirus product) to
+quarantine the file before it can run — `nikto` then reports as not
+installed (`kingsec doctor` will show it as `NOT FOUND` even after you've
+downloaded it) with no further explanation from KingSec itself, since
+KingSec only ever sees "the binary isn't on `PATH`," not why.
+
+If `kingsec doctor` reports nikto missing right after installing it:
+1. Check Windows Security → Virus & threat protection → Protection
+   history for a recent quarantine action naming the nikto files.
+2. Restore the quarantined file(s), or add an exclusion for nikto's
+   install directory, then re-run `kingsec doctor` to confirm it now
+   detects the binary.
+3. If your organization's antivirus policy won't allow an exclusion,
+   consider running nikto inside the Docker path instead (a Linux
+   container is not subject to this specific Windows Defender behavior).
 
 ---
 
