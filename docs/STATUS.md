@@ -498,3 +498,16 @@ A 5th duck-typed fake (`_FakeAssessmentRepository` in `test_phase2a_honest_cover
 2. `tests/unit/application/test_submit_assessment_execution_ledger.py`
 3. `tests/unit/application/test_submit_scheduled_assessment.py`
 4. `tests/unit/infrastructure/test_schedule_finalization_race.py`
+
+### Backlog — ZAP version string parses as "v." on Windows (logged, not fixed)
+
+`kingsec doctor`, run for real on this Windows host (Task 3), shows
+`[OK       ] zap       (OWASP ZAP) v.` — `ScannerDiscoveryService`'s
+version-extraction regex (`([\d.]+)`) does not match whatever ZAP's
+Windows `.bat` wrapper actually prints for `-version` on this host,
+leaving `ScannerStatus.version` either empty or a lone `.`. Cosmetic
+only (`usable` is unaffected — ZAP still correctly reports usable), not
+fixed here per explicit instruction. Worth fixing before this value
+reaches a customer-facing report: `ScannerRunSummary`/report rendering
+will eventually want to print each scanner's version for traceability,
+and "v." reads as broken, not as "version unknown."
