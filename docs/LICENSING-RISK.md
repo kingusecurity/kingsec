@@ -275,3 +275,46 @@ image, an all-in-one installer, etc.). nmap's open question is different in
 kind: it does not resolve itself even under KingSec's current, unchanged
 packaging model — it needs a real answer from Nmap or counsel regardless of
 whether anything about KingSec's distribution changes.
+
+---
+
+## Appendix: SecLists (wordlist source, Task 3b) — scope of the licence check
+
+Not one of the six scanners above, but checked as part of Task 3b's
+asset-provisioning investigation (docs/audits/KINGSEC-TASK3B-ASSET-PROVISIONING-PROPOSAL.txt)
+and recorded here so the scope of what was actually verified is on the
+record, not just implied.
+
+**What was confirmed:** SecLists' own repository-level `LICENSE` file
+(`https://raw.githubusercontent.com/danielmiessler/SecLists/master/LICENSE`)
+is MIT (Daniel Miessler, 2018), fetched and read directly this session.
+One specific candidate file within the collection —
+`Discovery/Web-Content/common.txt`, the file this project actually
+recommends (see INSTALL.md's wordlist setup step) — was individually
+spot-checked for an embedded header, attribution note, or separate
+license text of its own; none was found.
+
+**What was NOT checked, stated plainly:** the rest of the collection.
+SecLists is a ~3.6 GB, multi-source AGGREGATION with a long history of
+individual lists originally sourced from other tools and projects — the
+repo-level MIT license does not, on its own, prove every one of its
+thousands of files carries no separate terms; it means the collection
+*as republished by SecLists* is offered under MIT, which is a real and
+useful fact but not the same claim as "every file individually audited."
+This session checked exactly one file.
+
+**What this scope is sufficient for, and what it is not:**
+- **Sufficient** for recommending that an operator download
+  `common.txt` directly from SecLists' own repository to their own
+  machine (KingSec's actual Task 3b recommendation) — the operator is
+  fetching directly from the upstream, licensed project; KingSec
+  redistributes nothing.
+- **NOT sufficient** for KingSec to bundle `common.txt` (or any other
+  SecLists file) into its own distribution. Bundling means KingSec
+  itself becomes a redistributor of that specific file's content, which
+  would warrant the same per-file scrutiny nmap-services already
+  received before a licensing-bearing decision to ship it — one spot-
+  checked file is evidence for a recommendation, not clearance for
+  redistribution. If bundling is ever chosen for this or any other
+  SecLists file, it needs its own dedicated check first, not a reuse of
+  this one.
