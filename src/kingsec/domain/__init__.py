@@ -32,7 +32,7 @@ from .backup import (
     RetentionPolicy,
 )
 from .enums import AssessmentStatus, FindingStatus, Role, ScannerRunState, Severity
-from .errors import DomainError, IllegalStateTransition, InvariantViolation
+from .errors import DomainError, IllegalStateTransition, InvariantViolation, TargetDecompositionError
 from .evidence import Evidence, Recommendation
 from .finding import Finding
 from .identifiers import (
@@ -124,7 +124,7 @@ from .system_health import (
     StartupCheck,
     SystemMetrics,
 )
-from .target import Target, TargetType
+from .target import Target, TargetType, UrlComponents, decompose_url, is_ipv6_literal
 from .user import (
     InvalidCredentialsError,
     PasswordValidationError,
@@ -247,17 +247,21 @@ __all__ = [
     "StartupCheck",
     "SystemMetrics",
     "Target",
+    "TargetDecompositionError",
     "TargetType",
     "Team",
     "TeamId",
     "TeamMembership",
     "TechnologyFingerprint",
     "TicketReference",
+    "UrlComponents",
     "User",
     "UserDisabledError",
     "UserError",
     "UserNotFoundError",
     "Verdict",
     "WebhookEventType",
+    "decompose_url",
+    "is_ipv6_literal",
     "provided_requirements",
 ]
