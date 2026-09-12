@@ -226,7 +226,8 @@ class TestDelete:
 class TestList:
     def test_list_empty(self, repo: SQLAlchemyAssessmentRepository) -> None:
         result = repo.list()
-        assert result == []
+        assert result.items == ()
+        assert result.unreadable_ids == ()
 
     def test_list_returns_all(self, repo: SQLAlchemyAssessmentRepository, session: Session) -> None:
         a1 = make_assessment(target=Target("a.com", TargetType.HOSTNAME))
@@ -236,7 +237,7 @@ class TestList:
         session.flush()
 
         result = repo.list()
-        assert len(result) == 2
+        assert len(result.items) == 2
 
     def test_list_ordered_by_created_at_desc(self, repo: SQLAlchemyAssessmentRepository, session: Session) -> None:
         now = datetime.now(UTC)
@@ -253,8 +254,8 @@ class TestList:
         session.flush()
 
         result = repo.list()
-        assert result[0].id == a_early.id
-        assert result[1].id == a_late.id
+        assert result.items[0].id == a_early.id
+        assert result.items[1].id == a_late.id
 
     def test_list_respects_limit(self, repo: SQLAlchemyAssessmentRepository, session: Session) -> None:
         for i in range(5):
@@ -263,7 +264,7 @@ class TestList:
         session.flush()
 
         result = repo.list(limit=2)
-        assert len(result) == 2
+        assert len(result.items) == 2
 
     def test_list_respects_offset(self, repo: SQLAlchemyAssessmentRepository, session: Session) -> None:
         a1 = make_assessment(target=Target("first.com", TargetType.HOSTNAME))
@@ -275,7 +276,7 @@ class TestList:
         session.flush()
 
         result = repo.list(limit=10, offset=1)
-        assert len(result) == 2
+        assert len(result.items) == 2
 
     def test_list_negative_offset_treated_as_zero(self, repo: SQLAlchemyAssessmentRepository, session: Session) -> None:
         a = make_assessment()
@@ -283,7 +284,7 @@ class TestList:
         session.flush()
 
         result = repo.list(limit=10, offset=-1)
-        assert len(result) == 1
+        assert len(result.items) == 1
 
 
 # ===========================================================================
@@ -484,8 +485,8 @@ class TestEdgeCases:
             assert loaded.version == 1
 
     def test_empty_list_with_pagination(self, repo: SQLAlchemyAssessmentRepository) -> None:
-        assert repo.list(limit=10, offset=0) == []
-        assert repo.list(limit=0, offset=0) == []
+        assert repo.list(limit=10, offset=0).items == ()
+        assert repo.list(limit=0, offset=0).items == ()
 
     def test_large_pagination(self, repo: SQLAlchemyAssessmentRepository, session: Session) -> None:
         for i in range(20):
@@ -493,8 +494,8 @@ class TestEdgeCases:
             repo.save(a)
         session.flush()
 
-        page1 = repo.list(limit=10, offset=0)
-        page2 = repo.list(limit=10, offset=10)
+        page1 = repo.list(limit=10, offset=0).items
+        page2 = repo.list(limit=10, offset=10).items
         assert len(page1) == 10
         assert len(page2) == 10
 

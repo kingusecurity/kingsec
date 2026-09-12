@@ -32,7 +32,7 @@ from kingsec.application import (
     UnitOfWork,
     UnitOfWorkFactory,
 )
-from kingsec.application.ports.repositories import FindingProjection, ReportProjection
+from kingsec.application.ports.repositories import AssessmentPage, FindingProjection, ReportProjection
 from kingsec.application.unit_of_work import UnitOfWorkPort
 from kingsec.domain import Assessment, AssessmentId, Report
 from kingsec.infrastructure.logging import get_logger
@@ -72,7 +72,7 @@ class _SessionBoundAssessmentRepository(AssessmentRepository):
         *,
         limit: int = 50,
         offset: int = 0,
-    ) -> builtins.list[Assessment]:
+    ) -> AssessmentPage:
         try:
             return ops.list_assessments(self._session, limit=min(max(limit, 1), 200), offset=max(offset, 0))
         except SQLAlchemyError as exc:
@@ -89,6 +89,18 @@ class _SessionBoundAssessmentRepository(AssessmentRepository):
             return ops.find_running_assessments(self._session)
         except SQLAlchemyError as exc:
             ops.raise_persistence_error("failed to find running assessments", exc, "-")
+
+    def find_running_ids(self) -> builtins.list[str]:
+        try:
+            return ops.find_running_ids(self._session)
+        except SQLAlchemyError as exc:
+            ops.raise_persistence_error("failed to find running assessment ids", exc, "-")
+
+    def force_fail_running(self, assessment_id: str, reason: str) -> bool:
+        try:
+            return ops.force_fail_running(self._session, assessment_id, reason)
+        except SQLAlchemyError as exc:
+            ops.raise_persistence_error("failed to force-fail running assessment", exc, assessment_id)
 
     def delete(self, assessment_id: AssessmentId) -> None:
         try:

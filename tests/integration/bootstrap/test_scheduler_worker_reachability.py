@@ -136,7 +136,7 @@ class TestSchedulerReachesRealAssessmentExecutionNotTheInertJobPipeline:
 
             # A real, persisted, correctly-linked Assessment exists instead.
             assessments = app.resolve(AssessmentRepository)
-            all_assessments = assessments.list(limit=50, offset=0)
+            all_assessments = assessments.list(limit=50, offset=0).items
             assert len(all_assessments) == 1, "the real poll cycle must have created exactly one real assessment"
             assessment = all_assessments[0]
             assert assessment.target.value == "10.0.0.55"

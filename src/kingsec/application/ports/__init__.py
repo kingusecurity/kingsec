@@ -47,6 +47,7 @@ from .plugin_service import PluginServicePort
 from .production_service import ProductionServicePort
 from .report_service import ReportGenerationResult, ReportServicePort
 from .repositories import (
+    AssessmentPage,
     AssessmentRepository,
     Asset,
     AssetRepositoryPort,
@@ -67,6 +68,7 @@ __all__ = [
     "ApiKeyHasher",
     "ApiKeyRepository",
     "AssessmentExecutionRepositoryPort",
+    "AssessmentPage",
     "AssessmentRepository",
     "Asset",
     "AssetRepositoryPort",

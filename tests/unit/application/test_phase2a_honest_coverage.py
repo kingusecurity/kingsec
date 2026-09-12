@@ -32,6 +32,8 @@ from kingsec.application.assessment_execution import AssessmentExecutionEngine
 from kingsec.application.assessment_profiles import ExecutionPlanner
 from kingsec.application.dto import SubmitAssessmentRequest
 from kingsec.application.errors import AssessmentNotFoundError
+from kingsec.application.ports import AssessmentRepository
+from kingsec.application.ports.repositories import AssessmentPage
 from kingsec.application.ports.scanner_registry import ScannerPluginRegistry
 from kingsec.application.scanner_discovery import AssetRequirement, ScannerStatus, _check_asset
 from kingsec.application.submit_assessment import SubmitAssessment
@@ -49,7 +51,7 @@ from kingsec.infrastructure.scanner.registry import InMemoryPluginRegistry
 # --- Shared fakes --------------------------------------------------------
 
 
-class _FakeAssessmentRepository:
+class _FakeAssessmentRepository(AssessmentRepository):
     def __init__(self, assessments: dict[str, Assessment] | None = None) -> None:
         self._assessments = assessments or {}
         self.saved: list[Assessment] = []
@@ -64,14 +66,24 @@ class _FakeAssessmentRepository:
         self._assessments[str(assessment.id)] = assessment
         self.saved.append(assessment)
 
-    def list(self, *, limit: int = 50, offset: int = 0) -> list[Assessment]:
-        return list(self._assessments.values())[offset : offset + limit]
+    def list(self, *, limit: int = 50, offset: int = 0) -> AssessmentPage:
+        return AssessmentPage(items=tuple(list(self._assessments.values())[offset : offset + limit]))
 
     def find_by_schedule_occurrence_id(self, occurrence_id: str) -> list[Assessment]:
         return []
 
     def find_running(self) -> list[Assessment]:
         return [a for a in self._assessments.values() if a.status is AssessmentStatus.RUNNING]
+
+    def find_running_ids(self) -> list[str]:
+        return [str(a.id) for a in self._assessments.values() if a.status is AssessmentStatus.RUNNING]
+
+    def force_fail_running(self, assessment_id: str, reason: str) -> bool:
+        a = self._assessments.get(assessment_id)
+        if a is None or a.status is not AssessmentStatus.RUNNING:
+            return False
+        a.fail(reason)
+        return True
 
     def delete(self, assessment_id: AssessmentId) -> None:
         del self._assessments[str(assessment_id)]

@@ -41,6 +41,18 @@ class AssessmentNotFoundError(ApplicationError):
     """No assessment exists for the requested identifier."""
 
 
+class AssessmentDataCorruptedError(ApplicationError):
+    """An assessment row exists but cannot be reconstructed into a domain
+    Assessment (Phase 2B Task 2 Condition 1) - distinct from
+    AssessmentNotFoundError, which means the row genuinely does not exist.
+    "Not found" and "found but unloadable" are different facts an operator
+    needs to be able to tell apart. Raised only on the single-fetch path
+    (get()/load_assessment()), where the caller asked for this specific
+    row and a silent skip would be dishonest - list-building call sites
+    skip a corrupted row and report its id instead (AssessmentPage), since
+    one bad row must not fail every other assessment in the list."""
+
+
 class AssessmentConflictError(ApplicationError):
     """An assessment was modified (or deleted) by another request between
     when this caller read it and when it tried to save its own change

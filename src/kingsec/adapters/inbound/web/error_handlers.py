@@ -41,6 +41,7 @@ from kingsec.application.errors import (
     AlertNotFoundError,
     ApplicationError,
     AssessmentConflictError,
+    AssessmentDataCorruptedError,
     AssessmentExecutionNotReconcilableError,
     AssessmentNotFoundError,
     AssetNotFoundError,
@@ -158,6 +159,16 @@ async def handle_input_validation_error(_request: Request, exc: InputValidationE
 
 async def handle_assessment_not_found(_request: Request, exc: AssessmentNotFoundError) -> JSONResponse:
     return _error_response(404, ErrorCode.NOT_FOUND, str(exc))
+
+
+async def handle_assessment_data_corrupted(_request: Request, exc: AssessmentDataCorruptedError) -> JSONResponse:
+    """Phase 2B Task 2 Condition 1: the row exists but could not be
+    reconstructed - a server-side data problem, not a client error, so
+    this is deliberately distinct from the 404 AssessmentNotFoundError
+    gets. The exception's own message is safe-by-construction (identifier
+    only, never target_value - see AssessmentDataCorruptedError's
+    docstring)."""
+    return _error_response(500, ErrorCode.UNEXPECTED, str(exc))
 
 
 async def handle_report_not_found(_request: Request, exc: ReportNotFoundError) -> JSONResponse:
@@ -348,6 +359,7 @@ def register_error_handlers(app: object) -> None:
     # Application errors (most specific first).
     app.exception_handler(InputValidationError)(handle_input_validation_error)
     app.exception_handler(AssessmentNotFoundError)(handle_assessment_not_found)
+    app.exception_handler(AssessmentDataCorruptedError)(handle_assessment_data_corrupted)
     app.exception_handler(ReportNotFoundError)(handle_report_not_found)
     app.exception_handler(LicenseRequiredError)(handle_license_required)
     app.exception_handler(ScheduleConflictError)(handle_schedule_conflict)

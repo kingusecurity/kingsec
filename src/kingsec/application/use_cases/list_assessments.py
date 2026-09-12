@@ -30,11 +30,12 @@ class ListAssessments:
         limit = min(max(request.limit, 1), 200)
         offset = max(request.offset, 0)
 
-        assessments = self._assessments.list(limit=limit, offset=offset)
+        page = self._assessments.list(limit=limit, offset=offset)
+        assessments = page.items
         if not request.is_admin:
-            assessments = [
+            assessments = tuple(
                 a for a in assessments if a.owner_id and a.owner_id == request.requesting_user
-            ]
+            )
 
         items = tuple(AssessmentSummary.from_domain(a) for a in assessments)
 
@@ -43,4 +44,11 @@ class ListAssessments:
             total=len(items),
             limit=limit,
             offset=offset,
+            # Phase 2B Task 2 Condition 1: a row that exists but couldn't be
+            # reconstructed must be visible, not only logged - "9 of 10
+            # assessments shown" is a real fact the UI can render. Admin-only:
+            # a corrupted row has no domain Assessment to check ownership
+            # against, so a non-admin caller cannot be shown even that it
+            # exists without risking exposing another tenant's assessment id.
+            unreadable_ids=page.unreadable_ids if request.is_admin else (),
         )

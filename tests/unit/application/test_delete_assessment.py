@@ -110,7 +110,7 @@ class TestDeleteRepositoryBehavior:
         use_case = DeleteAssessment(assessments)
         use_case.execute(DeleteAssessmentRequest(str(assessment1.id), is_admin=True))
 
-        remaining = assessments.list()
+        remaining = assessments.list().items
         assert len(remaining) == 1
         assert remaining[0].id == assessment2.id
 
@@ -121,8 +121,8 @@ class TestDeleteRepositoryBehavior:
         use_case = DeleteAssessment(assessments)
         use_case.execute(DeleteAssessmentRequest(str(assessment.id), is_admin=True))
 
-        remaining = assessments.list()
-        assert remaining == []
+        remaining = assessments.list().items
+        assert remaining == ()
 
 
 class TestDeleteAccessControl:

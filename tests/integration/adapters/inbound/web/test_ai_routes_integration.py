@@ -25,6 +25,7 @@ from kingsec.application.ai.explain_finding import ExplainFindingService
 from kingsec.application.ai.ports import AIQueryPort
 from kingsec.application.ai.remediation_assistant import RemediationAssistantService
 from kingsec.application.ports import AssessmentRepository
+from kingsec.application.ports.repositories import AssessmentPage
 from kingsec.bootstrap.application import Application
 from kingsec.bootstrap.container import Container
 from kingsec.domain import Role
@@ -56,14 +57,20 @@ class _EmptyAssessmentRepository(AssessmentRepository):
     def get(self, assessment_id: AssessmentId) -> Assessment:
         raise AssertionError("not expected to be called in this test")
 
-    def list(self, *, limit: int = 50, offset: int = 0) -> list[Assessment]:
-        return []
+    def list(self, *, limit: int = 50, offset: int = 0) -> AssessmentPage:
+        return AssessmentPage(items=())
 
     def find_by_schedule_occurrence_id(self, occurrence_id: str) -> list[Assessment]:
         return []
 
     def find_running(self) -> list[Assessment]:
         return []
+
+    def find_running_ids(self) -> list[str]:
+        return []
+
+    def force_fail_running(self, assessment_id: str, reason: str) -> bool:
+        return False
 
     def delete(self, assessment_id: AssessmentId) -> None:
         pass
