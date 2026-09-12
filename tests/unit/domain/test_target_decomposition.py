@@ -11,6 +11,7 @@ from __future__ import annotations
 import pytest
 
 from kingsec.domain import (
+    InvariantViolation,
     Target,
     TargetDecompositionError,
     TargetType,
@@ -65,45 +66,51 @@ class TestDecomposeUrlAccepts:
 
 class TestDecomposeUrlRejects:
     def test_non_url_target_type(self) -> None:
+        """The one rejection Decision 3 could not move into
+        Target._validate_format(): calling decompose_url() on a Target of
+        the wrong type is a caller-contract violation the Target itself
+        has no way to prevent."""
         with pytest.raises(TargetDecompositionError):
             decompose_url(Target("10.0.0.5", TargetType.IP_ADDRESS))
 
+
+class TestTargetUrlConstructionRejects:
+    """Decision 3 (applied): these used to construct a Target successfully
+    and fail later, inside decompose_url() - moved up into
+    Target._validate_format() itself, so the bad value is now rejected at
+    construction and can never reach decompose_url() (or a scanner) at
+    all. See decompose_url()'s docstring for why its own copies of these
+    checks are kept anyway, as defense-in-depth, even though they are now
+    unreachable for any Target actually reachable in this codebase.
+    """
+
     def test_non_numeric_port(self) -> None:
-        # Target itself constructs today (Section 1's validation-gap
-        # finding) - the rejection happens in decompose_url() until
-        # Decision 3's move into Target._validate_format() is approved.
-        target = Target("http://host:abc/", TargetType.URL)
-        with pytest.raises(TargetDecompositionError):
-            decompose_url(target)
+        with pytest.raises(InvariantViolation):
+            Target("http://host:abc/", TargetType.URL)
 
     def test_port_out_of_range_too_high(self) -> None:
-        target = Target("http://host:99999/", TargetType.URL)
-        with pytest.raises(TargetDecompositionError):
-            decompose_url(target)
+        with pytest.raises(InvariantViolation):
+            Target("http://host:99999/", TargetType.URL)
 
     def test_port_zero_is_rejected(self) -> None:
-        target = Target("http://host:0/", TargetType.URL)
-        with pytest.raises(TargetDecompositionError):
-            decompose_url(target)
+        with pytest.raises(InvariantViolation):
+            Target("http://host:0/", TargetType.URL)
 
     def test_embedded_credentials(self) -> None:
-        target = Target("http://user:pass@host:80/", TargetType.URL)
-        with pytest.raises(TargetDecompositionError):
-            decompose_url(target)
+        with pytest.raises(InvariantViolation):
+            Target("http://user:pass@host:80/", TargetType.URL)
 
     def test_embedded_username_only(self) -> None:
-        target = Target("http://user@host/", TargetType.URL)
-        with pytest.raises(TargetDecompositionError):
-            decompose_url(target)
+        with pytest.raises(InvariantViolation):
+            Target("http://user@host/", TargetType.URL)
 
     def test_unbracketed_ipv6_shaped_authority(self) -> None:
         # "http://::1:8080/" - urlparse cannot resolve a numeric port from
         # this (RFC 3986 requires brackets for an IPv6 literal authority);
         # this is not special-cased, it falls out of the same port-parsing
         # rejection as a non-numeric port.
-        target = Target("http://::1:8080/path", TargetType.URL)
-        with pytest.raises(TargetDecompositionError):
-            decompose_url(target)
+        with pytest.raises(InvariantViolation):
+            Target("http://::1:8080/path", TargetType.URL)
 
 
 class TestIsIpv6Literal:

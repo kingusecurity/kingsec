@@ -76,6 +76,21 @@ class Target:
                 raise InvariantViolation(f"URL scheme must be http or https, got {parsed.scheme!r}")
             if not parsed.netloc:
                 raise InvariantViolation("URL must have a network location")
+            if parsed.username is not None or parsed.password is not None:
+                raise InvariantViolation(
+                    "URL must not contain embedded credentials - reject rather than silently use or discard them"
+                )
+            try:
+                raw_port = parsed.port
+            except ValueError as exc:
+                # Also catches an unbracketed IPv6 authority ("http://::1/") -
+                # urllib.parse treats the extra colons as an ambiguous port
+                # separator and raises here rather than guessing a host.
+                raise InvariantViolation(f"URL port is not numeric: {exc}") from exc
+            if raw_port is not None and not (1 <= raw_port <= 65535):
+                raise InvariantViolation(f"URL port {raw_port} is out of range (1-65535)")
+            if not parsed.hostname:
+                raise InvariantViolation("URL has no usable host")
 
     def __str__(self) -> str:
         return f"{self.value} ({self.type.value})"
