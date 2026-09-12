@@ -1,0 +1,58 @@
+KINGSEC — PHASE 2A COMPLETE
+Generated: 2026-09-11
+Branch: fix/phase-2a-honest-coverage (commit 35078dd, NOT pushed)
+
+All 9 steps from the approved prompt done, in order:
+
+1. Created and switched to fix/phase-2a-honest-coverage (from
+   chore/phase-1-e2e-evidence).
+2. Applied migration 64e10236c8c1 to C:\kingsec-e2e ONLY.
+   Confirmed head: 64e10236c8c1. Confirmed schema:
+   reports.assessment_status VARCHAR NOT NULL (no default clause).
+   Confirmed ~/.kingsec is UNCHANGED, still at da4b78614806.
+3. Applied both web-scan/nmap fixes:
+   - Instance: nmap now optional in web-scan (required_scanners=()),
+     stays in the scanner list.
+   - Class: new static test across every real profile, using the real
+     plugin registry - confirmed FAILING against the pre-fix web-scan
+     definition first, then passing after the fix.
+4. Full gate: pytest exit 0 (entire suite), ruff check . clean (full
+   repo), mypy src clean (599 files).
+5. Re-ran Run #4's exact scenario against real DVWA (full-assessment,
+   127.0.0.1, ip_address). PDF generated, downloaded, and its actual
+   content inspected (regenerated the equivalent HTML from the same
+   persisted Report row WeasyPrint converts to PDF - no PDF-rasterizing
+   tool was available in this environment to open pages directly, so I
+   did not install one without asking; the real PDF file was sent to you
+   directly for your own visual review).
+   Result: COMPLETED_WITH_GAPS. Cover page: "Incomplete coverage — only
+   1 of 9 scanners ran." All 8 non-running scanners named with real,
+   plain-English reasons.
+6. Old vs new cover-page comparison written into docs/STATUS.md.
+7. docs/STATUS.md fully updated: FIX 9 validate_migrations follow-up,
+   the Phase 2B target-model item (URL host/port derivation for nmap),
+   the Q7 recording correction (CLOSED because the producing code path
+   was removed, not reproduced-and-explained), and the answer to
+   Question 2 (Step 1 was accurate for its time; the code changed during
+   this phase's Correction 4, not a Step 1 error - git diff evidence in
+   STATUS.md).
+8. git status --short and git diff --stat shown in full in this
+   session's output before staging. Staged 40 explicit paths (never
+   git add .) - excluded docs/PRODUCT-INVENTORY.md and
+   docs/REMEDIATION-PLAN.md (untracked, out of scope - different,
+   already-completed prior work, left untouched). Committed:
+   45 files changed, 2703 insertions(+), 271 deletions(-)
+   commit 35078dd on fix/phase-2a-honest-coverage. NOT pushed.
+9. STOPPING here. Phase 2B not started.
+
+Environment left running (your call whether to tear down): Docker
+Desktop is up; container dvwa-phase2a is running on 127.0.0.1:18080.
+C:\kingsec-e2e now contains real data from this phase's test runs
+(Correction 1's 5 timing runs, the Run #4 re-verification) at head
+64e10236c8c1.
+
+Everything from this phase lives in:
+  - docs/STATUS.md (Phase 2A section)
+  - docs/audits/KINGSEC-PHASE-2A-STEP2-PROGRESS-AND-MIGRATION.txt
+  - docs/audits/KINGSEC-PHASE-2A-MIGRATION-REVIEW-RESPONSE.txt
+  - this file
