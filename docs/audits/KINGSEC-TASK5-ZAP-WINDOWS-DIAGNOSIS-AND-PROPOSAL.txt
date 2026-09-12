@@ -1,0 +1,237 @@
+================================================================================
+KINGSEC TASK 5 — ZAP ON WINDOWS
+DIAGNOSIS AND PROPOSAL ONLY. Nothing implemented, nothing changed in the
+adapter. Every claim below is reproduced against the real ZAP install on
+this host, not inferred.
+================================================================================
+
+
+--------------------------------------------------------------------------------
+0. THE "DOCTOR SAYS [OK]" FINDING, CONFIRMED
+--------------------------------------------------------------------------------
+
+doctor's usable verdict for ZAP on this host is WRONG - it reports usable
+for a binary that cannot actually be invoked by the real scan path. This
+is not a hunch; it is reproduced below (§1) with the exact two different
+resolution mechanisms that disagree:
+
+  - `kingsec doctor`'s usability check
+    (ScannerDiscoveryService._find_executable()) uses Python's
+    `shutil.which()`, which IS PATHEXT-aware on Windows - it correctly
+    resolves the bare name "zap" to `C:\ProgramData\chocolatey\bin\zap.BAT`
+    by trying the `.BAT` extension from `PATHEXT`. `installed=True`,
+    Java is present, `usable=True`.
+
+  - The REAL scan invocation (`ZapScannerAdapter._build_args()` passes
+    the bare, unresolved `settings.binary_path` value "zap" straight to
+    `SubprocessCommandRunner.run()`, which calls
+    `subprocess.run(['zap', ...], shell=False)`. On Windows, `shell=False`
+    routes through `CreateProcess`, which does **not** do PATHEXT
+    resolution - it only finds a literal file named exactly "zap" (no
+    extension), which does not exist. This fails immediately.
+
+So the two checks use two different resolution mechanisms
+(`shutil.which()` vs. raw `CreateProcess`) for the same configured
+value, and only one of them is PATHEXT-aware. That gap is what makes
+doctor's verdict wrong here - a real, present, structural disagreement
+between "can this be located" and "can this actually run," not a flaky
+one-off.
+
+
+--------------------------------------------------------------------------------
+1. DIAGNOSIS — reproduced directly, three layers deep
+--------------------------------------------------------------------------------
+
+**Layer 1 — the actual configured invocation fails at the OS API level,
+before ZAP or Java is ever reached:**
+
+    >>> subprocess.run(['zap', '-version'], capture_output=True, text=True,
+    ...                 timeout=15, shell=False, check=False)
+    FileNotFoundError: [WinError 2] The system cannot find the file specified
+
+This is `SubprocessCommandRunner.run()`'s exact call shape
+(`runner.py`), with ZAP's configured `binary_path` default ("zap").
+`CreateProcess` never searches `PATHEXT` for the bare name - this is a
+plain, structural Windows/Python `subprocess` limitation, not a bug in
+KingSec's code and not specific to ZAP's arguments (any bare command
+name resolving only via a `.bat`/`.cmd` extension hits this).
+
+**Layer 2 — even the fully resolved `.bat` path doesn't run cleanly:**
+
+    >>> path = shutil.which('zap')   # -> C:\ProgramData\chocolatey\bin\zap.BAT
+    >>> subprocess.run([path, '-version'], capture_output=True, text=True,
+    ...                 timeout=15, shell=False, check=False)
+    returncode: 255
+    stderr: 'The input line is too long.\nThe syntax of the command is incorrect.\n'
+
+Windows' `CreateProcess` DOES have special-cased support for `.bat`/
+`.cmd` files specifically (unlike arbitrary extensions) - it silently
+hands them to `cmd.exe` internally. But this host's chocolatey ZAP
+package installs a TWO-LEVEL `.bat` chain, and that internal,
+non-interactive `cmd.exe` invocation breaks partway through it:
+
+    C:\ProgramData\chocolatey\bin\zap.bat (chocolatey shim):
+      @echo off
+      set "PATH=...jre...\bin;%PATH%"
+      cd /d "C:\Program Files\ZAP\Zed Attack Proxy"
+      call zap.bat %*                          <- calls a SECOND .bat
+
+    C:\Program Files\ZAP\Zed Attack Proxy\zap.bat (ZAP's own launcher):
+      if exist "...properties" ( set /p jvmopts=< "..." ) else ( set jvmopts=-Xmx512m )
+      java %jvmopts% -jar zap-2.17.0.jar %*
+
+"The input line is too long" is a well-documented symptom of
+`CreateProcess`'s automatic `.bat` handling not being equivalent to a
+real interactive `cmd.exe` session, particularly through a `call`-
+chained second batch file - this is a structural Windows limitation of
+launching nested `.bat` files without a shell, not something
+argument-tuning fixes.
+
+**Layer 3 — root cause of the cosmetic "v." bug, found while
+reproducing Layer 2 (item 4 of this task):**
+`_get_version()` (scanner_discovery.py) runs the exact same failing
+invocation to extract a version string, gets the SAME stderr text back
+("The input line is too long.\nThe syntax of the command is
+incorrect.\n"), and searches it with the version regex `([\d.]+)` -
+which matches the bare period at the end of "too long." Not a
+formatting mismatch against real ZAP output; the version-detection
+subprocess is failing for the exact same reason the real scan
+invocation does, and an overly-permissive regex (`.` alone satisfies
+`[\d.]+`) turns that failure into "v." instead of "no version
+detected."
+
+
+--------------------------------------------------------------------------------
+2. WHY shell=True IS NOT AN ACCEPTABLE FIX — written down, not assumed
+--------------------------------------------------------------------------------
+
+`subprocess.run(cmd_string, shell=True)` on Windows invokes
+`cmd.exe /c <cmd_string>`, where `<cmd_string>` is a SINGLE string that
+`cmd.exe`'s own parser interprets - not a fixed argv list `execvp`/
+`CreateProcess` hands to the target program directly. Any value
+concatenated into that string is subject to `cmd.exe`'s own
+metacharacter interpretation: `&`/`&&` (command chaining), `|` (piping),
+`>`/`<` (redirection), `%VAR%` (environment-variable expansion), and
+`^` (escaping).
+
+KingSec's scan TARGET VALUE is exactly this kind of value - a hostname
+or URL an authenticated operator submits through the API, which the
+scanner adapter concatenates into the invocation. Under `shell=True`, a
+target value like
+
+    example.com & del /s /q C:\
+
+would not be "an invalid hostname" - it would be TWO commands, the
+second one destructive, both executed with whatever privileges the
+KingSec process itself runs under. This is a textbook OS command
+injection (OWASP Top 10 A03:2021-Injection), and it is exactly the
+vulnerability class `runner.py`'s own docstring names as the reason
+`shell=False` is load-bearing: "no shell parses it, so target strings
+cannot inject commands." Switching ZAP's adapter to `shell=True` to
+route around the `.bat`-chain problem would reintroduce that exact
+vulnerability for this one scanner, in a security product whose whole
+purpose is assessing OTHER systems' vulnerabilities - undermining the
+product's own credibility, not just its code. This is ruled out
+regardless of how it would perform.
+
+**A closely related option, also ruled out for the same reason:**
+`subprocess.run(["cmd.exe", "/c", zap_bat_path, *args], shell=False)`.
+This keeps Python's own `shell=False` flag, but `cmd.exe /c` then
+RECONSTRUCTS and re-parses a command line from the argv it's given
+internally - the same metacharacter interpretation risk as `shell=True`,
+just moved one layer down. A target value containing `&`/`|`/etc. is
+just as dangerous here. Not meaningfully safer; not proposed.
+
+
+--------------------------------------------------------------------------------
+3. A FIX THAT DOES NOT INTRODUCE shell=True — verified working, this host
+--------------------------------------------------------------------------------
+
+ZAP's official Windows installer (the one this host actually has,
+`https://www.zaproxy.org/download/` — not the chocolatey package) ships
+a native Windows executable, `ZAP.exe` (an install4j-generated launcher,
+a real PE binary, not a script), alongside the version-pinned
+`zap-2.17.0.jar` it wraps. Invoked directly:
+
+    >>> subprocess.run([r'C:\Program Files\ZAP\Zed Attack Proxy\ZAP.exe', '-version'],
+    ...                 capture_output=True, text=True, timeout=30, shell=False,
+    ...                 check=False, cwd=r'C:\Program Files\ZAP\Zed Attack Proxy')
+    returncode: 0
+    stdout: '2.17.0\n'
+    stderr: ''
+
+Clean. No `.bat`, no `cmd.exe`, no shell, no version-specific jar
+filename to track (`ZAP.exe` resolves its own classpath internally,
+unlike the `.bat` chain which hardcodes `zap-2.17.0.jar` and will break
+silently on ZAP's next version bump). `cwd` must be set to `ZAP.exe`'s
+own directory (verified: omitting it fails with "Could not find or load
+main class org.zaproxy.zap.ZAP" - the launcher resolves its bundled
+`lib`/`plugin` directories relative to its own working directory, not
+its own executable path).
+
+**What implementing this would actually require (not done yet):**
+1. `ZapScannerAdapter`/`SubprocessCommandRunner` needs a way to pass
+   `cwd` per-invocation (`CommandRunner.run()` has no `cwd` parameter
+   today) - a small, additive protocol change.
+2. The operator-configured `ZapSettings.binary_path` needs to point at
+   `ZAP.exe` directly, not the chocolatey `.bat` shim - this is a
+   CONFIGURATION change (INSTALL.md/`kingsec doctor`'s install hint),
+   not a code default, since KingSec cannot itself discover
+   `ZAP.exe`'s install location reliably (it's not on `PATH`; only the
+   chocolatey `.bat` re-router is, and the official-installer path
+   isn't the kind of fixed, single well-known location the existing
+   chocolatey/scoop fallback search in `_find_executable()` already
+   covers for other tools).
+3. `_get_version()`'s regex (`[\d.]+`) should require at least one
+   digit (e.g. `\d+(?:\.\d+)*`) so a bare "." in unrelated failure text
+   can never masquerade as a version again - this closes item 4's "v."
+   bug at its root, not just for ZAP.
+4. The chocolatey-installed `.bat` chain remains genuinely broken under
+   this design - an operator using `choco install zaproxy` specifically
+   (rather than the official installer) would need to point
+   `KINGSEC_ZAP__BINARY_PATH` at wherever `choco install` actually
+   deposits ZAP's own install directory's `ZAP.exe`, if it has one, or
+   install via the official installer instead. Not verified on this
+   host (this host's chocolatey package is itself just a thin re-router
+   to a SEPARATELY, officially-installed ZAP - it does not appear to
+   bundle its own copy).
+
+
+--------------------------------------------------------------------------------
+4. IF IT CANNOT BE FIXED CLEANLY — not needed; it can be, per §3
+--------------------------------------------------------------------------------
+
+§3's `ZAP.exe` route is clean (no shell, no shell=True, no injection
+surface, verified working directly on this host). This task's "if it
+cannot be fixed cleanly, document Linux/container-only" branch does not
+apply — but the configuration burden in §3 point 4 (operators must
+point KingSec at the OFFICIAL installer's `ZAP.exe`, not a chocolatey
+re-router) is real and should be documented plainly regardless of which
+fix path is approved, so a Windows operator using chocolatey doesn't
+hit the exact same wall this diagnosis did.
+
+
+--------------------------------------------------------------------------------
+SUMMARY
+--------------------------------------------------------------------------------
+
+- doctor's [OK] verdict for ZAP on this host is wrong today - confirmed,
+  not assumed - because binary LOCATION (PATHEXT-aware) and binary
+  EXECUTION (not PATHEXT-aware under CreateProcess) are two different
+  checks that can disagree, and do here.
+- Root cause is a nested `.bat`-chain limitation in `CreateProcess`,
+  reproduced at three separate layers, not an argument-formatting
+  issue.
+- shell=True (and the equivalent `cmd.exe /c` argv form) are both ruled
+  out as command-injection surfaces against operator-submitted target
+  values - reasoning written down in §2, not assumed.
+- A clean fix exists and is verified working on this host: invoke ZAP's
+  own native `ZAP.exe` directly (with `cwd` set), bypassing the `.bat`
+  chain entirely. Not yet implemented - proposal only, per instruction.
+- Item 4 (the "v." bug) traces to the SAME underlying invocation
+  failure, via an overly-permissive version regex; the regex fix is a
+  small, low-risk, separable piece of the same future change.
+
+Nothing was implemented in this round for Task 5. Waiting for approval
+before touching the ZAP adapter.
+================================================================================
