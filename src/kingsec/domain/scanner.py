@@ -62,6 +62,48 @@ class OutputFormat(Enum):
     STRUCTURED_JSON = "structured_json"
 
 
+class ScannerRequirement(Enum):
+    """What a scanner NEEDS a target to provide, independent of TargetType.
+
+    Phase 2B Task 2: compatibility is "can this target satisfy this
+    scanner's requirement," not "is this target's literal enum value in
+    this scanner's allowed set." See provided_requirements() below for
+    what each TargetType can provide, and
+    infrastructure/scanner/registry.py's is_compatible() for how the two
+    sides are matched.
+
+    REGISTRABLE_DOMAIN is intentionally not a member yet - it needs a
+    registrable_domain TargetType first (Phase 2B Task 1's amass roadmap
+    item, still Phase 4 work).
+    """
+
+    REACHABLE_HOST = "reachable_host"  # a resolvable host; port optional
+    HTTP_BASE_URL = "http_base_url"    # scheme + host + port, ready for an HTTP request
+    NETWORK_RANGE = "network_range"    # a CIDR block
+
+
+def provided_requirements(target_type: TargetType) -> frozenset[ScannerRequirement]:
+    """What a target of this type can provide to a scanner.
+
+    Pure, total function - every TargetType has an entry. IP_ADDRESS and
+    HOSTNAME deliberately do NOT provide HTTP_BASE_URL: neither carries a
+    scheme, and synthesizing "http://<value>" would be exactly the silent
+    scheme-guess Phase 2B Task 1 Decision 4 already rejected for ffuf and
+    gobuster - this function extends that same rule rather than reopening
+    it. URL provides both REACHABLE_HOST and HTTP_BASE_URL: a scanner that
+    only needs a reachable host (nmap, nuclei, nikto) can be satisfied by a
+    URL just as well as by a bare IP_ADDRESS/HOSTNAME - decompose_url()
+    (domain/target.py) is what makes that host actually available.
+    """
+    mapping: dict[TargetType, frozenset[ScannerRequirement]] = {
+        TargetType.IP_ADDRESS: frozenset({ScannerRequirement.REACHABLE_HOST}),
+        TargetType.HOSTNAME: frozenset({ScannerRequirement.REACHABLE_HOST}),
+        TargetType.URL: frozenset({ScannerRequirement.REACHABLE_HOST, ScannerRequirement.HTTP_BASE_URL}),
+        TargetType.NETWORK: frozenset({ScannerRequirement.NETWORK_RANGE}),
+    }
+    return mapping[target_type]
+
+
 # ---------------------------------------------------------------------------
 # Value objects
 # ---------------------------------------------------------------------------
@@ -117,20 +159,26 @@ class ScannerPluginMetadata:
 class ScannerCapability:
     """One capability a scanner plugin provides.
 
-    A plugin declares one or more capabilities. The orchestrator uses these
-    to decide which plugins to invoke for a given target.
+    A plugin declares one or more capabilities (e.g. nmap declares two: one
+    needing REACHABLE_HOST, one needing NETWORK_RANGE). The registry uses
+    ``requirement`` together with ``provided_requirements(target_type)`` to
+    decide compatibility - see infrastructure/scanner/registry.py's
+    ``is_compatible()``. Phase 2B Task 2: replaced the previous
+    ``target_types: frozenset[TargetType]`` field with a single
+    ``requirement`` so there is exactly one source of truth for what a
+    scanner needs - a scanner declaring both a requirement AND an
+    independent target_types set could drift between the two, which is the
+    exact class of bug Phase 2A eliminated once already between the
+    planner and the orchestrator.
     """
 
-    target_types: frozenset[TargetType]
+    requirement: ScannerRequirement
     scan_categories: frozenset[ScanCategory]
     output_format: OutputFormat
 
     def __post_init__(self) -> None:
-        if not isinstance(self.target_types, frozenset) or not self.target_types:
-            raise InvariantViolation("ScannerCapability target_types must be a non-empty frozenset of TargetType")
-        for tt in self.target_types:
-            if not isinstance(tt, TargetType):
-                raise InvariantViolation(f"ScannerCapability target_types contains non-TargetType: {tt!r}")
+        if not isinstance(self.requirement, ScannerRequirement):
+            raise InvariantViolation(f"ScannerCapability requirement must be a ScannerRequirement: {self.requirement!r}")
         if not isinstance(self.scan_categories, frozenset) or not self.scan_categories:
             raise InvariantViolation("ScannerCapability scan_categories must be a non-empty frozenset of ScanCategory")
         for sc in self.scan_categories:
@@ -189,6 +237,12 @@ class ScannerResult:
     findings: tuple[Finding, ...]
     raw_output: str
     duration_seconds: float
+    # Phase 2B Task 2 Decision 4: the exact nmap -p value used this run
+    # (e.g. "18080,1-1000"), for Task 4's port-range disclosure work. Only
+    # nmap populates this; every other scanner leaves it None. Deliberately
+    # narrow - not a generic "scan parameters" bag - see
+    # infrastructure/scanner/nmap.py's resolve_port_specification().
+    port_specification: str | None = None
     scanner_version: str | None = None
     warnings: tuple[str, ...] = ()
 

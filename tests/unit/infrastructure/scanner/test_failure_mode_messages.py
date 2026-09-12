@@ -281,6 +281,7 @@ class TestUnvettedExceptionStillCollapsesToGeneric:
             ScannerCapability,
             ScannerId,
             ScannerPluginMetadata,
+            ScannerRequirement,
             ScannerResult,
         )
         from kingsec.infrastructure.scanner.orchestrator import ScannerOrchestrator
@@ -296,7 +297,7 @@ class TestUnvettedExceptionStillCollapsesToGeneric:
             def capabilities(self) -> tuple[ScannerCapability, ...]:
                 return (
                     ScannerCapability(
-                        target_types=frozenset({TargetType.IP_ADDRESS}),
+                        requirement=ScannerRequirement.REACHABLE_HOST,
                         scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                         output_format=OutputFormat.FINDINGS,
                     ),

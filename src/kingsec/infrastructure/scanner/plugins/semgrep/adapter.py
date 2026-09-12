@@ -28,9 +28,9 @@ from kingsec.domain import (
     ScannerCapability,
     ScannerId,
     ScannerPluginMetadata,
+    ScannerRequirement,
     ScannerResult,
     Target,
-    TargetType,
 )
 from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE
 
@@ -73,7 +73,7 @@ class SemgrepPlugin(ScannerPluginPort):
         """Declare Semgrep scanning capabilities."""
         return (
             ScannerCapability(
-                target_types=frozenset({TargetType.HOSTNAME}),
+                requirement=ScannerRequirement.REACHABLE_HOST,
                 scan_categories=frozenset({ScanCategory.VULNERABILITY, ScanCategory.INFORMATION}),
                 output_format=OutputFormat.STRUCTURED_JSON,
             ),

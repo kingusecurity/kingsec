@@ -14,6 +14,7 @@ from kingsec.domain import (
     ScannerCapability,
     ScannerId,
     ScannerPluginMetadata,
+    ScannerRequirement,
     ScannerResult,
     Target,
     TargetType,
@@ -33,7 +34,7 @@ class _FakePlugin(ScannerPluginPort):
         *,
         plugin_id: str = "fake",
         name: str = "Fake Scanner",
-        target_types: frozenset[TargetType] | None = None,
+        requirement: ScannerRequirement | None = None,
         scan_categories: frozenset[ScanCategory] | None = None,
         output_format: OutputFormat = OutputFormat.FINDINGS,
         available: bool = True,
@@ -41,7 +42,7 @@ class _FakePlugin(ScannerPluginPort):
     ) -> None:
         self._id = plugin_id
         self._name = name
-        self._target_types = target_types or frozenset({TargetType.IP_ADDRESS})
+        self._requirement = requirement or ScannerRequirement.REACHABLE_HOST
         self._scan_categories = scan_categories or frozenset({ScanCategory.VULNERABILITY})
         self._output_format = output_format
         self._available = available
@@ -60,7 +61,7 @@ class _FakePlugin(ScannerPluginPort):
     def capabilities(self) -> tuple[ScannerCapability, ...]:
         return (
             ScannerCapability(
-                target_types=self._target_types,
+                requirement=self._requirement,
                 scan_categories=self._scan_categories,
                 output_format=self._output_format,
             ),
@@ -100,12 +101,12 @@ class _MultiCapPlugin(ScannerPluginPort):
     def capabilities(self) -> tuple[ScannerCapability, ...]:
         return (
             ScannerCapability(
-                target_types=frozenset({TargetType.IP_ADDRESS}),
+                requirement=ScannerRequirement.REACHABLE_HOST,
                 scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                 output_format=OutputFormat.STRUCTURED_JSON,
             ),
             ScannerCapability(
-                target_types=frozenset({TargetType.URL, TargetType.HOSTNAME}),
+                requirement=ScannerRequirement.NETWORK_RANGE,
                 scan_categories=frozenset({ScanCategory.DISCOVERY}),
                 output_format=OutputFormat.RAW_TEXT,
             ),
@@ -211,9 +212,14 @@ class TestResolution:
         assert len(result) == 1
         assert result[0].metadata().id == ScannerId("nuclei")
 
-    def test_target_does_not_match_capability(self, registry: InMemoryPluginRegistry, fake_url: Target) -> None:
-        registry.register(_FakePlugin(plugin_id="nuclei", target_types=frozenset({TargetType.IP_ADDRESS})))
-        result = registry.resolve(fake_url)
+    def test_target_does_not_match_capability(self, registry: InMemoryPluginRegistry, fake_ip: Target) -> None:
+        # Phase 2B Task 2: URL now provides REACHABLE_HOST too (that's the
+        # feature this task adds), so a REACHABLE_HOST-only plugin no
+        # longer demonstrates a non-match against a URL target. NETWORK_RANGE
+        # is the one requirement URL genuinely cannot satisfy - use an
+        # IP_ADDRESS target (which also lacks NETWORK_RANGE) instead.
+        registry.register(_FakePlugin(plugin_id="nuclei", requirement=ScannerRequirement.NETWORK_RANGE))
+        result = registry.resolve(fake_ip)
         assert len(result) == 0
 
     def test_multiple_matching_plugins(self, registry: InMemoryPluginRegistry, fake_ip: Target) -> None:
@@ -229,6 +235,10 @@ class TestResolution:
         assert result == ()
 
     def test_multi_capability_plugin_matches_multiple_targets(self, registry: InMemoryPluginRegistry) -> None:
+        # _MultiCapPlugin declares REACHABLE_HOST (satisfied by IP_ADDRESS,
+        # HOSTNAME, and URL) AND NETWORK_RANGE (satisfied by NETWORK) -
+        # genuinely multi-capability, matching every target type, the same
+        # shape nmap's own real declaration now has (Phase 2B Task 2).
         registry.register(_MultiCapPlugin(plugin_id="multi"))
         ip_result = registry.resolve(Target("10.0.0.5", TargetType.IP_ADDRESS))
         url_result = registry.resolve(Target("https://example.com", TargetType.URL))
@@ -237,7 +247,7 @@ class TestResolution:
         assert len(ip_result) == 1
         assert len(url_result) == 1
         assert len(host_result) == 1
-        assert len(net_result) == 0
+        assert len(net_result) == 1
 
 
 # ===========================================================================

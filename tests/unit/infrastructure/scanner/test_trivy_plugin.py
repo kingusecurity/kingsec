@@ -11,6 +11,7 @@ from kingsec.domain import (
     PluginConfig,
     ScanCategory,
     ScannerId,
+    ScannerRequirement,
     ScannerResult,
     Target,
     TargetType,
@@ -114,13 +115,10 @@ class TestMetadata:
 
 
 class TestCapabilities:
-    def test_correct_target_types(self) -> None:
+    def test_declares_reachable_host(self) -> None:
         caps = _make_plugin().capabilities()
         assert len(caps) == 1
-        target_types = caps[0].target_types
-        assert TargetType.HOSTNAME in target_types
-        assert TargetType.IP_ADDRESS not in target_types
-        assert TargetType.URL not in target_types
+        assert caps[0].requirement is ScannerRequirement.REACHABLE_HOST
 
     def test_vulnerability_category(self) -> None:
         caps = _make_plugin().capabilities()

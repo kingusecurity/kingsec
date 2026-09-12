@@ -48,9 +48,9 @@ class TestScannerPluginPort:
             ScannerCapability,
             ScannerId,
             ScannerPluginMetadata,
+            ScannerRequirement,
             ScannerResult,
             Target,
-            TargetType,
         )
 
         class FakePlugin(ScannerPluginPort):
@@ -67,7 +67,7 @@ class TestScannerPluginPort:
             def capabilities(self) -> tuple[ScannerCapability, ...]:
                 return (
                     ScannerCapability(
-                        target_types=frozenset({TargetType.IP_ADDRESS}),
+                        requirement=ScannerRequirement.REACHABLE_HOST,
                         scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                         output_format=OutputFormat.FINDINGS,
                     ),
@@ -128,9 +128,9 @@ class TestScannerPluginPort:
             ScannerCapability,
             ScannerId,
             ScannerPluginMetadata,
+            ScannerRequirement,
             ScannerResult,
             Target,
-            TargetType,
         )
 
         class AvailablePlugin(ScannerPluginPort):
@@ -147,7 +147,7 @@ class TestScannerPluginPort:
             def capabilities(self) -> tuple[ScannerCapability, ...]:
                 return (
                     ScannerCapability(
-                        target_types=frozenset({TargetType.IP_ADDRESS}),
+                        requirement=ScannerRequirement.REACHABLE_HOST,
                         scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                         output_format=OutputFormat.FINDINGS,
                     ),
@@ -171,9 +171,9 @@ class TestScannerPluginPort:
             ScannerCapability,
             ScannerId,
             ScannerPluginMetadata,
+            ScannerRequirement,
             ScannerResult,
             Target,
-            TargetType,
         )
 
         class NoopPlugin(ScannerPluginPort):
@@ -190,7 +190,7 @@ class TestScannerPluginPort:
             def capabilities(self) -> tuple[ScannerCapability, ...]:
                 return (
                     ScannerCapability(
-                        target_types=frozenset({TargetType.IP_ADDRESS}),
+                        requirement=ScannerRequirement.REACHABLE_HOST,
                         scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                         output_format=OutputFormat.FINDINGS,
                     ),

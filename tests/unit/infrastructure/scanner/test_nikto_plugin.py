@@ -9,6 +9,7 @@ from kingsec.domain import (
     PluginConfig,
     ScanCategory,
     ScannerId,
+    ScannerRequirement,
     ScannerResult,
     Target,
     TargetType,
@@ -87,13 +88,10 @@ class TestMetadata:
 
 
 class TestCapabilities:
-    def test_correct_target_types(self) -> None:
+    def test_declares_reachable_host(self) -> None:
         caps = _make_plugin().capabilities()
         assert len(caps) == 1
-        target_types = caps[0].target_types
-        assert TargetType.HOSTNAME in target_types
-        assert TargetType.URL in target_types
-        assert TargetType.IP_ADDRESS not in target_types
+        assert caps[0].requirement is ScannerRequirement.REACHABLE_HOST
 
     def test_vulnerability_category(self) -> None:
         caps = _make_plugin().capabilities()
@@ -186,6 +184,21 @@ class TestScan:
         plugin.scan(_TARGET, PluginConfig())
         args = runner.calls[0][0]
         assert "-nointeractive" in args
+
+    def test_bare_ip_address_target_produces_valid_invocation(self) -> None:
+        """Phase 2B Task 2 Decision 1's required test: nikto given a bare
+        IP_ADDRESS target produces -h <ip>, no port, no SSL - its own
+        _parse_target() already handles this correctly, this only proves
+        the capability flip (Decision 1) didn't change real behaviour."""
+        runner = FakeRunner(CommandResult(0, _SAMPLE_OUTPUT, "", 0.1))
+        plugin = _make_plugin(runner=runner)
+        target = Target("10.0.0.5", TargetType.IP_ADDRESS)
+        plugin.scan(target, PluginConfig())
+        args = runner.calls[0][0]
+        h_idx = args.index("-h")
+        assert args[h_idx + 1] == "10.0.0.5"
+        assert "-p" not in args
+        assert "-ssl" not in args
 
 
 # ===========================================================================

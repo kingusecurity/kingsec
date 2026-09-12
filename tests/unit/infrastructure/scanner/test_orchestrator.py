@@ -16,6 +16,7 @@ from kingsec.domain import (
     ScannerCapability,
     ScannerId,
     ScannerPluginMetadata,
+    ScannerRequirement,
     ScannerResult,
     Severity,
     Target,
@@ -42,6 +43,7 @@ class _StubPlugin(ScannerPluginPort):
         raise_on_health: Exception | None = None,
         raise_on_scan: Exception | None = None,
         raise_on_shutdown: Exception | None = None,
+        requirement: ScannerRequirement = ScannerRequirement.REACHABLE_HOST,
     ) -> None:
         self._id = plugin_id
         self._findings = findings
@@ -50,6 +52,7 @@ class _StubPlugin(ScannerPluginPort):
         self._raise_on_health = raise_on_health
         self._raise_on_scan = raise_on_scan
         self._raise_on_shutdown = raise_on_shutdown
+        self._requirement = requirement
         self.shutdown_called = False
 
     def metadata(self) -> ScannerPluginMetadata:
@@ -65,7 +68,7 @@ class _StubPlugin(ScannerPluginPort):
     def capabilities(self) -> tuple[ScannerCapability, ...]:
         return (
             ScannerCapability(
-                target_types=frozenset({TargetType.IP_ADDRESS}),
+                requirement=self._requirement,
                 scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                 output_format=OutputFormat.FINDINGS,
             ),
@@ -116,7 +119,7 @@ class _UrlPlugin(ScannerPluginPort):
     def capabilities(self) -> tuple[ScannerCapability, ...]:
         return (
             ScannerCapability(
-                target_types=frozenset({TargetType.URL}),
+                requirement=ScannerRequirement.HTTP_BASE_URL,
                 scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                 output_format=OutputFormat.FINDINGS,
             ),
@@ -422,12 +425,15 @@ class TestCompatibleScanners:
         assert set(compatible.keys()) == {str(r.scanner_id) for r in results}
 
     def test_excludes_incompatible_target_type(
-        self, registry: InMemoryPluginRegistry, orchestrator: ScannerOrchestrator, fake_url: Target
+        self, registry: InMemoryPluginRegistry, orchestrator: ScannerOrchestrator
     ) -> None:
-        """_StubPlugin only declares IP_ADDRESS capability - a URL target
-        must resolve to no plugins, same as execute_all/scan would see."""
-        registry.register(_StubPlugin(plugin_id="nuclei"))
-        result = orchestrator.compatible_scanners(fake_url)
+        """A plugin declaring NETWORK_RANGE only - the one requirement a
+        URL target genuinely cannot satisfy (Phase 2B Task 2: URL now
+        provides REACHABLE_HOST too, so the default REACHABLE_HOST-
+        declaring _StubPlugin would incorrectly match a URL target here) -
+        must resolve to no plugins against a NETWORK target's complement."""
+        registry.register(_StubPlugin(plugin_id="nuclei", requirement=ScannerRequirement.NETWORK_RANGE))
+        result = orchestrator.compatible_scanners(Target("10.0.0.5", TargetType.IP_ADDRESS))
         assert result == {}
 
 

@@ -21,9 +21,9 @@ from kingsec.domain import (
     ScannerCapability,
     ScannerId,
     ScannerPluginMetadata,
+    ScannerRequirement,
     ScannerResult,
     Target,
-    TargetType,
 )
 from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE
 
@@ -66,7 +66,7 @@ class ZapPlugin(ScannerPluginPort):
         """Declare ZAP scanning capabilities."""
         return (
             ScannerCapability(
-                target_types=frozenset({TargetType.URL}),
+                requirement=ScannerRequirement.HTTP_BASE_URL,
                 scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                 output_format=OutputFormat.STRUCTURED_JSON,
             ),

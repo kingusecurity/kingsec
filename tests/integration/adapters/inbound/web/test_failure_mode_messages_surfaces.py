@@ -131,11 +131,11 @@ class _AlwaysCleanPlugin:
         )
 
     def capabilities(self):
-        from kingsec.domain import OutputFormat, ScanCategory, ScannerCapability
+        from kingsec.domain import OutputFormat, ScanCategory, ScannerCapability, ScannerRequirement
 
         return (
             ScannerCapability(
-                target_types=frozenset({TargetType.IP_ADDRESS}),
+                requirement=ScannerRequirement.REACHABLE_HOST,
                 scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                 output_format=OutputFormat.FINDINGS,
             ),

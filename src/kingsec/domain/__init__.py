@@ -94,7 +94,9 @@ from .scanner import (
     ScannerCapability,
     ScannerId,
     ScannerPluginMetadata,
+    ScannerRequirement,
     ScannerResult,
+    provided_requirements,
 )
 from .schedule import (
     RetryPolicy,
@@ -226,6 +228,7 @@ __all__ = [
     "ScannerCapability",
     "ScannerId",
     "ScannerPluginMetadata",
+    "ScannerRequirement",
     "ScannerResult",
     "ScannerRunState",
     "ScannerRunSummary",
@@ -256,4 +259,5 @@ __all__ = [
     "UserNotFoundError",
     "Verdict",
     "WebhookEventType",
+    "provided_requirements",
 ]

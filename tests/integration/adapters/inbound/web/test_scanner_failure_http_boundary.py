@@ -40,6 +40,7 @@ from kingsec.domain import (
     ScannerCapability,
     ScannerId,
     ScannerPluginMetadata,
+    ScannerRequirement,
     ScannerResult,
     Target,
     TargetType,
@@ -66,7 +67,7 @@ class _StubPlugin:
     def capabilities(self) -> tuple[ScannerCapability, ...]:
         return (
             ScannerCapability(
-                target_types=frozenset({TargetType.IP_ADDRESS}),
+                requirement=ScannerRequirement.REACHABLE_HOST,
                 scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                 output_format=OutputFormat.FINDINGS,
             ),
