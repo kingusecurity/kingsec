@@ -221,6 +221,23 @@ class ExecutionPlanner:
         self._registry = registry
         self._profiles = dict(_DEFAULT_PROFILES)
 
+    @property
+    def discovery(self) -> ScannerDiscoveryService:
+        """The exact ScannerDiscoveryService this planner decides with.
+
+        Read-only access for callers (Task 3a's ``kingsec doctor``) that
+        must report the same binary/asset status the planner itself acts
+        on - never a second, independently-constructed ScannerDiscoveryService
+        that could silently drift out of sync with this one.
+        """
+        return self._discovery
+
+    @property
+    def registry(self) -> ScannerPluginRegistry | None:
+        """The exact ScannerPluginRegistry this planner checks compatibility
+        with (see plan()'s own docstring) - same rationale as discovery above."""
+        return self._registry
+
     # ── Profile queries ─────────────────────────────────────────────────
 
     def list_profiles(self) -> tuple[AssessmentProfile, ...]:

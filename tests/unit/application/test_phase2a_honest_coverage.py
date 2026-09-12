@@ -41,7 +41,7 @@ from kingsec.application.use_cases.resolve_orphaned_assessments import ResolveOr
 from kingsec.bootstrap.container import Container
 from kingsec.domain import Assessment, AssessmentId, Finding, Report, ScannerId, Target, TargetType
 from kingsec.domain.authorization import Authorization
-from kingsec.domain.enums import AssessmentStatus
+from kingsec.domain.enums import AssessmentStatus, ScannerRunState
 from kingsec.domain.report import failed_scanners_in
 from kingsec.infrastructure.config import Settings
 from kingsec.infrastructure.reporting.templates import render_report_html
@@ -506,6 +506,68 @@ class TestPlanCoversEveryScanner:
         # No scanner appears in more than one bucket.
         total_entries = len(plan.selected_scanners) + len(plan.skipped_scanners) + len(plan.unavailable_scanners)
         assert total_entries == len(profile.scanners)
+
+
+class TestDoctorAgreesWithPlanner:
+    """Task 3a's required test: kingsec doctor's per-scanner verdict must
+    match the planner's real selection decision for that scanner, across
+    EVERY profile - derived from the exact same ScannerDiscoveryService/
+    ScannerPluginRegistry the planner itself uses (_doctor.py calls
+    bootstrap.composition.build_execution_planner(), the identical
+    construction _register_adapters() uses for the real, running app),
+    never a second, independently-derived check that could silently
+    disagree with it.
+
+    Uses ``_STATUSES`` (mixed usable/not-usable, not the permissive
+    fixture) so this actually exercises doctor's "NOT usable" branch, not
+    only the trivial all-usable case.
+    """
+
+    @pytest.mark.parametrize("profile_id,target_type", _all_profile_target_type_pairs())
+    def test_doctor_verdict_matches_plan_for_every_scanner(self, profile_id: str, target_type: TargetType) -> None:
+        from kingsec._doctor import _target_types_served
+
+        registry = _real_registry()
+        planner = ExecutionPlanner(discovery=_FakeDiscovery(_STATUSES), registry=registry)
+        profile = planner.get_profile(profile_id)
+        assert profile is not None
+
+        plan = planner.plan(profile_id, "target-value", target_type)
+        plan_by_id = {
+            e.scanner_id: e
+            for e in (*plan.selected_scanners, *plan.skipped_scanners, *plan.unavailable_scanners)
+        }
+        statuses = {s.scanner_id: s for s in planner.discovery.get_all_statuses()}
+
+        for scanner_id in profile.scanners:
+            entry = plan_by_id[scanner_id]
+            status = statuses[scanner_id]
+
+            doctor_target_types = _target_types_served(planner, scanner_id)
+            doctor_serves_this_type = target_type in doctor_target_types
+            # doctor's "which target types it can serve" must match
+            # is_compatible() exactly - the same primitive plan() itself
+            # calls (assessment_profiles.py's plan(), the registry.is_compatible
+            # check).
+            assert doctor_serves_this_type == registry.is_compatible(ScannerId(scanner_id), target_type)
+
+            if not doctor_serves_this_type:
+                assert entry.selected is False
+                assert entry.skip_state == ScannerRunState.SKIPPED_INCOMPATIBLE
+            elif status.usable:
+                assert entry.selected is True, (
+                    f"{scanner_id!r}: doctor says usable and compatible with {target_type.value!r}, "
+                    f"but the planner did not select it for profile {profile_id!r}"
+                )
+            else:
+                assert entry.selected is False, (
+                    f"{scanner_id!r}: doctor says NOT usable, but the planner selected it anyway "
+                    f"for profile {profile_id!r} - doctor and the planner disagree"
+                )
+                assert entry.skip_state in (
+                    ScannerRunState.SKIPPED_ASSET_MISSING,
+                    ScannerRunState.SKIPPED_BINARY_MISSING,
+                )
 
 
 # --- 4. Wordlist detection on a real Windows-style path -------------------

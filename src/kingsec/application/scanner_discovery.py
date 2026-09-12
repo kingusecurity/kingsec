@@ -517,13 +517,26 @@ class ScannerDiscoveryService:
 
         all_asset_names = tuple(a.name for a in assets if not a.optional)
         missing_names = tuple(missing_assets)
-        hints = _INSTALL_HINTS.get(scanner_id, {})
-        hint = hints.get(_current_platform(), "")
-        install_hints = [hint] if hint else []
+        # This branch is only reached once the binary itself has already
+        # been found (the `path is None` case above returns its own,
+        # binary-only hint separately) — the platform "how to install the
+        # binary" hint has no place here; the real fix at this point is
+        # always about a missing ASSET, never the binary. Only REQUIRED
+        # (non-optional) missing assets actually block `usable`, so only
+        # those get a fix hint here — an optional asset's hint would tell
+        # the operator to fix something that was never blocking anything.
+        # Deduplicated (preserving order) since two assets can legitimately
+        # share the same install command (e.g. nuclei's templates dir and
+        # its optional config file both say "nuclei -update-templates").
+        install_hints: list[str] = []
         for asset in assets:
-            if asset.path and not Path(asset.path).exists():
-                if asset.install_hint:
-                    install_hints.append(asset.install_hint)
+            if (
+                not asset.optional
+                and asset.name in missing_assets
+                and asset.install_hint
+                and asset.install_hint not in install_hints
+            ):
+                install_hints.append(asset.install_hint)
 
         extra = manifest.get("extra_checks", {})
 
