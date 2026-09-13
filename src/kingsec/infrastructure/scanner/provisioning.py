@@ -79,7 +79,11 @@ def register_scanner(
     registry.register(trivy_plugin)
 
     # ZAP plugin
-    zap_plugin = ZapPlugin(settings.zap, runner=runner)
+    # data_dir: Task 5 output-path fix - ZAP must write its -quickout
+    # results under KingSec's own configured data directory, never its
+    # own install directory (which is frequently not writable, e.g. the
+    # default Windows installer path under C:\Program Files\...).
+    zap_plugin = ZapPlugin(settings.zap, runner=runner, data_dir=settings.storage.data_dir)
     registry.register(zap_plugin)
 
     # Semgrep plugin

@@ -10,6 +10,7 @@ requires.
 from __future__ import annotations
 
 import shutil
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from kingsec.application.ports.scanner_plugin import ScannerPluginPort
@@ -45,10 +46,12 @@ class ZapPlugin(ScannerPluginPort):
         self,
         settings: ZapSettings,
         runner: CommandRunner | None = None,
+        *,
+        data_dir: Path | None = None,
     ) -> None:
         from kingsec.infrastructure.scanner.zap import ZapScannerAdapter
 
-        self._adapter: ZapScannerAdapter = ZapScannerAdapter(settings, runner=runner)
+        self._adapter: ZapScannerAdapter = ZapScannerAdapter(settings, runner=runner, data_dir=data_dir)
         self._settings = settings
 
     def metadata(self) -> ScannerPluginMetadata:

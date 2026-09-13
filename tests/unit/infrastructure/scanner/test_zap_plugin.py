@@ -200,14 +200,71 @@ class TestScan:
         url_idx = args.index("-quickurl")
         assert args[url_idx + 1] == "http://example.com"
 
-    def test_build_args_includes_quickout_json(self) -> None:
+    def test_build_args_includes_quickout_with_a_real_json_file_path(self) -> None:
+        """Task 5 output-path fix: -quickout is a real, writable file path
+        (never the bare literal "json" - see TestOutputPathNeverWritesIntoTheInstallDirectory
+        for the full regression coverage of where that path must live)."""
         runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))
         plugin = _make_plugin(runner=runner)
         plugin.scan(_TARGET, PluginConfig())
         args = runner.calls[0][0]
         assert "-quickout" in args
         out_idx = args.index("-quickout")
-        assert args[out_idx + 1] == "json"
+        assert args[out_idx + 1] != "json"
+        assert args[out_idx + 1].endswith(".json")
+
+
+class TestOutputPathNeverWritesIntoTheInstallDirectory:
+    """Task 5 hang investigation: the real ZAP.exe popped a blocking GUI
+    modal dialog because -quickout was a bare "json" string, resolved
+    relative to cwd (ZAP's own install directory, not writable by the
+    account running KingSec on the real Windows installer default,
+    C:\\Program Files\\...). KingSec must write scanner output under its
+    own configured data directory, never a scanner's install directory."""
+
+    def test_quickout_path_is_under_the_configured_data_dir(self, tmp_path) -> None:
+        from kingsec.infrastructure.config.models import ZapSettings
+        from kingsec.infrastructure.scanner.zap import ZapScannerAdapter
+
+        runner = FakeRunner(CommandResult(0, "", "", 0.1))
+        adapter = ZapScannerAdapter(ZapSettings(binary_path="python"), runner=runner, data_dir=tmp_path)
+
+        adapter.scan(_TARGET)
+
+        args, _timeout = runner.calls[0]
+        out_idx = args.index("-quickout")
+        quickout_path = args[out_idx + 1]
+        assert quickout_path != "json"
+        assert str(tmp_path) in quickout_path
+        assert quickout_path.endswith(".json")
+
+    def test_two_scans_get_different_quickout_filenames(self, tmp_path) -> None:
+        """Concurrent scans must not clobber each other's output file."""
+        from kingsec.infrastructure.config.models import ZapSettings
+        from kingsec.infrastructure.scanner.zap import ZapScannerAdapter
+
+        runner = FakeRunner(CommandResult(0, "", "", 0.1))
+        adapter = ZapScannerAdapter(ZapSettings(binary_path="python"), runner=runner, data_dir=tmp_path)
+
+        adapter.scan(_TARGET)
+        adapter.scan(_TARGET)
+
+        first_args, _ = runner.calls[0]
+        second_args, _ = runner.calls[1]
+        assert first_args[first_args.index("-quickout") + 1] != second_args[second_args.index("-quickout") + 1]
+
+    def test_default_data_dir_falls_back_to_kingsec_home_convention(self) -> None:
+        """No data_dir passed (e.g. a direct construction in a test or
+        script) must still default to somewhere real, matching the
+        established ~/.kingsec convention, never a scanner's own install
+        directory."""
+        from pathlib import Path
+
+        from kingsec.infrastructure.config.models import ZapSettings
+        from kingsec.infrastructure.scanner.zap import ZapScannerAdapter
+
+        adapter = ZapScannerAdapter(ZapSettings(binary_path="python"))
+        assert adapter._data_dir == Path.home() / ".kingsec"
 
 
 # ===========================================================================
