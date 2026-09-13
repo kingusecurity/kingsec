@@ -23,7 +23,16 @@ from kingsec.domain import (
     Target,
     TargetType,
 )
+from kingsec.domain.enums import ScannerRunState
 from kingsec.infrastructure.reporting.templates import render_report_html
+
+# Old (pre-Phase-2A) string vocabulary -> ScannerRunState.
+_STATUS_MAP = {
+    "completed": ScannerRunState.SUCCEEDED,
+    "failed": ScannerRunState.FAILED,
+    "skipped": ScannerRunState.SKIPPED_INCOMPATIBLE,
+    "pending": ScannerRunState.PENDING,
+}
 
 
 def _finding(severity: Severity, title: str):
@@ -44,7 +53,7 @@ def _build_report(findings: tuple, scanner_summary: tuple) -> Report:
 
 
 def _summary(scanner_id: str, name: str, status: str, findings_count: int = 0) -> ScannerRunSummary:
-    return ScannerRunSummary(scanner_id=scanner_id, name=name, status=status, findings_count=findings_count)
+    return ScannerRunSummary(scanner_id=scanner_id, name=name, status=_STATUS_MAP[status], findings_count=findings_count)
 
 
 class TestScenario3RenderedReportNoLongerReadsAsClean:

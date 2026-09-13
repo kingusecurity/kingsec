@@ -173,13 +173,18 @@ _SCANNER_MANIFEST: dict[str, dict[str, Any]] = {
         "binary": "ffuf",
         "version_args": ("--version",),
         "version_regex": r"([\d.]+)",
+        # Phase 2A Correction 4: path is None here deliberately — the real
+        # path comes from the operator-configured FfufSettings.wordlist at
+        # request time (see get_scanner_status()'s wordlist substitution
+        # below), never this hardcoded Linux default. A missing wordlist
+        # is now a real, required asset (optional=False) matching Nuclei's
+        # templates requirement, not a silently-ignored one.
         "assets": [
             AssetRequirement(
-                name="Wordlist directory",
-                kind="directory",
-                path="/usr/share/wordlists",
-                install_hint="sudo apt-get install wordlist  or  Download SecLists from https://github.com/danielmiessler/SecLists",
-                optional=True,
+                name="Wordlist file",
+                kind="file",
+                path=None,
+                install_hint="Configure KINGSEC_FFUF__WORDLIST, e.g. a SecLists path: https://github.com/danielmiessler/SecLists",
             ),
         ],
         "extra_checks": {},
@@ -189,13 +194,14 @@ _SCANNER_MANIFEST: dict[str, dict[str, Any]] = {
         "binary": "gobuster",
         "version_args": ("--version",),
         "version_regex": r"([\d.]+)",
+        # Same as ffuf above: real path substituted from
+        # GobusterSettings.wordlist at request time.
         "assets": [
             AssetRequirement(
-                name="Wordlist directory",
-                kind="directory",
-                path="/usr/share/wordlists",
-                install_hint="sudo apt-get install wordlist  or  Download SecLists from https://github.com/danielmiessler/SecLists",
-                optional=True,
+                name="Wordlist file",
+                kind="file",
+                path=None,
+                install_hint="Configure KINGSEC_GOBUSTER__WORDLIST, e.g. a SecLists path: https://github.com/danielmiessler/SecLists",
             ),
         ],
         "extra_checks": {},
@@ -416,7 +422,21 @@ def _check_java() -> bool:
 
 
 class ScannerDiscoveryService:
-    """Discover and validate scanner installations on the current system."""
+    """Discover and validate scanner installations on the current system.
+
+    Phase 2A Correction 4: ``ffuf_wordlist``/``gobuster_wordlist`` are the
+    operator's actual configured ``FfufSettings.wordlist`` /
+    ``GobusterSettings.wordlist`` values. Without them, discovery has no
+    way to know whether a real wordlist is configured and correctly
+    reports the asset as missing on every platform — including Windows,
+    where the old hardcoded ``/usr/share/wordlists`` check would have
+    reported "missing" unconditionally regardless of configuration the
+    moment this requirement became non-optional.
+    """
+
+    def __init__(self, *, ffuf_wordlist: str = "", gobuster_wordlist: str = "") -> None:
+        self._ffuf_wordlist = ffuf_wordlist
+        self._gobuster_wordlist = gobuster_wordlist
 
     def get_scanner_status(self, scanner_id: str) -> ScannerStatus:
         """Discover the status of a single scanner."""
@@ -438,7 +458,31 @@ class ScannerDiscoveryService:
         binary: str = manifest["binary"]
         version_args: tuple[str, ...] = manifest["version_args"]
         version_regex: str = manifest["version_regex"]
-        assets: list[AssetRequirement] = manifest["assets"]
+        # Copy, never mutate the shared module-level manifest list — and
+        # substitute the real configured wordlist path for ffuf/gobuster
+        # (Correction 4) rather than checking a hardcoded Linux directory
+        # that has nothing to do with what the operator actually set.
+        assets: list[AssetRequirement] = list(manifest["assets"])
+        if scanner_id == "ffuf" and assets:
+            assets = [
+                AssetRequirement(
+                    name=assets[0].name,
+                    kind=assets[0].kind,
+                    path=self._ffuf_wordlist or None,
+                    install_hint=assets[0].install_hint,
+                    optional=assets[0].optional,
+                )
+            ]
+        elif scanner_id == "gobuster" and assets:
+            assets = [
+                AssetRequirement(
+                    name=assets[0].name,
+                    kind=assets[0].kind,
+                    path=self._gobuster_wordlist or None,
+                    install_hint=assets[0].install_hint,
+                    optional=assets[0].optional,
+                )
+            ]
 
         path = _find_executable(binary)
         if path is None:
@@ -490,13 +534,13 @@ class ScannerDiscoveryService:
         ) if scanner_id == "nuclei" else False
         has_perl = shutil.which("perl") is not None if scanner_id == "nikto" else False
         has_java = _check_java() if scanner_id == "zap" else False
+        # Phase 2A Correction 4: reflects the same real, configured
+        # wordlist path already substituted into `assets` above — not the
+        # old hardcoded Linux-only directory check, which would have
+        # reported "missing" on every Windows host regardless of
+        # configuration.
         has_wordlists = (
-            Path("/usr/share/wordlists").is_dir()
-            or any(Path(p).is_dir() for p in [
-                str(Path.home() / "wordlists"),
-                "/usr/share/dict",
-                "/usr/share/seclists",
-            ])
+            "Wordlist file" not in missing_assets
         ) if scanner_id in ("ffuf", "gobuster") else False
 
         if extra.get("required_permissions") and not permissions_ok:
@@ -512,7 +556,10 @@ class ScannerDiscoveryService:
         if scanner_id == "zap" and not has_java:
             recommendations.append("Install Java 11+ (required: https://adoptium.net)")
         if scanner_id in ("ffuf", "gobuster") and not has_wordlists:
-            recommendations.append("Install wordlists: sudo apt-get install wordlist  or  download SecLists")
+            recommendations.append(
+                f"Configure KINGSEC_{scanner_id.upper()}__WORDLIST to a real wordlist file, "
+                "e.g. one from https://github.com/danielmiessler/SecLists"
+            )
         if not permissions_ok:
             recommendations.append(f"Ensure {binary!r} has execute permissions")
 

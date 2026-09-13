@@ -371,7 +371,7 @@ class ScannerSummaryView:
         return cls(
             scanner_id=summary.scanner_id,
             name=summary.name,
-            status=summary.status,
+            status=summary.status.value,
             findings_count=summary.findings_count,
             skipped_reason=summary.skipped_reason,
         )

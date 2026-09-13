@@ -64,5 +64,11 @@ class ReportGeneratorPort(ABC):
     """Renders a domain report into a deliverable artifact (PDF/HTML/etc.)."""
 
     @abstractmethod
-    def render(self, report: Report) -> RenderedReport:
-        """Render ``report`` and return the artifact bytes + metadata."""
+    def render(self, report: Report, *, format: str | None = None) -> RenderedReport:
+        """Render ``report`` and return the artifact bytes + metadata.
+
+        Phase 2A FIX 7: ``format`` is an optional per-call override
+        (``"pdf"`` or ``"html"``); ``None`` (the default, used by every
+        pre-existing caller) renders in whichever format the adapter was
+        configured with at startup, preserving prior behavior exactly.
+        """

@@ -12,7 +12,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from kingsec.application.ports.scanner_registry import ScannerPluginRegistry
 from kingsec.application.scanner_discovery import ScannerDiscoveryService
+from kingsec.domain import ScannerId
+from kingsec.domain.enums import ScannerRunState
 from kingsec.domain.target import TargetType
 
 # ---------------------------------------------------------------------------
@@ -36,11 +39,21 @@ class AssessmentProfile:
 
 @dataclass(frozen=True, slots=True)
 class PlanScannerEntry:
-    """One scanner's status within an execution plan."""
+    """One scanner's decision within an execution plan.
+
+    Phase 2A Correction 2b: ``plan()`` produces exactly one of these for
+    EVERY scanner in the profile — never a partial list. ``selected=True``
+    means the orchestrator will invoke it; ``selected=False`` always
+    carries a ``skip_state`` (one of ``ScannerRunState``'s SKIPPED_*
+    members) explaining precisely why, in the same unified vocabulary the
+    execution tracker uses (Correction 4 — decided in this one place, not
+    per-plugin).
+    """
 
     scanner_id: str
     name: str
-    status: str  # "selected" | "skipped" | "unavailable" | "required_unavailable"
+    selected: bool
+    skip_state: ScannerRunState | None = None
     reason: str = ""
 
 
@@ -90,9 +103,24 @@ _DEFAULT_PROFILES: dict[str, AssessmentProfile] = {
         name="Web Application Scan",
         description="Comprehensive web application security assessment. Discovers endpoints with Gobuster and FFUF, then scans for vulnerabilities with Nuclei and OWASP ZAP.",
         supported_target_types=(TargetType.URL,),
+        # nmap stays in the scanner list (Phase 2A migration review): a URL
+        # target still has a real host/port, and dropping nmap entirely
+        # would hide a real coverage gap rather than reporting it. It is
+        # NOT required, because nmap's registered capabilities never
+        # include TargetType.URL (infrastructure/scanner/plugins/nmap/
+        # adapter.py) - making it required here made this profile
+        # structurally unable to ever proceed, for any URL target, which
+        # TestProfileRequiredScannersAreTargetTypeCompatible now catches
+        # for every profile. It is scheduled, correctly reported as
+        # SKIPPED_INCOMPATIBLE with a plain-English reason ("not
+        # applicable to a URL target"), and counted honestly as a
+        # coverage gap (COMPLETED_WITH_GAPS) - never silently dropped.
+        # Phase 2B: the real fix is deriving a host/port from the URL so
+        # nmap CAN run against it (e.g. http://127.0.0.1:18080) - keeping
+        # nmap listed-but-skipped here leaves room for that later.
         scanners=("nmap", "gobuster", "ffuf", "nuclei", "zap"),
         estimated_duration_minutes=60,
-        required_scanners=("nmap",),
+        required_scanners=(),
         tags=("web", "vulnerability", "comprehensive"),
     ),
     "api-scan": AssessmentProfile(
@@ -158,10 +186,32 @@ _DEFAULT_PROFILES: dict[str, AssessmentProfile] = {
 
 
 class ExecutionPlanner:
-    """Produces execution plans by matching profiles against targets and scanner health."""
+    """Produces execution plans by matching profiles against targets and scanner health.
 
-    def __init__(self, discovery: ScannerDiscoveryService | None = None) -> None:
+    Phase 2A Correction 2a: takes a ``ScannerPluginRegistry`` so it can
+    check per-scanner target-type compatibility via the registry's own
+    ``is_compatible()`` — the exact same logic ``ScannerOrchestrator``
+    uses to decide what it will actually execute. This is the single
+    source of truth the orchestrator and planner previously disagreed on
+    (the Run #4 reference-case root cause): the planner now decides
+    compatibility, and the orchestrator (Correction 2c) trusts that
+    decision completely instead of re-deriving it.
+
+    ``registry`` is optional only so existing unit tests that construct
+    an ``ExecutionPlanner`` without one keep working for pure
+    duration/profile-lookup tests; any planner used in a real
+    compatibility decision needs a real registry, and ``plan()`` treats a
+    missing registry as "no scanner is compatible" (fails closed, never
+    silently assumes compatibility).
+    """
+
+    def __init__(
+        self,
+        discovery: ScannerDiscoveryService | None = None,
+        registry: ScannerPluginRegistry | None = None,
+    ) -> None:
         self._discovery = discovery or ScannerDiscoveryService()
+        self._registry = registry
         self._profiles = dict(_DEFAULT_PROFILES)
 
     # ── Profile queries ─────────────────────────────────────────────────
@@ -233,66 +283,96 @@ class ExecutionPlanner:
         warnings: list[str] = []
 
         for sid in profile.scanners:
+            is_required = sid in profile.required_scanners
             status = scanner_statuses.get(sid)
+            name = status.name if status is not None else sid
 
-            if status is None:
-                skipped.append(PlanScannerEntry(
+            # Decision order, Phase 2A Correction 2:
+            # 1. target-type compatibility (moved here from the
+            #    orchestrator — the single source of truth, via the same
+            #    registry.is_compatible() the orchestrator itself defers
+            #    to; never re-derived independently again)
+            # 2. is the scanner even known to discovery
+            # 3. binary installed
+            # 4. required assets present
+            # Every branch appends to exactly one bucket and every
+            # scanner in profile.scanners is covered — no scanner is ever
+            # left undecided.
+            if self._registry is not None and not self._registry.is_compatible(ScannerId(sid), target_type):
+                entry = PlanScannerEntry(
                     scanner_id=sid,
-                    name=sid,
-                    status="skipped",
-                    reason="Unknown scanner",
-                ))
-                warnings.append(f"Scanner {sid!r} is not recognised by the discovery service.")
+                    name=name,
+                    selected=False,
+                    skip_state=ScannerRunState.SKIPPED_INCOMPATIBLE,
+                    reason=f"{name!r} does not support target type {target_type.value!r}",
+                )
+                if is_required:
+                    unavailable.append(entry)
+                    warnings.append(f"Required scanner {name!r} does not support target type {target_type.value!r}.")
+                else:
+                    skipped.append(entry)
+                    warnings.append(f"Optional scanner {name!r} skipped: does not support target type {target_type.value!r}.")
                 continue
 
-            is_required = sid in profile.required_scanners
-            name = status.name
+            if status is None:
+                entry = PlanScannerEntry(
+                    scanner_id=sid,
+                    name=sid,
+                    selected=False,
+                    skip_state=ScannerRunState.SKIPPED_BINARY_MISSING,
+                    reason="Unknown scanner",
+                )
+                if is_required:
+                    unavailable.append(entry)
+                    warnings.append(f"Required scanner {sid!r} is not recognised by the discovery service.")
+                else:
+                    skipped.append(entry)
+                    warnings.append(f"Scanner {sid!r} is not recognised by the discovery service.")
+                continue
 
             if status.usable:
                 selected.append(PlanScannerEntry(
                     scanner_id=sid,
                     name=name,
-                    status="selected",
+                    selected=True,
                 ))
             elif status.installed and not status.usable:
-                # Installed but missing assets.
+                # Installed but missing a required asset (Correction 4:
+                # same SKIPPED_ASSET_MISSING state regardless of which
+                # scanner/asset — decided here, in one place, not
+                # per-plugin).
+                entry = PlanScannerEntry(
+                    scanner_id=sid,
+                    name=name,
+                    selected=False,
+                    skip_state=ScannerRunState.SKIPPED_ASSET_MISSING,
+                    reason=status.availability_reason or "Missing required assets",
+                )
                 if is_required:
-                    unavailable.append(PlanScannerEntry(
-                        scanner_id=sid,
-                        name=name,
-                        status="required_unavailable",
-                        reason=status.availability_reason or "Missing required assets",
-                    ))
+                    unavailable.append(entry)
                     warnings.append(f"Required scanner {name!r} is installed but unusable: {status.availability_reason}")
                 else:
-                    skipped.append(PlanScannerEntry(
-                        scanner_id=sid,
-                        name=name,
-                        status="skipped",
-                        reason=status.availability_reason or "Missing assets",
-                    ))
+                    skipped.append(entry)
                     warnings.append(f"Optional scanner {name!r} skipped: {status.availability_reason}")
             else:
                 # Not installed.
+                entry = PlanScannerEntry(
+                    scanner_id=sid,
+                    name=name,
+                    selected=False,
+                    skip_state=ScannerRunState.SKIPPED_BINARY_MISSING,
+                    reason=f"{name!r} is not installed",
+                )
                 if is_required:
-                    unavailable.append(PlanScannerEntry(
-                        scanner_id=sid,
-                        name=name,
-                        status="required_unavailable",
-                        reason=f"{name!r} is not installed",
-                    ))
+                    unavailable.append(entry)
                     warnings.append(f"Required scanner {name!r} is not installed. "
                                     f"Hints: {'; '.join(status.install_hints) if status.install_hints else 'Install the scanner'}")
                 else:
-                    skipped.append(PlanScannerEntry(
-                        scanner_id=sid,
-                        name=name,
-                        status="unavailable",
-                        reason=f"{name!r} is not installed",
-                    ))
+                    skipped.append(entry)
 
-        # If any required scanner is unavailable, the plan cannot proceed.
-        can_proceed = len([e for e in unavailable if e.status == "required_unavailable"]) == 0
+        # If any required scanner was not selected, the plan cannot proceed
+        # — regardless of which of the skip reasons above caused it.
+        can_proceed = len(unavailable) == 0
 
         # Adjust duration estimate based on selected scanners.
         total_duration = sum(
@@ -346,23 +426,24 @@ class ExecutionPlanner:
 
     def plan_to_dict(self, plan: ExecutionPlan) -> dict[str, Any]:
         """Convert a plan to a JSON-safe dict."""
+
+        def entry_dict(s: PlanScannerEntry) -> dict[str, Any]:
+            return {
+                "scanner_id": s.scanner_id,
+                "name": s.name,
+                "selected": s.selected,
+                "skip_state": s.skip_state.value if s.skip_state is not None else None,
+                "reason": s.reason,
+            }
+
         return {
             "profile_id": plan.profile_id,
             "profile_name": plan.profile_name,
             "target_value": plan.target_value,
             "target_type": plan.target_type.value,
-            "selected_scanners": [
-                {"scanner_id": s.scanner_id, "name": s.name, "status": s.status, "reason": s.reason}
-                for s in plan.selected_scanners
-            ],
-            "skipped_scanners": [
-                {"scanner_id": s.scanner_id, "name": s.name, "status": s.status, "reason": s.reason}
-                for s in plan.skipped_scanners
-            ],
-            "unavailable_scanners": [
-                {"scanner_id": s.scanner_id, "name": s.name, "status": s.status, "reason": s.reason}
-                for s in plan.unavailable_scanners
-            ],
+            "selected_scanners": [entry_dict(s) for s in plan.selected_scanners],
+            "skipped_scanners": [entry_dict(s) for s in plan.skipped_scanners],
+            "unavailable_scanners": [entry_dict(s) for s in plan.unavailable_scanners],
             "warnings": list(plan.warnings),
             "estimated_duration_minutes": plan.estimated_duration_minutes,
             "can_proceed": plan.can_proceed,

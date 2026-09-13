@@ -3,13 +3,29 @@ from __future__ import annotations
 import threading
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import Any
 
 from kingsec.application.errors import IllegalJobTransitionError, JobNotFoundError
 from kingsec.application.job import JobId
 from kingsec.application.ports.job_service import JobServicePort
+
+
+def next_timestamp(after: datetime) -> datetime:
+    """A wall-clock read guaranteed to be strictly later than *after*.
+
+    ``datetime.now(UTC)`` alone is not sufficient here: on this platform two
+    calls close together can return an identical value (clock-tick
+    resolution), which breaks the invariant that a state transition's
+    ``updated_at`` must always be strictly after the record's previous
+    timestamp. Falls back to ``after + 1us`` only on an actual tie; real
+    elapsed wall-clock time is used whenever it has genuinely advanced.
+    """
+    now = datetime.now(UTC)
+    if now <= after:
+        return after + timedelta(microseconds=1)
+    return now
 
 
 class JobStatus(Enum):
@@ -86,6 +102,10 @@ class InMemoryJobService(JobServicePort):
         self._jobs: dict[str, ScanJob] = {}
         self._results: dict[str, ScanJobResult] = {}
         self._lock = threading.Lock()
+        # Insertion-order tiebreaker: created_at alone cannot distinguish two
+        # jobs submitted within the same clock tick (see next_timestamp()).
+        self._sequence: dict[str, int] = {}
+        self._next_sequence = 0
 
     # ------------------------------------------------------------------
     # Port interface
@@ -104,6 +124,8 @@ class InMemoryJobService(JobServicePort):
         )
         with self._lock:
             self._jobs[job_id.value] = job
+            self._sequence[job_id.value] = self._next_sequence
+            self._next_sequence += 1
         return job
 
     def get_job(self, job_id: str) -> ScanJob:
@@ -116,7 +138,8 @@ class InMemoryJobService(JobServicePort):
     def list_jobs(self) -> list[ScanJob]:
         with self._lock:
             jobs = list(self._jobs.values())
-        jobs.sort(key=lambda j: j.created_at, reverse=True)
+            sequence = dict(self._sequence)
+        jobs.sort(key=lambda j: (j.created_at, sequence[j.id.value]), reverse=True)
         return jobs
 
     def cancel_job(self, job_id: str) -> ScanJob:
@@ -125,14 +148,13 @@ class InMemoryJobService(JobServicePort):
             if job is None:
                 raise JobNotFoundError(f"Job not found: {job_id}")
             validate_transition(job.status, JobStatus.CANCELLED)
-            now = datetime.now(UTC)
             job = ScanJob(
                 id=job.id,
                 target=job.target,
                 config=job.config,
                 status=JobStatus.CANCELLED,
                 created_at=job.created_at,
-                updated_at=now,
+                updated_at=next_timestamp(job.updated_at),
             )
             self._jobs[job_id] = job
         return job
@@ -160,28 +182,27 @@ class InMemoryJobService(JobServicePort):
             if job is None:
                 raise JobNotFoundError(f"Job not found: {job_id}")
             validate_transition(job.status, target)
-            now = datetime.now(UTC)
             job = ScanJob(
                 id=job.id,
                 target=job.target,
                 config=job.config,
                 status=target,
                 created_at=job.created_at,
-                updated_at=now,
+                updated_at=next_timestamp(job.updated_at),
             )
             self._jobs[job_id] = job
         return job
 
     def find_oldest_pending(self) -> ScanJob | None:
-        pending: list[ScanJob] = []
+        pending: list[tuple[ScanJob, int]] = []
         with self._lock:
             for job in self._jobs.values():
                 if job.status == JobStatus.PENDING:
-                    pending.append(job)
+                    pending.append((job, self._sequence[job.id.value]))
         if not pending:
             return None
-        pending.sort(key=lambda j: j.created_at)
-        return pending[0]
+        pending.sort(key=lambda entry: (entry[0].created_at, entry[1]))
+        return pending[0][0]
 
     def store_result(self, job_id: str, result: ScanJobResult) -> None:
         """Associate a result with a job.

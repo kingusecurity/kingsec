@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from kingsec.application import ScannerPort
+from kingsec.application.ports.scanner_registry import ScannerPluginRegistry
 from kingsec.infrastructure._container import ContainerProtocol
 from kingsec.infrastructure.logging import get_logger
 
@@ -88,6 +89,11 @@ def register_scanner(
     orchestrator = ScannerOrchestrator(registry)
     register = container.register_instance
     register(ScannerPort, orchestrator)
+    # Phase 2A Correction 2a: ExecutionPlanner needs the same registry the
+    # orchestrator uses, so its target-type compatibility check
+    # (is_compatible()) is the identical single source of truth, never a
+    # second, independently-derived answer.
+    register(ScannerPluginRegistry, registry)
     _logger.info(
         "scanner registered",
         engines="nuclei,nmap,nikto,ffuf,gobuster,amass,trivy,zap,semgrep",

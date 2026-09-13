@@ -29,6 +29,7 @@ from kingsec.application.ports.repositories import FindingProjection, ReportProj
 from kingsec.domain import (
     Assessment,
     AssessmentId,
+    AssessmentStatus,
     Finding,
     Recommendation,
     Report,
@@ -63,6 +64,9 @@ class InMemoryAssessmentRepository(AssessmentRepository):
 
     def find_by_schedule_occurrence_id(self, occurrence_id: str) -> list[Assessment]:
         return [a for a in self._store.values() if a.schedule_occurrence_id == occurrence_id]
+
+    def find_running(self) -> list[Assessment]:
+        return [a for a in self._store.values() if a.status is AssessmentStatus.RUNNING]
 
     def delete(self, assessment_id: AssessmentId) -> None:
         if assessment_id.value not in self._store:
@@ -178,7 +182,7 @@ class FailingAI(AIPort):
 
 
 class StubReportGenerator(ReportGeneratorPort):
-    def render(self, report: Report) -> RenderedReport:
+    def render(self, report: Report, *, format: str | None = None) -> RenderedReport:
         return RenderedReport(
             content=b"%PDF-1.7 fake report bytes",
             media_type="application/pdf",

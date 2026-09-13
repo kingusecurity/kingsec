@@ -32,6 +32,7 @@ from kingsec.domain import (
     Report,
     ScannerId,
     ScannerResult,
+    ScannerRunState,
     ScannerRunSummary,
     Severity,
     Target,
@@ -147,7 +148,7 @@ def _scanner_summary_to_json(summary: tuple[ScannerRunSummary, ...]) -> list[dic
         {
             "scanner_id": s.scanner_id,
             "name": s.name,
-            "status": s.status,
+            "status": s.status.value,
             "findings_count": s.findings_count,
             "skipped_reason": s.skipped_reason,
         }
@@ -160,7 +161,7 @@ def _scanner_summary_from_json(entries: list[Any]) -> tuple[ScannerRunSummary, .
         ScannerRunSummary(
             scanner_id=e["scanner_id"],
             name=e["name"],
-            status=e["status"],
+            status=ScannerRunState(e["status"]),
             findings_count=e.get("findings_count", 0),
             skipped_reason=e.get("skipped_reason"),
         )
@@ -242,6 +243,7 @@ def report_to_orm(report: Report) -> ReportORM:
         authorized_by=report.authorized_by,
         scope=report.scope,
         scanner_summary=_scanner_summary_to_json(report.scanner_summary),
+        assessment_status=report.assessment_status.value,
     )
 
 
@@ -387,6 +389,7 @@ def report_to_domain(orm: ReportORM) -> Report:
         authorized_by=orm.authorized_by,
         scope=orm.scope,
         scanner_summary=_scanner_summary_from_json(orm.scanner_summary),
+        assessment_status=AssessmentStatus(orm.assessment_status),
     )
 
 

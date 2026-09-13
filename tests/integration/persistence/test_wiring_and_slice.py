@@ -40,7 +40,7 @@ class _StubScanner(ScannerPort):
 
 
 class _StubReportGenerator(ReportGeneratorPort):
-    def render(self, report: Report) -> RenderedReport:
+    def render(self, report: Report, *, format: str | None = None) -> RenderedReport:
         return RenderedReport(b"%PDF fake", "application/pdf", f"{report.assessment_id}.pdf")
 
 

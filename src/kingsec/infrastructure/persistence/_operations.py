@@ -228,6 +228,22 @@ def list_assessments(
     return [assessment_to_domain(orm) for orm in orms]
 
 
+def find_running_assessments(session: Session) -> list[Assessment]:
+    """Load every assessment currently in RUNNING status.
+
+    Phase 2A FIX 9: used only by the startup orphan-recovery pass. A
+    process restart means nothing is actually executing anymore, so any
+    row still RUNNING here was interrupted (crashed, killed, forcibly
+    restarted) mid-execution - never legitimately still in flight, since
+    this query only ever runs before any new work has been submitted.
+    ``AssessmentORM.status`` stores the enum member NAME (see
+    ``assessment_to_orm``), not its value, so the filter matches on
+    ``AssessmentStatus.RUNNING.name`` ("RUNNING").
+    """
+    orms = session.query(AssessmentORM).filter(AssessmentORM.status == "RUNNING").all()
+    return [assessment_to_domain(orm) for orm in orms]
+
+
 def find_assessments_by_schedule_occurrence_id(session: Session, occurrence_id: str) -> list[Assessment]:
     """Load every assessment linked to a schedule occurrence (KSEC-100-01).
 

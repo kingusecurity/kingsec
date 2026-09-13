@@ -14,7 +14,7 @@ from __future__ import annotations
 from kingsec.application.errors import ScannerDuplicateError, ScannerPluginError
 from kingsec.application.ports.scanner_plugin import ScannerPluginPort
 from kingsec.application.ports.scanner_registry import ScannerPluginRegistry
-from kingsec.domain import PluginAvailability, ScannerId, ScannerPluginMetadata, Target
+from kingsec.domain import PluginAvailability, ScannerId, ScannerPluginMetadata, Target, TargetType
 
 
 class InMemoryPluginRegistry(ScannerPluginRegistry):
@@ -55,11 +55,23 @@ class InMemoryPluginRegistry(ScannerPluginRegistry):
         except KeyError:
             raise ScannerPluginError(f"no scanner plugin registered for {plugin_id.value!r}") from None
 
+    def is_compatible(self, scanner_id: ScannerId, target_type: TargetType) -> bool:
+        """Return whether a specific scanner declares support for a target type.
+
+        The single source of truth — see the port docstring. ``resolve()``
+        below is defined purely in terms of this method.
+        """
+        plugin = self._plugins.get(scanner_id)
+        if plugin is None:
+            return False
+        return any(target_type in cap.target_types for cap in plugin.capabilities())
+
     def resolve(self, target: Target) -> tuple[ScannerPluginPort, ...]:
         """Return all plugins capable of scanning this target type.
 
-        Checks each plugin's declared capabilities against the target's type.
-        Returns an empty tuple if no plugins match. No ordering is applied.
+        Checks each plugin's declared capabilities against the target's type
+        via ``is_compatible()``. Returns an empty tuple if no plugins match.
+        No ordering is applied.
 
         Args:
             target: The target whose type is matched against plugin capabilities.
@@ -67,13 +79,11 @@ class InMemoryPluginRegistry(ScannerPluginRegistry):
         Returns:
             A tuple of matching ScannerPluginPort implementations.
         """
-        matched: list[ScannerPluginPort] = []
-        for plugin in self._plugins.values():
-            for cap in plugin.capabilities():
-                if target.type in cap.target_types:
-                    matched.append(plugin)
-                    break
-        return tuple(matched)
+        return tuple(
+            plugin
+            for plugin_id, plugin in self._plugins.items()
+            if self.is_compatible(plugin_id, target.type)
+        )
 
     def list_all(
         self,

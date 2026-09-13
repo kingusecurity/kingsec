@@ -29,8 +29,8 @@ from ._support import (
     safe_failure_message,
     to_assessment_id,
 )
-from .assessment_execution import AssessmentExecutionEngine, ExecutionPhase
-from .assessment_profiles import ExecutionPlanner
+from .assessment_execution import AssessmentExecutionEngine, ExecutionPhase, ScannerPlanEntry
+from .assessment_profiles import ExecutionPlanner, PlanScannerEntry
 from .dto import SubmitAssessmentRequest, SubmitAssessmentResponse
 from .errors import AssessmentConflictError, ExecutionPlanUnsatisfiedError
 from .events import (
@@ -268,9 +268,18 @@ def _execute_scan(
     try:
         # Which scanners are allowed to run, and what the profile's plan
         # already ruled out before execution even starts.
+        #
+        # Phase 2A Correction 2b: the planner now decides EVERY scanner in
+        # the profile - each is either selected or carries one of the
+        # SKIPPED_* terminal states, in the SAME unified vocabulary the
+        # execution engine tracks. There is no separate "preplanned skips"
+        # bucket bolted on after the fact anymore: set_scanner_plan()
+        # seeds every scanner (selected -> PENDING, skipped -> its
+        # terminal state immediately) in one call, so a scanner that will
+        # never be dispatched is never left "pending" even transiently -
+        # this is what makes the Run #4 reference-case defect structurally
+        # impossible, not merely unlikely.
         scanner_ids: tuple[str, ...] | None = None
-        selected_names: dict[str, str] = {}
-        preplanned_skips: tuple[ScannerRunSummary, ...] = ()
 
         if assessment.profile_id is not None and planner is not None:
             # Server-side re-validation: re-plan now, at execution time,
@@ -286,22 +295,38 @@ def _execute_scan(
                 raise ExecutionPlanUnsatisfiedError(reason)
 
             scanner_ids = tuple(e.scanner_id for e in plan.selected_scanners)
-            selected_names = {e.scanner_id: e.name for e in plan.selected_scanners}
-            preplanned_skips = tuple(
-                ScannerRunSummary(
-                    scanner_id=e.scanner_id,
-                    name=e.name,
-                    status="skipped",
-                    skipped_reason=e.reason or None,
-                )
-                for e in (*plan.skipped_scanners, *plan.unavailable_scanners)
+            all_plan_entries: tuple[PlanScannerEntry, ...] = (
+                *plan.selected_scanners,
+                *plan.skipped_scanners,
+                *plan.unavailable_scanners,
             )
+            if execution_engine is not None:
+                execution_engine.set_scanner_plan(
+                    tracking_id,
+                    tuple(
+                        ScannerPlanEntry(
+                            scanner_id=e.scanner_id,
+                            name=e.name,
+                            selected=e.selected,
+                            skip_state=e.skip_state,
+                            skip_reason=e.reason or None,
+                        )
+                        for e in all_plan_entries
+                    ),
+                )
         elif execution_engine is not None:
-            # No profile: today's exact "run everything compatible" behavior.
+            # No profile: today's exact "run everything compatible"
+            # behavior - every compatible scanner is selected, none skipped.
             selected_names = scanner.compatible_scanners(assessment.target)
+            execution_engine.set_scanner_plan(
+                tracking_id,
+                tuple(
+                    ScannerPlanEntry(scanner_id=sid, name=name, selected=True)
+                    for sid, name in selected_names.items()
+                ),
+            )
 
         if execution_engine is not None:
-            execution_engine.set_scanner_plan(tracking_id, selected_names)
             execution_engine.transition_phase(tracking_id, ExecutionPhase.RUNNING_SCANNERS)
 
         if scanner_executor is not None:
@@ -327,47 +352,76 @@ def _execute_scan(
             execution_engine.transition_phase(tracking_id, ExecutionPhase.CORRELATING)
             execution_engine.transition_phase(tracking_id, ExecutionPhase.REPORTING)
 
-        # Populated only when execution_engine is not None - the only path
-        # with per-scanner outcome data to check (Phase 06 §2.1: the
-        # scanner_executor-is-None fallback below never reaches this block
-        # at all, so it is unaffected by this check either way).
-        failed_scanners: tuple[ScannerRunSummary, ...] = ()
-        if execution_engine is not None:
+        # Populated only when BOTH execution_engine and scanner_executor are
+        # set (Phase 06 §2.1's original invariant, restored here): only the
+        # scanner_executor path reports real per-scanner start/complete/
+        # fail/timeout events to the engine as scanning happens. The plain
+        # scanner.scan() fallback (scanner_executor is None) never advances
+        # whatever set_scanner_plan() seeded, so reading execution_engine's
+        # state there would see permanently-stale PENDING entries and
+        # wrongly conclude "zero scanners succeeded" for a scan that
+        # genuinely completed - exactly the false-FAILED regression this
+        # gate exists to prevent.
+        non_succeeded: tuple[ScannerRunSummary, ...] = ()
+        succeeded_count = 0
+        total_count = 0
+        if execution_engine is not None and scanner_executor is not None:
             state = execution_engine.get_state(tracking_id)
-            ran_summaries = tuple(
+            progress = state.scanner_progress if state is not None else ()
+
+            # Phase 2A Correction 2d: the planner/orchestrator invariant,
+            # enforced here, loudly, not merely assumed. Every scanner the
+            # planner marked selected must now be in a TERMINAL state - if
+            # scanner_ids is set and any of them is still PENDING/RUNNING,
+            # execute_all() silently failed to process something it was
+            # given, which is exactly the class of defect this phase
+            # exists to make structurally impossible. Fail loudly rather
+            # than let it slip through as an ordinary "pending forever".
+            if scanner_ids is not None:
+                by_id = {p.scanner_id: p for p in progress}
+                non_terminal = [
+                    sid for sid in scanner_ids
+                    if sid not in by_id or not by_id[sid].status.is_terminal
+                ]
+                if non_terminal:
+                    raise RuntimeError(
+                        "planner/orchestrator invariant violated: scanner(s) "
+                        f"{non_terminal!r} were selected by the plan but did not "
+                        "reach a terminal state"
+                    )
+
+            all_summaries = tuple(
                 ScannerRunSummary(
                     scanner_id=p.scanner_id,
                     name=p.name,
                     status=p.status,
                     findings_count=p.findings_count,
-                    # skipped_reason covers the pre-execution "skipped" status;
-                    # error covers "failed" (missing binary, non-zero exit,
-                    # etc.) - a scanner's real outcome reason lives in
-                    # whichever of the two its terminal status actually set.
+                    # skipped_reason covers every pre-execution SKIPPED_*
+                    # state; error covers FAILED/TIMED_OUT - a scanner's
+                    # real outcome reason lives in whichever of the two
+                    # its terminal status actually set.
                     skipped_reason=p.skipped_reason or p.error,
                 )
-                for p in (state.scanner_progress if state is not None else ())
+                for p in progress
             )
-            all_summaries = ran_summaries + preplanned_skips
             assessment.record_scanner_summary(all_summaries)
 
-            # "Attempted" excludes pre-planned and live-recorded skips - a
-            # scanner that was deliberately never run cannot have failed.
-            # Fails closed: only an exact "failed" status counts, so any
-            # non-terminal status (structurally unreachable here - Phase 06
-            # §2.2 confirmed execute_all()'s loop is synchronous with no
-            # early return, so every plugin has a terminal status by the
-            # time this runs) is treated as not-failed rather than guessed.
-            attempted = tuple(s for s in all_summaries if s.status != "skipped")
-            if attempted and all(s.status == "failed" for s in attempted):
-                # Guards the vacuous-truth case explicitly: an EMPTY
-                # attempted set (e.g. every scanner was pre-planned-skipped)
-                # never reaches here, because `attempted and ...` is False
-                # when `attempted` is empty.
-                failed_scanners = attempted
+            total_count = len(all_summaries)
+            succeeded_count = sum(1 for s in all_summaries if s.status.is_success)
+            non_succeeded = tuple(s for s in all_summaries if not s.status.is_success)
 
-        if failed_scanners:
-            assessment.fail(compose_all_scanners_failed_message(failed_scanners))
+        # Phase 2A FIX 3 - honest assessment status:
+        #   COMPLETED            only when every scheduled scanner SUCCEEDED
+        #   COMPLETED_WITH_GAPS  any scanner skipped, failed, or timed out
+        #   FAILED               zero scanners succeeded
+        # A partial run must never be labelled COMPLETED, no exceptions -
+        # this is what makes the Run #4 reference case ("88.0/100 - Sound"
+        # with 6 of 9 scanners never run) structurally impossible.
+        assessment_failed = total_count > 0 and succeeded_count == 0
+        if assessment_failed:
+            assessment.fail(compose_all_scanners_failed_message(non_succeeded))
+        elif non_succeeded:
+            assessment.complete_with_gaps()
         else:
             assessment.complete()
         assessments.save(assessment)
@@ -380,8 +434,14 @@ def _execute_scan(
         # False) means a concurrent process already reconciled or
         # transitioned this record - never re-raised, since the Assessment
         # itself is already correctly terminal regardless.
+        #
+        # COMPLETED_WITH_GAPS maps to ledger SUCCEEDED, not FAILED: the
+        # execution process itself ran to a genuine terminal conclusion -
+        # partial coverage is a business-level fact the Assessment's own
+        # status already carries, not a process-level failure the ledger
+        # needs to separately represent.
         if execution_ledger is not None and execution_id is not None and running_version is not None:
-            if failed_scanners:
+            if assessment_failed:
                 execution_ledger.try_mark_failed(execution_id, running_version)
             else:
                 execution_ledger.try_mark_succeeded(execution_id, running_version)

@@ -1,0 +1,466 @@
+KINGSEC — RESPONSE TO MIGRATION REVIEW ("new prompt.txt")
+Generated: 2026-09-11
+
+================================================================================
+BLOCKER 1 — reports.assessment_id uniqueness — RESOLVED, no rewrite needed
+================================================================================
+1. .schema reports (real schema, queried directly from C:\kingsec-e2e\kingsec.db):
+
+    CREATE TABLE "reports" (
+        assessment_id VARCHAR NOT NULL,
+        target VARCHAR NOT NULL,
+        generated_at VARCHAR NOT NULL,
+        verdict_headline VARCHAR NOT NULL,
+        verdict_action_required BOOLEAN NOT NULL,
+        verdict_highest_severity VARCHAR,
+        entries JSON NOT NULL,
+        severity_counts JSON NOT NULL,
+        ai_enabled BOOLEAN DEFAULT 0 NOT NULL,
+        history JSON DEFAULT '[]' NOT NULL,
+        authorized_by VARCHAR DEFAULT ('') NOT NULL,
+        scope VARCHAR DEFAULT ('') NOT NULL,
+        scanner_summary JSON DEFAULT '[]' NOT NULL,
+        PRIMARY KEY (assessment_id),
+        CONSTRAINT fk_reports_assessment_id_assessments FOREIGN KEY(assessment_id)
+            REFERENCES assessments (id) ON DELETE CASCADE
+    )
+
+   assessment_id IS the literal, DB-enforced primary key.
+
+2. SELECT assessment_id, COUNT(*) FROM reports GROUP BY assessment_id
+   HAVING COUNT(*) > 1;
+   -> zero rows (and the table currently has 0 rows total - matches Phase 1's
+      own evidence: 1 assessment, 0 reports, 0 findings at that point).
+   PRIMARY KEY makes this query moot anyway: SQLite would reject a duplicate
+   INSERT outright (IntegrityError), it cannot silently create a second row.
+
+3. Can the code ever create two report rows for one assessment - now, or
+   after FIX 7?
+   - The ONLY write path is GenerateReport.execute() -> ReportRepository.save()
+     -> persist_report() (infrastructure/persistence/_operations.py:179) ->
+     session.merge(report_to_orm(report)). session.merge() is SQLAlchemy's
+     upsert-by-primary-key; it can only ever update or insert the ONE row
+     keyed by assessment_id, never create a second one.
+   - grep confirms ReportORM(...) is constructed in exactly one place
+     (mappers.py:197, called only by persist_report()) - no second insert
+     path exists anywhere in the codebase.
+   - FIX 7 (?format=html|pdf) touches ONLY download_report() (routes.py),
+     which calls repo.get(...) and generator.render(...) - grepped the full
+     function body, it never calls .save() or persist_report(). FIX 7 adds a
+     rendering choice, not a persistence path.
+
+   Conclusion: reports.assessment_id is a real, enforced, unique primary key,
+   and no code path — before or after FIX 7 — can ever produce a second
+   report row for one assessment. Keying both backfills on assessment_id is
+   correct and safe. No migration rewrite needed for this blocker.
+
+================================================================================
+BLOCKER 2 — drop server_default after backfill — FIXED, verified by dry-run
+================================================================================
+Added, at the end of upgrade(), after both backfills:
+
+    with op.batch_alter_table("reports") as batch_op:
+        batch_op.alter_column("assessment_status", server_default=None)
+
+Confirmed safe: grepped for every ReportORM(...) construction site (there is
+exactly one, mappers.py's report_to_orm(), which always sets
+assessment_status=report.assessment_status.value explicitly) - no insert
+path relies on the column default.
+
+Verified with a REAL dry-run against a disposable scratch SQLite DB (never
+C:\kingsec-e2e, never ~/.kingsec — created, used, and deleted entirely within
+this response):
+  1. Migrated a fresh DB to da4b78614806 (the real prior head).
+  2. Seeded one old-vocabulary report row by hand (status: "completed" /
+     "skipped" entries).
+  3. Ran the revised migration to 64e10236c8c1.
+     - Resulting schema: `assessment_status VARCHAR NOT NULL` — no DEFAULT
+       clause present (SQLite's batch table-rebuild genuinely removed it,
+       not just relabeled it).
+     - The seeded row correctly became assessment_status='completed_with_gaps'
+       (its scanner_summary had a non-succeeded entry) and its
+       scanner_summary vocabulary correctly backfilled:
+       "completed"->"succeeded", "skipped"->"skipped_incompatible".
+  4. Attempted an INSERT into reports omitting assessment_status entirely:
+     -> sqlite3.IntegrityError: NOT NULL constraint failed:
+        reports.assessment_status
+     This is the real proof the blocker asked for: a missing value now
+     RAISES instead of reassuring.
+  5. Ran `alembic downgrade da4b78614806` against the same DB: completed
+     cleanly, no errors.
+  6. Full alembic test suite re-run after the revision:
+     tests/integration/test_alembic_migrations.py -> 13 passed.
+
+================================================================================
+REQUIRED — downgrade() documented honestly
+================================================================================
+Both the module docstring and downgrade()'s own comment now state explicitly
+that downgrade() is NOT a rollback path — it only reverses the schema
+addition. After it runs, scanner_summary blobs still contain the NEW
+vocabulary (pre-Phase-2A code cannot parse it), so restoring the ability to
+run pre-Phase-2A code requires restoring the database from a backup taken
+before this migration ran, not `alembic downgrade`. Full text is in the
+migration source at the end of this file.
+
+================================================================================
+A. CORRECTION 1 — 5 repeated web-scan timing runs — RE-RUN FOR REAL
+================================================================================
+You're right that this had no durable evidence — the earlier 5-run result
+existed only in conversation, never written to a file. Re-ran it for real,
+just now, against a freshly-started real DVWA container (127.0.0.1:18080,
+same image/port as Phase 1) and the isolated C:\kingsec-e2e database (current
+head da4b78614806 — this test does not depend on the pending migration, so I
+ran it without applying that migration first), through the real HTTP route
+layer and real ThreadJobRunner background execution.
+
+  run 1: 22.99s  status=FAILED  id=asmt-7a832e3912884489a5d25b8cbf76f4a4
+  run 2:  6.78s  status=FAILED  id=asmt-9faac08a04354d20be231a92fd260b69
+  run 3:  6.42s  status=FAILED  id=asmt-26769acc3698414a9f48011a1b1505f6
+  run 4:  6.55s  status=FAILED  id=asmt-2ccd69efb3064afcb7f42978d89b71f9
+  run 5:  6.36s  status=FAILED  id=asmt-6ec79cea759e40149b86b86d7fa2495b
+  min=6.36s max=22.99s, 5 of 5 distinct values.
+
+Q7 is proven: 5 real runs, 5 genuinely different elapsed times (run 1 is the
+cold-start outlier — first request through a freshly-composed app pays
+import/connection-pool warmup that runs 2-5 don't). This settles the original
+18.28s/18.28s question definitively: real elapsed time varies run to run: it
+is not cached or hardcoded.
+
+*** BUT: all 5 runs FAILED, and this surfaced a real, separate defect. ***
+
+Checked the actual failure reason (queried assessments.failure_reason
+directly):
+
+  "Required scanner 'Nmap' does not support target type 'url'.;
+   Optional scanner 'Gobuster' skipped: Missing Wordlist file...;
+   Optional scanner 'FFUF' skipped: Missing Wordlist file...;
+   Optional scanner 'Nuclei' skipped: Missing Nuclei templates..."
+
+Root cause, confirmed by direct code inspection:
+  - web-scan's profile definition: supported_target_types=(TargetType.URL,),
+    required_scanners=("nmap",)
+  - nmap's plugin adapter (infrastructure/scanner/plugins/nmap/adapter.py:69):
+    target_types=frozenset({IP_ADDRESS, HOSTNAME, NETWORK}) — URL is never
+    included.
+
+web-scan REQUIRES nmap, but nmap can never be compatible with web-scan's only
+supported target type. Under Correction 2a's now-correct compatibility check
+(checked first, before binary/asset checks), this means web-scan's
+plan.can_proceed is FALSE unconditionally, for every possible target — the
+profile can never run, full stop.
+
+This is not a regression I introduced with incorrect logic — it's a real,
+pre-existing profile-definition bug that Correction 2a's own correctness
+newly exposes. Before Correction 2a, the planner never checked target-type
+compatibility when deciding "is a required scanner available" — only the
+ORCHESTRATOR's own registry.resolve() did that filtering, silently, at
+dispatch time, with no engine notification. So under the OLD code: nmap
+would be marked "selected" by the plan (compatibility never checked at
+planning time) -> plan.can_proceed=True -> assessment proceeds to RUNNING ->
+the orchestrator's own target-type filter silently drops nmap from actual
+execution -> the assessment still reports COMPLETED (or COMPLETED_WITH_GAPS)
+with nmap simply never having run. This is corroborated by Phase 1's own
+E2E-EVIDENCE.md: Run #2 (Web Application Scan, web-scan profile) DID
+complete in Phase 1, reporting "completed" with a real PDF generated —
+before Correction 2a existed to catch this.
+
+In other words: Correction 2a is working exactly as designed here. It just
+found a second instance of the same underlying defect class (a scanner that
+can never actually run, silently treated as fine) in a different place than
+the Run #4 reference case — this time at the PROFILE DEFINITION level
+(nmap required by a profile whose only target type nmap doesn't support),
+not the execution level.
+
+Scope check: this does NOT block task (pending) "re-run Run #4 against real
+DVWA" — that scenario uses the full-assessment profile, whose
+required_scanners is empty (()), so it has no analogous required-but-
+incompatible scanner and is unaffected.
+
+This needs a product decision, not a guess on my part:
+  (a) Remove "nmap" from web-scan's required_scanners (make it optional, or
+      drop it from web-scan's scanner list entirely, since it structurally
+      can never run for a URL target anyway), or
+  (b) something else you'd prefer.
+I have NOT touched assessment_profiles.py to fix this — flagging it here for
+your call, per the same pattern as the earlier blockers. Logged as its own
+item; let me know how you want it handled.
+
+================================================================================
+B. CORRECTION 2(d) — planner/orchestrator invariant across every
+   profile x target_type — DID NOT EXIST AS SPECIFIED, NOW DOES
+================================================================================
+Correct catch: the invariant test that existed only covered ONE combination
+(full-assessment x IP_ADDRESS). Expanded it into a real matrix test,
+tests/unit/application/test_phase2a_honest_coverage.py,
+class TestPlannerOrchestratorInvariantAcrossFullMatrix:
+
+  - The (profile_id, target_type) pairs are generated FROM
+    ExecutionPlanner.list_profiles() itself (not hand-copied), so a new
+    profile is automatically covered without anyone remembering to extend
+    this test.
+  - Currently resolves to 16 real combinations (8 profiles x each profile's
+    own 1-3 supported target types).
+  - For every one of the 16: asserts plan() decides every scanner in the
+    profile exactly once (Correction 2b), AND runs a full SubmitAssessment
+    execution through a compliant executor (brings exactly the selected set
+    to a terminal state, no more, no less) and asserts the invariant check
+    never raises and the assessment reaches a real terminal status with
+    every scanner in scanner_summary showing SUCCEEDED.
+
+Ran standalone: `pytest tests/unit/application/test_phase2a_honest_coverage.py
+-q` -> 27 passed (16 of those are this matrix test's parametrized cases).
+ruff clean on the file.
+
+================================================================================
+C. CORRECTION 4 — Windows wordlist path — VERIFIED CORRECT, ONE FACTUAL
+   CORRECTION: the real field name is `wordlist`, not `wordlist_path`
+================================================================================
+Checked the actual Pydantic settings classes (infrastructure/config/models.py):
+
+    class GobusterSettings(BaseModel):
+        wordlist: str = ""          # <- real field name
+    class FfufSettings(BaseModel):
+        wordlist: str = ""          # <- real field name
+
+There is no `wordlist_path` field on either class — I did not reference one;
+composition.py's wiring correctly uses `settings.ffuf.wordlist` /
+`settings.gobuster.wordlist` (grepped and confirmed the exact line).
+
+Ran the REAL end-to-end check on THIS Windows host (not just the isolated
+unit test), both directions:
+
+  Configured with a real Windows-style path to a file that actually exists
+  (C:\Users\...\tmp\wordlists\common.txt):
+    ffuf     installed=True usable=True  missing_assets=()  has_wordlists=True
+    gobuster installed=True usable=True  missing_assets=()  has_wordlists=True
+
+  Unconfigured (empty string, the pre-configuration state):
+    ffuf     installed=True usable=False missing_assets=('Wordlist file',)
+             reason="Missing Wordlist file: Configure KINGSEC_FFUF__WORDLIST..."
+    gobuster installed=True usable=False missing_assets=('Wordlist file',)
+             reason="Missing Wordlist file: Configure KINGSEC_GOBUSTER__WORDLIST..."
+
+Confirms both required properties: the check reads the REAL configured path
+(not a hardcoded /usr/share/wordlists — it correctly resolves a genuine
+Windows backslash path), and it correctly reports missing when unconfigured
+(not a rubber-stamp pass). No fix needed here; Correction 4 is verified
+working end-to-end on this host.
+
+================================================================================
+FOLLOW-UP — logged, not fixed now (per your instruction)
+================================================================================
+Will add to docs/STATUS.md: FIX 9's orphan-recovery pass is currently gated
+on `validate_migrations`, using it as a proxy for "schema is ready to
+query." These are two different concepts — a deployment that sets
+validate_migrations=False for any other reason would silently skip orphan
+resolution entirely. FIX 9 needs its own flag, or a lazy first-request
+trigger, instead of reusing validate_migrations.
+
+================================================================================
+BRANCH
+================================================================================
+Still on chore/phase-1-e2e-evidence. Have NOT created/switched to
+fix/phase-2a-honest-coverage yet, and have NOT committed anything from this
+session's work — will do both once you've reviewed this and the revised
+migration below, per your instruction to hold on committing until then.
+
+================================================================================
+REVISED MIGRATION — FULL SOURCE (both blockers applied)
+================================================================================
+Still NOT applied to any database. Awaiting your approval.
+
+--------------------------------------------------------------------------------
+"""add reports.assessment_status and backfill legacy scanner-status vocabulary
+
+Phase 2A: ``ScannerRunSummary.status`` moved from a free-form ``str`` to
+the ``ScannerRunState`` enum (PENDING/RUNNING/SUCCEEDED/FAILED/TIMED_OUT/
+SKIPPED_INCOMPATIBLE/SKIPPED_BINARY_MISSING/SKIPPED_ASSET_MISSING), and
+``Report`` gained an ``assessment_status`` field recording whether the
+assessment it was generated from was COMPLETED or COMPLETED_WITH_GAPS.
+Both changes need a real data migration, not just a schema change:
+existing rows have the OLD status vocabulary ("pending", "completed",
+"failed", "skipped") baked into their ``scanner_summary`` JSON blobs, and
+existing ``reports`` rows have no ``assessment_status`` at all.
+
+Two independent backfills:
+
+1. ``reports.assessment_status`` (new column, default 'completed' for the
+   ADD COLUMN itself so SQLite backfills every existing row atomically),
+   then refined per-row: a report whose (already-backfilled)
+   ``scanner_summary`` shows any scanner that didn't reach SUCCEEDED is
+   re-labelled 'completed_with_gaps' - an honest, best-effort correction
+   for historical reports rather than silently claiming full coverage
+   they may not have had. Reports predating the scanner-coverage feature
+   entirely (empty ``scanner_summary``) are left at 'completed', matching
+   ``Report.assessment_status``'s own default for pre-existing callers.
+
+2. The ``scanner_summary`` JSON blobs on BOTH ``assessments`` and
+   ``reports`` - each entry's ``status`` string is remapped to the new
+   vocabulary via the best-effort table below. This is necessarily lossy
+   for "skipped": the old vocabulary had no concept of WHY a scanner was
+   skipped, so every old "skipped" becomes SKIPPED_INCOMPATIBLE, the
+   closest available meaning ("this scanner was not applicable"), not
+   necessarily the true original reason.
+
+Deliberately does NOT touch ``assessments.status`` itself (the
+top-level lifecycle column) - retroactively reclassifying a historical
+Assessment's own COMPLETED/FAILED verdict is a materially bigger claim
+than relabelling its scanner-status vocabulary, and out of scope here.
+
+``reports.assessment_id`` IS the real primary key (verified against the
+live schema: ``PRIMARY KEY (assessment_id)``, and the sole write path -
+``GenerateReport.execute()`` -> ``ReportRepository.save()`` ->
+``persist_report()`` -> ``session.merge()`` - always upserts by that PK,
+so two report rows for one assessment cannot exist; FIX 7's ``?format=``
+query param only changes what ``download_report()`` renders on the fly
+and never calls ``save()``). Keying both backfills on ``assessment_id``
+is therefore safe.
+
+``assessment_status``'s ``server_default='completed'`` exists ONLY to
+backfill the ADD COLUMN atomically; it is dropped at the end of
+``upgrade()``, once both backfills have run, via
+``alter_column(..., server_default=None)``. Leaving a default on this
+column permanently would mean any future insert path that omits
+``assessment_status`` silently gets "completed" - full coverage claimed
+by default - which is the exact Run #4 failure mode this phase exists to
+eliminate, reproduced at the DB layer. Confirmed safe to drop: the sole
+``ReportORM`` construction site (``mappers.report_to_orm()``) always sets
+``assessment_status`` explicitly from the domain ``Report``, never relies
+on the column default.
+
+IMPORTANT - ``downgrade()`` is NOT a rollback path. It only reverses the
+schema addition (drops the column). The ``scanner_summary`` vocabulary
+backfill in step 2 is irreversible in practice: mapping "succeeded" back
+to "completed" etc. cannot distinguish entries that were already
+old-vocabulary before this migration ran from ones it just changed, so a
+downgrade would be a guess, not a true inverse. Concretely: after
+``downgrade()`` runs, ``scanner_summary`` blobs still contain the NEW
+vocabulary ("succeeded", "skipped_incompatible", ...), which
+pre-Phase-2A code cannot parse (its ``ScannerRunSummary.status`` expected
+the old strings) - downgrading the schema does not restore
+pre-Phase-2A-readable data. If this migration needs to be undone, restore
+the database from a backup taken before it ran; do not run
+``alembic downgrade`` believing it reverses the data change.
+
+Revision ID: 64e10236c8c1
+Revises: da4b78614806
+Create Date: 2026-09-10 12:00:00.000000
+"""
+
+from __future__ import annotations
+
+import json
+
+import sqlalchemy as sa
+from alembic import op
+
+# revision identifiers, used by Alembic.
+revision: str = "64e10236c8c1"
+down_revision: str | None = "da4b78614806"
+branch_labels: str | None = None
+depends_on: str | None = None
+
+# Old (pre-Phase-2A) -> new ScannerRunState.value vocabulary. Only keys
+# actually seen in production data are listed; anything else is left
+# untouched (defensive - never guess at a value this migration doesn't
+# recognise).
+_STATUS_MAP: dict[str, str] = {
+    "pending": "pending",
+    "running": "running",
+    "completed": "succeeded",
+    "failed": "failed",
+    "skipped": "skipped_incompatible",
+}
+
+_SUCCESS_VALUE = "succeeded"
+
+
+def _backfill_scanner_summary(table_name: str, pk_col: str) -> None:
+    conn = op.get_bind()
+    rows = conn.execute(sa.text(f"SELECT {pk_col}, scanner_summary FROM {table_name}")).fetchall()  # noqa: S608
+    for pk, raw in rows:
+        if not raw:
+            continue
+        entries = json.loads(raw)
+        if not entries:
+            continue
+        changed = False
+        for entry in entries:
+            old_status = entry.get("status")
+            new_status = _STATUS_MAP.get(old_status)
+            if new_status is not None and new_status != old_status:
+                entry["status"] = new_status
+                changed = True
+        if changed:
+            conn.execute(
+                sa.text(f"UPDATE {table_name} SET scanner_summary = :val WHERE {pk_col} = :pk"),  # noqa: S608
+                {"val": json.dumps(entries), "pk": pk},
+            )
+
+
+def _refine_report_assessment_status() -> None:
+    """Re-label a report 'completed_with_gaps' if its backfilled
+    scanner_summary shows any scanner that didn't reach SUCCEEDED."""
+    conn = op.get_bind()
+    rows = conn.execute(sa.text("SELECT assessment_id, scanner_summary FROM reports")).fetchall()
+    for assessment_id, raw in rows:
+        if not raw:
+            continue
+        entries = json.loads(raw)
+        if not entries:
+            continue
+        if any(entry.get("status") != _SUCCESS_VALUE for entry in entries):
+            conn.execute(
+                sa.text("UPDATE reports SET assessment_status = 'completed_with_gaps' WHERE assessment_id = :pk"),
+                {"pk": assessment_id},
+            )
+
+
+def upgrade() -> None:
+    with op.batch_alter_table("reports") as batch_op:
+        batch_op.add_column(
+            sa.Column("assessment_status", sa.String(), nullable=False, server_default="completed")
+        )
+
+    _backfill_scanner_summary("assessments", "id")
+    _backfill_scanner_summary("reports", "assessment_id")
+    _refine_report_assessment_status()
+
+    # Drop the default now that every existing row has been backfilled -
+    # see the module docstring for why leaving it in place permanently
+    # would be its own instance of the Run #4 false-assurance defect.
+    with op.batch_alter_table("reports") as batch_op:
+        batch_op.alter_column("assessment_status", server_default=None)
+
+
+def downgrade() -> None:
+    # NOT A ROLLBACK PATH. This only reverses the schema addition (drops
+    # the column) - it does NOT undo the scanner_summary vocabulary
+    # backfill, which is irreversible in practice (mapping "succeeded"
+    # back to "completed" etc. cannot distinguish entries that were
+    # already old-vocabulary before this migration from ones it just
+    # changed). After this runs, scanner_summary blobs still contain the
+    # NEW vocabulary, which pre-Phase-2A code cannot parse. If this
+    # migration needs to be undone, restore the database from a backup
+    # taken before it ran - do not run this believing it reverses the
+    # data change.
+    with op.batch_alter_table("reports") as batch_op:
+        batch_op.drop_column("assessment_status")
+--------------------------------------------------------------------------------
+
+================================================================================
+WHAT I NEED FROM YOU
+================================================================================
+1. Approve applying this revised migration to C:\kingsec-e2e (still not
+   applied anywhere).
+2. Decide how to handle the web-scan/nmap defect (section A above) - fix
+   web-scan's required_scanners now, or defer/log it separately.
+3. Confirm I should proceed to: create/switch to fix/phase-2a-honest-coverage,
+   apply the migration, re-run Run #4's exact scenario against real DVWA
+   (full-assessment profile, unaffected by the web-scan defect), generate
+   and inspect the PDF, update docs/STATUS.md (including the FIX 9
+   follow-up note above), and commit — then stop per the standing
+   "do not start Phase 2B" instruction.
+
+DVWA is currently running (container dvwa-phase2a, 127.0.0.1:18080) and
+Docker Desktop is up, ready for the next step once you confirm.

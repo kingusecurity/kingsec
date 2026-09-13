@@ -21,6 +21,7 @@ import sys
 import uuid
 from pathlib import Path
 
+from kingsec import __version__
 from kingsec.application import PasswordHasher
 from kingsec.application.ports import UserRepository
 from kingsec.bootstrap.composition import create_wired_application
@@ -72,7 +73,8 @@ def _bootstrap_admin(username: str, password: str, email: str = "") -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Create an admin user (recovery path)")
+    parser = argparse.ArgumentParser(prog="kingsec-bootstrap", description="Create an admin user (recovery path)")
+    parser.add_argument("--version", action="version", version=f"kingsec-bootstrap {__version__}")
     parser.add_argument("--username", required=True, help="Admin username")
     parser.add_argument("--password", required=True, help="Admin password")
     parser.add_argument("--email", default="", help="Admin email (optional)")

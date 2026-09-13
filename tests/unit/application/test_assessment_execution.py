@@ -2,7 +2,9 @@
 from kingsec.application.assessment_execution import (
     AssessmentExecutionEngine,
     ExecutionPhase,
+    ScannerPlanEntry,
 )
+from kingsec.domain.enums import ScannerRunState
 
 
 class TestAssessmentExecutionEngine:
@@ -23,7 +25,7 @@ class TestAssessmentExecutionEngine:
         state = self.engine.get_state("assess-1")
         assert state is not None
         scanner = state.scanner_progress[0]
-        assert scanner.status == "running"
+        assert scanner.status == ScannerRunState.RUNNING
         assert scanner.start_time is not None
 
     def test_complete_scanner(self) -> None:
@@ -33,7 +35,7 @@ class TestAssessmentExecutionEngine:
         state = self.engine.get_state("assess-1")
         assert state is not None
         scanner = state.scanner_progress[0]
-        assert scanner.status == "completed"
+        assert scanner.status == ScannerRunState.SUCCEEDED
         assert scanner.findings_count == 5
         assert scanner.end_time is not None
 
@@ -44,16 +46,32 @@ class TestAssessmentExecutionEngine:
         state = self.engine.get_state("assess-1")
         assert state is not None
         scanner = state.scanner_progress[0]
-        assert scanner.status == "failed"
+        assert scanner.status == ScannerRunState.FAILED
         assert scanner.error == "timeout"
 
     def test_skip_scanner(self) -> None:
-        self.engine.start_execution("assess-1", {"nmap": "Nmap", "zap": "OWASP ZAP"})
-        self.engine.skip_scanner("assess-1", "zap", "Not installed")
+        # Phase 2A Correction 2b: skip_scanner() no longer exists - a
+        # non-selected scanner is now seeded directly in its terminal
+        # skip state via set_scanner_plan(), never mutated into that
+        # state after the fact.
+        self.engine.start_execution("assess-1", {})
+        self.engine.set_scanner_plan(
+            "assess-1",
+            (
+                ScannerPlanEntry(scanner_id="nmap", name="Nmap", selected=True),
+                ScannerPlanEntry(
+                    scanner_id="zap",
+                    name="OWASP ZAP",
+                    selected=False,
+                    skip_state=ScannerRunState.SKIPPED_BINARY_MISSING,
+                    skip_reason="Not installed",
+                ),
+            ),
+        )
         state = self.engine.get_state("assess-1")
         assert state is not None
         zap = next(s for s in state.scanner_progress if s.scanner_id == "zap")
-        assert zap.status == "skipped"
+        assert zap.status == ScannerRunState.SKIPPED_BINARY_MISSING
         assert zap.skipped_reason == "Not installed"
 
     def test_transition_phase(self) -> None:

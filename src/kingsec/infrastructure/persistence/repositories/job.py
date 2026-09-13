@@ -5,7 +5,7 @@ Persists and retrieves :class:`ScanJob` records through the ``JobModel`` ORM mod
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from kingsec.application import JobNotFoundError, JobRepositoryPort
@@ -39,7 +39,19 @@ class SQLAlchemyJobRepository(JobRepositoryPort):
         limit: int = 50,
         offset: int = 0,
     ) -> list[ScanJob]:
-        stmt = select(JobModel).order_by(JobModel.created_at.desc()).offset(offset).limit(limit)
+        # created_at is stored as an ISO-8601 string with wall-clock
+        # resolution; two jobs submitted within the same clock tick compare
+        # equal, which left tie order undefined. rowid is SQLite's own
+        # monotonically-increasing insertion counter, so ordering by it
+        # second gives a deterministic, genuinely-newest-first tiebreak
+        # without a schema change. (id is a random UUID and cannot serve
+        # this purpose.)
+        stmt = (
+            select(JobModel)
+            .order_by(JobModel.created_at.desc(), text("scan_jobs.rowid DESC"))
+            .offset(offset)
+            .limit(limit)
+        )
         orms = self._session.execute(stmt).scalars().all()
         return [job_to_domain(o) for o in orms]
 

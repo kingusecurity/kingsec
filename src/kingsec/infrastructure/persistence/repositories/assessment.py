@@ -77,6 +77,12 @@ class SQLAlchemyAssessmentRepository(AssessmentRepository):
         orms = self._session.execute(stmt).scalars().all()
         return [assessment_to_domain(o) for o in orms]
 
+    def find_running(self) -> builtins.list[Assessment]:
+        """Return every assessment currently in RUNNING status (Phase 2A FIX 9)."""
+        stmt = select(AssessmentORM).where(AssessmentORM.status == "RUNNING")
+        orms = self._session.execute(stmt).scalars().all()
+        return [assessment_to_domain(o) for o in orms]
+
     def search_findings(
         self,
         *,

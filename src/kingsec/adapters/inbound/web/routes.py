@@ -1110,10 +1110,11 @@ async def get_report(
     tags=["reports"],
     dependencies=[Depends(require_viewer)],
     summary="Download report",
-    description="Download a generated report as PDF.",
+    description="Download a generated report as PDF (default) or HTML via ?format=html.",
 )
 async def download_report(
     assessment_id: str,
+    format: str | None = None,
     current_user: CurrentUser = Depends(require_viewer),
     request: Request = None,  # type: ignore[assignment]
 ) -> Any:
@@ -1121,6 +1122,12 @@ async def download_report(
     from kingsec.application._support import check_assessment_access
     from kingsec.application.ports import AssessmentRepository, ReportGeneratorPort, ReportRepository
     from kingsec.domain import AssessmentId
+
+    if format is not None and format.lower() not in ("pdf", "html"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"unsupported report format {format!r}; supported: html, pdf",
+        )
 
     assessments: AssessmentRepository = app.resolve(AssessmentRepository)
     check_assessment_access(
@@ -1130,7 +1137,7 @@ async def download_report(
     repo: ReportRepository = app.resolve(ReportRepository)
     generator: ReportGeneratorPort = app.resolve(ReportGeneratorPort)
     report = repo.get(AssessmentId(assessment_id))
-    rendered = generator.render(report)
+    rendered = generator.render(report, format=format)
     from fastapi.responses import Response
 
     return Response(

@@ -30,6 +30,7 @@ from kingsec.domain import (
     Target,
     TargetType,
 )
+from kingsec.domain.enums import ScannerRunState
 
 
 def _authorized(assessments: InMemoryAssessmentRepository, profile_id: str | None = None) -> Assessment:
@@ -147,7 +148,7 @@ class TestProfileGating:
             profile_name="Quick Host Scan",
             target_value="10.0.0.5",
             target_type=TargetType.IP_ADDRESS,
-            selected_scanners=(PlanScannerEntry(scanner_id="nmap", name="Nmap", status="selected"),),
+            selected_scanners=(PlanScannerEntry(scanner_id="nmap", name="Nmap", selected=True),),
             skipped_scanners=(),
             unavailable_scanners=(),
             warnings=(),
@@ -175,7 +176,11 @@ class TestProfileGating:
             skipped_scanners=(),
             unavailable_scanners=(
                 PlanScannerEntry(
-                    scanner_id="nmap", name="Nmap", status="required_unavailable", reason="'Nmap' is not installed"
+                    scanner_id="nmap",
+                    name="Nmap",
+                    selected=False,
+                    skip_state=ScannerRunState.SKIPPED_BINARY_MISSING,
+                    reason="'Nmap' is not installed",
                 ),
             ),
             warnings=("Required scanner 'Nmap' is not installed.",),
