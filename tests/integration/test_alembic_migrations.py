@@ -620,10 +620,12 @@ class TestMigrationAtomicity:
             stamp = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
         engine.dispose()
         # Phase 2A: head moved forward from da4b78614806 to 64e10236c8c1
-        # (add_report_assessment_status_and_backfill_scanner_status) - this
-        # must track the real head, not remain pinned to whatever revision
-        # was head when this test was first written.
-        assert stamp == "64e10236c8c1"
+        # (add_report_assessment_status_and_backfill_scanner_status), then
+        # Phase 2B-c moved it forward again to 5db990f46ee0 (add severity
+        # demotion columns to findings) - this must track the real head,
+        # not remain pinned to whatever revision was head when this test
+        # was first written.
+        assert stamp == "5db990f46ee0"
 
 
 class TestMigrationMetadata:

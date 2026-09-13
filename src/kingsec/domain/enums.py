@@ -30,6 +30,20 @@ class Severity(IntEnum):
         return self.name.capitalize()
 
 
+class SeverityDemotionReason(Enum):
+    """Why a finding's severity was reduced below what path/status-only
+    classification would have assigned (Phase 2B-c Priority 1b).
+
+    Structured, not prose: an operator (or the report renderer) must be
+    able to tell a finding was demoted and why without parsing free text -
+    see docs/E2E-EVIDENCE-PHASE2B.md Defect 3 (path-name-only scoring
+    turned a generic catch-all page into a "High-severity credentials
+    exposure" purely because the URL contained ".env")."""
+
+    CONTENT_TYPE_MISMATCH = "content_type_mismatch"
+    BASELINE_SHAPE_MATCH = "baseline_shape_match"
+
+
 class AssessmentStatus(Enum):
     """The lifecycle state of an assessment (milestone-based, not a percentage)."""
 

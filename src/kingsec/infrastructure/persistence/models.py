@@ -106,6 +106,13 @@ class FindingORM(Base):
     cwe_ids: Mapped[str | None] = mapped_column(String, nullable=True)
     cvss_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     cvss_vector: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Phase 2B-c Priority 1b: the severity path/status-only classification
+    # would have assigned, and why it was demoted - both NULL when this
+    # finding was never demoted. original_severity stores Severity.name
+    # (same convention as `severity` above); demotion_reason stores
+    # SeverityDemotionReason.value (same convention as `status` above).
+    original_severity: Mapped[str | None] = mapped_column(String, nullable=True)
+    demotion_reason: Mapped[str | None] = mapped_column(String, nullable=True)
 
     assessment: Mapped[AssessmentORM] = relationship(back_populates="findings")
     evidence: Mapped[list["EvidenceORM"]] = relationship(

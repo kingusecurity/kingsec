@@ -19,7 +19,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from .assessment import Assessment, ScannerRunSummary
-from .enums import AssessmentStatus, FindingStatus, Severity
+from .enums import AssessmentStatus, FindingStatus, Severity, SeverityDemotionReason
 from .errors import IllegalStateTransition
 from .evidence import Evidence, Recommendation
 
@@ -245,6 +245,14 @@ class FindingSummary:
     # dependency). None means "not attempted or the AI call failed for this
     # finding"; the report renders an honest note in that case.
     ai_explanation: str | None = None
+    # Phase 2B-c Priority 1b: carried straight from the source Finding -
+    # both None unless a scanner's content-based heuristic demoted this
+    # finding's severity below what path/status-only scoring would have
+    # assigned. Structured, so the report can disclose demotions honestly
+    # (see _severity_demotion_note in templates.py) rather than silently
+    # changing the answer.
+    original_severity: Severity | None = None
+    demotion_reason: SeverityDemotionReason | None = None
 
     @property
     def evidence_count(self) -> int:
@@ -361,6 +369,8 @@ class Report:
                 cwe_ids=f.cwe_ids,
                 cvss_score=f.cvss_score,
                 cvss_vector=f.cvss_vector,
+                original_severity=f.original_severity,
+                demotion_reason=f.demotion_reason,
             )
             for f in ordered
         )

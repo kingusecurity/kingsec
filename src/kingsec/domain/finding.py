@@ -17,7 +17,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from ._validation import ensure_non_empty, ensure_timezone_aware
-from .enums import FindingStatus, Severity
+from .enums import FindingStatus, Severity, SeverityDemotionReason
 from .errors import IllegalStateTransition, InvariantViolation
 from .evidence import Evidence, Recommendation
 from .identifiers import FindingId
@@ -55,6 +55,8 @@ class Finding:
         cwe_ids: tuple[str, ...] = (),
         cvss_score: float | None = None,
         cvss_vector: str | None = None,
+        original_severity: Severity | None = None,
+        demotion_reason: SeverityDemotionReason | None = None,
     ) -> None:
         if not isinstance(finding_id, FindingId):
             raise InvariantViolation("finding_id must be a FindingId")
@@ -63,6 +65,10 @@ class Finding:
         ensure_non_empty(title, "Finding title")
         ensure_non_empty(description, "Finding description")
         _ensure_valid_cvss_score(cvss_score)
+        if (original_severity is None) != (demotion_reason is None):
+            raise InvariantViolation(
+                "original_severity and demotion_reason must be set together, or not at all"
+            )
 
         moment = discovered_at or datetime.now(UTC)
         ensure_timezone_aware(moment, "discovered_at")
@@ -79,6 +85,8 @@ class Finding:
         self._cwe_ids = tuple(cwe_ids)
         self._cvss_score = cvss_score
         self._cvss_vector = cvss_vector
+        self._original_severity = original_severity
+        self._demotion_reason = demotion_reason
 
     # --- factory -------------------------------------------------------------
     @classmethod
@@ -92,6 +100,8 @@ class Finding:
         cwe_ids: tuple[str, ...] = (),
         cvss_score: float | None = None,
         cvss_vector: str | None = None,
+        original_severity: Severity | None = None,
+        demotion_reason: SeverityDemotionReason | None = None,
     ) -> Finding:
         """Create a new OPEN finding with a freshly generated id.
 
@@ -100,6 +110,13 @@ class Finding:
         Scanners with no correlation source (e.g. Nmap's raw port/service
         banners) simply omit them, and the finding carries no CVE data -
         never fabricated, never guessed.
+
+        original_severity/demotion_reason (Phase 2B-c Priority 1b) are set
+        together, only when a scanner's own classifier demoted this
+        finding's severity below what path/status-only scoring would have
+        assigned (e.g. ffuf/gobuster's baseline-shape or content-type
+        heuristics) - ``severity`` is always the FINAL, already-demoted
+        value; ``original_severity`` records what it would have been.
         """
         return cls(
             FindingId.generate(),
@@ -110,6 +127,8 @@ class Finding:
             cwe_ids=cwe_ids,
             cvss_score=cvss_score,
             cvss_vector=cvss_vector,
+            original_severity=original_severity,
+            demotion_reason=demotion_reason,
         )
 
     @classmethod
@@ -128,6 +147,8 @@ class Finding:
         cwe_ids: tuple[str, ...] = (),
         cvss_score: float | None = None,
         cvss_vector: str | None = None,
+        original_severity: Severity | None = None,
+        demotion_reason: SeverityDemotionReason | None = None,
     ) -> Finding:
         """Rebuild a Finding from stored state (persistence boundary).
 
@@ -153,6 +174,8 @@ class Finding:
         f._cwe_ids = tuple(cwe_ids)
         f._cvss_score = cvss_score
         f._cvss_vector = cvss_vector
+        f._original_severity = original_severity
+        f._demotion_reason = demotion_reason
         return f
 
     # --- read-only accessors -------------------------------------------------
@@ -207,6 +230,23 @@ class Finding:
     @property
     def cvss_vector(self) -> str | None:
         return self._cvss_vector
+
+    @property
+    def original_severity(self) -> Severity | None:
+        """The severity path/status-only classification would have assigned,
+        before a scanner's content-based demotion heuristic reduced it.
+        ``None`` means this finding was never demoted."""
+        return self._original_severity
+
+    @property
+    def demotion_reason(self) -> SeverityDemotionReason | None:
+        """Why ``severity`` is lower than ``original_severity`` - structured,
+        not prose (Phase 2B-c Priority 1b). ``None`` means never demoted."""
+        return self._demotion_reason
+
+    @property
+    def was_demoted(self) -> bool:
+        return self._demotion_reason is not None
 
     # --- behaviour -----------------------------------------------------------
     def add_evidence(self, evidence: Evidence) -> None:

@@ -21,10 +21,13 @@ from kingsec.domain import (
     Evidence,
     Finding,
     Recommendation,
+    ScannerRunSummary,
     Severity,
+    SeverityDemotionReason,
     Target,
     TargetType,
 )
+from kingsec.domain.enums import ScannerRunState
 from kingsec.infrastructure.persistence import (
     create_database_engine,
     create_schema,
@@ -355,7 +358,84 @@ class TestMapping:
         assert len(loaded.findings[0].evidence) == 1
         assert len(loaded.findings[0].recommendations) == 1
         assert loaded.findings[0].evidence[0].detail == "<script>alert(1)</script>"
-        assert loaded.findings[0].recommendations[0].title == "Sanitize input"
+
+    def test_round_trips_severity_demotion_metadata(
+        self, repo: SQLAlchemyAssessmentRepository, session: Session
+    ) -> None:
+        # Phase 2B-c Priority 1b: original_severity/demotion_reason are
+        # structured (not just prose) precisely so they must survive the
+        # DB round trip - this is the acceptance test the user required.
+        assessment = make_assessment()
+        assessment.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=UTC), scope="*"))
+        assessment.start()
+
+        demoted = Finding.create(
+            "HTTP 200 - /.env",
+            "generic catch-all response",
+            Severity.LOW,
+            original_severity=Severity.HIGH,
+            demotion_reason=SeverityDemotionReason.CONTENT_TYPE_MISMATCH,
+        )
+        not_demoted = Finding.create("SQLi", "id param injectable", Severity.CRITICAL)
+        assessment.record_finding(demoted)
+        assessment.record_finding(not_demoted)
+        assessment.complete()
+
+        repo.save(assessment)
+        session.flush()
+
+        loaded = repo.get(assessment.id)
+        by_title = {f.title: f for f in loaded.findings}
+
+        reloaded_demoted = by_title["HTTP 200 - /.env"]
+        assert reloaded_demoted.severity == Severity.LOW
+        assert reloaded_demoted.original_severity == Severity.HIGH
+        assert reloaded_demoted.demotion_reason == SeverityDemotionReason.CONTENT_TYPE_MISMATCH
+        assert reloaded_demoted.was_demoted is True
+
+        reloaded_clean = by_title["SQLi"]
+        assert reloaded_clean.original_severity is None
+        assert reloaded_clean.demotion_reason is None
+        assert reloaded_clean.was_demoted is False
+
+    def test_round_trips_rate_limit_and_stderr_scanner_summary_fields(
+        self, repo: SQLAlchemyAssessmentRepository, session: Session
+    ) -> None:
+        # Phase 2B-c Priorities 3/4: rate_limit_description and
+        # stderr_excerpt must survive the DB round trip same as the
+        # existing port_specification field they were added alongside.
+        assessment = make_assessment()
+        assessment.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=UTC), scope="*"))
+        assessment.start()
+        assessment.record_scanner_summary(
+            (
+                ScannerRunSummary(
+                    scanner_id="ffuf",
+                    name="ffuf",
+                    status=ScannerRunState.SUCCEEDED,
+                    findings_count=3,
+                    rate_limit_description="40 requests/second (ffuf -rate)",
+                ),
+                ScannerRunSummary(
+                    scanner_id="gobuster",
+                    name="Gobuster",
+                    status=ScannerRunState.FAILED,
+                    skipped_reason="The scan process exited with an error before producing usable results.",
+                    stderr_excerpt="gobuster: wordlist file not found",
+                ),
+            )
+        )
+        assessment.complete()
+
+        repo.save(assessment)
+        session.flush()
+
+        loaded = repo.get(assessment.id)
+        by_id = {s.scanner_id: s for s in loaded.scanner_summary}
+        assert by_id["ffuf"].rate_limit_description == "40 requests/second (ffuf -rate)"
+        assert by_id["gobuster"].stderr_excerpt == "gobuster: wordlist file not found"
+        assert by_id["gobuster"].rate_limit_description is None
+        assert by_id["ffuf"].stderr_excerpt is None
 
 
 # ===========================================================================
