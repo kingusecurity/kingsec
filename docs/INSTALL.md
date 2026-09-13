@@ -463,6 +463,17 @@ afterward — new templates ship continuously):
 nuclei -update-templates
 ```
 
+Measured against the real command on a real Windows host (Phase 2B Task
+6): **~86 MB on disk, ~13,900 template files, ~6 minutes** wall clock —
+not the ~728 MB sometimes assumed from a rough git-clone size estimate.
+The templates land in **nuclei's own per-user global directory**
+(`~/nuclei-templates` — on Windows, `%USERPROFILE%\nuclei-templates`),
+independent of `KINGSEC_STORAGE__DATA_DIR` and outside both KingSec's data
+directory and its own `~/.kingsec` convention. Relevant for a future
+Docker image: this path needs its own volume (or an explicit nuclei
+config override to relocate it into the data volume) if templates should
+persist across container recreation the same way KingSec's own data does.
+
 ### Step: A wordlist for FFUF and Gobuster
 
 FFUF and Gobuster both need a `-w <wordlist>` to fuzz with — there is no

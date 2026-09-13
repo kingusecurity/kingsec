@@ -349,21 +349,30 @@ guard is specifically for the scanner subprocess tree and worked correctly
 throughout every run in this evidence set (no scan ever exceeded its
 timeout) — this is a distinct hang in the HTTP report-rendering path.
 
-### Defect 6 — em-dash characters in finding titles are corrupted to U+FFFD in the persisted data itself
+### Defect 6 — RETRACTED. Not a product defect; was my own capture-path artifact.
+
+Originally recorded as em-dash characters corrupting to U+FFFD in the
+persisted data. **Verified and wrong — corrected here, per instruction.**
+
+Read the finding title directly from SQLite with an explicit UTF-8
+connection, bypassing any shell/PowerShell redirect entirely:
 
 ```python
-json.load(open("run_1...json"))["findings"][10]["title"]
--> 'HTTP 403 \ufffd http://127.0.0.1:18080/.htaccess'
+conn = sqlite3.connect('file:C:/kingsec-e2e/kingsec.db?mode=ro', uri=True)
+title = cur.execute("SELECT title FROM findings WHERE id = ?", (...,)).fetchone()[0]
+repr(title)  ->  'HTTP 403 — http://127.0.0.1:18080/.htaccess'
 ```
 
-Confirmed at the Python-decoded-JSON level (not a terminal-rendering
-artifact) — the intended em-dash (`—`) between the HTTP status and URL in
-KingSec's own generated finding titles is replaced with the Unicode
-replacement character in the actual API response and, by extension, the
-persisted `findings` data. Present across every run's findings that use this
-title format. Root cause not investigated (a non-UTF-8 codec somewhere in
-the finding-title construction or capture path is the likely candidate, not
-confirmed) — recorded as found, not chased.
+The em-dash decodes and re-encodes correctly, round-tripping through
+UTF-8 with no loss. Also checked the raw bytes of the original
+`curl`-written JSON file on disk (never touched by Python or a terminal):
+the em-dash's three-byte UTF-8 sequence is intact there too, byte for
+byte. **The database, the API response, and the file on disk were
+correct UTF-8 the entire time.** The corruption I originally reported was
+introduced only when I `print()`ed the decoded string through this
+Windows host's shell for my own inspection — a console-codepage
+artifact of my own diagnostic process, not KingSec's. No product code
+touched; nothing to fix.
 
 ---
 
@@ -440,13 +449,26 @@ are configuration/hygiene issues.
 **Neither DVWA's nor Juice Shop's actual headline vulnerabilities — SQL
 injection, XSS, broken authentication, insecure deserialization, the things
 both applications are deliberately built to demonstrate — were detected by
-any of the five runs.** Two structural reasons, both visible in this
-evidence: ZAP is invoked in **passive-only** mode (`-quickurl`, no active
-attack payloads — see the Task 5/5B work), and **nuclei contributed one
-Informational finding across all five runs combined**, not because its
-templates are broken, but because nuclei's library is weighted toward
-CVE/technology-fingerprint detection, which does not line up with either
-app's intentionally-coded business-logic flaws.
+any of the five runs. The primary reason is structural, not a scanner
+weakness: KingSec has no concept of authentication.** DVWA requires
+database setup and an admin/password login before any of its
+vulnerability modules become reachable — nearly every one of its famous
+vulnerabilities lives behind that login. Juice Shop's flaws are
+concentrated in authenticated API interactions, not its public-facing
+pages. An unauthenticated scanner does not fail to find these — it never
+reaches the surface they live on; it sees a login page (DVWA) or an SPA
+shell serving the same response to everything (Juice Shop — the same
+mechanism behind Defect 3). **This is a scope boundary of what KingSec
+currently performs — unauthenticated, external assessment — not a defect
+in ZAP's or nuclei's detection quality.** Two secondary, real factors
+compound it: ZAP is invoked in passive-only mode (`-quickurl`, no active
+attack payloads — see the Task 5/5B work), and nuclei contributed one
+Informational finding across all five runs combined, because its
+template library is weighted toward CVE/technology-fingerprint detection
+rather than either app's intentionally-coded business-logic flaws. Even
+with active-mode ZAP and full nuclei coverage, though, authentication
+would still gate access to most of what these apps are famous for — the
+scope boundary is the primary limiter here, not scan depth.
 
 **Answering the specific question directly: nuclei templates are NOT the
 path to Critical/High findings here.** The High/Medium findings that exist
@@ -465,3 +487,20 @@ genuine and substantial progress. But the product does not yet detect
 SQLi/XSS/broken-auth-class vulnerabilities against either target, and that
 gap should be named directly rather than obscured by the numerically-present
 but substantively-hollow High/Medium counts in Runs 2 and 3.
+
+### Phase 5 CLAIM AUDIT — high priority
+
+KingSec performs **unauthenticated, external** security assessment. An SME
+buyer hearing "security assessment" will reasonably assume their
+application's business logic — what a logged-in user, or an attacker with
+stolen or guessed credentials, can do — is in scope. It is not, today. This
+run is direct, reproducible evidence of that gap (two applications
+deliberately built around post-login/authenticated-API vulnerabilities,
+zero of them found by five real runs) — state it as plainly to a customer
+as it is stated here, before a sales conversation implies otherwise.
+
+**Roadmap capability, logged here for that same audit:** credentialed /
+authenticated scanning — accepting a login flow or session token as part
+of target configuration, so ZAP/nuclei/ffuf's scope can extend past a
+login page — is not built and not scheduled. Recording it as a real, named
+gap rather than an implicit one.
