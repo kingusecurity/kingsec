@@ -1,0 +1,229 @@
+================================================================================
+KINGSEC TASK 5B — ZAP FIX AND PROCESS-TREE GUARD
+FINAL REPORT. All three priorities implemented, tested, and verified against
+real binaries and a real scan through the product itself.
+================================================================================
+
+
+--------------------------------------------------------------------------------
+PRIORITY 1 — the read side. ZAP has never returned a finding until now.
+--------------------------------------------------------------------------------
+
+Fixed in `ZapScannerAdapter._read_findings()` (zap.py): reads and parses
+the `-quickout` FILE, never `result.stdout` (which only ever carried a
+"Writing results to <path>" line). Success requires three things, each
+with a distinctly named failure reason: the file exists, is non-empty,
+and parses as ZAP-shaped JSON (a dict with a `"site"` key). `returncode`
+is never trusted alone - verified empirically that `-cmd` can exit 0
+while reporting a real configuration error with no output file at all.
+The file is deleted in a `finally` block after every scan, success or
+failure, so it never accumulates in the data directory - confirmed live
+(see PROOF below): the `scanner-output` directory was empty immediately
+after a real scan completed.
+
+Tests (`TestFileBasedSuccessCheck`, `TestOutputFileCleanup`,
+test_zap_plugin.py): exit 0 with no file is FAILED, not a zero-findings
+success; a real ZAP JSON file parses into findings with the right
+titles; empty file, malformed JSON, and valid-but-wrong-shaped JSON are
+each FAILED with a distinct reason; a genuine `{"site": []}` clean scan
+remains a legitimate success; cleanup happens on both the success and
+failure paths.
+
+Logged in docs/STATUS.md as recurring-defect-class instance eight - the
+most consequential form of the pattern found this engagement: every real
+ZAP scan this product has ever run, in any environment, silently
+returned zero findings while logging a clean "scan completed."
+
+
+--------------------------------------------------------------------------------
+PRIORITY 2 — the Job Object guard. Affects all nine scanners.
+--------------------------------------------------------------------------------
+
+Implemented exactly as specified in `SubprocessCommandRunner` (runner.py):
+
+  - `stdin=subprocess.DEVNULL` unconditionally, every invocation, both
+    platforms.
+  - Windows: every scanner process is assigned to a Job Object created
+    with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`. On timeout, closing the
+    job's last handle kills the ENTIRE tree, not just the process Python
+    holds a handle to.
+  - POSIX: `start_new_session=True` at process creation; on timeout,
+    `os.killpg(os.getpgid(pid), SIGKILL)` instead of `Popen.kill()`.
+  - ctypes, not pywin32: the four kernel32 calls needed
+    (CreateJobObjectW, SetInformationJobObject, AssignProcessToJobObject,
+    CloseHandle) are directly reachable from `ctypes.WinDLL` with
+    correctly declared `argtypes`/`restype`. pywin32 would add a real
+    third-party dependency to wrap four function pointers this module
+    can bind itself - nothing about the task needs what pywin32 would
+    add beyond that.
+  - Every Windows-only branch is written as the literal
+    `sys.platform == "win32"` comparison (never a derived boolean),
+    matching the established pattern in `licensing/parser.py` - this is
+    what lets mypy's Linux-pinned platform config (`pyproject.toml`,
+    matching CI) prove the branch unreachable and skip it, the same
+    accepted, already-documented trade-off as that file.
+
+Test-count impact: +4 new tests, one new file
+(`tests/integration/scanner/test_runner_process_supervision.py`), using
+the exact parent/grandchild reproduction built during the hang
+investigation:
+
+  - `test_timeout_returns_quickly_not_after_the_grandchilds_own_sleep` —
+    VERIFIED FAILING against the pre-fix code (120.2s, reported in the
+    prior round's investigation); now asserts elapsed < 15s. This is the
+    literal repro from the investigation, turned into a permanent
+    regression test.
+  - `test_no_grandchild_process_survives_the_timeout` — asserts on the
+    real OS process table (`wmic`/`ps`), not the exception.
+  - `test_scanner_reading_stdin_gets_eof_immediately` — a script that
+    reads stdin must get 0 bytes immediately, not block.
+  - `test_child_becomes_its_own_session_leader` (POSIX-only, skipped on
+    this Windows dev machine, runs for real in CI's Linux container per
+    the same platform pin referenced above) — verifies
+    `os.getsid(0) == os.getpid()` inside the child, i.e. that
+    `start_new_session` genuinely took effect, not just that nothing
+    crashed.
+
+All four new tests pass on this host (3 pass, 1 correctly skipped as
+Windows-only-inapplicable) in 7.7s total - the same scenario that took
+120+ seconds before this fix.
+
+
+--------------------------------------------------------------------------------
+PRIORITY 3 — -cmd as a code-level default.
+--------------------------------------------------------------------------------
+
+`_HEADLESS_FLAG = "-cmd"` is prepended unconditionally in
+`ZapScannerAdapter._build_args()`, immediately after the resolved binary
+path, before any operator-configured `scan_args`. Since `scan_args` is
+purely additive by construction (it can only ever add elements to the
+argv list this class builds, never remove one), there is no
+configuration path that can strip it.
+
+Tests (`TestHeadlessFlagIsNeverStrippable`, test_zap_plugin.py): `-cmd`
+present with default `scan_args`; present even when the operator sets
+unrelated `scan_args` (`-daemon -port 8090`); appears immediately after
+the binary at a fixed position.
+
+Two items logged, not chased, per instruction:
+  - `-cmd`'s exit-code honesty on failure modes beyond the one verified
+    (the unwritable-directory case, which exits 0 despite reporting a
+    real error).
+  - Whether `-cmd` suppresses every GUI path under flag combinations not
+    currently used by this codebase (only `-quickurl`/`-quickout` were
+    tested).
+Priority 1's file-based success check covers the product against both,
+regardless of how they eventually resolve.
+
+
+--------------------------------------------------------------------------------
+PROOF THIS TASK IS DONE — real scan, through the product, real findings
+--------------------------------------------------------------------------------
+
+Driven through `ZapScannerAdapter.scan()` directly (not ZAP invoked by
+hand), against a local target under my control
+(`http://127.0.0.1:18456/`, a plain `python -m http.server` instance,
+started and torn down for this test only):
+
+    RESOLVED ARGV: ['C:\\Program Files\\ZAP\\Zed Attack Proxy\\ZAP.exe',
+      '-cmd', '-quickurl', 'http://127.0.0.1:18456/', '-quickout',
+      'C:\\Users\\Laptop Zone by JK\\.kingsec\\scanner-output\\zap-quickscan-d9d8ab4f1aa943458608218dcf07bffd.json']
+    RESOLVED CWD : C:\Program Files\ZAP\Zed Attack Proxy
+
+    zap scan started    target=http://127.0.0.1:18456/
+    zap scan completed  duration_seconds=20.143 findings=4 target=http://127.0.0.1:18456/
+
+    SCAN SUCCEEDED in 20.2s, findings=4
+     - Content Security Policy (CSP) Header Not Set — http://127.0.0.1:18456
+     - Missing Anti-clickjacking Header — http://127.0.0.1:18456
+     - Server Leaks Version Information via "Server" HTTP Response Header Field — http://127.0.0.1:18456
+     - X-Content-Type-Options Header Missing — http://127.0.0.1:18456
+
+Four findings. All four match your screenshot's four alert categories
+exactly (CSP, anti-clickjacking, server version leak,
+X-Content-Type-Options) - this is not a coincidence, both runs are ZAP's
+standard passive-scan alerts against a target with no security headers
+set, which is exactly what a bare `python -m http.server` is. No GUI
+window opened. No orphaned process afterward (`tasklist` clean
+immediately after). The output file's directory was empty immediately
+after (cleanup confirmed).
+
+
+--------------------------------------------------------------------------------
+GATE — via --junitxml, counts quoted from the XML, not marker-counting
+--------------------------------------------------------------------------------
+
+Full suite, run fresh after all three priorities landed and were
+committed:
+
+    <testsuite name="pytest" errors="0" failures="0" skipped="1"
+      tests="4059" time="451.388" .../>
+    PYTEST_EXIT:0
+
+4059 tests, 0 errors, 0 failures, 1 skip (the POSIX-only session-leader
+test on this Windows host, by design), exit 0.
+
+`ruff check .` (whole repo): All checks passed!
+`mypy src` (whole repo): Success: no issues found in 601 source files
+
+
+--------------------------------------------------------------------------------
+`kingsec doctor` — final output, post-everything
+--------------------------------------------------------------------------------
+
+[OK       ] nmap      (Nmap) v7.99
+            status:        usable
+
+[UNUSABLE ] nuclei    (Nuclei) v3.11.1
+            reason:        Missing Nuclei templates
+
+[NOT FOUND] nikto     (Nikto)
+            reason:        'nikto' not found on PATH or common locations
+
+[UNUSABLE ] ffuf      (FFUF) v2.2.1
+            reason:        Missing Wordlist file
+
+[UNUSABLE ] gobuster  (Gobuster) v3.8.2
+            reason:        Missing Wordlist file
+
+[OK       ] zap       (OWASP ZAP) v2.17.0
+            binary:        C:\Program Files\ZAP\Zed Attack Proxy\ZAP.exe
+            status:        usable
+
+6 scanners checked: 2 usable, 4 not usable. Exit code: 1.
+(Unchanged from the prior round for nmap/nuclei/nikto/ffuf/gobuster -
+none of this round's work touched them. zap's [OK] now means something
+it did not before: a real, findings-returning, GUI-free scan behind it.)
+
+
+--------------------------------------------------------------------------------
+COMMITS — by module boundary
+--------------------------------------------------------------------------------
+
+  3814d2f  fix(scanner): guarantee the whole process tree dies on timeout
+           (runner.py + new integration test file - Priority 2)
+  c07bf77  fix(scanner): make ZAP actually work end to end - headless,
+           real output, real findings (zap.py + conftest.py + its tests -
+           Priorities 1 and 3, and the prior round's uncommitted
+           find_executable/cwd work, landing together as instructed)
+  8e69052  docs: log recurring-defect-class instance eight
+
+Pushed to origin/feat/phase-2b-real-coverage.
+
+
+--------------------------------------------------------------------------------
+ACCEPTANCE
+--------------------------------------------------------------------------------
+
+- [x] Priorities 1, 2, 3 implemented with their tests
+- [x] The repro test demonstrated FAILING against current code (120.2s,
+      reported in the prior round; now a permanent regression test)
+- [x] A real ZAP scan through KingSec returning real findings — TESTED,
+      count (4) and titles pasted above
+- [x] Gate via --junitxml, counts quoted (4059 tests, 0 errors, 0
+      failures, 1 expected skip)
+- [x] doctor output pasted
+- [x] Committed by module boundary, pushed
+
+Stopping here. Task 6 next.
+================================================================================
