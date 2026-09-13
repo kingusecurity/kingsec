@@ -30,10 +30,12 @@ class FakeRunner:
     def __init__(self, result: CommandResult | None = None) -> None:
         self._result = result
         self.calls: list[tuple[list[str], float]] = []
+        self.cwds: list[str | None] = []
         self.exception: Exception | None = None
 
-    def run(self, args: Sequence[str], *, timeout: float) -> CommandResult:
+    def run(self, args: Sequence[str], *, timeout: float, cwd: str | None = None) -> CommandResult:
         self.calls.append((list(args), timeout))
+        self.cwds.append(cwd)
         if self.exception is not None:
             raise self.exception
         if self._result is None:
