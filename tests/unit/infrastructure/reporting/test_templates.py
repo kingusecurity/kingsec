@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 
-from kingsec.domain import ScannerRunState, ScannerRunSummary
+from kingsec.domain import ScannerRunState, ScannerRunSummary, Severity, SeverityDemotionReason
 from kingsec.infrastructure.reporting import render_report_html
 from kingsec.infrastructure.scanner.nmap import NON_URL_DEFAULT_PORT_SPECIFICATION
 from tests.unit.infrastructure.reporting.conftest import build_report
@@ -343,6 +343,80 @@ class TestPortCoverageDisclosure:
         assert "own default port selection" not in html_absent
 
 
+class TestRateLimitDisclosure:
+    """Phase 2B-c Priority 3: request-rate limiting applied by ffuf/gobuster
+    must be disclosed in the Limitations section, same standard as port
+    coverage above - derived from the recorded value, never hardcoded."""
+
+    def _run(
+        self,
+        scanner_id: str,
+        name: str,
+        *,
+        rate_limit_description: str | None,
+        status: ScannerRunState = ScannerRunState.SUCCEEDED,
+    ) -> ScannerRunSummary:
+        return ScannerRunSummary(
+            scanner_id=scanner_id,
+            name=name,
+            status=status,
+            findings_count=1,
+            rate_limit_description=rate_limit_description,
+        )
+
+    def test_no_disclosure_when_no_scanner_recorded_a_rate_limit(self) -> None:
+        html = render_report_html(build_report())
+        section = html.split('id="limitations"')[1].split("</section>")[0]
+        assert "Request-rate limiting" not in section
+
+    def test_disclosure_states_the_recorded_ffuf_rate(self) -> None:
+        summary = (self._run("ffuf", "ffuf Scanner", rate_limit_description="40 requests/second (ffuf -rate)"),)
+        html = render_report_html(build_report(scanner_summary=summary))
+        section = html.split('id="limitations"')[1].split("</section>")[0]
+        assert "ffuf Scanner" in section
+        assert "40 requests/second" in section
+
+    def test_disclosure_lists_multiple_scanners(self) -> None:
+        summary = (
+            self._run("ffuf", "ffuf Scanner", rate_limit_description="40 requests/second (ffuf -rate)"),
+            self._run(
+                "gobuster",
+                "Gobuster Scanner",
+                rate_limit_description="100ms delay per request (gobuster --delay)",
+            ),
+        )
+        html = render_report_html(build_report(scanner_summary=summary))
+        section = html.split('id="limitations"')[1].split("</section>")[0]
+        assert "ffuf Scanner" in section
+        assert "Gobuster Scanner" in section
+
+    def test_failed_scanner_gets_no_rate_limit_claim(self) -> None:
+        summary = (
+            self._run(
+                "ffuf",
+                "ffuf Scanner",
+                rate_limit_description="40 requests/second (ffuf -rate)",
+                status=ScannerRunState.FAILED,
+            ),
+        )
+        html = render_report_html(build_report(scanner_summary=summary))
+        section = html.split('id="limitations"')[1].split("</section>")[0]
+        assert "Request-rate limiting" not in section
+
+    def test_disclosure_changes_with_the_recorded_value(self) -> None:
+        """THE required linkage test, same standard as port coverage's own
+        (test_disclosure_changes_with_the_recorded_specification above)."""
+        summary_a = (self._run("ffuf", "ffuf Scanner", rate_limit_description="40 requests/second (ffuf -rate)"),)
+        summary_b = (
+            self._run("ffuf", "ffuf Scanner", rate_limit_description="disabled (rate_limit_per_second=0)"),
+        )
+        html_a = render_report_html(build_report(scanner_summary=summary_a))
+        html_b = render_report_html(build_report(scanner_summary=summary_b))
+        assert "40 requests/second" in html_a
+        assert "40 requests/second" not in html_b
+        assert "disabled" in html_b
+
+
 class TestVisualElements:
     def test_severity_distribution_renders_svg_bars(self) -> None:
         html = render_report_html(build_report())
@@ -503,6 +577,74 @@ class TestScannerCoverage:
         assert "KS-SCAN-001" not in section
         assert "unexpected error in plugin" not in section
 
+
+class TestScannerCoverageStderrDisclosure:
+    """Phase 2B-c Priority 4 (recurring-class instance nine): a failed
+    scanner's real stderr must render in the coverage block, distinct
+    from the generic safe skipped_reason it accompanies."""
+
+    def test_stderr_excerpt_appended_when_present(self) -> None:
+        from kingsec.domain import ScannerRunSummary
+        from kingsec.domain.enums import ScannerRunState
+
+        summary = (
+            ScannerRunSummary(
+                scanner_id="ffuf",
+                name="ffuf",
+                status=ScannerRunState.FAILED,
+                skipped_reason="The scan process exited with an error before producing usable results.",
+                stderr_excerpt="ffuf: cannot resolve host",
+            ),
+        )
+        html = render_report_html(build_report(scanner_summary=summary))
+        section = html.split('id="scanner-coverage"')[1].split("</section>")[0]
+        assert "stderr: ffuf: cannot resolve host" in section
+
+    def test_no_stderr_excerpt_omits_the_stderr_fragment(self) -> None:
+        from kingsec.domain import ScannerRunSummary
+        from kingsec.domain.enums import ScannerRunState
+
+        summary = (
+            ScannerRunSummary(
+                scanner_id="trivy",
+                name="Trivy",
+                status=ScannerRunState.FAILED,
+                skipped_reason="binary not found",
+            ),
+        )
+        html = render_report_html(build_report(scanner_summary=summary))
+        section = html.split('id="scanner-coverage"')[1].split("</section>")[0]
+        assert "stderr:" not in section
+
+    def test_different_stderr_prevents_two_failures_from_merging_into_one_sentence(self) -> None:
+        """Two scanners sharing the same skipped_reason but different real
+        stderr must NOT be grouped as if they failed identically - the
+        whole point of this feature is telling them apart."""
+        from kingsec.domain import ScannerRunSummary
+        from kingsec.domain.enums import ScannerRunState
+
+        summary = (
+            ScannerRunSummary(
+                scanner_id="ffuf",
+                name="ffuf",
+                status=ScannerRunState.FAILED,
+                skipped_reason="The scan process exited with an error before producing usable results.",
+                stderr_excerpt="ffuf: cannot resolve host",
+            ),
+            ScannerRunSummary(
+                scanner_id="gobuster",
+                name="Gobuster",
+                status=ScannerRunState.FAILED,
+                skipped_reason="The scan process exited with an error before producing usable results.",
+                stderr_excerpt="gobuster: wordlist file not found",
+            ),
+        )
+        html = render_report_html(build_report(scanner_summary=summary))
+        section = html.split('id="scanner-coverage"')[1].split("</section>")[0]
+        assert "ffuf: cannot resolve host" in section
+        assert "gobuster: wordlist file not found" in section
+        assert "ffuf, Gobuster" not in section
+
     def test_singular_finding_count_has_no_trailing_s(self) -> None:
         from kingsec.domain import ScannerRunSummary
         from kingsec.domain.enums import ScannerRunState
@@ -566,3 +708,60 @@ class TestScannerCoverage:
         html = render_report_html(build_report(scanner_summary=summary))
         assert "<script>alert('x')</script>" not in html
         assert "&lt;script&gt;" in html
+
+
+class TestSeverityDemotionDisclosure:
+    """Phase 2B-c Priority 1b: the Limitations section must disclose when
+    KingSec's own classifier reduced a finding's severity below what its
+    path name alone would suggest - the same "don't silently change the
+    answer" standard as the port-coverage disclosure above."""
+
+    def _demote(self, report, index: int, *, original: Severity, reason: SeverityDemotionReason):
+        entries = list(report.entries)
+        entries[index] = dataclasses.replace(entries[index], original_severity=original, demotion_reason=reason)
+        return dataclasses.replace(report, entries=tuple(entries))
+
+    def test_no_disclosure_when_nothing_was_demoted(self) -> None:
+        html = render_report_html(build_report())
+        section = html.split('id="limitations"')[1].split("</section>")[0]
+        assert "severity scoring reduced" not in section
+
+    def test_disclosure_states_count_and_content_type_reason(self) -> None:
+        report = self._demote(
+            build_report(), 0, original=Severity.HIGH, reason=SeverityDemotionReason.CONTENT_TYPE_MISMATCH
+        )
+        html = render_report_html(report)
+        section = html.split('id="limitations"')[1].split("</section>")[0]
+        assert "reduced 1 finding" in section
+        assert "HTML page instead of the expected file type" in section
+        assert "response shape as most of this scan" not in section
+
+    def test_disclosure_states_baseline_shape_reason(self) -> None:
+        report = self._demote(
+            build_report(), 0, original=Severity.HIGH, reason=SeverityDemotionReason.BASELINE_SHAPE_MATCH
+        )
+        html = render_report_html(report)
+        section = html.split('id="limitations"')[1].split("</section>")[0]
+        assert "response shape as most of this scan" in section
+        assert "HTML page instead of the expected file type" not in section
+
+    def test_disclosure_counts_both_reasons_when_both_occur(self) -> None:
+        report = self._demote(
+            build_report(), 0, original=Severity.HIGH, reason=SeverityDemotionReason.CONTENT_TYPE_MISMATCH
+        )
+        report = self._demote(report, 1, original=Severity.MEDIUM, reason=SeverityDemotionReason.BASELINE_SHAPE_MATCH)
+        html = render_report_html(report)
+        section = html.split('id="limitations"')[1].split("</section>")[0]
+        assert "reduced 2 findings" in section
+        assert "HTML page instead of the expected file type" in section
+        assert "response shape as most of this scan" in section
+
+    def test_demoted_findings_remain_listed_with_evidence(self) -> None:
+        # The disclosure must never imply the finding was removed.
+        report = self._demote(
+            build_report(), 0, original=Severity.HIGH, reason=SeverityDemotionReason.CONTENT_TYPE_MISMATCH
+        )
+        html = render_report_html(report)
+        assert report.entries[0].title in html
+        section = html.split('id="limitations"')[1].split("</section>")[0]
+        assert "still listed above with their evidence intact" in section

@@ -26,7 +26,7 @@ import re
 from html import escape
 
 from kingsec.domain import HistoryPoint, Report, ScannerRunSummary, Severity
-from kingsec.domain.enums import AssessmentStatus, ScannerRunState
+from kingsec.domain.enums import AssessmentStatus, ScannerRunState, SeverityDemotionReason
 from kingsec.domain.report import FindingSummary, failed_scanners_in
 
 # Phase 2A: reports are now generated from either a COMPLETED or a
@@ -431,6 +431,64 @@ def _port_coverage_note(report: Report) -> str:
     )
 
 
+def _rate_limit_note(report: Report) -> str:
+    """Phase 2B-c Priority 3: what request-rate limiting actually applied
+    during this scan, for the Limitations section - derived from each
+    scanner's own recorded ScannerRunSummary.rate_limit_description, same
+    standard as _port_coverage_note() above: never a hardcoded sentence,
+    never silently drift from what the scanner actually recorded. Only
+    SUCCEEDED runs count - a FAILED/SKIPPED scanner never applied any
+    rate limit at all. Unlike port coverage (nmap only), more than one
+    scanner (ffuf, gobuster) can populate this in the same assessment.
+    """
+    entries = [
+        (s.name, s.rate_limit_description)
+        for s in report.scanner_summary
+        if s.status.is_success and s.rate_limit_description is not None
+    ]
+    if not entries:
+        return ""
+    parts = "; ".join(f"{escape(name)}: {escape(desc)}" for name, desc in entries)
+    return (
+        f" Request-rate limiting applied during this scan - {parts}. This paces requests "
+        "against the target rather than testing it as fast as possible; a real attacker "
+        "using a higher, unthrottled request rate was not simulated."
+    )
+
+
+def _severity_demotion_note(report: Report) -> str:
+    """Phase 2B-c Priority 1b: disclose when the severity classifier reduced
+    a finding's score below what path/status-only scoring would have
+    assigned, and why - same standard as _port_coverage_note() above: an
+    operator must be able to tell KingSec changed the answer, not just
+    trust it silently. Derived from each entry's own recorded
+    original_severity/demotion_reason, never a hardcoded count, so this
+    text cannot drift from what was actually demoted.
+    """
+    demoted = [e for e in report.entries if e.demotion_reason is not None]
+    if not demoted:
+        return ""
+    content_type_count = sum(1 for e in demoted if e.demotion_reason is SeverityDemotionReason.CONTENT_TYPE_MISMATCH)
+    baseline_shape_count = sum(1 for e in demoted if e.demotion_reason is SeverityDemotionReason.BASELINE_SHAPE_MATCH)
+    reasons: list[str] = []
+    if content_type_count:
+        reasons.append(
+            f"{content_type_count} for returning an HTML page instead of the expected file type "
+            "(a generic app response, not a confirmed file disclosure)"
+        )
+    if baseline_shape_count:
+        reasons.append(
+            f"{baseline_shape_count} for matching the same response shape as most of this scan's "
+            "other hits (indicating a catch-all response, not a distinct real finding)"
+        )
+    return (
+        f" This report's severity scoring reduced {len(demoted)} finding"
+        f"{'s' if len(demoted) != 1 else ''} below what the path name alone would suggest: "
+        f"{'; '.join(reasons)}. These findings are still listed above with their evidence intact "
+        "for independent review; only their severity was reduced."
+    )
+
+
 def _limitations(report: Report) -> str:
     """A general, honest limitations statement.
 
@@ -473,7 +531,7 @@ def _limitations(report: Report) -> str:
         "of false negatives (real issues not detected) and false positives (flagged issues "
         "that are not actually exploitable) — findings above should be independently verified "
         f"before remediation is prioritized on their basis alone. {cve_note}"
-        f"{_port_coverage_note(report)} A change to "
+        f"{_port_coverage_note(report)}{_rate_limit_note(report)}{_severity_demotion_note(report)} A change to "
         "the target's configuration after this assessment invalidates these results.</p>"
         "</section>"
     )
@@ -806,6 +864,12 @@ def _scanner_summary(report: Report) -> str:
             detail = f"{s.findings_count} finding" + ("" if s.findings_count == 1 else "s")
         else:
             detail = _clean_scanner_reason(s.skipped_reason) if s.skipped_reason else "did not complete"
+            if s.stderr_excerpt:
+                # Phase 2B-c Priority 4 (recurring-class instance nine): the
+                # real reason a scanner failed, not just the generic safe
+                # message every failure mode shares - see
+                # scanner_stderr_excerpt() in application/_support.py.
+                detail = f"{detail} — stderr: {s.stderr_excerpt}"
         if s.warnings:
             # Phase 2B Task 2: a scanner can succeed but not quite as
             # configured (e.g. an operator's own port selection silently
