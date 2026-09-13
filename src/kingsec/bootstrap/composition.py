@@ -255,6 +255,23 @@ def build_execution_planner(container: Container, settings: Settings) -> Executi
         discovery=ScannerDiscoveryService(
             ffuf_wordlist=settings.ffuf.wordlist,
             gobuster_wordlist=settings.gobuster.wordlist,
+            # Task 5 Addition 2: the operator's actually-configured
+            # binary_path per scanner, so doctor's find_executable() call
+            # resolves the SAME value the real scan adapters use (e.g.
+            # KINGSEC_ZAP__BINARY_PATH), never the manifest's hardcoded
+            # bare name. `nuclei`'s settings model is named `scanner` for
+            # historical reasons (it was Module 5.1's only scanner).
+            binary_paths={
+                "nmap": settings.nmap.binary_path,
+                "nuclei": settings.scanner.binary_path,
+                "nikto": settings.nikto.binary_path,
+                "ffuf": settings.ffuf.binary_path,
+                "gobuster": settings.gobuster.binary_path,
+                "trivy": settings.trivy.binary_path,
+                "semgrep": settings.semgrep.binary_path,
+                "amass": settings.amass.binary_path,
+                "zap": settings.zap.binary_path,
+            },
         ),
         registry=container.resolve(ScannerPluginRegistry),
     )

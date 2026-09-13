@@ -13,7 +13,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
-import subprocess  # nosec B404 -- see _get_version()/_check_java() for the justification
+import subprocess  # nosec B404 -- see _probe_version()/_check_java() for the justification
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -130,7 +130,18 @@ _INSTALL_HINTS: dict[str, dict[PlatformHint, str]] = {
         "linux": "go install -v github.com/owasp-amass/amass/v4/...@master",
     },
     "zap": {
-        "windows": "Download from https://www.zaproxy.org/download/",
+        # Task 5 Addition 3: the chocolatey 'zap' package is a .bat shim
+        # that resolves via shutil.which() (PATHEXT-aware) but cannot be
+        # executed by the scan path's raw CreateProcess (shell=False) -
+        # not a bug in KingSec, a Windows CreateProcess limitation with no
+        # fix that doesn't reintroduce a shell. Install ZAP via the
+        # official installer and point KINGSEC_ZAP__BINARY_PATH at the
+        # real ZAP.exe it installs - see docs/INSTALL.md.
+        "windows": (
+            "Install ZAP via the official installer from https://www.zaproxy.org/download/ "
+            "(the chocolatey package's .bat shim will NOT work - see docs/INSTALL.md), then: "
+            '$env:KINGSEC_ZAP__BINARY_PATH = "C:\\Program Files\\ZAP\\Zed Attack Proxy\\ZAP.exe"'
+        ),
         "linux": "docker run -d --name zap ghcr.io/zaproxy/zaproxy:stable  (or  apt install zaproxy)",
     },
 }
@@ -140,7 +151,7 @@ _SCANNER_MANIFEST: dict[str, dict[str, Any]] = {
         "name": "Nmap",
         "binary": "nmap",
         "version_args": ("--version",),
-        "version_regex": r"version\s+([\d.]+)",
+        "version_regex": r"version\s+(\d+(?:\.\d+)*)",
         "assets": [],
         "extra_checks": {
             "required_permissions": True,
@@ -150,7 +161,7 @@ _SCANNER_MANIFEST: dict[str, dict[str, Any]] = {
         "name": "Nuclei",
         "binary": "nuclei",
         "version_args": ("-version",),
-        "version_regex": r"([\d.]+)",
+        "version_regex": r"(\d+(?:\.\d+)*)",
         "assets": [
             AssetRequirement(
                 name="Nuclei templates",
@@ -174,7 +185,7 @@ _SCANNER_MANIFEST: dict[str, dict[str, Any]] = {
         "name": "Nikto",
         "binary": "nikto",
         "version_args": ("-Version",),
-        "version_regex": r"([\d.]+)",
+        "version_regex": r"(\d+(?:\.\d+)*)",
         "assets": [
             AssetRequirement(
                 name="Perl runtime",
@@ -190,8 +201,17 @@ _SCANNER_MANIFEST: dict[str, dict[str, Any]] = {
     "ffuf": {
         "name": "FFUF",
         "binary": "ffuf",
-        "version_args": ("--version",),
-        "version_regex": r"([\d.]+)",
+        # Task 5 Addition 4: ffuf has no --version/-version flag at all
+        # (verified against the real 2.2.1 binary on this host: it exits 2
+        # with "flag provided but not defined: -version" for either
+        # spelling) - a pre-existing latent defect that Addition 2's new
+        # "must actually execute" usable-gate turned into a real, active
+        # regression (ffuf works fine for real scans but was newly
+        # reported NOT usable). Its version is only ever printed as the
+        # first line of `-h`'s help output ("Fuzz Faster U Fool -
+        # v2.2.1"), which always exits 0.
+        "version_args": ("-h",),
+        "version_regex": r"(\d+(?:\.\d+)*)",
         # Phase 2A Correction 4: path is None here deliberately — the real
         # path comes from the operator-configured FfufSettings.wordlist at
         # request time (see get_scanner_status()'s wordlist substitution
@@ -215,7 +235,7 @@ _SCANNER_MANIFEST: dict[str, dict[str, Any]] = {
         "name": "Gobuster",
         "binary": "gobuster",
         "version_args": ("--version",),
-        "version_regex": r"([\d.]+)",
+        "version_regex": r"(\d+(?:\.\d+)*)",
         # Same as ffuf above: real path substituted from
         # GobusterSettings.wordlist at request time.
         "assets": [
@@ -232,7 +252,7 @@ _SCANNER_MANIFEST: dict[str, dict[str, Any]] = {
         "name": "Trivy",
         "binary": "trivy",
         "version_args": ("--version",),
-        "version_regex": r"Version:\s*([\d.]+)",
+        "version_regex": r"Version:\s*(\d+(?:\.\d+)*)",
         "assets": [
             AssetRequirement(
                 name="Trivy vulnerability DB",
@@ -248,7 +268,7 @@ _SCANNER_MANIFEST: dict[str, dict[str, Any]] = {
         "name": "Semgrep",
         "binary": "semgrep",
         "version_args": ("--version",),
-        "version_regex": r"([\d.]+)",
+        "version_regex": r"(\d+(?:\.\d+)*)",
         "assets": [],
         "extra_checks": {},
     },
@@ -256,7 +276,7 @@ _SCANNER_MANIFEST: dict[str, dict[str, Any]] = {
         "name": "Amass",
         "binary": "amass",
         "version_args": ("--version",),
-        "version_regex": r"([\d.]+)",
+        "version_regex": r"(\d+(?:\.\d+)*)",
         "assets": [
             AssetRequirement(
                 name="Amass config directory",
@@ -272,7 +292,12 @@ _SCANNER_MANIFEST: dict[str, dict[str, Any]] = {
         "name": "OWASP ZAP",
         "binary": "zap",
         "version_args": ("-version",),
-        "version_regex": r"([\d.]+)",
+        "version_regex": r"(\d+(?:\.\d+)*)",
+        # Task 5: verified empirically against the real ZAP.exe on this
+        # host - "-version" is not a lightweight flag, it boots the whole
+        # platform before printing and exiting (~20s cold). The other 8
+        # scanners' probes are near-instant and use the 15s default.
+        "version_timeout": 45.0,
         "assets": [
             AssetRequirement(
                 name="Java runtime",
@@ -323,8 +348,25 @@ def _wordlist_setup_command(env_var: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _find_executable(binary: str) -> str | None:
+def find_executable(binary: str) -> str | None:
     """Locate a binary using ``shutil.which`` with platform-specific PATH.
+
+    Public (not `_`-prefixed) and the ONE resolution function for a
+    configured binary value (Task 5 Addition 2): both ``get_scanner_status()``
+    below and the ZAP scan adapter (``infrastructure/scanner/zap.py``) call
+    this, instead of each independently calling ``shutil.which()``. That
+    matters because ``shutil.which()`` is PATHEXT-aware (it will resolve a
+    bare name to a ``.BAT``/``.CMD`` shim), while the real scan path invokes
+    the resolved path via raw ``CreateProcess`` (``subprocess.run(...,
+    shell=False)``), which is NOT PATHEXT-aware for ``.BAT``/``.CMD`` — a
+    binary this function resolves can still fail to execute. That gap is
+    exactly what ``_probe_version()`` below exists to catch, not something
+    this function can paper over by resolving differently.
+
+    ``binary`` may be a bare name (searched on PATH) or an operator-supplied
+    absolute path (e.g. ``KINGSEC_ZAP__BINARY_PATH``) — ``shutil.which()``
+    returns an absolute-path argument unchanged if it exists and is
+    executable, without a PATH search.
 
     On Windows, also checks Chocolatey and Scoop install locations.
     On Linux, also checks /snap/bin and common package paths.
@@ -372,35 +414,122 @@ def _find_executable(binary: str) -> str | None:
     return None
 
 
-def _get_version(path: str, args: tuple[str, ...], regex: str) -> str | None:
-    """Safely run ``<path> <args>`` and extract a version from stderr+stdout.
+@dataclass(frozen=True, slots=True)
+class VersionProbe:
+    """Result of actually invoking a scanner's version-probe command.
+
+    Task 5 Addition 1 + 2: a single subprocess call now answers two
+    previously-conflated questions at once, instead of doctor inferring
+    "usable" purely from asset presence while ``_get_version`` silently
+    swallowed every failure into ``None``:
+
+    * ``executed`` — did the binary actually run and exit 0? ``False``
+      covers both "couldn't be launched at all" (OSError/timeout - e.g. a
+      Windows ``.bat`` resolved via PATHEXT that raw ``CreateProcess``
+      can't execute) and "launched but exited non-zero" (e.g. the ZAP
+      chocolatey shim's "The input line is too long." failure). Either
+      way this is the Addition 2 "located but not executable" state, and
+      it must never be read as version-parseable text.
+    * ``version`` — only ever set when ``executed`` is True. A scanner
+      that runs fine but whose ``--version`` output doesn't match
+      ``version_regex`` is still a working scanner (``executed=True,
+      version=None``), which is a different, non-blocking case from
+      ``executed=False``.
+    """
+
+    executed: bool
+    version: str | None
+    error: str | None
+
+
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
+
+
+def _strip_ansi(text: str) -> str:
+    """Strip ANSI colour/cursor escape codes before version-regex matching.
+
+    Found via real testing (Task 5 Addition 4): nuclei colours its
+    ``-version`` output (``\\x1b[34mINF\\x1b[0m] ... Version: v3.11.1``),
+    and the digits INSIDE the escape code itself (``34``) matched before
+    the real version on this host, parsing as ``v34`` instead of
+    ``v3.11.1`` — a successful invocation silently yielding a plausible
+    but wrong version, adjacent to (not the same as) Addition 1's
+    failure-as-success bug, and equally a "looks fine, isn't" defect.
+    """
+    return _ANSI_ESCAPE_RE.sub("", text)
+
+
+def _probe_version(
+    path: str,
+    args: tuple[str, ...],
+    regex: str,
+    *,
+    timeout: float = 15.0,
+    cwd: str | None = None,
+) -> VersionProbe:
+    """Safely run ``<path> <args>`` and report whether it executed and its version.
 
     Uses ``subprocess.run`` with ``shell=False`` (list-based invocation),
-    a short timeout, and captures combined stdout+stderr.
+    a timeout, and captures combined stdout+stderr.
+
+    Addition 1: a non-zero exit (or a failed invocation) NEVER yields a
+    parsed version — the old ``[\\d.]+`` regex matched the bare period in
+    "The input line is too long." (the ZAP chocolatey shim's real failure
+    text), turning a total invocation failure into an apparent version
+    string ("v."). ``version_regex`` is now required to contain at least
+    one digit AND extraction is only even attempted once ``returncode``
+    has already been confirmed to be 0.
+
+    ``cwd`` and ``timeout`` exist for the SAME reason ``zap.py``'s real
+    scan invocation needs them (Task 5): ``ZAP.exe`` (an install4j native
+    launcher) resolves its bundled classpath relative to its OWN
+    directory, and its ``-version`` probe genuinely takes ~20s (a real
+    JVM cold-boot of the whole platform, not a lightweight flag) —
+    verified empirically against the real binary on this host. Without
+    ``cwd``, ZAP.exe's launcher fails to load its main class but STILL
+    EXITS 0 in well under a second, a second instance of Addition 1's
+    exact defect class one layer deeper than the regex (a genuine
+    failure at the OS-exit-code layer, not just the text-parsing layer)
+    — caught only by actually testing this probe against the real binary
+    with the real fix applied, not by inspecting the code.
     """
     try:
-        # path is a filesystem path resolved by _find_executable() via a
+        # path is a filesystem path resolved by find_executable() via a
         # fixed search over well-known install locations for a hardcoded
         # binary name (from _SCANNER_MANIFEST, a static dict literal - see
-        # line 119); args is that same manifest entry's hardcoded
-        # version_args tuple (e.g. ("--version",)). Neither is ever derived
-        # from a scan target, request body, or other caller-supplied value -
-        # scanner_id only selects among the fixed manifest keys and cannot
-        # influence the command vector itself.
+        # line 119) or an operator-configured binary_path; args is that
+        # same manifest entry's hardcoded version_args tuple (e.g.
+        # ("--version",)). Neither is ever derived from a scan target,
+        # request body, or other caller-supplied value - scanner_id only
+        # selects among the fixed manifest keys and cannot influence the
+        # command vector itself.
         result = subprocess.run(  # nosec B603
             [path, *args],
             capture_output=True,
             text=True,
-            timeout=15,
+            timeout=timeout,
             shell=False,
+            cwd=cwd,
         )
-        combined = (result.stdout or "") + "\n" + (result.stderr or "")
-        match = re.search(regex, combined, re.IGNORECASE)
-        if match:
-            return match.group(1)
-        return None
-    except (OSError, subprocess.TimeoutExpired):
-        return None
+    except OSError as exc:
+        return VersionProbe(executed=False, version=None, error=str(exc))
+    except subprocess.TimeoutExpired:
+        return VersionProbe(
+            executed=False, version=None, error=f"version probe timed out after {timeout:.0f}s"
+        )
+
+    if result.returncode != 0:
+        detail_source = (result.stderr or result.stdout or "").strip()
+        detail = detail_source.splitlines()[0][:200] if detail_source else "no output"
+        return VersionProbe(
+            executed=False,
+            version=None,
+            error=f"exited with code {result.returncode}: {detail}",
+        )
+
+    combined = _strip_ansi((result.stdout or "") + "\n" + (result.stderr or ""))
+    match = re.search(regex, combined, re.IGNORECASE)
+    return VersionProbe(executed=True, version=match.group(1) if match else None, error=None)
 
 
 def _check_asset(asset: AssetRequirement) -> bool:
@@ -435,7 +564,7 @@ def _check_java() -> bool:
     try:
         # java is shutil.which("java")'s own resolved path (a fixed,
         # hardcoded binary name), and "-version" is a literal. Same
-        # reasoning as _get_version() above: no caller-supplied value
+        # reasoning as _probe_version() above: no caller-supplied value
         # reaches this command vector.
         result = subprocess.run(  # nosec B603
             [java, "-version"],
@@ -444,7 +573,7 @@ def _check_java() -> bool:
             timeout=10,
             shell=False,
         )
-        combined = (result.stdout or "") + "\n" + (result.stderr or "")
+        combined = _strip_ansi((result.stdout or "") + "\n" + (result.stderr or ""))
         match = re.search(r'(?:version|openjdk version)\s+"?(\d+)', combined)
         if match:
             major = int(match.group(1))
@@ -472,9 +601,25 @@ class ScannerDiscoveryService:
     moment this requirement became non-optional.
     """
 
-    def __init__(self, *, ffuf_wordlist: str = "", gobuster_wordlist: str = "") -> None:
+    def __init__(
+        self,
+        *,
+        ffuf_wordlist: str = "",
+        gobuster_wordlist: str = "",
+        binary_paths: dict[str, str] | None = None,
+    ) -> None:
         self._ffuf_wordlist = ffuf_wordlist
         self._gobuster_wordlist = gobuster_wordlist
+        # Task 5 Addition 2: the operator's actually-configured binary_path
+        # per scanner (e.g. Settings.zap.binary_path), keyed by scanner_id.
+        # Without this, doctor always resolved the manifest's hardcoded
+        # bare name ("zap") regardless of what KINGSEC_ZAP__BINARY_PATH was
+        # set to — a scan-path/doctor disconnect on top of the
+        # shutil.which()-vs-CreateProcess one this whole addition exists to
+        # close. Same Correction-4 pattern already used for
+        # ffuf_wordlist/gobuster_wordlist above. Falls back to the
+        # manifest's bare name when a scanner_id has no entry.
+        self._binary_paths = binary_paths or {}
 
     def get_scanner_status(self, scanner_id: str) -> ScannerStatus:
         """Discover the status of a single scanner."""
@@ -493,7 +638,7 @@ class ScannerDiscoveryService:
             )
 
         name: str = manifest["name"]
-        binary: str = manifest["binary"]
+        binary: str = self._binary_paths.get(scanner_id) or manifest["binary"]
         version_args: tuple[str, ...] = manifest["version_args"]
         version_regex: str = manifest["version_regex"]
         # Copy, never mutate the shared module-level manifest list — and
@@ -522,7 +667,7 @@ class ScannerDiscoveryService:
                 )
             ]
 
-        path = _find_executable(binary)
+        path = find_executable(binary)
         if path is None:
             hints = _INSTALL_HINTS.get(scanner_id, {})
             hint = hints.get(_current_platform(), "")
@@ -539,7 +684,19 @@ class ScannerDiscoveryService:
                 install_hints=(hint,) if hint else (),
             )
 
-        version = _get_version(path, version_args, version_regex)
+        probe = _probe_version(
+            path,
+            version_args,
+            version_regex,
+            timeout=manifest.get("version_timeout", 15.0),
+            # Same reason zap.py's real scan invocation sets cwd (Task 5):
+            # a binary that resolves its own bundled resources relative to
+            # its OWN directory (e.g. ZAP.exe) needs that as cwd to even
+            # load correctly - harmless for the other 8 scanners, which
+            # don't care what their cwd is.
+            cwd=str(Path(path).parent),
+        )
+        version = probe.version
 
         warnings: list[str] = []
         missing_assets: list[str] = []
@@ -553,8 +710,17 @@ class ScannerDiscoveryService:
                     # this one-line reason sentence.
                     warnings.append(f"Missing {asset.name}")
 
-        usable = len(missing_assets) == 0 or all(
-            a.optional for a in assets if a.name in missing_assets
+        # Task 5 Addition 2: a scanner is only usable if it actually
+        # executed (probe.executed) — asset presence alone is no longer
+        # sufficient. "Located via find_executable() but couldn't be run"
+        # (e.g. a Windows .bat/.cmd resolved via PATHEXT that raw
+        # CreateProcess can't execute) is a distinct, always-blocking
+        # state, reported below with a reason naming the execution
+        # failure specifically — never conflated with a missing-asset
+        # warning.
+        usable = probe.executed and (
+            len(missing_assets) == 0
+            or all(a.optional for a in assets if a.name in missing_assets)
         )
 
         all_asset_names = tuple(a.name for a in assets if not a.optional)
@@ -579,6 +745,20 @@ class ScannerDiscoveryService:
                 and asset.install_hint not in install_hints
             ):
                 install_hints.append(asset.install_hint)
+
+        # Task 5 Addition 2/3: when the binary couldn't be executed at all,
+        # an asset-missing hint would be misleading noise — the real fix is
+        # about the BINARY, so surface the platform install/config hint
+        # (Addition 3's KINGSEC_ZAP__BINARY_PATH guidance lives here for
+        # zap) instead of whatever asset hints were collected above.
+        execution_error_reason: str | None = None
+        if not probe.executed:
+            execution_error_reason = (
+                f"{binary!r} was located at {path!r} but failed to execute: {probe.error}"
+            )
+            platform_hints = _INSTALL_HINTS.get(scanner_id, {})
+            platform_hint = platform_hints.get(_current_platform(), "")
+            install_hints = [platform_hint] if platform_hint else []
 
         extra = manifest.get("extra_checks", {})
 
@@ -625,7 +805,11 @@ class ScannerDiscoveryService:
             executable_path=path,
             version=version or None,
             usable=usable,
-            availability_reason=None if usable else "; ".join(warnings) or None,
+            availability_reason=(
+                execution_error_reason
+                if not probe.executed
+                else (None if usable else "; ".join(warnings) or None)
+            ),
             warnings=tuple(warnings),
             required_assets=all_asset_names,
             missing_assets=missing_names,

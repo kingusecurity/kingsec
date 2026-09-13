@@ -20,6 +20,21 @@ because this command's whole purpose is helping a fresh install reach a
 working state, which includes states before the database has been set
 up. Loads Settings and registers only the scanner plugins, nothing else.
 
+Not zero-subprocess, however (Task 5 Addition 2): verifying a scanner is
+genuinely usable — not just present on PATH — means actually invoking
+each scanner's own version-probe command (``<binary> --version`` or
+equivalent), the same harmless, read-only probe the discovery service has
+always run to report a version number. This is what catches a binary
+that ``shutil.which()``-style resolution finds but the real scan path
+cannot execute (e.g. a Windows ``.bat``/``.cmd`` shim resolved via
+PATHEXT that raw ``CreateProcess`` — what ``subprocess.run(...,
+shell=False)`` uses — cannot run): a "located but not executable" state
+that is reported as NOT usable, with a reason naming the execution
+failure, rather than silently agreeing with a scan path it never
+actually exercised. This still installs, downloads, writes, and modifies
+nothing — it is the same command an operator would type themselves to
+check a version.
+
 Derives every verdict from the SAME ``ScannerDiscoveryService`` and
 ``ScannerPluginRegistry`` the real ``ExecutionPlanner`` decides with
 (via ``bootstrap.composition.build_execution_planner()``) — never a
