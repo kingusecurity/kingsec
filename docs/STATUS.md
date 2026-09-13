@@ -521,3 +521,56 @@ instance six, above). Both are now fixed: the regex requires a digit,
 extraction is gated on a zero exit code, and a located-but-unexecutable
 binary is reported NOT usable with a reason naming the execution
 failure — never `[OK]`.
+
+### Backlog — profile duration estimates are wildly optimistic (logged, not fixed, Phase 2B-c)
+
+Task 6's five real runs (`docs/E2E-EVIDENCE-PHASE2B.md` §2) each finished
+far under their profile's stated estimate — a `web-scan` profile quoted
+"60 min" and finished in 391s (6.5 min), an `api-scan` quoted "45 min"
+and finished in 369s (6.15 min), `full-assessment` quoted "60 min" and
+finished in 169s (2.8 min). Every profile overshot its own estimate by
+roughly 8-20x, consistently, not as an outlier on one run. Wherever this
+estimate is shown to an operator before they start a scan (profile
+selection UI, API response), it materially misrepresents how long the
+scan will actually take. Not investigated further and not fixed here,
+per instruction — recorded as found. Whoever picks this up next should
+start by finding where the estimate is computed and check whether it is
+a hardcoded per-profile constant rather than derived from anything real.
+
+### Backlog — HOST SERVICES contamination, flagged prominently for Phase 2C
+
+Every run in Task 6's suite targets `127.0.0.1:<port>`, and nmap's
+host-sweep component scans the whole host, not just the target's own
+port — so **every run**, not only a bare quick-scan, surfaces this
+machine's own unrelated background services (RPC, SMB, VMware ports,
+RDP, WSDAPI, plus this host's own `vantriqsec-crm`/`vantriqsec-n8n`
+services — both confirmed pre-existing, off-limits, read-only, never
+touched) mixed into the target's own findings. Full detail in
+`docs/E2E-EVIDENCE-PHASE2B.md` §4 ("Host services vs. target findings").
+**Flagged prominently here, separately, for Phase 2C:** any
+severity/count aggregation across these runs — a dashboard, a trend
+chart, a cross-assessment rollup — must exclude these host-services
+ports uniformly, or it will double-count the same handful of unrelated
+services in every run's totals and silently inflate KingSec's own
+reported numbers. This is a real correctness risk for any future
+Phase 2C feature that aggregates across assessments, not just a report-
+rendering nicety.
+
+### Backlog — scan-time AI enrichment has the same per-finding spam defect Priority 2 fixed elsewhere (logged, not fixed)
+
+Discovered live during Phase 2B-c's Runs 1-3 re-run
+(`docs/E2E-EVIDENCE-PHASE2B.md` §3b): Priority 2's 5a fail-fast fix was
+scoped to `generate_report.py`'s `_with_ai_explanations()` (the report-
+render freeze, Defect 5's original evidence). A **separate** call site,
+scan-time enrichment in `submit_assessment.py` (already noted in that
+method's own docstring as mirroring the same best-effort pattern), was
+never touched and still calls the AI port once per finding with no
+up-front `is_configured()` check. Confirmed directly against the real
+re-run: 56 "AI enrichment failed (best-effort): [KS-EXT-001] no AI API
+key configured" log lines across three scans against an environment with
+no AI provider configured, proportional to finding count exactly the way
+Defect 5's 14,043 lines were. Same defect class, same fix shape (5a's
+`is_configured()` check, applied once before the loop instead of caught
+per-finding) would apply here too. Not fixed — out of scope for this
+round, logged per the same "log, don't fix" instruction as the other two
+items above.
