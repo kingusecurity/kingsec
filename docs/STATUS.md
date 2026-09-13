@@ -454,6 +454,8 @@ A fourth is what Conditions 1/2 (see the Decision 4 correction report above) exi
 
 **A fifth instance was introduced and caught inside the very phase that named this pattern.** Task 4's first cut of the port-coverage disclosure (this file's own port-coverage-disclosure section above) made `ScannerRunSummary.port_specification=None` mean three different things at once, all rendering as the SAME sentence: (a) a genuine non-URL run where nmap used its own unmodified default — the one case that sentence was actually true for; (b) a row persisted before this field existed at all — genuinely unknown; (c) a URL-target row from before the two-invocation design ran — also genuinely unknown. The regenerated Run #4 PDF rendered case (b) as case (a) and happened to be true, which was luck, not design — Run #4's real target genuinely is non-URL, so the wrong-reason sentence was accidentally the right sentence. Fixed: a genuine non-URL run now RECORDS an explicit sentinel string (`NON_URL_DEFAULT_PORT_SPECIFICATION`, nmap.py) instead of leaving the field absent — `None` now means exactly one thing, "not recorded," and renders as an honest "port coverage for this scan was not recorded; treat the port scope as unknown" instead of guessing. Required test (`TestPortCoverageDisclosure.test_absent_key_and_explicit_non_url_sentinel_render_different_disclosures`, test_templates.py): an absent-key summary and an explicit-sentinel summary must render different disclosures — the fix is only real if they do.
 
+**Instance six inverts the pattern — a FAILURE rendered as a SUCCESS.** Task 5 (ZAP-on-Windows): `ScannerDiscoveryService._get_version()`'s regex (`[\d.]+`) matched the bare period in ZAP's real chocolatey-shim failure text, "The input line is too long." — a total invocation failure (raw `CreateProcess` cannot execute a `.bat`) produced a plausible-looking version string ("v.") instead of no version at all. Every prior instance in this list is an *absence* silently reading as *clean* ("nothing found" reading as "nothing to report"); this one is the opposite shape — an outright, non-zero-exit *failure* silently reading as a *working* scanner, the most dangerous variant found so far because it doesn't even need an attacker or a missing feature, just any error text containing a period, for any of the 9 scanners' regexes (all shared the same unbounded `[\d.]+` pattern). Fixed: `version_regex` tightened to `\d+(?:\.\d+)*` (at least one digit) across all 9 manifest entries, and the new `_probe_version()` (replacing `_get_version()`) gates extraction on `returncode == 0` — a failed invocation never even reaches the regex, regardless of what its output contains. Required tests (`TestVersionProbeNeverParsesAFailureAsSuccess`, `test_scanner_discovery.py`): stderr containing "The input line is too long." yields no version, and a non-zero exit never yields a version even when the output looks like a real, parseable version string. Closes the "Backlog — ZAP version string parses as 'v.' on Windows" item below.
+
 **Phase 5 BLOCKER — scanner licensing risk, investigated and documented:** `docs/LICENSING-RISK.md` (new, this round) reviews all six wired scanners' own license text (nmap NPSL, nuclei MIT, nikto GPLv3 + proprietary DB files, ffuf MIT, gobuster Apache-2.0, ZAP Apache-2.0) against how KingSec actually uses each one (arm's-length external subprocess invocation only — no scanner binary or data file is ever bundled, vendored, or shipped; every `binary_path` defaults to a bare PATH-resolved command name, confirmed by reading `infrastructure/config/models.py` and the `Dockerfile`). Verdict: CLEAR for all six today, with two flagged conditions — nmap and nikto's clearance depends on KingSec never bundling their binaries/data files into a future installer or Docker image, and nikto's clearance additionally rests on the standard (not codified-in-law) GPL subprocess-invocation interpretation. Rank this above the wordlist/Nuclei-template licensing items already logged elsewhere in this file — those are lower-risk instances of the same underlying question this document settles more thoroughly.
 
 **Addition 2 — Phase 5 claim-audit item, data handling:** a URL containing embedded credentials is logged verbatim at INFO by all six wired scanner adapters' `_logger.info(..., target=target.value, ...)` calls (nmap, nuclei, nikto, ffuf, gobuster, zap — confirmed by reading each) and persisted to the `assessments.target_value` column as plain, unencrypted text. Decision 3 (once applied) closes the *input* path — a credentialed URL will be rejected at `Target` construction and can never reach a scan or a log line — but the claim audit still needs to state plainly what the product does and does not protect: target values are not encrypted at rest, and were not redacted in logs before this fix. Log this alongside the existing "local-first" class of product claims.
@@ -501,15 +503,17 @@ A 5th duck-typed fake (`_FakeAssessmentRepository` in `test_phase2a_honest_cover
 3. `tests/unit/application/test_submit_scheduled_assessment.py`
 4. `tests/unit/infrastructure/test_schedule_finalization_race.py`
 
-### Backlog — ZAP version string parses as "v." on Windows (logged, not fixed)
+### Backlog — ZAP version string parses as "v." on Windows (RESOLVED, Task 5)
 
-`kingsec doctor`, run for real on this Windows host (Task 3), shows
+`kingsec doctor`, run for real on this Windows host (Task 3), showed
 `[OK       ] zap       (OWASP ZAP) v.` — `ScannerDiscoveryService`'s
-version-extraction regex (`([\d.]+)`) does not match whatever ZAP's
-Windows `.bat` wrapper actually prints for `-version` on this host,
-leaving `ScannerStatus.version` either empty or a lone `.`. Cosmetic
-only (`usable` is unaffected — ZAP still correctly reports usable), not
-fixed here per explicit instruction. Worth fixing before this value
-reaches a customer-facing report: `ScannerRunSummary`/report rendering
-will eventually want to print each scanner's version for traceability,
-and "v." reads as broken, not as "version unknown."
+version-extraction regex (`([\d.]+)`) matched the bare period in ZAP's
+real chocolatey-shim failure text rather than a genuine version. At the
+time this was logged as cosmetic-only ("`usable` is unaffected"); Task 5's
+full diagnosis found that framing was itself wrong — the underlying
+invocation was a total failure, not a cosmetic parsing quirk, and
+`usable` being unaffected was the actual bug (see recurring-defect-class
+instance six, above). Both are now fixed: the regex requires a digit,
+extraction is gated on a zero exit code, and a located-but-unexecutable
+binary is reported NOT usable with a reason naming the execution
+failure — never `[OK]`.

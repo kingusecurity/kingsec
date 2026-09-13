@@ -448,7 +448,11 @@ is missing.
 discovery re-detects it. Run `kingsec doctor` at any point to see
 exactly which scanners are usable and the exact fix for any that
 aren't — it is the fastest way to check the steps below actually
-worked.
+worked. `doctor` verifies this by actually invoking each scanner's own
+version-probe command (harmless — the same `--version` an operator would
+run by hand), not just checking that a binary is present on PATH; a
+binary that's present but fails to execute is reported NOT usable, with
+a reason naming the execution failure, never silently as `[OK]`.
 
 ### Step: Nuclei templates
 
@@ -495,6 +499,40 @@ separately. The `export`/`$env:` forms above only last for the current
 shell session; add the variable to your `.env` file (or a permanent
 shell profile / System Environment Variable) to make it stick across
 restarts.
+
+### Step: ZAP on Windows — the official installer, not Chocolatey
+
+On Windows, the Chocolatey `zap` package installs a `.bat` shim on PATH
+(a re-router to a nested `.bat` chain), **not** a real executable. KingSec
+invokes scanners as an argument list with `shell=False` — the essential
+defence against command injection via a scan target — and Windows'
+process-creation API (`CreateProcess`, what `shell=False` uses) cannot
+launch a `.bat`/`.cmd` file directly the way a shell can. This is a
+Windows OS limitation, not a KingSec bug, and it cannot be worked around
+without reintroducing a shell (which command injection requires KingSec
+to never do). The failure is not a clean "not found" either — Windows'
+implicit `cmd.exe` fallback for a `.bat` target can itself fail with
+"The input line is too long.", which is why `kingsec doctor` verifies
+actual execution (see the Note above), not just that a binary is present
+on PATH.
+
+Install ZAP via the **official installer** (not Chocolatey), then point
+`KINGSEC_ZAP__BINARY_PATH` at the real `ZAP.exe` it installs — a genuine
+install4j-generated native launcher, not a script:
+
+**Windows (PowerShell):**
+```powershell
+$env:KINGSEC_ZAP__BINARY_PATH = "C:\Program Files\ZAP\Zed Attack Proxy\ZAP.exe"
+```
+
+As with the wordlist variable above, this only lasts for the current
+shell session; add it to your `.env` file (or a permanent shell profile /
+System Environment Variable) to make it stick across restarts. Linux/macOS
+installs (the official Docker image or the `zaproxy` package) are
+unaffected — this is a Windows-only `.bat`-resolution issue.
+
+`kingsec doctor` prints this same command as the `fix:` line for zap on
+Windows whenever it's not usable.
 
 ---
 
