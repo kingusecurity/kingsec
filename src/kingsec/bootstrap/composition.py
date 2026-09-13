@@ -390,7 +390,15 @@ def _register_adapters(
     register_scanner(container, settings)
     register_ai(container, settings)
     _register_ai_services(container, settings)
-    register_reporting(container, output_format=report_format, brand_name=brand_name)
+    # Phase 2B-c Priority 2 (5d): cache rendered artifacts under data_dir so
+    # repeat /reports/{id}/download calls serve the stored bytes instead of
+    # re-rendering (WeasyPrint) from scratch every time.
+    register_reporting(
+        container,
+        output_format=report_format,
+        brand_name=brand_name,
+        cache_dir=settings.storage.data_dir / "report_cache",
+    )
     register_jobs(container)
     register_events(container)
 

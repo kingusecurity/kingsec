@@ -73,6 +73,16 @@ class AIProviderAdapter(AIPort):
         self._prompt_builder = prompt_builder or PromptBuilder()
         self._parser = parser or ResponseParser()
 
+    def is_configured(self) -> bool:
+        """Return whether an AI API key is currently resolvable.
+
+        Cheap and local: resolves config the same way ``_enrich()`` does,
+        but makes no network call. Callers use this to skip an entire
+        enrichment pass up front (Phase 2B-c Priority 2, 5a) instead of
+        hitting ``AIAuthenticationError`` once per finding.
+        """
+        return self._config_resolver.resolve().api_key is not None
+
     def _validate_base_url(self, resolved: ResolvedAIConfig) -> None:
         """Validate a request-supplied base_url before it is used to build
         an outbound request.

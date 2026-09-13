@@ -23,10 +23,18 @@ from kingsec.application.ports import (
     ReportGeneratorPort,
     ReportRepository,
 )
-from kingsec.domain import Finding, HistoryPoint, Report
+from kingsec.domain import Finding, HistoryPoint, Report, Severity
 from kingsec.domain.audit import AuditAction, AuditEntry
 
 _HISTORY_LIMIT = 20
+
+# Phase 2B-c Priority 2 (5b): a 4,000-finding report must never attempt
+# 4,000 AI calls even with a provider configured — cap enrichment to the
+# entries that actually justify the API cost/latency (report.entries is
+# already ordered most-severe-first, so taking the first N after filtering
+# to CRITICAL/HIGH naturally keeps the most severe within that ceiling).
+_AI_ENRICHMENT_SEVERITY_FLOOR = Severity.HIGH
+_AI_ENRICHMENT_MAX_CALLS = 50
 
 
 class GenerateReport:
@@ -99,20 +107,53 @@ class GenerateReport:
         )
 
     def _with_ai_explanations(self, report: Report, findings: tuple[Finding, ...]) -> Report:
-        """Best-effort, per-finding AI business-risk explanation.
+        """Best-effort AI business-risk explanation for the most severe findings.
 
-        Never fails report generation: an AI outage or missing provider
-        degrades to ``ai_explanation=None`` on the affected entries, and
-        ``report.ai_enabled`` tells the template whether that's because no
-        provider was configured at all (mirrors the same best-effort pattern
-        already used for scan-time enrichment in ``submit_assessment.py``).
+        Never fails report generation: an AI outage degrades individual
+        entries to ``ai_explanation=None``, and ``report.ai_enabled`` tells
+        the template whether that's because no provider was configured at
+        all (mirrors the same best-effort pattern already used for scan-time
+        enrichment in ``submit_assessment.py``).
+
+        Phase 2B-c Priority 2 fix (Defect 5 — a 4,000-finding report with no
+        AI provider configured previously attempted 4,000 enrichment calls,
+        logging the identical "no AI API key configured" failure once per
+        finding):
+          - 5a) ``is_configured()`` is checked ONCE, up front. If it's
+            False, the entire pass is skipped with a single log line —
+            never per-finding — and ``ai_enabled`` stays ``False``,
+            matching that field's own documented contract (which the
+            unconditional ``ai_enabled=True`` below used to violate).
+          - 5b) Even with a provider configured, only CRITICAL/HIGH entries
+            are attempted, capped at ``_AI_ENRICHMENT_MAX_CALLS`` total —
+            ``report.entries`` is already ordered most-severe-first, so the
+            cap naturally keeps the most severe entries.
         """
         if self._ai is None:
             return report
+        if not self._ai.is_configured():
+            logging.getLogger(__name__).warning(
+                "AI enrichment skipped: no provider configured (checked once for the "
+                "whole report, not per-finding — see Phase 2B-c Defect 5)"
+            )
+            return report
 
         by_id = {str(f.id): f for f in findings}
+        eligible_ids: set[str] = set()
+        for entry in report.entries:
+            if entry.severity < _AI_ENRICHMENT_SEVERITY_FLOOR:
+                continue
+            if len(eligible_ids) >= _AI_ENRICHMENT_MAX_CALLS:
+                break
+            eligible_ids.add(entry.finding_id)
+
         new_entries = tuple(
-            dataclasses.replace(entry, ai_explanation=self._explain(by_id.get(entry.finding_id)))
+            dataclasses.replace(
+                entry,
+                ai_explanation=(
+                    self._explain(by_id.get(entry.finding_id)) if entry.finding_id in eligible_ids else None
+                ),
+            )
             for entry in report.entries
         )
         return dataclasses.replace(report, entries=new_entries, ai_enabled=True)
