@@ -31,6 +31,7 @@ from kingsec.domain import (
     TargetType,
 )
 from kingsec.domain.enums import ScannerRunState
+from kingsec.infrastructure.scanner.errors import ScannerExecutionError
 from kingsec.infrastructure.scanner.orchestrator import ScannerOrchestrator
 from kingsec.infrastructure.scanner.registry import InMemoryPluginRegistry
 from kingsec.shared.errors import ScannerError
@@ -132,5 +133,53 @@ class TestFailScannerReceivesSanitizedText:
         assert entry.error is not None
         assert "internal-scanner.corp.local" not in entry.error
         assert "9200" not in entry.error
+
+
+class TestStderrExcerptCapture:
+    """Phase 2B-c Priority 4 (recurring-class instance nine): a scanner's
+    real stderr - already captured in ScannerExecutionError.context by
+    every adapter's nonzero-exit raise - must reach ScannerProgress.
+    stderr_excerpt, distinct from and in addition to the sanitized safe
+    message TestFailScannerReceivesSanitizedText proves stays closed."""
+
+    def test_stderr_from_context_reaches_scanner_progress(self) -> None:
+        registry = InMemoryPluginRegistry()
+        inner = ScannerExecutionError(
+            "ffuf exited with code 1",
+            context={"returncode": 1, "stderr": "ffuf: cannot resolve host", "target": "10.0.0.5"},
+            user_message="The scan process exited with an error before producing usable results. "
+            "Check the scanner's configuration or try again.",
+        )
+        registry.register(_StubPlugin("ffuf", inner))
+        orchestrator = ScannerOrchestrator(registry)
+        engine = AssessmentExecutionEngine()
+        engine.start_execution("asmt-1", {"ffuf": "ffuf Scanner"})
+
+        orchestrator.execute_all(_TARGET, execution_engine=engine, tracking_id="asmt-1")
+
+        state = engine.get_state("asmt-1")
+        assert state is not None
+        entry = next(p for p in state.scanner_progress if p.scanner_id == "ffuf")
+        assert entry.stderr_excerpt == "ffuf: cannot resolve host"
+        # The safe user-facing message stays sanitized regardless - stderr
+        # capture is a separate, additive field, not a relaxation of the
+        # existing sanitization boundary.
+        assert entry.error is not None
+        assert "cannot resolve host" not in entry.error
+        assert "The scan process exited with an error before producing usable results." in entry.error
+
+    def test_no_stderr_in_context_leaves_excerpt_none(self) -> None:
+        registry = InMemoryPluginRegistry()
+        registry.register(_StubPlugin("nuclei", ConnectionError("Connection refused: internal-scanner.corp.local:9200")))
+        orchestrator = ScannerOrchestrator(registry)
+        engine = AssessmentExecutionEngine()
+        engine.start_execution("asmt-1", {"nuclei": "Nuclei Scanner"})
+
+        orchestrator.execute_all(_TARGET, execution_engine=engine, tracking_id="asmt-1")
+
+        state = engine.get_state("asmt-1")
+        assert state is not None
+        entry = next(p for p in state.scanner_progress if p.scanner_id == "nuclei")
+        assert entry.stderr_excerpt is None
 
 

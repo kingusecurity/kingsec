@@ -8,12 +8,20 @@ Gobuster output format (directory mode):
     Lines containing ``(Status: NNN) [Size: NNN]`` are findings.
     Separator lines (``===``) and metadata lines are skipped.
 
-Severity mapping (conservative):
+Base severity mapping (path/status only, before Signal 2 below):
     200/201/204       → LOW  (resource found)
     301/302           → INFORMATIONAL (redirect)
     401/403           → MEDIUM (auth required / forbidden)
     500+              → HIGH (server error)
     Interesting paths → HIGH or MEDIUM based on sensitivity
+
+Phase 2B-c Priority 1b: gobuster's default output has no Content-Type
+field, so Signal 1 (content-type mismatch, see ffuf_parser.py) does not
+apply here - only Signal 2 (baseline-shape clustering, downgrade-only,
+shared with ffuf via severity_demotion.py) does: among this batch's
+otherwise-MEDIUM-or-higher results, a (status, size) shape shared by a
+large cluster is capped at LOW. A demotion is always recorded on the
+Finding (original_severity + demotion_reason), never silent.
 """
 
 from __future__ import annotations
@@ -21,8 +29,10 @@ from __future__ import annotations
 import re
 from datetime import UTC, datetime
 
-from kingsec.domain import Evidence, Finding, Severity
+from kingsec.domain import Evidence, Finding, Severity, SeverityDemotionReason
 from kingsec.infrastructure.logging import get_logger
+
+from .severity_demotion import ShapeCandidate, compute_baseline_shape_demotions
 
 _logger = get_logger("kingsec.infrastructure.scanner")
 
@@ -46,6 +56,19 @@ _SENSITIVE_PATHS = frozenset(
     }
 )
 
+# Phase 2B-c Priority 1b (approved plan): sensitive paths with no
+# recognizable literal/extension match above - same list as ffuf_parser.py,
+# named directly from the real Run 2 flood (docs/E2E-EVIDENCE-PHASE2B.md
+# Defect 3). Matched as path patterns, not a fixed literal set.
+_SENSITIVE_PATH_PATTERNS = (
+    re.compile(r"\.git/head", re.IGNORECASE),
+    re.compile(r"\.git/config", re.IGNORECASE),
+    re.compile(r"(?:^|/)id_rsa(?:$|[/?#])", re.IGNORECASE),
+    re.compile(r"\.aws/credentials", re.IGNORECASE),
+    re.compile(r"(?:^|/)cosign\.key(?:$|[/?#])", re.IGNORECASE),
+    re.compile(r"ws_ftp\.log", re.IGNORECASE),
+)
+
 # Admin/login paths → MEDIUM
 _ADMIN_PATH_RE = re.compile(
     r"(admin|login|dashboard|manage|panel|wp-admin|cpanel)",
@@ -53,19 +76,23 @@ _ADMIN_PATH_RE = re.compile(
 )
 
 
-def _classify_severity(status: int, path: str) -> Severity:
-    """Determine severity based on HTTP status code and path."""
+def _is_sensitive_path(path: str) -> bool:
     lower_path = path.lower()
-
-    # Sensitive paths → HIGH
     if lower_path in _SENSITIVE_PATHS or lower_path.startswith("/."):
+        return True
+    return any(pattern.search(path) for pattern in _SENSITIVE_PATH_PATTERNS)
+
+
+def _base_severity(status: int, path: str) -> Severity:
+    """Severity from path/status alone - what a reader relying only on the
+    path name and HTTP status would conclude. Signal 2 only ever demotes
+    this, never raises it."""
+    if _is_sensitive_path(path):
         return Severity.HIGH
 
-    # Admin/login paths → MEDIUM
     if _ADMIN_PATH_RE.search(path):
         return Severity.MEDIUM
 
-    # Status code classification
     if status >= 500:
         return Severity.HIGH
     if status in (401, 403):
@@ -87,7 +114,7 @@ def parse_gobuster_output(output: str) -> list[Finding]:
     Returns:
         The findings parsed from the output (empty if there were none).
     """
-    findings: list[Finding] = []
+    records: list[tuple[str, int, int]] = []  # (path, status, size)
 
     for raw_line in output.splitlines():
         line = raw_line.strip()
@@ -105,12 +132,41 @@ def parse_gobuster_output(output: str) -> list[Finding]:
         path = match.group(1)
         status = int(match.group(2))
         size = int(match.group(3))
+        records.append((path, status, size))
 
-        severity = _classify_severity(status, path)
+    base_severities = [_base_severity(status, path) for path, status, _size in records]
+
+    # Signal 2: baseline-shape clustering, restricted to results that would
+    # otherwise score MEDIUM or higher (per-record base classification).
+    candidates = [
+        ShapeCandidate(index=i, status=status, length=size, base_severity=base_severities[i])
+        for i, (_path, status, size) in enumerate(records)
+        if base_severities[i] >= Severity.MEDIUM
+    ]
+    demoted_indices = compute_baseline_shape_demotions(candidates, total_results=len(records))
+
+    findings: list[Finding] = []
+    for i, (path, status, size) in enumerate(records):
+        base = base_severities[i]
+        if i in demoted_indices:
+            severity, original_severity, demotion_reason = (
+                Severity.LOW,
+                base,
+                SeverityDemotionReason.BASELINE_SHAPE_MATCH,
+            )
+        else:
+            severity, original_severity, demotion_reason = base, None, None
+
         title = f"HTTP {status} — {path}"
         description = f"Status: {status} | Path: {path} | Size: {size}"
 
-        finding = Finding.create(title=title, description=description, severity=severity)
+        finding = Finding.create(
+            title=title,
+            description=description,
+            severity=severity,
+            original_severity=original_severity,
+            demotion_reason=demotion_reason,
+        )
         finding.add_evidence(
             Evidence(
                 summary=f"Gobuster: {status} {path}",

@@ -10,6 +10,7 @@ requires.
 from __future__ import annotations
 
 import shutil
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from kingsec.application.ports.scanner_plugin import ScannerPluginPort
@@ -45,10 +46,13 @@ class FfufPlugin(ScannerPluginPort):
         self,
         settings: FfufSettings,
         runner: CommandRunner | None = None,
+        *,
+        wildcard_probe: Callable[[str, float], bool] | None = None,
     ) -> None:
         from kingsec.infrastructure.scanner.ffuf import FfufScannerAdapter
 
-        self._adapter: FfufScannerAdapter = FfufScannerAdapter(settings, runner=runner)
+        adapter_kwargs = {} if wildcard_probe is None else {"wildcard_probe": wildcard_probe}
+        self._adapter: FfufScannerAdapter = FfufScannerAdapter(settings, runner=runner, **adapter_kwargs)
         self._settings = settings
 
     def metadata(self) -> ScannerPluginMetadata:
@@ -98,7 +102,14 @@ class FfufPlugin(ScannerPluginPort):
 
         The adapter handles argument building, subprocess execution,
         timeout enforcement, and JSON parsing.
+
+        Phase 2B-c Priority 3: rate_limit_description is computed via the
+        same resolve_rate_limit_description() the adapter's own
+        _build_args() call reads from - not a second, independent guess -
+        so what's recorded here can never drift from what actually ran.
         """
+        from kingsec.infrastructure.scanner.ffuf import resolve_rate_limit_description
+
         findings = self._adapter.scan(target)
         return ScannerResult(
             scanner_id=ScannerId("ffuf"),
@@ -106,6 +117,7 @@ class FfufPlugin(ScannerPluginPort):
             raw_output="",
             duration_seconds=0.0,
             scanner_version=None,
+            rate_limit_description=resolve_rate_limit_description(self._settings),
         )
 
     def shutdown(self) -> None:

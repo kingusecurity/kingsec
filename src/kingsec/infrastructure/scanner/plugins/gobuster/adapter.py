@@ -93,7 +93,14 @@ class GobusterPlugin(ScannerPluginPort):
 
         The adapter handles argument building, subprocess execution,
         timeout enforcement, and text parsing.
+
+        Phase 2B-c Priority 3: rate_limit_description is computed via the
+        same resolve_rate_limit_description() the adapter's own
+        _build_args() call reads from - not a second, independent guess -
+        so what's recorded here can never drift from what actually ran.
         """
+        from kingsec.infrastructure.scanner.gobuster import resolve_rate_limit_description
+
         findings = self._adapter.scan(target)
         return ScannerResult(
             scanner_id=ScannerId("gobuster"),
@@ -101,6 +108,7 @@ class GobusterPlugin(ScannerPluginPort):
             raw_output="",
             duration_seconds=0.0,
             scanner_version=None,
+            rate_limit_description=resolve_rate_limit_description(self._settings),
         )
 
     def shutdown(self) -> None:

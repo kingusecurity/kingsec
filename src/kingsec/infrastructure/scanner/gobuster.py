@@ -24,6 +24,20 @@ if TYPE_CHECKING:
 _logger = get_logger("kingsec.infrastructure.scanner")
 
 
+def resolve_rate_limit_description(settings: GobusterSettings) -> str:
+    """What rate limiting actually applies to this scan, in gobuster's own
+    terms (Phase 2B-c Priority 3) - mirrors nmap's own
+    resolve_port_specification() precedent (nmap.py) and ffuf's equivalent
+    (ffuf.py): the Limitations section must state a real recorded fact,
+    never guess or hardcode.
+    """
+    if "--delay" in settings.scan_args:
+        return "operator-configured via scan_args (--delay)"
+    if settings.delay_ms <= 0:
+        return "disabled (delay_ms=0)"
+    return f"{settings.delay_ms}ms delay per request (gobuster --delay)"
+
+
 class GobusterScannerAdapter(ScannerPort):
     """Runs Gobuster against a target and returns domain findings."""
 
@@ -98,4 +112,9 @@ class GobusterScannerAdapter(ScannerPort):
             "-w",
             settings.wordlist,
         ]
+        # Phase 2B-c Priority 3: a conservative default per-request delay
+        # unless the operator already configured one (or explicitly
+        # disabled it with delay_ms=0) via scan_args.
+        if settings.delay_ms > 0 and "--delay" not in settings.scan_args:
+            args.extend(["--delay", f"{settings.delay_ms}ms"])
         return args
