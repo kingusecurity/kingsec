@@ -15,12 +15,15 @@ import builtins
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
-from kingsec.application import AssessmentNotFoundError, AssessmentRepository
-from kingsec.application.ports.repositories import FindingProjection
+from kingsec.application import AssessmentDataCorruptedError, AssessmentNotFoundError, AssessmentRepository
+from kingsec.application.ports.repositories import AssessmentPage, FindingProjection
 from kingsec.domain import Assessment, AssessmentId
+from kingsec.infrastructure.logging import get_logger
 from kingsec.infrastructure.persistence import _operations as ops
-from kingsec.infrastructure.persistence.mappers import assessment_to_domain
+from kingsec.infrastructure.persistence.mappers import assessment_to_domain, try_assessment_to_domain
 from kingsec.infrastructure.persistence.models import AssessmentORM, FindingORM
+
+_logger = get_logger("kingsec.infrastructure.persistence")
 
 _ALLOWED_FINDING_ORDER_COLS = frozenset({
     "discovered_at",
@@ -55,17 +58,29 @@ class SQLAlchemyAssessmentRepository(AssessmentRepository):
         orm = self._session.get(AssessmentORM, assessment_id.value)
         if orm is None:
             raise AssessmentNotFoundError(assessment_id.value)
-        return assessment_to_domain(orm)
+        assessment = try_assessment_to_domain(orm)
+        if assessment is None:
+            raise AssessmentDataCorruptedError(f"assessment {assessment_id.value!r} exists but could not be loaded")
+        return assessment
 
     def list(
         self,
         *,
         limit: int = 50,
         offset: int = 0,
-    ) -> builtins.list[Assessment]:
+    ) -> AssessmentPage:
         stmt = select(AssessmentORM).order_by(AssessmentORM.created_at.desc()).offset(offset).limit(limit)
         orms = self._session.execute(stmt).scalars().all()
-        return [assessment_to_domain(o) for o in orms]
+        items: list[Assessment] = []
+        unreadable_ids: list[str] = []
+        for o in orms:
+            assessment = try_assessment_to_domain(o)
+            if assessment is None:
+                unreadable_ids.append(o.id)
+                _logger.warning("assessment row could not be reconstructed, skipped from list", assessment_id=o.id)
+            else:
+                items.append(assessment)
+        return AssessmentPage(items=tuple(items), unreadable_ids=tuple(unreadable_ids))
 
     def find_by_schedule_occurrence_id(self, occurrence_id: str) -> builtins.list[Assessment]:
         """Return every assessment linked to a schedule occurrence (KSEC-100-01)."""
@@ -82,6 +97,12 @@ class SQLAlchemyAssessmentRepository(AssessmentRepository):
         stmt = select(AssessmentORM).where(AssessmentORM.status == "RUNNING")
         orms = self._session.execute(stmt).scalars().all()
         return [assessment_to_domain(o) for o in orms]
+
+    def find_running_ids(self) -> builtins.list[str]:
+        return ops.find_running_ids(self._session)
+
+    def force_fail_running(self, assessment_id: str, reason: str) -> bool:
+        return ops.force_fail_running(self._session, assessment_id, reason)
 
     def search_findings(
         self,

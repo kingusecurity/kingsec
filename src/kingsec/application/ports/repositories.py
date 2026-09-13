@@ -53,6 +53,25 @@ class FindingProjection:
     recommendation_count: int
 
 
+@dataclass(frozen=True, slots=True)
+class AssessmentPage:
+    """One page of assessments, honest about what couldn't be loaded.
+
+    Phase 2B Task 2 Condition 1: a row that exists but cannot be
+    reconstructed into a domain Assessment (a corrupted target_value, once
+    Decision 3's validation tightening lands) must not silently vanish
+    from a list, and must not fail the whole list either - both are the
+    same "nothing found vs nothing looked" defect class logged in
+    docs/STATUS.md. ``unreadable_ids`` carries the ids specifically (not
+    only a count): the id column reads fine even when target_value does
+    not, so it costs nothing to expose, and "row asmt-abc123 is
+    unreadable" is actionable in a way "1 row unreadable" is not.
+    """
+
+    items: tuple[Assessment, ...]
+    unreadable_ids: tuple[str, ...] = ()
+
+
 class AssessmentRepository(ABC):
     """Persists and retrieves :class:`Assessment` aggregates."""
 
@@ -62,7 +81,15 @@ class AssessmentRepository(ABC):
 
     @abstractmethod
     def get(self, assessment_id: AssessmentId) -> Assessment:
-        """Return the assessment for the id, or raise AssessmentNotFoundError."""
+        """Return the assessment for the id.
+
+        Raises:
+            AssessmentNotFoundError: If no row exists for this id.
+            AssessmentDataCorruptedError: If the row exists but cannot be
+                reconstructed (Phase 2B Task 2 Condition 1) - the caller
+                asked for this specific row, so a silent skip or a
+                misleading "not found" would both be dishonest.
+        """
 
     @abstractmethod
     def list(
@@ -70,8 +97,13 @@ class AssessmentRepository(ABC):
         *,
         limit: int = 50,
         offset: int = 0,
-    ) -> list[Assessment]:
-        """Return assessments ordered by created_at DESC with pagination."""
+    ) -> AssessmentPage:
+        """Return one page of assessments ordered by created_at DESC.
+
+        A row that cannot be reconstructed is excluded from ``items`` and
+        its id is reported in ``unreadable_ids`` instead of failing the
+        entire call (Phase 2B Task 2 Condition 1).
+        """
 
     @abstractmethod
     def find_running(self) -> builtins.list[Assessment]:
@@ -81,6 +113,49 @@ class AssessmentRepository(ABC):
         assessments a prior process crash left stuck mid-execution - a
         fresh process start means nothing returned here can legitimately
         still be executing.
+
+        Phase 2B Task 2 Condition 2: ResolveOrphanedAssessments no longer
+        calls this - see find_running_ids()/force_fail_running() below,
+        which never construct a domain Assessment (and so can never fail
+        on a corrupted target_value) since resolving an orphan never
+        legitimately needed one. Kept here as a general capability for any
+        other caller that genuinely needs the full aggregate.
+        """
+
+    @abstractmethod
+    def find_running_ids(self) -> builtins.list[str]:
+        """Return the ids of every assessment currently in RUNNING status.
+
+        Phase 2B Task 2 Condition 2: reads ONLY the id and status columns -
+        never target_value/target_type, so it can never fail on a
+        corrupted row the way find_running() (which must fully
+        reconstruct each Assessment, Target included) can. Paired with
+        force_fail_running() so orphan recovery never needs a domain
+        Assessment at all.
+        """
+
+    @abstractmethod
+    def force_fail_running(self, assessment_id: str, reason: str) -> bool:
+        """Force one assessment from RUNNING to FAILED without loading it.
+
+        Phase 2B Task 2 Condition 2 - THE SINGLE SANCTIONED DOMAIN-BYPASS
+        WRITE PATH, scoped to startup orphan recovery only. Must NOT become
+        a general-purpose update method. A direct column write (status,
+        failure_reason, and any other field Assessment.fail() mutates or
+        that participates in optimistic concurrency - see the concrete
+        implementation for the exact, enumerated field list) scoped to
+        ``WHERE id = ? AND status = 'RUNNING'``, so it is a safe no-op if
+        the row already moved on for any reason between find_running_ids()
+        and this call. Returns whether a row was actually updated.
+
+        This exists ONLY because orphan recovery's own logic
+        (Assessment.fail() + save()) never actually needed a full domain
+        Assessment - it needs "this id, currently RUNNING, becomes FAILED
+        with this reason," nothing else. A corrupted target_value must not
+        be able to leave an orphaned job stuck RUNNING forever - the exact
+        "nothing found vs nothing looked" defect class logged in
+        docs/STATUS.md, reintroduced through a path the Phase 2A invariant
+        tests cannot see because they never construct a corrupted row.
         """
 
     @abstractmethod

@@ -320,6 +320,9 @@ class ListAssessmentsResponse:
     total: int
     limit: int
     offset: int
+    # Phase 2B Task 2 Condition 1: ids of rows that exist but could not be
+    # reconstructed - admin-only, see list_assessments.py's execute().
+    unreadable_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

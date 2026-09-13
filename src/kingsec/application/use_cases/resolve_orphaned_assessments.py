@@ -30,7 +30,6 @@ import logging
 
 from kingsec.application._support import safe_failure_message
 from kingsec.application.ports import AssessmentRepository, AuditPublisher
-from kingsec.domain import Assessment
 from kingsec.domain.audit import AuditAction, AuditEntry
 
 logger = logging.getLogger(__name__)
@@ -49,6 +48,18 @@ class ResolveOrphanedAssessments:
     optional audit publisher - this never touches a scanner, job runner,
     or the execution ledger, matching the narrow, structural scope of the
     problem it solves (see module docstring).
+
+    Phase 2B Task 2 Condition 2: uses find_running_ids()/
+    force_fail_running() - never find_running()/Assessment.fail()/save().
+    Resolving an orphan never actually needed a full domain Assessment
+    (it never reads or writes target.value/target.type); routing it
+    through Target reconstruction anyway meant a single corrupted row
+    could leave its own orphaned job stuck RUNNING forever - the "nothing
+    found vs nothing looked" defect class logged in docs/STATUS.md,
+    reintroduced through a path the Phase 2A invariant tests cannot see
+    because they never construct a corrupted row. find_running_ids()/
+    force_fail_running() read and write only the id/status/failure_reason/
+    version columns, so a corrupted target_value cannot block recovery.
     """
 
     def __init__(self, assessments: AssessmentRepository, audit: AuditPublisher | None = None) -> None:
@@ -57,21 +68,21 @@ class ResolveOrphanedAssessments:
 
     def execute(self) -> int:
         """Resolve every orphaned RUNNING assessment. Returns the count resolved."""
-        orphaned = self._assessments.find_running()
-        for assessment in orphaned:
-            self._resolve_one(assessment)
-        if orphaned:
+        orphaned_ids = self._assessments.find_running_ids()
+        resolved_count = 0
+        for assessment_id in orphaned_ids:
+            if self._resolve_one(assessment_id):
+                resolved_count += 1
+        if orphaned_ids:
             logger.warning(
                 "orphaned_assessments_resolved_at_startup",
-                extra={"event": "orphaned_assessments_resolved_at_startup", "count": len(orphaned)},
+                extra={"event": "orphaned_assessments_resolved_at_startup", "count": resolved_count},
             )
-        return len(orphaned)
+        return resolved_count
 
-    def _resolve_one(self, assessment: Assessment) -> None:
-        assessment_id = str(assessment.id)
+    def _resolve_one(self, assessment_id: str) -> bool:
         try:
-            assessment.fail(_ORPHAN_REASON)
-            self._assessments.save(assessment)
+            resolved = self._assessments.force_fail_running(assessment_id, _ORPHAN_REASON)
         except Exception as exc:  # pragma: no cover - defensive; a single bad
             # row must not abort recovery for every other orphaned assessment.
             logger.warning(
@@ -79,8 +90,13 @@ class ResolveOrphanedAssessments:
                 assessment_id,
                 safe_failure_message(exc),
             )
-            return
+            return False
+        if not resolved:
+            # Already moved on between find_running_ids() and this call -
+            # not an error, just nothing to do.
+            return False
         self._publish_audit(assessment_id)
+        return True
 
     def _publish_audit(self, assessment_id: str) -> None:
         if self._audit is None:

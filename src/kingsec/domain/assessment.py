@@ -42,6 +42,22 @@ class ScannerRunSummary:
     status: ScannerRunState
     findings_count: int = 0
     skipped_reason: str | None = None
+    # Phase 2B Task 2: a scanner that SUCCEEDED but not quite as configured
+    # (e.g. nmap's URL-derived port silently overriding an operator's own
+    # -p in scan_args) needs a way to say so on the report - "the scanner
+    # ran" and "it ran exactly as configured" are different facts, and
+    # collapsing them is the same "nothing found vs nothing looked" defect
+    # class logged in docs/STATUS.md, just for a successful run instead of
+    # a skipped one.
+    warnings: tuple[str, ...] = ()
+    # Task 4: what was actually scanned, in the scanner's own words (e.g.
+    # nmap's resolve_port_specification() - "nmap's own default port
+    # sweep + explicit port 18080" for a URL target, or None for a
+    # non-URL target where nmap's unmodified default applies and there is
+    # nothing KingSec chose to disclose). Survives to the persisted
+    # report so the Limitations section can state real port coverage
+    # instead of implying "assessment of <target>" means every port.
+    port_specification: str | None = None
 
 # Legal state transitions. An empty set marks a terminal state.
 _ALLOWED_ASSESSMENT_TRANSITIONS: dict[AssessmentStatus, set[AssessmentStatus]] = {

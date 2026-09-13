@@ -17,7 +17,11 @@ No business logic lives here — only wiring.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from kingsec.application.assessment_profiles import ExecutionPlanner
+    from kingsec.infrastructure.config.settings import Settings
 
 from kingsec.application import (
     ActivateUser,
@@ -214,6 +218,63 @@ def create_wired_application(
         report_format=report_format,
     )
     return app
+
+
+def build_execution_planner(container: Container, settings: Settings) -> ExecutionPlanner:
+    """Construct an ExecutionPlanner exactly as the real application does.
+
+    Public (not `_`-prefixed) and standalone precisely so there is only
+    ONE place this wiring is written, called from two sites: this
+    module's own `_register_adapters()` (the real, running app) and
+    `kingsec doctor` (Task 3a), which must derive its verdicts from the
+    SAME ScannerDiscoveryService/ScannerPluginRegistry the planner itself
+    decides with, never a second, independently-constructed check that
+    could silently drift out of sync (the Run #4 reference-case root
+    cause this exact pattern already caused once).
+
+    Requires `register_scanner(container, settings)` to have already run
+    on `container` (it resolves `ScannerPluginRegistry`, registered by
+    that call) - `doctor` builds its own lightweight container with only
+    `register_scanner()` run on it, never the full `create_wired_application()`
+    (which also builds a database engine - `doctor` must stay read-only
+    and must not require a database to exist yet, since its purpose is
+    checking a fresh install before one has necessarily been set up).
+
+    Phase 2A Correction 2a: the registry ExecutionPlanner receives is the
+    SAME instance register_scanner() registered, so plan()'s target-type
+    compatibility check (registry.is_compatible()) is identical to what
+    the orchestrator itself uses. Correction 4: ScannerDiscoveryService
+    gets the operator's actual configured wordlist paths, not a
+    hardcoded default.
+    """
+    from kingsec.application.assessment_profiles import ExecutionPlanner
+    from kingsec.application.ports.scanner_registry import ScannerPluginRegistry
+    from kingsec.application.scanner_discovery import ScannerDiscoveryService
+
+    return ExecutionPlanner(
+        discovery=ScannerDiscoveryService(
+            ffuf_wordlist=settings.ffuf.wordlist,
+            gobuster_wordlist=settings.gobuster.wordlist,
+            # Task 5 Addition 2: the operator's actually-configured
+            # binary_path per scanner, so doctor's find_executable() call
+            # resolves the SAME value the real scan adapters use (e.g.
+            # KINGSEC_ZAP__BINARY_PATH), never the manifest's hardcoded
+            # bare name. `nuclei`'s settings model is named `scanner` for
+            # historical reasons (it was Module 5.1's only scanner).
+            binary_paths={
+                "nmap": settings.nmap.binary_path,
+                "nuclei": settings.scanner.binary_path,
+                "nikto": settings.nikto.binary_path,
+                "ffuf": settings.ffuf.binary_path,
+                "gobuster": settings.gobuster.binary_path,
+                "trivy": settings.trivy.binary_path,
+                "semgrep": settings.semgrep.binary_path,
+                "amass": settings.amass.binary_path,
+                "zap": settings.zap.binary_path,
+            },
+        ),
+        registry=container.resolve(ScannerPluginRegistry),
+    )
 
 
 def _register_adapters(
@@ -413,32 +474,9 @@ def _register_adapters(
 
     # Execution Planner: matches assessment profiles against targets and
     # scanner health, stateless so a single shared instance is fine.
-    #
-    # Phase 2A Correction 2a: wired with the SAME ScannerPluginRegistry
-    # instance register_scanner() above already registered on the
-    # container, so plan()'s target-type compatibility check
-    # (registry.is_compatible()) is identical to what the orchestrator
-    # itself uses — never a second, independently-derived answer that can
-    # drift out of sync (the Run #4 reference-case root cause).
-    #
-    # Correction 4: ScannerDiscoveryService gets the operator's actual
-    # configured wordlist paths, not a hardcoded Linux default, so making
-    # the wordlist requirement non-optional doesn't report "missing" on
-    # every Windows host regardless of configuration.
     from kingsec.application.assessment_profiles import ExecutionPlanner
-    from kingsec.application.ports.scanner_registry import ScannerPluginRegistry
-    from kingsec.application.scanner_discovery import ScannerDiscoveryService
 
-    container.register_instance(
-        ExecutionPlanner,
-        ExecutionPlanner(
-            discovery=ScannerDiscoveryService(
-                ffuf_wordlist=settings.ffuf.wordlist,
-                gobuster_wordlist=settings.gobuster.wordlist,
-            ),
-            registry=container.resolve(ScannerPluginRegistry),
-        ),
-    )
+    container.register_instance(ExecutionPlanner, build_execution_planner(container, settings))
 
     # Enterprise integration services (Phase 13).
     _register_integration_services(container, settings)

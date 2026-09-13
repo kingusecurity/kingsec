@@ -1,0 +1,187 @@
+KINGSEC — RESPONSE TO PHASE 2A FOLLOW-UP ("new prompt.txt")
+Generated: 2026-09-11
+
+================================================================================
+1. QUESTION 1 — the matrix test's registry, shown directly
+================================================================================
+You're right to push on this — my completion report only explicitly showed
+the NEW static class test's registry, not the matrix test's. Re-checked the
+actual file directly (not from memory) and it DOES use the real registry —
+here is the exact setup code, unedited, from
+tests/unit/application/test_phase2a_honest_coverage.py:
+
+    @pytest.mark.parametrize("profile_id,target_type", _all_profile_target_type_pairs())
+    def test_plan_and_execution_reach_the_honest_outcome_for_real_compatibility(
+        self, profile_id: str, target_type: TargetType
+    ) -> None:
+        registry = _real_registry()
+        planner_probe = ExecutionPlanner()
+        profile = planner_probe.get_profile(profile_id)
+        assert profile is not None
+        planner = ExecutionPlanner(
+            discovery=_FakeDiscovery(_permissive_statuses(profile.scanners)),
+            registry=registry,
+        )
+
+And _real_registry()'s own definition:
+
+    def _real_registry() -> InMemoryPluginRegistry:
+        """The REAL scanner plugin registry, wired exactly as
+        composition.py's register_scanner() does (same function, default
+        Settings()), so ``is_compatible()`` reflects each real plugin's own
+        declared ``target_types`` — never a stub.
+        ...
+        """
+        container = Container()
+        register_scanner(container, Settings())
+        return container.resolve(ScannerPluginRegistry)
+
+This calls the SAME register_scanner() function composition.py uses in
+production, with default Settings() — real plugin adapters, real declared
+target_types. Only `discovery` is faked (installed/usable status — a
+legitimately separate, environment-dependent concern), never `registry`
+(compatibility). This was already the case when I sent the completion
+report — I just never showed you these specific lines for this specific
+test, which is a fair thing to ask for and is why item 2 below was possible
+to catch at all.
+
+================================================================================
+2. SCANNER COUNT — reconciled, real defect in my regression test found
+   and fixed
+================================================================================
+You're right, and the mismatch pointed at a real bug in my own test data.
+
+**Phase 1 Run #4, re-checked against the actual evidence file
+(docs/E2E-EVIDENCE.md):**
+
+    "Run #4 (Full Assessment, ip_address target): Gobuster, FFUF, Semgrep,
+    Trivy, Amass, and ZAP all showed "status": "pending" — while Nmap
+    (which is compatible with an IP target) actually ran and completed
+    with 9 real findings."
+
+    "...the status other, genuinely-inapplicable scanners (Nuclei, Nikto)
+    correctly receive in the same runs."
+
+So Phase 1's real, recorded Run #4 was: **1 of 9 succeeded (Nmap)**. Nuclei
+and Nikto were correctly SKIPPED (not succeeded, not pending) — Nuclei for
+missing templates, Nikto for not being installed (both independently
+documented elsewhere in that same file). The other 6 were stuck pending.
+That is 1 succeeded, not 3. My own docs/STATUS.md old-vs-new comparison
+table already correctly said "1 of 9 (Nmap)" for the Phase 1 column — the
+"3 of 9" only ever existed in my regression test's fabricated fixture data,
+which I never cross-checked against the real evidence file when I wrote it
+earlier in this phase.
+
+**Root cause of the fabrication:** the test's fixture used a stub registry
+(`_FakeRegistry`) that marked only gobuster/ffuf/zap as "incompatible" and
+treated everything else — including nuclei AND trivy — as compatible and
+installed. But trivy's real, declared capability
+(infrastructure/scanner/plugins/trivy/adapter.py) is
+`target_types=frozenset({TargetType.HOSTNAME})` — it can never run against
+an ip_address target, full stop, in production. My test let it "succeed"
+anyway. That's exactly your hypothesis: a scanner that could never
+meaningfully run against this target type was made to trivially succeed in
+the test double, and 1/9 is the honest number, not 3/9.
+
+**Fixed:** rewrote the fixture to use `_real_registry()` (same as the
+matrix test now) with discovery statuses matching Phase 1's own
+actually-recorded environment exactly: nmap installed+usable; nuclei
+installed but NOT usable (missing templates, the identical message from
+Defect 5: "Missing Nuclei templates: nuclei -update-templates"); nikto not
+installed. Under the real registry, gobuster/ffuf/semgrep/trivy/amass/zap
+are all structurally incompatible with ip_address regardless of discovery
+status (checked first, wins). This produces exactly **1 of 9 succeeds
+(Nmap)** — matching Phase 1's real recorded result AND this phase's own
+live DVWA re-verification from the completion report (also 1 of 9).
+Updated both test assertions and the class docstring; ran the full file:
+26 of 26 pass. Noted in docs/STATUS.md why the number changed (see below).
+
+================================================================================
+3. QUESTION 2 — which statement was loose, shown with the actual diff
+================================================================================
+Neither statement was factually wrong, but "No fix needed here" in the
+migration review response was loose phrasing — it meant "no further change
+needed at that point in the investigation" (Correction 4 had already been
+implemented earlier in this same session, before that specific
+investigation round ran). It reads, out of context, like "the code was
+always correct," which is not what happened. The completion report's
+framing ("the code DID change during Correction 4") is the accurate one.
+
+Here is the actual, now-committed diff (git diff f58858a 35078dd -- the
+real commit boundary, not an uncommitted diff) proving the code changed:
+
+    --- a/src/kingsec/application/scanner_discovery.py
+    +++ b/src/kingsec/application/scanner_discovery.py
+    @@ ffuf asset requirement @@
+             AssetRequirement(
+    -            name="Wordlist directory",
+    -            kind="directory",
+    -            path="/usr/share/wordlists",
+    -            install_hint="sudo apt-get install wordlist  or  Download SecLists from ...",
+    -            optional=True,
+    +            name="Wordlist file",
+    +            kind="file",
+    +            path=None,
+    +            install_hint="Configure KINGSEC_FFUF__WORDLIST, e.g. a SecLists path: ...",
+             ),
+    @@ ScannerDiscoveryService.__init__ (new) @@
+    +    def __init__(self, *, ffuf_wordlist: str = "", gobuster_wordlist: str = "") -> None:
+    +        self._ffuf_wordlist = ffuf_wordlist
+    +        self._gobuster_wordlist = gobuster_wordlist
+    @@ has_wordlists check @@
+             has_wordlists = (
+    -            Path("/usr/share/wordlists").is_dir()
+    -            or any(Path(p).is_dir() for p in [
+    -                str(Path.home() / "wordlists"),
+    -                "/usr/share/dict",
+    -                "/usr/share/seclists",
+    -            ])
+    +            "Wordlist file" not in missing_assets
+             ) if scanner_id in ("ffuf", "gobuster") else False
+
+    (gobuster's asset requirement changed identically.)
+
+Same treatment applies to future reports from me on anything still in
+progress: "no fix needed" should be read strictly as "as of this
+investigation round," not as a claim about the code's entire history —
+I'll say "no further fix needed at this point" going forward to avoid the
+ambiguity.
+
+================================================================================
+4. DOCKER PORT CHECK
+================================================================================
+    $ docker port dvwa-phase2a
+    Error response from daemon: No such container: dvwa-phase2a
+
+The container no longer exists — not running, not stopped, not present in
+`docker ps -a` at all (only 3 unrelated pre-existing containers remain:
+vantriqsec-crm, vantriqsec-n8n, buildx_buildkit_default). It must have been
+removed at some point after the completion report (this session's Docker
+state outlived several context resets; I don't have a precise record of
+when). Since it's gone, there's nothing currently bound to 0.0.0.0 or
+anywhere else — no action needed. If DVWA needs to come back for further
+verification, I'll bind it to 127.0.0.1 explicitly again, same as every
+prior run this engagement.
+
+================================================================================
+FILES CHANGED THIS ROUND
+================================================================================
+tests/unit/application/test_phase2a_honest_coverage.py:
+  - _STATUSES fixture rebuilt to match Phase 1's real recorded environment
+  - _build_reference_case_submit_assessment and
+    TestPlanCoversEveryScanner now use _real_registry() (was the last
+    remaining stub-registry usage in the file)
+  - Removed the now-fully-unused _FakeRegistry class
+  - TestReferenceCaseRun4Reproduction assertions updated: 1 succeeded (was
+    3), 8 non-succeeded (was 6), all 8 names asserted in the verdict
+    headline (was 6)
+Full file: 26/26 tests pass. ruff clean.
+
+docs/STATUS.md: added a note under the Phase 2A section explaining why the
+regression test's succeeded-count changed from 3 to 1 (referencing this
+response).
+
+Nothing else was touched — no new commit made yet; these fixes are
+currently uncommitted on fix/phase-2a-honest-coverage, on top of the
+existing 35078dd commit. Let me know if you want them committed as a
+follow-up commit, or held for you to review first.

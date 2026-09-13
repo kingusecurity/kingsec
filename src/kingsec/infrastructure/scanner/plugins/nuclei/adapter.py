@@ -24,9 +24,9 @@ from kingsec.domain import (
     ScannerCapability,
     ScannerId,
     ScannerPluginMetadata,
+    ScannerRequirement,
     ScannerResult,
     Target,
-    TargetType,
 )
 from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE
 
@@ -66,10 +66,17 @@ class NucleiPlugin(ScannerPluginPort):
         )
 
     def capabilities(self) -> tuple[ScannerCapability, ...]:
-        """Declare Nuclei's scanning capabilities."""
+        """Declare Nuclei's scanning capabilities.
+
+        Phase 2B Task 2: one REACHABLE_HOST capability. The underlying
+        adapter's -u flag already accepts a bare host/IP or a full URL
+        interchangeably (infrastructure/scanner/nuclei.py) - URL targets
+        satisfy REACHABLE_HOST too (via decompose_url()), so no separate
+        HTTP_BASE_URL entry is needed here.
+        """
         return (
             ScannerCapability(
-                target_types=frozenset({TargetType.IP_ADDRESS, TargetType.HOSTNAME, TargetType.URL}),
+                requirement=ScannerRequirement.REACHABLE_HOST,
                 scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                 output_format=OutputFormat.STRUCTURED_JSON,
             ),

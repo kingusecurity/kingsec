@@ -1,0 +1,181 @@
+================================================================================
+KINGSEC — TASK 3 APPROVED WITH THREE ADDITIONS, TASK 4 (nmap port coverage
+disclosure) FINAL REPORT
+================================================================================
+
+Branch: feat/phase-2b-real-coverage
+Starting HEAD: 40b423a
+Ending HEAD:   0e5e436 (6 commits, pushed to origin)
+
+
+--------------------------------------------------------------------------------
+ADDITION 1 — actionable wordlist fix
+--------------------------------------------------------------------------------
+
+Named the specific file: SecLists' `Discovery/Web-Content/common.txt` —
+small, focused on web content discovery (ffuf/gobuster's actual use
+case), MIT-licensed, and the exact file this project's own licence
+check already spot-checked.
+
+Conventional default path: `~/.kingsec/wordlists/common.txt` — matches
+KingSec's own existing `~/.kingsec` data-directory convention
+(`KINGSEC_STORAGE__DATA_DIR`'s own default), not a new invention.
+
+`kingsec doctor`'s fix line for ffuf/gobuster now renders one real,
+pasteable command for whatever platform it's actually running on:
+
+  Windows (PowerShell):
+    New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.kingsec\wordlists" | Out-Null
+    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt" -OutFile "$env:USERPROFILE\.kingsec\wordlists\common.txt"
+    $env:KINGSEC_FFUF__WORDLIST = "$env:USERPROFILE\.kingsec\wordlists\common.txt"
+
+  Linux / macOS (bash):
+    mkdir -p ~/.kingsec/wordlists
+    curl -sSL -o ~/.kingsec/wordlists/common.txt https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt
+    export KINGSEC_FFUF__WORDLIST=~/.kingsec/wordlists/common.txt
+
+(gobuster gets the identical command with KINGSEC_GOBUSTER__WORDLIST.)
+Verified for real on this Windows host — doctor now prints the exact
+PowerShell block above with the real, resolved absolute path for this
+machine. Documented as a numbered INSTALL.md setup step showing both
+forms. Nothing was downloaded — the command was verified to render
+correctly, never executed.
+
+Also cleaned up a readability regression this created: the parallel
+"reason:" line used to embed the entire command inline in a sentence
+("Missing Wordlist file: <full command>"), which was noisy. Trimmed to
+short prose ("Missing Wordlist file") — the actionable command lives
+only in the dedicated fix: line now.
+
+
+--------------------------------------------------------------------------------
+ADDITION 2 — SecLists licence check scope, recorded
+--------------------------------------------------------------------------------
+
+Added an appendix to docs/LICENSING-RISK.md stating plainly: repo-level
+MIT confirmed (SecLists' own LICENSE file, fetched directly), one file
+(`common.txt`) individually spot-checked for a separate embedded
+license note — none found. Explicitly NOT an exhaustive audit of the
+~3.6GB collection. States what this scope is sufficient for
+(recommending the operator download that one file directly — no
+KingSec redistribution) and insufficient for (KingSec bundling
+`common.txt` or any other SecLists file — that would need its own
+dedicated check first, same standard nmap-services already received).
+
+
+--------------------------------------------------------------------------------
+ADDITION 3 — the four untracked documents, committed
+--------------------------------------------------------------------------------
+
+docs/PRODUCT-INVENTORY.md, docs/REMEDIATION-PLAN.md,
+docs/audits/KINGSEC-PHASE-2A-COMPLETION-REPORT.txt, and
+docs/audits/KINGSEC-PHASE-2A-FOLLOWUP-RESPONSE.txt committed as a single
+docs commit, unmodified, with a message stating their provenance
+(PRODUCT-INVENTORY.md/REMEDIATION-PLAN.md predate this branch entirely;
+the two Phase 2A reports are this branch's own earlier working
+documents that were generated but never committed).
+
+
+--------------------------------------------------------------------------------
+LOG, NOT FIXED — ZAP version parsing
+--------------------------------------------------------------------------------
+
+Logged in docs/STATUS.md as a backlog item: `kingsec doctor` shows ZAP
+as "v." on this Windows host (version regex doesn't match its .bat
+wrapper's actual output). Cosmetic only, not fixed per explicit
+instruction.
+
+
+--------------------------------------------------------------------------------
+TASK 4 — nmap port coverage disclosure
+--------------------------------------------------------------------------------
+
+Threaded ScannerResult.port_specification (recorded since Task 2, never
+previously surfaced) through the same path ScannerResult.warnings
+already travels: ScannerResult -> ScannerProgress -> ScannerRunSummary
+-> the JSON persistence round-trip (mappers.py) -> the rendered
+Limitations section.
+
+1. Derived, never hardcoded: `_port_coverage_note()` (templates.py)
+   reads `ScannerRunSummary.port_specification` directly and embeds it
+   VERBATIM in the disclosure sentence for a URL target's two-invocation
+   spec ("nmap's own default port sweep + explicit port N") - the
+   sentence and the recorded fact cannot drift apart because the
+   sentence IS the recorded fact, not a paraphrase of it.
+
+2. Honest about what was NOT examined: every disclosure (URL or
+   non-URL) ends with "a service running on a[n] [uncommon] port
+   outside that [default set/coverage] would not have been seen by this
+   assessment" - written for an SME reader, not a security engineer.
+
+3. Never implies KingSec chose the ports: the non-URL case (port_
+   specification is None by design - nmap's own unmodified default)
+   still discloses honestly ("nmap's own default port selection"),
+   attributing the choice to nmap, never KingSec.
+
+4. REQUIRED TEST (the linkage, not fixed wording):
+   TestPortCoverageDisclosure.test_disclosure_changes_with_the_recorded_specification
+   (test_templates.py) renders two reports differing ONLY in
+   port_specification and asserts each rendered disclosure contains its
+   OWN spec text and NOT the other's - a test asserting only fixed
+   wording would still pass if the derivation silently broke; this one
+   would not. 4 more tests cover: no disclosure when nmap didn't run, a
+   URL spec appearing verbatim, the non-URL "nmap's own default"
+   attribution, and a FAILED nmap producing no default-port claim (its
+   None means something different from a genuine non-URL default).
+
+5. PDF regenerated from C:\kingsec-e2e's real, stored data (no new
+   scan) - the Run #4 reference-case assessment (asmt-a7cec80b4fe542eb9
+   ee16ab69e040bfb, 127.0.0.1, IP_ADDRESS, COMPLETED_WITH_GAPS), loaded
+   directly from the SQLite file and rendered through the real
+   Report.from_assessment() -> ReportRenderer path.
+
+   PATH: C:\kingsec-e2e\run4-port-coverage-report.pdf
+
+   Rendered Limitations section (excerpt, the new sentence in context):
+   "...Nmap's port scan of this target used nmap's own default port
+   selection, not an exhaustive scan of every possible port — a service
+   running on an uncommon port outside that default set would not have
+   been seen by this assessment..."
+
+   This is the NON-URL "graceful default" case, not the URL two-
+   invocation case — this stored assessment's target is `127.0.0.1`
+   (IP_ADDRESS), and its scanner_summary predates the two-invocation
+   feature entirely (no `port_specification` key was ever recorded for
+   this row; `.get()` returns None, exactly the same as a fresh non-URL
+   run would). No stored URL-target assessment in this database was
+   scanned under the two-invocation code path, so the URL-specific
+   "sweep + explicit port N" sentence could not be demonstrated from
+   real stored data without a new scan (explicitly not requested) — it
+   is instead exhaustively covered by the deterministic unit tests
+   above, which construct that exact scenario directly.
+
+
+--------------------------------------------------------------------------------
+FULL GATE AND COMMITS
+--------------------------------------------------------------------------------
+
+pytest tests/unit -q  -> exit 0
+ruff check . (full repo) -> clean
+mypy src -> Success: no issues found in 601 source files
+
+Split into 6 commits by module boundary, pushed 40b423a..0e5e436:
+
+  ec4e7dd (prior round, already pushed) — not part of this batch
+  06d5856 feat(doctor): actionable, pasteable wordlist setup commands (Task 3 Addition 1)
+  b23f0c2 docs: record the SecLists licence check's real scope (Task 3 Addition 2)
+  a65a411 docs: log ZAP's Windows version-parsing cosmetic bug (not fixed)
+  0e5e436 feat(reporting): disclose real nmap port coverage in the Limitations section (Task 4)
+  4f7a823 docs: commit pre-existing engagement audit trail (predates this branch) [Addition 3]
+
+(4f7a823 landed before the others chronologically in this session, per
+Addition 3's own instruction to commit those four documents as soon as
+they were ready — still part of this same push.)
+
+
+--------------------------------------------------------------------------------
+STANDING INSTRUCTION
+--------------------------------------------------------------------------------
+"Then stop. Task 5 (ZAP on Windows) and Task 6 (the E2E run) come
+after." Stopping here.
+================================================================================

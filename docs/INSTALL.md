@@ -49,10 +49,20 @@ the backend section. If you want the browser UI, do both.
 ### Supported Operating Systems
 
 KingSec has no OS-specific code paths beyond scanner-executable discovery
-(see the Scanner Dependency table in `README.md`). It has been verified in
-this audit on Windows 10/11; the general requirement is any OS with a
-supported Python (and, for Docker installs, any OS Docker Desktop/Engine
-supports).
+(see the Scanner Dependency table in `README.md`); the general requirement
+is any OS with a supported Python (and, for Docker installs, any OS Docker
+Desktop/Engine supports).
+
+**Correction — what was actually tested on Windows:** an earlier version of
+this guide claimed Windows 10/11 was "verified in this audit." That
+overstated it. What was actually tested was Docker Desktop's **Linux
+container** running on a Windows 10/11 host (the "Docker Installation"
+section above) — the container itself is Linux; Windows only hosts it. The
+**Direct (non-Docker) Installation** section below, run natively against a
+real Windows Python install with no container involved, remains **NOT
+TESTED**. If you follow the native path on Windows and hit something this
+guide doesn't cover, that is expected, not a sign you did something wrong —
+please report it.
 
 ---
 
@@ -375,6 +385,26 @@ recommended without a reverse proxy):
 New-NetFirewallRule -DisplayName "KingSec API" -Direction Inbound -Protocol TCP -LocalPort 8765 -Action Allow
 ```
 
+### Nikto: Windows Defender Quarantine
+
+**Known environment issue, reproduced in this project's own testing:**
+Nikto ships as a Perl script, and downloading it on Windows has been
+observed to trigger Windows Defender (or another antivirus product) to
+quarantine the file before it can run — `nikto` then reports as not
+installed (`kingsec doctor` will show it as `NOT FOUND` even after you've
+downloaded it) with no further explanation from KingSec itself, since
+KingSec only ever sees "the binary isn't on `PATH`," not why.
+
+If `kingsec doctor` reports nikto missing right after installing it:
+1. Check Windows Security → Virus & threat protection → Protection
+   history for a recent quarantine action naming the nikto files.
+2. Restore the quarantined file(s), or add an exclusion for nikto's
+   install directory, then re-run `kingsec doctor` to confirm it now
+   detects the binary.
+3. If your organization's antivirus policy won't allow an exclusion,
+   consider running nikto inside the Docker path instead (a Linux
+   container is not subject to this specific Windows Defender behavior).
+
 ---
 
 ## Environment Variables
@@ -415,7 +445,105 @@ scanners installed, it just skips any assessment that requires one that
 is missing.
 
 **Note:** After installing a scanner, restart KingSec so scanner
-discovery re-detects it.
+discovery re-detects it. Run `kingsec doctor` at any point to see
+exactly which scanners are usable and the exact fix for any that
+aren't — it is the fastest way to check the steps below actually
+worked. `doctor` verifies this by actually invoking each scanner's own
+version-probe command (harmless — the same `--version` an operator would
+run by hand), not just checking that a binary is present on PATH; a
+binary that's present but fails to execute is reported NOT usable, with
+a reason naming the execution failure, never silently as `[OK]`.
+
+### Step: Nuclei templates
+
+Nuclei needs its template database before it can find anything. Run
+nuclei's own update command once after installing it (and periodically
+afterward — new templates ship continuously):
+```
+nuclei -update-templates
+```
+
+Measured against the real command on a real Windows host (Phase 2B Task
+6): **~86 MB on disk, ~13,900 template files, ~6 minutes** wall clock —
+not the ~728 MB sometimes assumed from a rough git-clone size estimate.
+The templates land in **nuclei's own per-user global directory**
+(`~/nuclei-templates` — on Windows, `%USERPROFILE%\nuclei-templates`),
+independent of `KINGSEC_STORAGE__DATA_DIR` and outside both KingSec's data
+directory and its own `~/.kingsec` convention. Relevant for a future
+Docker image: this path needs its own volume (or an explicit nuclei
+config override to relocate it into the data volume) if templates should
+persist across container recreation the same way KingSec's own data does.
+
+### Step: A wordlist for FFUF and Gobuster
+
+FFUF and Gobuster both need a `-w <wordlist>` to fuzz with — there is no
+default bundled with KingSec (a wordlist is a real, required asset, and
+KingSec does not choose one on your behalf; see
+`docs/audits/KINGSEC-TASK3B-ASSET-PROVISIONING-PROPOSAL.txt` for why).
+The recommended file is SecLists' `Discovery/Web-Content/common.txt` — a
+small, focused list of common web paths/filenames (not the full ~3.6 GB
+SecLists collection), MIT-licensed. KingSec's conventional location for
+it is `~/.kingsec/wordlists/common.txt`, matching the same `~/.kingsec`
+home directory KingSec's own data storage already uses
+(`KINGSEC_STORAGE__DATA_DIR`'s default).
+
+**Windows (PowerShell):**
+```powershell
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.kingsec\wordlists" | Out-Null
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt" -OutFile "$env:USERPROFILE\.kingsec\wordlists\common.txt"
+$env:KINGSEC_FFUF__WORDLIST = "$env:USERPROFILE\.kingsec\wordlists\common.txt"
+$env:KINGSEC_GOBUSTER__WORDLIST = "$env:USERPROFILE\.kingsec\wordlists\common.txt"
+```
+
+**Linux / macOS (bash):**
+```bash
+mkdir -p ~/.kingsec/wordlists
+curl -sSL -o ~/.kingsec/wordlists/common.txt https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt
+export KINGSEC_FFUF__WORDLIST=~/.kingsec/wordlists/common.txt
+export KINGSEC_GOBUSTER__WORDLIST=~/.kingsec/wordlists/common.txt
+```
+
+`kingsec doctor` prints this exact command (in the form matching the
+platform it's actually running on) as the `fix:` line for ffuf/gobuster
+whenever the wordlist is missing — it never has to be looked up
+separately. The `export`/`$env:` forms above only last for the current
+shell session; add the variable to your `.env` file (or a permanent
+shell profile / System Environment Variable) to make it stick across
+restarts.
+
+### Step: ZAP on Windows — the official installer, not Chocolatey
+
+On Windows, the Chocolatey `zap` package installs a `.bat` shim on PATH
+(a re-router to a nested `.bat` chain), **not** a real executable. KingSec
+invokes scanners as an argument list with `shell=False` — the essential
+defence against command injection via a scan target — and Windows'
+process-creation API (`CreateProcess`, what `shell=False` uses) cannot
+launch a `.bat`/`.cmd` file directly the way a shell can. This is a
+Windows OS limitation, not a KingSec bug, and it cannot be worked around
+without reintroducing a shell (which command injection requires KingSec
+to never do). The failure is not a clean "not found" either — Windows'
+implicit `cmd.exe` fallback for a `.bat` target can itself fail with
+"The input line is too long.", which is why `kingsec doctor` verifies
+actual execution (see the Note above), not just that a binary is present
+on PATH.
+
+Install ZAP via the **official installer** (not Chocolatey), then point
+`KINGSEC_ZAP__BINARY_PATH` at the real `ZAP.exe` it installs — a genuine
+install4j-generated native launcher, not a script:
+
+**Windows (PowerShell):**
+```powershell
+$env:KINGSEC_ZAP__BINARY_PATH = "C:\Program Files\ZAP\Zed Attack Proxy\ZAP.exe"
+```
+
+As with the wordlist variable above, this only lasts for the current
+shell session; add it to your `.env` file (or a permanent shell profile /
+System Environment Variable) to make it stick across restarts. Linux/macOS
+installs (the official Docker image or the `zaproxy` package) are
+unaffected — this is a Windows-only `.bat`-resolution issue.
+
+`kingsec doctor` prints this same command as the `fix:` line for zap on
+Windows whenever it's not usable.
 
 ---
 

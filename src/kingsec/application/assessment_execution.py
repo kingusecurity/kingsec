@@ -88,6 +88,7 @@ class ScannerProgress:
     warnings: tuple[str, ...] = ()
     error: str | None = None
     skipped_reason: str | None = None
+    port_specification: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -275,6 +276,7 @@ class AssessmentExecutionEngine:
         *,
         findings_count: int = 0,
         warnings: tuple[str, ...] = (),
+        port_specification: str | None = None,
     ) -> None:
         """Mark a scanner as successfully completed."""
         with self._lock:
@@ -301,6 +303,7 @@ class AssessmentExecutionEngine:
                 duration_seconds=round(duration, 1) if duration else None,
                 findings_count=findings_count,
                 warnings=warnings,
+                port_specification=port_specification,
             )
             state.events.append(ExecutionEvent(
                 event_type="scanner.completed",

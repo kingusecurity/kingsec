@@ -28,6 +28,7 @@ from kingsec.domain import (
     FindingStatus,
     FindingSummary,
     HistoryPoint,
+    InvariantViolation,
     Recommendation,
     Report,
     ScannerId,
@@ -36,6 +37,7 @@ from kingsec.domain import (
     ScannerRunSummary,
     Severity,
     Target,
+    TargetDecompositionError,
     TargetType,
     Verdict,
 )
@@ -151,6 +153,8 @@ def _scanner_summary_to_json(summary: tuple[ScannerRunSummary, ...]) -> list[dic
             "status": s.status.value,
             "findings_count": s.findings_count,
             "skipped_reason": s.skipped_reason,
+            "warnings": list(s.warnings),
+            "port_specification": s.port_specification,
         }
         for s in summary
     ]
@@ -164,6 +168,8 @@ def _scanner_summary_from_json(entries: list[Any]) -> tuple[ScannerRunSummary, .
             status=ScannerRunState(e["status"]),
             findings_count=e.get("findings_count", 0),
             skipped_reason=e.get("skipped_reason"),
+            warnings=tuple(e.get("warnings", ())),
+            port_specification=e.get("port_specification"),
         )
         for e in (entries or [])
     )
@@ -318,6 +324,32 @@ def assessment_to_domain(orm: AssessmentORM) -> Assessment:
             team_id=orm.team_id,
         )
     return a
+
+
+# Phase 2B Task 2 Condition 1: the exact set of failures that mean "this
+# row's data cannot be reconstructed," not "this is a programming bug
+# elsewhere." KeyError covers TargetType[orm.target_type] and
+# AssessmentStatus[orm.status] naming a value that no longer exists;
+# ValueError covers datetime.fromisoformat() on a malformed timestamp;
+# InvariantViolation/TargetDecompositionError cover Target's own
+# construction-time validation (and, once Decision 3 lands, its
+# strengthened URL checks). Defined once, here, so every caller - single-
+# fetch and list-building alike - treats the same failures as corruption,
+# never a wider net that would swallow a real bug.
+_ASSESSMENT_CORRUPTION_ERRORS = (InvariantViolation, TargetDecompositionError, KeyError, ValueError)
+
+
+def try_assessment_to_domain(orm: AssessmentORM) -> Assessment | None:
+    """Like assessment_to_domain(), but returns None instead of raising if
+    the row cannot be reconstructed - the shared seam every corrupted-row
+    handling call site (list-building, which skips and reports the id;
+    single-fetch, which raises AssessmentDataCorruptedError) is built on,
+    so "what counts as corrupted" is answered in exactly one place.
+    """
+    try:
+        return assessment_to_domain(orm)
+    except _ASSESSMENT_CORRUPTION_ERRORS:
+        return None
 
 
 def _finding_summary_from_json(entry: dict[str, Any]) -> FindingSummary:

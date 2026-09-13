@@ -1,0 +1,440 @@
+================================================================================
+KINGSEC TASK 5 — ZAP HANG INVESTIGATION AND HEADLESS-MODE PROPOSAL
+INVESTIGATION AND REPORT ONLY, per explicit instruction. Neither the hang fix
+nor the headless-invocation redesign is implemented here. Every claim below
+is reproduced against the real ZAP install and the real Python/Windows
+subprocess behavior on this host, not inferred.
+
+Only the output-path fix and Additions 1/3/4 are implemented and committed
+this round. ZAP's invocation design (the bare `-quickurl`/`-quickout`
+call built in the immediately-prior round) is left EXACTLY as it was,
+uncommitted changes aside from the output path, pending your decision below.
+================================================================================
+
+
+--------------------------------------------------------------------------------
+0. WHAT WAS KILLED, AND WHY (full accounting, as requested)
+--------------------------------------------------------------------------------
+
+At the start of this round, before any other action:
+
+  - PID 21016 (javaw.exe) — an orphaned ZAP GUI process, discovered via
+    `tasklist` before any other tool call. Killed with `taskkill /F`.
+    This is almost certainly the process behind your screenshot (see §1
+    for why it could survive unnoticed).
+  - PID 14664 (python.exe -m pytest -q --tb=short) — the full-suite pytest
+    run I had started in the immediately-prior turn, still running when
+    this round began. Killed with `taskkill /F` per "kill any background
+    job from this round," then re-run cleanly from scratch for §3's gate
+    (a fresh process, not a resumption).
+  - PID 4200 (python.exe -m http.server 18123) — the local, throwaway
+    HTTP target I had stood up for the real-scan E2E test in the prior
+    round. Killed with `taskkill /F`.
+  - Two background Bash-tool job wrappers from the prior round
+    (`bssab0906`, the pytest job; `bherezkh1`, the ZAP E2E driver) had
+    already exited by the time I checked — their underlying processes are
+    the three PIDs above; no separate action was needed for the wrappers
+    themselves.
+
+What I cannot fully reconstruct: the exact wall-clock provenance of PID
+21016 relative to your screenshot and the "40 minutes" figure — that time
+passed while this session was between turns, and I have no visibility
+into it. What I CAN state with certainty, and what §1 proves with a
+controlled reproduction independent of this specific process: the
+mechanism that lets a process like PID 21016 survive a configured
+timeout, completely unsupervised, is real and repeatable on this host.
+
+
+--------------------------------------------------------------------------------
+1. THE HANG — ROOT CAUSE, PROVEN BY A CONTROLLED REPRODUCTION
+--------------------------------------------------------------------------------
+
+1a) Why did SubprocessCommandRunner's timeout not fire?
+
+Short answer: it likely DID fire — and it made no difference, because it
+was never capable of bounding the process that actually mattered.
+
+In my own E2E test the previous round, `ZapSettings(timeout_seconds=1200.0)`
+was explicitly configured and IS correctly passed through:
+`zap.py::scan()` calls `self._runner.run(args, timeout=self._settings.timeout_seconds, cwd=cwd)`,
+unchanged by anything in this round. So "was it passed" — yes.
+
+"Why did it not prevent the hang" is the real question, and I built a
+minimal, controlled reproduction using the REAL, unmodified
+`SubprocessCommandRunner` (not a reimplementation) to answer it directly
+rather than guess:
+
+  - `hang_parent.py`: spawns a plain (non-detached) child process via
+    `subprocess.Popen`, then calls `.wait()` on it — this is exactly the
+    shape of an install4j-style native launcher (ZAP.exe) that starts its
+    real JVM worker (javaw.exe) as a child and waits for it.
+  - `hang_grandchild.py`: the "worker" — sleeps for 120 seconds (standing
+    in for ZAP's real GUI, blocked on the modal dialog in your screenshot).
+  - Driver: calls the real `SubprocessCommandRunner().run([...hang_parent.py], timeout=3.0)`.
+
+Result (verbatim):
+
+    runner.run() raised ScannerExecutionError after 120.2s: [KS-SCAN-001] scan timed out after 3s
+    GRANDCHILD PROCESSES STILL ALIVE AFTER TIMEOUT: 0
+
+`timeout=3.0` was configured. The call did not return for **120.2
+seconds** — the exact duration of the grandchild's own, unrelated sleep,
+not the configured timeout. It only returned once the GRANDCHILD process
+exited on its own; nothing KingSec did caused that.
+
+The mechanism (this is documented CPython behavior on Windows, not a
+KingSec bug in isolation, but KingSec does nothing to guard against it):
+`subprocess.run(..., capture_output=True, timeout=T)` internally calls
+`Popen.communicate(timeout=T)`. On `TimeoutExpired`, it calls
+`process.kill()` — which calls `TerminateProcess()` on the ONE process
+handle Python holds (the immediate child, `hang_parent.py` / `ZAP.exe`).
+`TerminateProcess()` does not recurse to descendants; Windows does not do
+that unless the process was placed in a Job Object with
+`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, which nothing in KingSec sets up.
+Then — and this is the specific step that produces the unbounded wait —
+CPython's Windows branch of `subprocess.run()` calls `process.communicate()`
+a SECOND time, with NO timeout at all, to drain any remaining output
+before re-raising `TimeoutExpired`. That second call blocks on reading
+the child's stdout/stderr pipes until EOF. By default on Windows, a
+child process's stdout/stderr pipe handles ARE inherited by whatever
+further children IT spawns (unless the code explicitly prevents this,
+which `subprocess.Popen`'s default call in `hang_parent.py` — and, by the
+same reasoning, ZAP.exe's own native launcher — does not). So even
+though the immediate child (`hang_parent.py` / `ZAP.exe`) is genuinely
+killed, the grandchild (`hang_grandchild.py` / `javaw.exe`) still holds
+its own duplicate handle to the same pipe open, EOF never arrives, and
+the second, timeout-less `communicate()` blocks until THAT process exits
+— for any reason, on any schedule, including "a human closes a modal
+dialog" or "never."
+
+This means: **for this specific failure mode, no value of
+`ZapSettings.timeout_seconds` would have helped.** The configured number
+bounds how long `communicate()` waits before attempting to kill and
+drain — it does not bound how long the drain itself takes once a
+descendant process is still alive and holding the pipe open. This is
+exactly why "no timeout fired, no terminal state was reached, nothing
+surfaced to the operator" — recurring-defect-class instance seven, and
+the most serious yet, because it defeats the one thing (the timeout)
+that every other scanner failure mode in this codebase relies on as a
+backstop.
+
+1b) Can ANY scanner subprocess block on interactive input today? Audited all six.
+
+  - I checked each of the six wired scanners' own `--help`/`-h` output on
+    this host for a documented GUI, daemon-by-default, or
+    interactive-prompt mode: nmap, nuclei, ffuf, gobuster are single-shot
+    Go/C CLI binaries with no GUI or interactive-input mode in their
+    documented flags. nikto is a Perl CLI script, same shape (not
+    installed on this host, so its binary itself could not be inspected,
+    but its documented CLI has no GUI/daemon mode either). ZAP is the
+    ONLY one of the six that launches a full desktop GUI by default
+    (confirmed in §2) when the flag that suppresses it is omitted.
+  - However, the STRUCTURAL vulnerability proven in §1a is NOT specific
+    to GUIs. It is: "a scanner subprocess spawns a further descendant
+    that inherits stdout/stderr pipe handles, and that descendant
+    outlives the immediate child." Any of the six could trigger this via
+    a mechanism that has nothing to do with a GUI — a plugin/extension
+    subprocess, a background updater, a crash-handler re-exec. None is
+    currently known to do so, but the runner has no guard against it if
+    one ever did, for any of the nine scanners it drives (including the
+    three unwired ones).
+  - Separately, `SubprocessCommandRunner.run()` never sets `stdin=` at
+    all — by default a child inherits KingSec's OWN stdin. If KingSec
+    ever runs with a live, interactive stdin (a terminal, an SSH
+    session), any scanner binary that unexpectedly tries to read from
+    stdin (a first-run license prompt, an "are you sure?" confirmation)
+    would connect to a real, potentially-never-resolving input source
+    instead of failing fast. I found no evidence any of the nine
+    scanners does this today, but nothing prevents it, and nothing was
+    ever verified against it.
+
+1c) Proposed structural guard (NOT implemented — proposal only)
+
+  1. `stdin=subprocess.DEVNULL` on every invocation in
+     `SubprocessCommandRunner.run()`, unconditionally. Cheap, safe (no
+     current scanner is documented to need stdin for a normal scan), and
+     closes the "unexpectedly reads from a live stdin" class outright.
+  2. The real fix for §1a: run every scanner subprocess inside a Windows
+     Job Object with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` (via
+     `subprocess.CREATE_NEW_PROCESS_GROUP` plus the Win32 Job Object
+     APIs — `pywin32` or raw `ctypes`), and assign the child to it before
+     it can spawn anything. Closing/terminating the job object then kills
+     the immediate child AND every descendant it ever spawned, in one
+     call, regardless of what the descendant is doing. On POSIX, the
+     equivalent is a new process group (`start_new_session=True`) plus
+     `os.killpg()` instead of `Popen.kill()`. This is the only way to
+     make "the timeout fired" actually mean "the work stopped," on
+     either platform.
+  3. `timeout` is already a required (no-default) keyword-only parameter
+     on the `CommandRunner` Protocol today — a caller cannot omit it by
+     accident. That part of the guard already exists; it just isn't
+     sufficient on its own, per §1a, without (2).
+
+
+--------------------------------------------------------------------------------
+2. ZAP.exe IS THE GUI LAUNCHER — INVESTIGATED, A HEADLESS PATH EXISTS
+--------------------------------------------------------------------------------
+
+Confirmed: your read is correct, and my original §3 evidence (which only
+exercised `-version`) did not surface this. `-version` exits immediately
+and never opens a window; `-quickurl` without the right flag boots the
+full desktop GUI, and — as your screenshot shows — routes even a plain
+configuration error ("the -quickout directory is not writable") into a
+blocking modal dialog instead of stderr + a non-zero exit.
+
+Tested directly against the real `ZAP.exe` on this host, three ways:
+
+  a) `ZAP.exe -quickurl <target> -quickout json` (the current code's
+     exact invocation, cwd = ZAP's own directory): this is the shape
+     that produces the GUI + modal dialog your screenshot shows.
+
+  b) `ZAP.exe -cmd -quickurl <target> -quickout <writable path>.json`
+     against a live local target (`http://127.0.0.1:18123/`): completed
+     in **28.2 seconds**, exit code 0, no GUI window at any point, no
+     orphaned process afterward (`tasklist` clean immediately after).
+     The output file contained genuine scan output — real per-site
+     statistics for the target, not an empty shell.
+
+  c) The SAME broken configuration that triggers your screenshot's
+     dialog (`-quickout json`, unwritable relative to ZAP's own
+     directory) with `-cmd` ALSO added: completed in 28.0 seconds, exit
+     code 0, **no GUI, no hang** — it printed
+     `The directory of given '-quickout' file is not writable: ...`
+     to stdout and exited. (It still exited 0 despite reporting a real
+     error — a separate, smaller honesty gap worth noting for the
+     eventual fix: `-cmd` failures don't reliably surface via a non-zero
+     return code either, so `zap.py`'s `returncode != 0` check would not
+     catch this specific case — but it is no longer a hang, which is what
+     matters here.)
+
+So: `-cmd` (documented by ZAP itself as "Run inline, exits when command
+line options complete") is a genuine, working, headless mode, ships in
+the official Windows installer with no additional download, requires no
+shell, and is fully compatible with the existing `-quickurl`/`-quickout`
+flags already in use — this is NOT the daemon+REST-API redesign I was
+bracing to recommend. A one-shot subprocess model remains viable.
+
+What I did NOT verify, and flag as open: `-cmd`'s exit-code honesty on
+other failure modes (only tested the one above), whether `-cmd` fully
+suppresses ALL GUI paths under every flag combination KingSec might use
+in the future (only `-quickurl`/`-quickout` were tested — the same two
+flags the current code already uses), and how `-daemon` + the ZAP REST
+API compares as an alternative (not tested at all, since `-cmd` already
+appears sufficient and is the far smaller change).
+
+Recommendation (not implemented): add `-cmd` as the first element of
+`settings.scan_args` — or, better, as a code-level default the adapter
+always prepends, not something an operator could accidentally omit —
+ahead of `-quickurl`. This does not require the daemon/API redesign and
+stays within a one-shot subprocess model. Combined with §1c's Job Object
+guard, this closes both the GUI-launch risk AND the "if it ever hangs for
+some other reason, the timeout will actually work" risk. I have not
+implemented this, per instruction — it needs your sign-off given it
+changes the real scan invocation, same as the rest of Task 5's design.
+
+Output-path fix (implemented and committed this round, independent of
+the above): `-quickout`'s value is no longer the bare string `"json"`
+(which resolved relative to `cwd` — ZAP's own install directory, not
+writable by the account running KingSec on the real Windows installer
+default, `C:\Program Files\...`). It is now a real, absolute path under
+KingSec's own configured `Settings.storage.data_dir`
+(`<data_dir>/scanner-output/zap-quickscan-<uuid>.json`), threaded through
+`ZapScannerAdapter` -> `ZapPlugin` -> `provisioning.py`. This directly
+removes the specific trigger condition in your screenshot. It is
+unit-tested (three new tests) but NOT re-verified via a live end-to-end
+`ZapScannerAdapter.scan()` call in this round — doing so would re-exercise
+the still-unapproved, `-cmd`-less invocation path live, which I judged
+was not worth the risk of another unsupervised hang just to confirm a
+narrow path-string change. The real-ZAP.exe behavior for a valid
+absolute `-quickout` path was separately confirmed above (§2b), outside
+KingSec's own code, against the same binary.
+
+ALSO CONFIRMED, separately (unresolved, not fixed, in scope for whichever
+path you choose next): `parse_zap_json(result.stdout)` in `zap.py`
+appears to be parsing the wrong stream. Every real ZAP invocation I ran
+(`-cmd` or not) wrote its actual JSON results to the FILE named by
+`-quickout` — stdout only ever contained a `"Writing results to <path>"`
+line and progress/log text, never the JSON body itself. This strongly
+suggests every real ZAP scan through this codebase, historically, has
+returned zero findings regardless of what ZAP actually found — the
+"nothing found" vs. "nothing looked" class again, in a place this task
+was not originally looking. Left untouched, since fixing the read-side
+(read the output file instead of stdout) is bound up with whichever
+invocation redesign you choose in this section, not the narrow output
+PATH fix already committed.
+
+
+--------------------------------------------------------------------------------
+3. FULL GATE — RESULTS, PASTED, RUN AFTER THE KILLS ABOVE
+--------------------------------------------------------------------------------
+
+`ruff check .` (whole repo, not touched files):
+
+    All checks passed!
+
+`mypy src` (whole repo, not touched files):
+
+    Success: no issues found in 601 source files
+
+`pytest` (whole suite, fresh process, run after all stray processes from
+the prior round were killed — not a resumption of the earlier, killed run):
+
+    4041 collected test outcomes, all rendered as passing (green) markers;
+    zero failure/error markers found anywhere in the raw output.
+    Process exit code: 0.
+
+(The run's own final "N passed in Y.YYs" summary line did not appear in
+the captured log for reasons I have not root-caused — plausibly a
+console-encoding interaction with the redirected file on this host, not
+a test failure: I verified directly, by scanning every status marker's
+ANSI colour code across the raw output, that no red/yellow F/E/s/x marker
+occurs anywhere, only green dots, and the process's own exit code is 0.
+I am reporting this exactly as I found it rather than asserting a summary
+line I do not actually have.)
+
+
+--------------------------------------------------------------------------------
+4. ADDITIONS 1-4 - VERIFICATION LEVEL, LABELLED HONESTLY
+--------------------------------------------------------------------------------
+
+ADDITION 1 (version-regex tightened, non-zero-exit gate) —
+COMPLETE AND VERIFIED. Unit-tested (4 tests, incl. the two required by
+the prompt). ALSO verified against real binaries: the real ZAP chocolatey
+shim's "too long" failure text no longer parses as a version; the real
+nuclei 3.11.1 binary's ANSI-coloured `-version` output (a defect found
+during this verification, not anticipated by the original prompt — see
+Addition 4) now parses correctly as "3.11.1" instead of "34".
+
+ADDITION 2 (execution verification via one shared `find_executable()`,
+usable gated on real execution, operator-configured binary_path threaded
+into doctor) — COMPLETE AND VERIFIED, WITH A NAMED CAVEAT. Unit-tested
+(5 tests). Verified against real `kingsec doctor` output, before and
+after the `KINGSEC_ZAP__BINARY_PATH` config fix (§5 below). CAVEAT: this
+verifies that `ZAP.exe` can be LOCATED and EXECUTED (its `-version` probe
+succeeds) — it does not and cannot verify that a real scan through it is
+safe to run unattended. That question is exactly what §1-2 of this report
+answer: no, not without the fixes proposed there. "Doctor says usable"
+and "safe to run unattended" are different claims; do not conflate them
+when reading the before/after output below.
+
+ADDITION 3 (INSTALL.md chocolatey documentation, doctor's install hint) —
+COMPLETE AND VERIFIED. Not independently unit-tested (it is prose plus a
+string constant) but the exact rendered hint text was confirmed in a real
+`kingsec doctor` run (§5), including a follow-up fix for a real mojibake
+bug (an em-dash rendering incorrectly in this host's console codepage)
+found by actually looking at the rendered output, not just reading source.
+
+ADDITION 4 (audit all six wired scanners for `.bat`/shim exposure) —
+COMPLETE AND VERIFIED. Confirmed via real invocation on this host: nmap,
+nuclei, gobuster, ffuf all resolve to genuine PE `.EXE` files and invoke
+correctly with bare names; nikto is not installed on this host (cannot be
+verified, reported as such, not fixed). Two additional, real defects were
+found and fixed during this audit, both verified against their real
+binaries: ffuf's manifest entry probed a `--version` flag ffuf 2.2.1 does
+not have (fixed to use `-h`, whose first output line carries the real
+version); nuclei's colourised `-version` output was misparsed due to
+ANSI escape codes (fixed by stripping them before matching).
+
+OUTPUT-PATH FIX (this round, item 2's "fix regardless") — CODED AND
+UNIT-TESTED (3 tests). NOT re-verified via a live end-to-end
+`ZapScannerAdapter.scan()` call in this round, deliberately — see §2's
+explanation of why I chose not to re-exercise the un-approved invocation
+path live just to confirm a path string. The underlying real-`ZAP.exe`
+behavior for a valid absolute `-quickout` path was confirmed separately,
+outside KingSec's own code (§2b/2c).
+
+ZAP'S SCAN-PATH INVOCATION (resolve via `find_executable()`, pass `cwd`)
+— left exactly as implemented in the prior round: CODED, UNIT-TESTED, but
+now KNOWN-UNSAFE for unattended use per §1-2 above. Not committed as
+part of this round's "complete and verified" set; not reverted either,
+per instruction to leave it uncommitted rather than roll it back — it is
+a real, working fix for the specific `.bat`-cannot-execute problem this
+round originally set out to solve, and remains true; it simply is not
+sufficient on its own for a scanner whose real command can open a GUI.
+
+
+--------------------------------------------------------------------------------
+5. `kingsec doctor` - REAL OUTPUT, BEFORE AND AFTER THE CONFIG FIX
+--------------------------------------------------------------------------------
+
+BEFORE (KINGSEC_ZAP__BINARY_PATH unset - resolves the chocolatey .bat):
+
+[OK       ] nmap      (Nmap) v7.99
+            binary:        C:\Program Files (x86)\Nmap\nmap.EXE
+            target types:  hostname, ip_address, url, network
+            status:        usable
+
+[UNUSABLE ] nuclei    (Nuclei) v3.11.1
+            binary:        C:\ProgramData\chocolatey\bin\nuclei.EXE
+            target types:  hostname, ip_address, url
+            status:        NOT usable
+            reason:        Missing Nuclei templates
+            fix:           nuclei -update-templates
+
+[NOT FOUND] nikto     (Nikto)
+            binary:        not found on PATH or common install locations
+            target types:  hostname, ip_address, url
+            status:        NOT usable
+            reason:        'nikto' not found on PATH or common locations
+            fix:           Download from https://github.com/sullo/nikto/releases
+
+[UNUSABLE ] ffuf      (FFUF) v2.2.1
+            binary:        C:\Users\Laptop Zone by JK\AppData\Local\Microsoft\WinGet\Links\ffuf.EXE
+            target types:  url
+            status:        NOT usable
+            reason:        Missing Wordlist file
+            fix:           New-Item -ItemType Directory -Force -Path "..." | Out-Null; ...
+
+[UNUSABLE ] gobuster  (Gobuster) v3.8.2
+            binary:        C:\ProgramData\chocolatey\bin\gobuster.EXE
+            target types:  url
+            status:        NOT usable
+            reason:        Missing Wordlist file
+            fix:           New-Item -ItemType Directory -Force -Path "..." | Out-Null; ...
+
+[UNUSABLE ] zap       (OWASP ZAP)
+            binary:        C:\ProgramData\chocolatey\bin\zap.BAT
+            target types:  url
+            status:        NOT usable
+            reason:        'zap' was located at 'C:\\ProgramData\\chocolatey\\bin\\zap.BAT' but
+                           failed to execute: exited with code 255: The input line is too long.
+            fix:           Install ZAP via the official installer from
+                           https://www.zaproxy.org/download/ (the chocolatey package's .bat
+                           shim will NOT work - see docs/INSTALL.md), then:
+                           $env:KINGSEC_ZAP__BINARY_PATH = "C:\Program Files\ZAP\Zed Attack Proxy\ZAP.exe"
+
+6 scanners checked: 1 usable, 5 not usable. Exit code: 1.
+
+AFTER (KINGSEC_ZAP__BINARY_PATH = the real ZAP.exe):
+
+[OK       ] zap       (OWASP ZAP) v2.17.0
+            binary:        C:\Program Files\ZAP\Zed Attack Proxy\ZAP.exe
+            target types:  url
+            status:        usable
+
+6 scanners checked: 2 usable, 4 not usable. Exit code: 1.
+(nmap/nuclei/nikto/ffuf/gobuster rows unchanged from BEFORE, omitted here
+for brevity - full output identical to above except the zap block.)
+
+Per Addition 2's caveat above: this "usable" verdict is honest about what
+it measures (ZAP.exe is genuinely locatable and executable) and is NOT a
+claim that an unattended scan through it is safe - §1-2 of this report
+are what answer that question.
+
+
+--------------------------------------------------------------------------------
+ACCEPTANCE STATUS
+--------------------------------------------------------------------------------
+
+- [x] Environment killed and accounted for (§0)
+- [x] Full gate run fresh, pasted, honestly labelled (§3) - pytest,
+      ruff, mypy all green across the WHOLE repo
+- [x] Hang investigated and reported, NOT fixed (§1)
+- [x] Headless-ZAP investigated and reported, NOT implemented (§2)
+- [x] Output-path fix implemented, unit-tested, committed
+- [x] Additions 1, 3, 4 implemented, tested, verified, committed
+- [ ] ZAP's scan-path invocation redesign - awaiting your decision on §2;
+      left uncommitted, exactly as it was
+
+Stopping here. Task 6 not started.
+================================================================================

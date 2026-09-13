@@ -21,9 +21,9 @@ from kingsec.domain import (
     ScannerCapability,
     ScannerId,
     ScannerPluginMetadata,
+    ScannerRequirement,
     ScannerResult,
     Target,
-    TargetType,
 )
 from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE
 
@@ -63,10 +63,22 @@ class NmapPlugin(ScannerPluginPort):
         )
 
     def capabilities(self) -> tuple[ScannerCapability, ...]:
-        """Declare Nmap's scanning capabilities."""
+        """Declare Nmap's scanning capabilities.
+
+        Phase 2B Task 2: two capability entries - nmap can satisfy either
+        a reachable host (IP_ADDRESS, HOSTNAME, or a URL's decomposed host)
+        or a network range (NETWORK/CIDR). Declaring both, rather than one
+        combined capability, keeps a CIDR target from ever being treated as
+        a single reachable host or vice versa.
+        """
         return (
             ScannerCapability(
-                target_types=frozenset({TargetType.IP_ADDRESS, TargetType.HOSTNAME, TargetType.NETWORK}),
+                requirement=ScannerRequirement.REACHABLE_HOST,
+                scan_categories=frozenset({ScanCategory.DISCOVERY, ScanCategory.CONFIGURATION}),
+                output_format=OutputFormat.RAW_TEXT,
+            ),
+            ScannerCapability(
+                requirement=ScannerRequirement.NETWORK_RANGE,
                 scan_categories=frozenset({ScanCategory.DISCOVERY, ScanCategory.CONFIGURATION}),
                 output_format=OutputFormat.RAW_TEXT,
             ),
@@ -87,14 +99,29 @@ class NmapPlugin(ScannerPluginPort):
 
         The adapter handles argument building, subprocess execution,
         timeout enforcement, and XML parsing.
+
+        Phase 2B Task 2 Decision 4c: port_specification is computed via
+        the same resolve_port_specification() the adapter's own
+        _build_args() calls to build the real invocation - not a second,
+        independent guess - so what's recorded here can never drift from
+        what nmap actually scanned.
         """
+        from kingsec.infrastructure.scanner.nmap import (
+            resolve_port_override_warning,
+            resolve_port_specification,
+        )
+
         findings = self._adapter.scan(target)
+        override_warning = resolve_port_override_warning(target, self._settings)
+        warnings = tuple(w for w in (override_warning,) if w is not None) + self._adapter.last_scan_warnings()
         return ScannerResult(
             scanner_id=ScannerId("nmap"),
             findings=tuple(findings),
             raw_output="",
             duration_seconds=0.0,
             scanner_version=None,
+            port_specification=resolve_port_specification(target, self._settings),
+            warnings=warnings,
         )
 
     def shutdown(self) -> None:

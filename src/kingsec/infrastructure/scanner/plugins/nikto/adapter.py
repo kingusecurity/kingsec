@@ -21,9 +21,9 @@ from kingsec.domain import (
     ScannerCapability,
     ScannerId,
     ScannerPluginMetadata,
+    ScannerRequirement,
     ScannerResult,
     Target,
-    TargetType,
 )
 from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE
 
@@ -63,10 +63,18 @@ class NiktoPlugin(ScannerPluginPort):
         )
 
     def capabilities(self) -> tuple[ScannerCapability, ...]:
-        """Declare Nikto's scanning capabilities."""
+        """Declare Nikto's scanning capabilities.
+
+        Phase 2B Task 2 Decision 1: one REACHABLE_HOST capability. This
+        expands real compatibility to include IP_ADDRESS (previously
+        excluded despite the underlying adapter's _parse_target() already
+        handling a bare host correctly - see infrastructure/scanner/
+        nikto.py). Approved explicitly: "It reflects real adapter
+        behaviour."
+        """
         return (
             ScannerCapability(
-                target_types=frozenset({TargetType.HOSTNAME, TargetType.URL}),
+                requirement=ScannerRequirement.REACHABLE_HOST,
                 scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                 output_format=OutputFormat.RAW_TEXT,
             ),

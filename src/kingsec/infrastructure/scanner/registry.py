@@ -15,6 +15,7 @@ from kingsec.application.errors import ScannerDuplicateError, ScannerPluginError
 from kingsec.application.ports.scanner_plugin import ScannerPluginPort
 from kingsec.application.ports.scanner_registry import ScannerPluginRegistry
 from kingsec.domain import PluginAvailability, ScannerId, ScannerPluginMetadata, Target, TargetType
+from kingsec.domain.scanner import provided_requirements
 
 
 class InMemoryPluginRegistry(ScannerPluginRegistry):
@@ -60,11 +61,20 @@ class InMemoryPluginRegistry(ScannerPluginRegistry):
 
         The single source of truth — see the port docstring. ``resolve()``
         below is defined purely in terms of this method.
+
+        Phase 2B Task 2: compatibility is now requirement-based - a target
+        type is compatible with a scanner if the target type can PROVIDE
+        (``provided_requirements()``, domain/scanner.py) at least one of
+        the requirements the scanner's capabilities declare it NEEDS. The
+        signature is unchanged from Phase 2A; only this method's internal
+        data source changed, so both existing callers (the planner and the
+        orchestrator's fallback path) keep working without modification.
         """
         plugin = self._plugins.get(scanner_id)
         if plugin is None:
             return False
-        return any(target_type in cap.target_types for cap in plugin.capabilities())
+        provided = provided_requirements(target_type)
+        return any(cap.requirement in provided for cap in plugin.capabilities())
 
     def resolve(self, target: Target) -> tuple[ScannerPluginPort, ...]:
         """Return all plugins capable of scanning this target type.

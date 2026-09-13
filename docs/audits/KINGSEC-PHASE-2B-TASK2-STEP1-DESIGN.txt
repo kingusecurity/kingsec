@@ -1,0 +1,627 @@
+KINGSEC — PHASE 2B TASK 2, STEP 1: URL TARGET MODEL
+DESIGN ONLY. No production code written. Branch: feat/phase-2b-real-coverage.
+Read docs/STATUS.md and CLAUDE.md before starting, per instruction.
+
+================================================================================
+PART A — INVESTIGATION (questions 1-3)
+================================================================================
+
+--------------------------------------------------------------------------
+1. THE CURRENT Target / TargetType MODEL — IN FULL
+--------------------------------------------------------------------------
+
+src/kingsec/domain/target.py, complete, unchanged since Phase 1:
+
+    class TargetType(Enum):
+        HOSTNAME = "hostname"
+        IP_ADDRESS = "ip_address"
+        URL = "url"
+        NETWORK = "network"  # e.g. a CIDR range
+
+    _HOSTNAME_LABEL = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$")
+
+    def _validate_hostname(value: str) -> None:
+        # RFC 1034/1123 label syntax only. Accepts "localhost". No concept
+        # of "real, registrable domain" - this is Task 1's amass finding,
+        # unrelated to Task 2, noted here only because it's the same file.
+
+    @dataclass(frozen=True, slots=True)
+    class Target:
+        value: str
+        type: TargetType
+
+        def __post_init__(self) -> None:
+            ensure_non_empty(self.value, "Target value")
+            if not isinstance(self.type, TargetType): raise InvariantViolation(...)
+            self._validate_format()
+
+        def _validate_format(self) -> None:
+            tp = self.type
+            if tp == TargetType.IP_ADDRESS:
+                ipaddress.ip_address(self.value)          # stdlib validates, raises on bad input
+            elif tp == TargetType.NETWORK:
+                ipaddress.ip_network(self.value, strict=False)
+            elif tp == TargetType.HOSTNAME:
+                _validate_hostname(self.value)
+            elif tp == TargetType.URL:
+                parsed = urllib.parse.urlparse(self.value)
+                if parsed.scheme not in ("http", "https"):
+                    raise InvariantViolation(f"URL scheme must be http or https, got {parsed.scheme!r}")
+                if not parsed.netloc:
+                    raise InvariantViolation("URL must have a network location")
+
+IMPORTANT GAP CONFIRMED BY READING THIS CODE DIRECTLY: URL validation today
+checks ONLY that the scheme is http/https and that a netloc exists. It does
+NOT validate the port sub-component at all. This means
+Target("http://host:abc/", TargetType.URL) constructs successfully TODAY -
+accessing parsed.port later is what would raise. This is a real, currently-
+reachable gap, not a hypothetical - see Section 7 and Section 8's discussion
+of where a value-level failure can surface.
+
+Target is otherwise pure: no behaviour beyond construction-time validation,
+frozen, no persisted-vs-computed distinction, __str__ only.
+
+Every place target_type/TargetType is branched on (grep across src/, methods
+only - not incidental imports):
+
+  - domain/target.py               - Target._validate_format() (above)
+  - domain/scanner.py               - ScannerCapability.target_types field only
+                                       (declares, does not branch)
+  - infrastructure/scanner/registry.py  - InMemoryPluginRegistry.is_compatible()
+                                       (Section 2)
+  - application/assessment_profiles.py  - ExecutionPlanner.plan() (target-type
+                                       compatibility check, twice: profile-level
+                                       then per-scanner via registry.is_compatible())
+  - application/dto.py              - DTO field only, no branching
+  - infrastructure/persistence/mappers.py - round-trips Target(orm.target_value,
+                                       TargetType[orm.target_type]); asset mapper
+                                       (unrelated bounded context) branches on
+                                       HOSTNAME vs IP_ADDRESS for a display field
+  - adapters/inbound/web/profiles.py - parses raw_type into TargetType for the
+                                       /plan preview endpoint, no scanner logic
+  - adapters/inbound/web/routes.py, schemas.py, use_cases/create_assessment.py -
+                                       pass target_type through, no branching
+  - 6 scanner plugin adapters' capabilities() - declare target_types, don't branch
+  - nikto.py's _parse_target() - the ONE adapter that branches on the VALUE's
+                                       shape (URL vs bare host:port), not on
+                                       target.type - see Section 3
+
+No other file branches on target_type in a way that affects scanner selection
+or execution.
+
+--------------------------------------------------------------------------
+2. WHERE COMPATIBILITY IS DECIDED TODAY, AND EVERY CALLER
+--------------------------------------------------------------------------
+
+Single source of truth, exactly as Phase 2A established it:
+
+  application/ports/scanner_registry.py (port, abstract):
+    is_compatible(scanner_id: ScannerId, target_type: TargetType) -> bool
+      "The single source of truth for scanner/target-type compatibility.
+       resolve() is defined in terms of this method, and
+       ExecutionPlanner.plan() must call this method directly rather than
+       re-deriving compatibility itself."
+
+  infrastructure/scanner/registry.py (InMemoryPluginRegistry, concrete):
+    def is_compatible(self, scanner_id, target_type) -> bool:
+        plugin = self._plugins.get(scanner_id)
+        if plugin is None:
+            return False
+        return any(target_type in cap.target_types for cap in plugin.capabilities())
+
+    def resolve(self, target: Target) -> tuple[ScannerPluginPort, ...]:
+        return tuple(p for pid, p in self._plugins.items()
+                     if self.is_compatible(pid, target.type))
+
+Every caller (confirmed by grep, all call sites):
+
+  a) application/assessment_profiles.py, ExecutionPlanner.plan(), line 308:
+       if self._registry is not None and not self._registry.is_compatible(
+           ScannerId(sid), target_type
+       ):
+     This is the ONLY place per-scanner compatibility gates plan selection.
+     It runs AFTER a separate, coarser check at line 267: whether
+     target_type is in profile.supported_target_types at all (profile-level
+     gate, unrelated to per-scanner capability, unchanged by this design).
+
+  b) infrastructure/scanner/orchestrator.py, ScannerOrchestrator.execute_all(),
+     line 131 (via registry.resolve(), which is defined in terms of
+     is_compatible() above) - ONLY exercised on the legacy no-profile
+     fallback path (scanner_ids=None). Every profile-driven run
+     (scanner_ids is not None) does NO compatibility filtering of its own -
+     Phase 2A Correction 2c's invariant, unaffected by this design since it
+     doesn't touch execute_all()'s branching, only is_compatible()'s answer.
+
+  c) infrastructure/scanner/orchestrator.py, compatible_scanners(), line 205 -
+     also via registry.resolve(); used by the no-profile
+     StartAssessment.execute() path to seed the execution engine's plan
+     when no profile/planner is involved.
+
+No other call site exists. This is the complete caller list.
+
+--------------------------------------------------------------------------
+3. EVERY SCANNER ADAPTER READING target.value DIRECTLY
+--------------------------------------------------------------------------
+
+Checked all six remaining wired scanners' underlying infrastructure/scanner/
+<name>.py _build_args() (not just the plugin capabilities() wrapper) by
+reading each file directly:
+
+  nmap.py     _build_args(): [..., *scan_args, "-oX", "-", target.value]
+              target.value is nmap's raw positional target argument.
+              Works for IP_ADDRESS/HOSTNAME/NETWORK today (nmap's own CLI
+              accepts all three natively) - CANNOT accept a full URL string
+              (nmap would try to resolve "http://127.0.0.1:18080/" as a
+              literal hostname and fail). NmapSettings.scan_args defaults to
+              ("-sV", "-n") - no -p flag - so nmap scans its own default
+              port range (~top 1000) regardless of what's actually being
+              assessed. This is the exact Phase 1 failure and the exact
+              STATUS.md Phase 2A-b LOG FOR LATER item ("nmap's scanned port
+              range is never disclosed... DVWA's own mapped port is outside
+              that range").
+
+  nuclei.py   _build_args(): [..., "-u", target.value, "-jsonl", ...]
+              Single -u flag, raw target.value. Nuclei's real CLI accepts
+              EITHER a bare host/IP or a full URL interchangeably via -u -
+              this is exactly why its capabilities() already declare
+              IP_ADDRESS, HOSTNAME, AND URL today (pre-existing, correct).
+              No CIDR/multi-host handling anywhere in this file - confirmed
+              in Task 1, unchanged here: nuclei genuinely does not accept
+              NETWORK.
+
+  nikto.py    _build_args() via _parse_target(): the ONE adapter that
+              already branches on the VALUE's shape rather than assuming
+              one format:
+                if "://" in raw: parse as URL, extract host/port/ssl
+                elif ":" in raw: split "host:port"
+                else: raw is the bare host, no port
+              This already handles a bare IP address correctly today
+              (falls through the last branch: host=raw, port=None,
+              use_ssl=False -> "-h 10.0.0.5") even though its capabilities()
+              declaration (HOSTNAME, URL) does not currently claim
+              IP_ADDRESS support. See Section 5 - this is a real,
+              adapter-verified capability gap, not a hypothetical.
+
+  ffuf.py     _build_args(): base_url = target.value.rstrip("/"); then
+              f"{base_url}/FUZZ". Raw string concatenation, no urlparse, no
+              scheme handling at all - a bare hostname would produce an
+              invalid, scheme-less fuzz URL. Task 1 Decision 4 already
+              restricted this plugin's declared capabilities to URL only
+              for exactly this reason.
+
+  gobuster.py _build_args(): "-u", target.value directly, no transformation.
+              Same Task 1 Decision 4 restriction, same reason.
+
+  zap.py      _build_args(): "-quickurl", target.value directly, no
+              transformation, no urlparse. Same raw-passthrough pattern as
+              ffuf/gobuster - confirmed here for the first time (Task 1 only
+              examined ffuf/gobuster); zap's capabilities() already declare
+              URL only, which is correct for the same underlying reason,
+              previously unstated. No existing bug to fix here, but noted
+              since the task asked to check all six, not just the two Task 1
+              covered.
+
+Summary: nikto is the only adapter that ALREADY does real value-shape
+parsing; the other five (nmap, nuclei, ffuf, gobuster, zap) all pass
+target.value straight into a single flag with zero interpretation. Nmap is
+the only one of the six that structurally CANNOT accept a URL string at
+all - the other five either already accept a URL as-is (nuclei, ffuf,
+gobuster, zap - by design or by Decision 4's restriction) or already handle
+one via their own parsing (nikto).
+
+================================================================================
+PART B — DESIGN PROPOSAL (questions 4-9)
+================================================================================
+
+--------------------------------------------------------------------------
+4. URL DECOMPOSITION - WHERE IT LIVES
+--------------------------------------------------------------------------
+
+PROPOSAL: a new, separate, frozen value object in the domain layer -
+NOT new fields on Target itself.
+
+    # domain/target.py (or a new domain/target_components.py)
+
+    @dataclass(frozen=True, slots=True)
+    class UrlComponents:
+        scheme: str              # "http" | "https"
+        host: str                # hostname or IP literal, brackets stripped
+        is_ipv6: bool
+        port: int                # ALWAYS resolved: explicit, or the scheme default
+        port_is_explicit: bool   # True only if the URL literally had ":NNNN"
+        path: str                # "" or "/foo/bar" - unused today, kept for
+                                  # a future scanner that needs it
+
+    def decompose_url(target: Target) -> UrlComponents:
+        """Raises TargetDecompositionError - see Section 7 for every case."""
+
+WHY A SEPARATE OBJECT, NOT NEW Target FIELDS:
+
+  - Target is generic across all four target types; decomposition is
+    URL-specific. Adding host/port/scheme fields to Target means they are
+    meaningless (None, or worse, silently stale) for the other three types -
+    exactly the kind of "optional field that's actually mandatory sometimes"
+    shape this codebase avoids elsewhere (e.g. PluginAvailability.reason is
+    required, not optional-in-practice, when available=False).
+  - Different validation lifetime. Target.__post_init__ validates SYNTAX
+    once, at construction/persistence time (assessment creation). URL
+    decomposition failures (Section 7: bad port, ambiguous IPv6, embedded
+    credentials) are a DIFFERENT, scan-time concern - they should not force
+    every Target construction (including ones that will never reach a
+    scanner needing decomposition) to pay for or risk failing on deeper URL
+    parsing than today's validation already does.
+  - Removes duplication instead of adding it. nikto.py already hand-rolls
+    an equivalent parse in its own private _parse_target(). A single,
+    domain-layer, independently-tested decompose_url() is the one correct
+    place for "what's a usable host+port from this target" - nikto's own
+    parser should eventually call it too (see Section 8 note on this).
+  - Dependency direction. The planner (application layer) needs this for
+    compatibility reasoning (Section 5); infrastructure (nmap's adapter)
+    needs it for argument-building (Section 6). Only the domain layer can
+    host something both depend on without violating hexagonal
+    inward-only dependencies - it cannot live in infrastructure/scanner/.
+
+Computed on demand from the already-validated, already-persisted
+target.value string - never stored. This is what makes Section 9's "no
+migration" answer true by construction, not by luck.
+
+--------------------------------------------------------------------------
+5. CAPABILITY-BASED COMPATIBILITY
+--------------------------------------------------------------------------
+
+ADOPTING the preference stated in the prompt: a scanner declares what it
+NEEDS, a target type declares what it can PROVIDE, compatibility is
+satisfiability, not enum-membership equality.
+
+This is also, not incidentally, an early, minimal instance of the "third
+compatibility state" sketched in docs/STATUS.md's Phase 2B Task 1 section
+for amass ("a scanner could declare a precondition beyond target type") -
+Task 2 needs a requirement-based model anyway to make nmap-against-URL work
+honestly, so this design effectively begins that Phase 4 groundwork now,
+without solving amass's REGISTRABLE_DOMAIN case (still deferred, still
+needs the registrable_domain target type first).
+
+NEW DOMAIN VOCABULARY (domain/scanner.py, alongside ScanCategory):
+
+    class ScannerRequirement(Enum):
+        REACHABLE_HOST = "reachable_host"   # a resolvable host; port optional
+        HTTP_BASE_URL  = "http_base_url"    # scheme + host + port, ready for
+                                             # an HTTP request against a base
+        NETWORK_RANGE  = "network_range"    # a CIDR block
+        # REGISTRABLE_DOMAIN intentionally NOT added - Phase 4, blocked on
+        # the registrable_domain target type (Task 1 roadmap item).
+
+WHAT EACH TARGET TYPE CAN PROVIDE (pure, domain-layer function - no
+dependency on any specific scanner):
+
+    def provided_requirements(target_type: TargetType) -> frozenset[ScannerRequirement]:
+        IP_ADDRESS -> {REACHABLE_HOST}
+        HOSTNAME   -> {REACHABLE_HOST}
+        URL        -> {REACHABLE_HOST, HTTP_BASE_URL}   # via decompose_url()
+        NETWORK    -> {NETWORK_RANGE}
+
+Note what is deliberately NOT provided, and why, consistent with Task 1
+Decision 4's already-established principle (never silently guess a scheme):
+  - IP_ADDRESS and HOSTNAME do NOT provide HTTP_BASE_URL. A bare IP or
+    hostname carries no scheme; synthesizing "http://<value>" would be
+    exactly the silent guess Decision 4 rejected for ffuf/gobuster. This
+    design extends that same rule to the new model rather than
+    accidentally reopening it.
+  - HOSTNAME does NOT provide REGISTRABLE_DOMAIN (Task 1's amass finding,
+    unchanged, still deferred).
+
+WHAT EACH OF THE SIX SCANNERS REQUIRES (derived directly from Section 3's
+adapter reading, not assumed):
+
+  nmap      {REACHABLE_HOST} OR {NETWORK_RANGE}  - two capability entries
+            (ScannerCapability already supports a tuple of entries per
+            plugin - no structural change needed there).
+  nuclei    {REACHABLE_HOST}                     - one entry. Its adapter
+            already accepts a bare host OR a full URL via one -u flag
+            (Section 3) - it does not need a separate HTTP_BASE_URL
+            requirement, because URL already provides REACHABLE_HOST too.
+  nikto     {REACHABLE_HOST}                     - one entry, for the same
+            reason: its _parse_target() genuinely already handles a bare
+            host today (Section 3).
+  ffuf      {HTTP_BASE_URL}                      - one entry, unchanged
+            from Task 1 Decision 4's reasoning: raw passthrough into a URL
+            flag, no scheme inference possible.
+  gobuster  {HTTP_BASE_URL}                      - one entry, same as ffuf.
+  zap       {HTTP_BASE_URL}                      - one entry, same reason,
+            newly confirmed in Section 3 (zap was not examined in Task 1).
+
+IMPORTANT DISTINCTION: satisfying a requirement decides WHETHER a scanner
+runs. It does NOT change WHAT STRING is handed to the adapter. Only nmap's
+_build_args() changes what it constructs from the target (Section 6).
+nuclei, ffuf, gobuster, zap, and nikto all keep reading target.value (or,
+for nikto, its own existing _parse_target()) exactly as they do today -
+their real invocations are completely unaffected by this model change.
+
+FULL BEFORE/AFTER MATRIX - all 6 scanners x all 4 target types, every cell:
+
+  Scanner   | IP_ADDRESS      | HOSTNAME        | URL             | NETWORK
+  ----------|-----------------|-----------------|-----------------|----------
+  nmap      | Y -> Y          | Y -> Y          | N -> Y  *FLIP*  | Y -> Y
+  nuclei    | Y -> Y          | Y -> Y          | Y -> Y          | N -> N
+  nikto     | N -> Y  *FLIP*  | Y -> Y          | Y -> Y          | N -> N
+  ffuf      | N -> N          | N -> N          | Y -> Y          | N -> N
+  gobuster  | N -> N          | N -> N          | Y -> Y          | N -> N
+  zap       | N -> N          | N -> N          | Y -> Y          | N -> N
+
+Only 2 of 24 cells flip. nmap x URL is the flip this task exists to make.
+nikto x IP_ADDRESS is a genuine, adapter-verified side effect I found while
+building this matrix, not something I designed toward - flagging it as an
+explicit decision point rather than silently including or excluding it:
+
+  DECISION NEEDED: should nikto x IP_ADDRESS be allowed to flip to
+  compatible in this task, or should it be explicitly suppressed (e.g. a
+  documented carve-out in nikto's capability declaration) to keep this
+  task's blast radius limited to exactly the nmap/URL problem it was
+  scoped for? I recommend allowing it - it reflects nikto's real,
+  already-tested behaviour, not a new risk - but I'm asking rather than
+  deciding, consistent with how Task 1's decisions were made one at a time.
+
+--------------------------------------------------------------------------
+6. NMAP AGAINST A URL - HOW THE PORT GETS INTO THE ARGUMENT LIST
+--------------------------------------------------------------------------
+
+infrastructure/scanner/nmap.py, _build_args(), proposed:
+
+    def _build_args(self, target: Target) -> list[str]:
+        settings = self._settings
+        if target.type == TargetType.URL:
+            components = decompose_url(target)          # Section 4/7
+            host_arg = components.host
+            port_args = ["-p", str(components.port)]
+            ipv6_args = ["-6"] if components.is_ipv6 else []
+        else:
+            host_arg = target.value                       # unchanged path
+            port_args = []
+            ipv6_args = []
+
+        args: list[str] = [
+            settings.binary_path,
+            *settings.scan_args,
+            *ipv6_args,
+            *port_args,
+            "-oX", "-",
+            host_arg,
+        ]
+        return args
+
+Non-URL targets (IP_ADDRESS, HOSTNAME, NETWORK) take the exact same code
+path as today - zero behavioural change, zero added risk to the three
+target types this adapter already serves correctly.
+
+For a URL target, -p <port> is ALWAYS appended, derived from the SAME
+decompose_url() call the compatibility check (Section 5) is ultimately
+grounded in - not a second, independently-maintained parse that could
+drift from the first. This is what makes "DVWA on 18080 never scanned"
+structurally impossible rather than merely unlikely, in the same sense
+Phase 2A made the planner the single source of truth for selection: there
+is exactly one function that turns a URL into a host+port, and both the
+"can nmap run" decision and the "what does nmap actually scan" decision
+read from it.
+
+Appended AFTER *settings.scan_args deliberately: if an operator's
+configured scan_args happens to contain its own -p, nmap's last -p on the
+command line wins - so the URL's real port always takes precedence over
+whatever the operator pre-configured, which is the correct default for a
+target whose whole reason for existing IS that specific port.
+
+RECOMMENDATION (open to disagreement): scan ONLY the URL's own port, not
+nmap's default ~top-1000 range in addition. Scanning the default range
+alongside the specific port would reintroduce exactly the Phase 1 problem
+in reverse - noise from unrelated ports on the same host that have nothing
+to do with the URL being assessed. The assessment's subject is "this URL,"
+not "whatever else is open on this host."
+
+IPv6: components.is_ipv6 forces -6 into the argument list. Without it,
+nmap treats a bracket-stripped IPv6 literal as a hostname resolution
+target and fails - this was not obvious from nmap.py alone and only
+surfaced from cross-referencing nmap's own CLI contract against what
+decompose_url() would produce for an IPv6 URL (Section 7).
+
+--------------------------------------------------------------------------
+7. REJECT AMBIGUOUS INPUT RATHER THAN GUESSING
+--------------------------------------------------------------------------
+
+New typed error: TargetDecompositionError (domain/errors.py, sibling to
+InvariantViolation - a construction-time-adjacent but distinct failure,
+since it can occur AFTER a Target has already validly constructed).
+
+  a) URL with no scheme ("example.com/path", "//example.com")
+     REJECT - already impossible to reach decompose_url() with this input,
+     since Target.__post_init__ already rejects it today (scheme check).
+     decompose_url() defensively re-checks target.type == TargetType.URL
+     and raises TargetDecompositionError if called on anything else - a
+     programmer-error guard, not an expected runtime path.
+
+  b) Malformed URL (empty netloc, unparseable)
+     REJECT - Target already rejects empty netloc at construction.
+     decompose_url() additionally rejects if urllib.parse can't produce a
+     non-None .hostname - typed TargetDecompositionError, never a bare
+     ValueError escaping the domain boundary.
+
+  c) IPv6 literal ("http://[::1]:8080/path")
+     ACCEPT. urllib.parse correctly strips the brackets from .hostname for
+     a bracketed literal and reads .port normally. decompose_url() detects
+     v6 via ipaddress.ip_address(host) and sets is_ipv6=True, which Section
+     6's nmap path uses to add -6. An UNBRACKETED v6-shaped host in a URL
+     authority (invalid per RFC 3986) is rejected - not special-cased,
+     because urlparse's own hostname/port extraction becomes unreliable
+     for it and "reject rather than guess" applies directly.
+
+  d) URL with credentials ("http://user:pass@host:port/path")
+     REJECT. Two independent reasons, not one:
+       1. Every adapter today logs target.value verbatim at INFO level
+          (_logger.info(..., target=target.value, ...) appears in all six
+          adapters read in Section 3), and target_value is persisted as a
+          plain string column (Section 9). A credential embedded in a URL
+          would flow into logs and the database unredacted the moment any
+          scanner runs against it - a real exposure, not a theoretical one.
+       2. Silently stripping the credentials and scanning anyway would run
+          under a different identity than what a user might have intended,
+          just as silently; discarding-but-proceeding and guessing-and-
+          proceeding are both exactly the failure mode Decision 4 already
+          rejected once for scheme-guessing.
+     decompose_url() checks parsed.username/parsed.password and rejects if
+     either is set. RECOMMENDATION (needs separate approval, flagged not
+     decided): move this specific check UP into Target._validate_format()'s
+     URL branch, since it is a genuine input-validation gap for ALL URL
+     targets today, not only ones a scanner later decomposes - a URL with
+     credentials gets logged/persisted the moment ANY scanner (even ffuf,
+     unchanged) runs against it. This tightens existing validation for
+     every URL target already in use (web-scan, api-scan, full-assessment),
+     so it needs its own explicit approval separate from the rest of this
+     design, and should be checked against whether any already-persisted
+     assessment currently has a credentialed URL before applying it.
+
+  e) Non-numeric port ("http://host:abc/")
+     REJECT. Confirmed reachable today (Section 1's validation-gap note) -
+     Target accepts this at construction; only .port access raises
+     (stdlib ValueError). decompose_url() catches that specific ValueError
+     and re-raises as TargetDecompositionError - never lets the raw stdlib
+     exception cross the domain boundary untyped.
+
+  No scheme-guessing anywhere in this design, consistent with Decision 4.
+  Default port resolution (URL with NO port at all) is NOT a rejection
+  case - "http://example.com/" resolves port=80, port_is_explicit=False;
+  "https://example.com/" resolves port=443, port_is_explicit=False. Both
+  required test cases per the prompt's own STEP 2 list.
+
+--------------------------------------------------------------------------
+8. INVARIANT PRESERVATION - EXPLICIT ANSWERS
+--------------------------------------------------------------------------
+
+Does every scanner still reach a terminal state?
+  YES. This design does not touch ScannerOrchestrator.execute_all()'s
+  terminal-state reporting at all - only (a) is_compatible()'s internal
+  data source and (b) NmapScannerAdapter._build_args()'s URL-case logic.
+  NEW failure mode introduced: decompose_url() can now raise at scan time
+  for a URL target that was type-compatible at plan time but has a
+  value-level defect not caught by is_compatible() (e.g. the non-numeric-
+  port gap in 7e, if the Target-level tightening in 7d is NOT also
+  applied). This flows through execute()'s EXISTING try/except -> wraps as
+  ScannerPluginError -> reported FAILED to the execution engine - the
+  same machinery already handles every other adapter exception today. No
+  new hang, no new silent skip; a terminal state is still guaranteed, it
+  is just FAILED instead of SUCCEEDED for that one edge case.
+
+Is the planner still the single authority, orchestrator doing no filtering?
+  YES. is_compatible(scanner_id, target_type) -> bool keeps its exact
+  signature - only its internal implementation changes (capability-lookup
+  instead of raw set membership). Both existing callers (planner line 308,
+  orchestrator's resolve()-based fallback) are unmodified call sites.
+
+Does executed-set == selected-set still hold and fail loudly?
+  YES, untouched. That check (submit_assessment.py lines 380-391) compares
+  plan.selected_scanners against the execution engine's terminal-state
+  records - it has no dependency on WHY something was selected, only THAT
+  the two sets match. This design changes selection criteria, not the
+  selection -> execution -> terminal-state bookkeeping.
+
+Does the strengthened TestProfileRequiredScannersAreTargetTypeCompatible
+still hold for every remaining profile, or does the new model change which
+profiles are valid?
+  Still holds, UNCHANGED, for all six profiles. Checked required_scanners
+  against the matrix in Section 5: nmap is required in quick-scan,
+  network-scan, and external-footprint - already fully compatible with
+  every target type those three profiles declare, both before and after
+  this design (none of those profiles declare URL). Neither of the two
+  flips (nmap x URL, nikto x IP_ADDRESS) touches a scanner that is
+  REQUIRED in a profile that declares the flipped target type. No profile
+  moves from valid to invalid or vice versa as a direct result of this
+  design. (Separately, OPEN QUESTION worth raising now: now that nmap CAN
+  satisfy URL, should web-scan promote it from optional to required? Not
+  deciding this here - flagging it the same way Section 5's nikto flip is
+  flagged, as a choice for you, not an assumption I've built in.)
+
+Does the coverage block still name every non-running scanner with a true
+reason?
+  YES. PlanScannerEntry.reason strings are generated by the exact same
+  code in plan() (lines 308-322) - only the True/False input to that
+  branch changes, not the branch's own reason-formatting logic. The
+  existing reason text ("{name!r} does not support target type
+  {target_type.value!r}") remains accurate - it's still fundamentally
+  "this target type doesn't satisfy this scanner," just decided via
+  requirement-matching instead of raw set membership.
+
+--------------------------------------------------------------------------
+9. MIGRATION AND BLAST RADIUS
+--------------------------------------------------------------------------
+
+Does this change anything persisted?
+  NO. Confirmed by reading infrastructure/persistence/models.py and
+  mappers.py directly: assessments store exactly two plain string columns,
+  target_value and target_type, round-tripped as
+  Target(orm.target_value, TargetType[orm.target_type]) - nothing else.
+  UrlComponents is computed on demand from target.value, never persisted.
+  ScannerCapability's new requirement field is a Python class-level
+  declaration on each plugin, not a database row. NO ALEMBIC MIGRATION IS
+  NEEDED for this design - this is a direct consequence of the Section 4
+  choice (compute at use time, don't store target shape), not an
+  afterthought.
+
+  The one item that WOULD need separate handling if adopted (Section 7d,
+  the Target-level credential/port tightening) is a validation-behaviour
+  change, not a schema change - still no migration, but it could reject an
+  already-persisted URL value on next use if one happens to contain
+  credentials or a malformed port today. Worth a one-time check of
+  existing data before applying that specific piece, flagged there and
+  again here.
+
+How many existing tests will this change? Estimated honestly, not
+undersold:
+
+  Confirmed by grep: 5 files directly exercise is_compatible/ExecutionPlanner/
+  planner.plan() (test_phase2a_honest_coverage.py, test_scanner_failure_policy.py,
+  test_start_assessment.py, test_submit_assessment.py, plus test_registry.py
+  found separately, itself scoped to IP_ADDRESS-only fixtures so likely low
+  individual impact). 53 test files reference TargetType somewhere, but the
+  large majority construct a Target incidentally for unrelated assertions
+  (report rendering, assessment creation, auth) and are not touched by a
+  compatibility-model change.
+
+  Concentrated, expected impact:
+    - ScannerCapability's shape changes (target_types -> requirement) means
+      each of the six wired scanners' own TestCapabilities::test_correct_
+      target_types-style test needs updating to assert .requirement instead
+      - 6 test files, ~1 test each = 6 tests. (Task 1 already touched two of
+      these files' capabilities tests for an unrelated reason.)
+    - test_phase2a_honest_coverage.py's full-matrix and reference-case tests
+      need re-verification against the new matrix (Section 5) - expect
+      small edits, not rewrites, since only 2 of 24 cells actually move.
+    - A new test_target_decomposition.py (all new coverage, breaks nothing
+      existing) for UrlComponents/decompose_url() per the prompt's own
+      required-test list.
+    - Nmap adapter tests gain new URL-path cases; existing non-URL nmap
+      tests are unaffected (Section 6's branch preserves the old path
+      byte-for-byte).
+
+  Rough total: I estimate 20-35 individual test functions touched or
+  added, concentrated in the 5-6 files above, plus one new file. This is
+  larger than Task 1 (which touched 6), because this task changes a
+  domain-layer data shape (ScannerCapability) that Task 1 did not, but I
+  do NOT believe it crosses into "many" in the sense the prompt asks me to
+  flag as a reason to reconsider the design - it is not spread thin across
+  the whole suite, and the 53-file TargetType figure is a ceiling, not the
+  real number affected.
+
+================================================================================
+SUMMARY OF OPEN DECISIONS (not resolved here - yours to make)
+================================================================================
+
+  1. Should nikto's compatibility flip to include IP_ADDRESS (Section 5),
+     or should it be explicitly suppressed to keep this task scoped to
+     exactly the nmap/URL problem?
+  2. Should web-scan's nmap move from optional to required now that it can
+     satisfy URL (Section 8)?
+  3. Should the credential/non-numeric-port tightening move up into
+     Target._validate_format() itself (Section 7d), affecting ALL URL
+     targets immediately, or stay scoped to decompose_url() only (Section 7e)?
+  4. Recommendation to scan ONLY the URL's specific port, not nmap's
+     default range in addition (Section 6) - confirm or override.
+
+Nothing above has been implemented. No production code was written in this
+step. Awaiting approval before Step 2.

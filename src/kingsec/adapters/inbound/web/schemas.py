@@ -239,6 +239,11 @@ class ListAssessmentsResponse(BaseModel):
     total: int
     limit: int
     offset: int
+    # Phase 2B Task 2 Condition 1: ids of rows that exist but could not be
+    # loaded - admin-only. Empty for a non-admin caller or when nothing
+    # was unreadable, never omitted, so the frontend can rely on the key
+    # always being present.
+    unreadable_ids: list[str] = []
 
 
 # ── Auth schemas ─────────────────────────────────────────────────────────────

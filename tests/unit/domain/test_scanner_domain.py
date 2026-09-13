@@ -17,9 +17,9 @@ from kingsec.domain import (
     ScannerCapability,
     ScannerId,
     ScannerPluginMetadata,
+    ScannerRequirement,
     ScannerResult,
     Severity,
-    TargetType,
 )
 
 # ---------------------------------------------------------------------------
@@ -48,7 +48,7 @@ def _make_metadata(
 
 def _make_capability() -> ScannerCapability:
     return ScannerCapability(
-        target_types=frozenset({TargetType.IP_ADDRESS, TargetType.HOSTNAME}),
+        requirement=ScannerRequirement.REACHABLE_HOST,
         scan_categories=frozenset({ScanCategory.VULNERABILITY}),
         output_format=OutputFormat.STRUCTURED_JSON,
     )
@@ -250,14 +250,14 @@ class TestOutputFormat:
 class TestScannerCapability:
     def test_valid_capability(self) -> None:
         cap = _make_capability()
-        assert TargetType.IP_ADDRESS in cap.target_types
+        assert cap.requirement is ScannerRequirement.REACHABLE_HOST
         assert ScanCategory.VULNERABILITY in cap.scan_categories
         assert cap.output_format is OutputFormat.STRUCTURED_JSON
 
-    def test_rejects_empty_target_types(self) -> None:
+    def test_rejects_invalid_requirement(self) -> None:
         with pytest.raises(InvariantViolation):
             ScannerCapability(
-                target_types=frozenset(),
+                requirement="reachable_host",  # type: ignore[arg-type]
                 scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                 output_format=OutputFormat.RAW_TEXT,
             )
@@ -265,39 +265,31 @@ class TestScannerCapability:
     def test_rejects_empty_scan_categories(self) -> None:
         with pytest.raises(InvariantViolation):
             ScannerCapability(
-                target_types=frozenset({TargetType.URL}),
+                requirement=ScannerRequirement.HTTP_BASE_URL,
                 scan_categories=frozenset(),
-                output_format=OutputFormat.RAW_TEXT,
-            )
-
-    def test_rejects_non_target_type_in_set(self) -> None:
-        with pytest.raises(InvariantViolation):
-            ScannerCapability(
-                target_types=frozenset({"ip_address"}),  # type: ignore[arg-type]
-                scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                 output_format=OutputFormat.RAW_TEXT,
             )
 
     def test_rejects_non_scan_category_in_set(self) -> None:
         with pytest.raises(InvariantViolation):
             ScannerCapability(
-                target_types=frozenset({TargetType.IP_ADDRESS}),
+                requirement=ScannerRequirement.REACHABLE_HOST,
                 scan_categories=frozenset({"vulnerability"}),  # type: ignore[arg-type]
                 output_format=OutputFormat.RAW_TEXT,
             )
 
-    def test_rejects_non_frozenset_target_types(self) -> None:
+    def test_rejects_non_frozenset_scan_categories(self) -> None:
         with pytest.raises(InvariantViolation):
             ScannerCapability(
-                target_types={TargetType.IP_ADDRESS},  # type: ignore[arg-type]
-                scan_categories=frozenset({ScanCategory.VULNERABILITY}),
+                requirement=ScannerRequirement.REACHABLE_HOST,
+                scan_categories={ScanCategory.VULNERABILITY},  # type: ignore[arg-type]
                 output_format=OutputFormat.RAW_TEXT,
             )
 
     def test_rejects_invalid_output_format(self) -> None:
         with pytest.raises(InvariantViolation):
             ScannerCapability(
-                target_types=frozenset({TargetType.IP_ADDRESS}),
+                requirement=ScannerRequirement.REACHABLE_HOST,
                 scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                 output_format="raw_text",  # type: ignore[arg-type]
             )

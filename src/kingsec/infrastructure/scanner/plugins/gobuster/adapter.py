@@ -21,9 +21,9 @@ from kingsec.domain import (
     ScannerCapability,
     ScannerId,
     ScannerPluginMetadata,
+    ScannerRequirement,
     ScannerResult,
     Target,
-    TargetType,
 )
 from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE
 
@@ -63,10 +63,16 @@ class GobusterPlugin(ScannerPluginPort):
         )
 
     def capabilities(self) -> tuple[ScannerCapability, ...]:
-        """Declare Gobuster's scanning capabilities."""
+        """Declare Gobuster's scanning capabilities.
+
+        Phase 2B Decision 4: URL only, not HOSTNAME - same reasoning as
+        ffuf (infrastructure/scanner/gobuster.py's _build_args() passes
+        target.value directly as the -u argument with no scheme handling).
+        Require an explicit-scheme URL rather than silently guess http://.
+        """
         return (
             ScannerCapability(
-                target_types=frozenset({TargetType.HOSTNAME, TargetType.URL}),
+                requirement=ScannerRequirement.HTTP_BASE_URL,
                 scan_categories=frozenset({ScanCategory.DISCOVERY}),
                 output_format=OutputFormat.RAW_TEXT,
             ),

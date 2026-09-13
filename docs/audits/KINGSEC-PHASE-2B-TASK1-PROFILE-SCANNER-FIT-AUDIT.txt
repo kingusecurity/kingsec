@@ -1,0 +1,217 @@
+KINGSEC — PHASE 2B, TASK 1: PROFILE/SCANNER FIT AUDIT
+Generated: 2026-09-11
+Read-only investigation. No code changed. Stopping here per explicit instruction
+to wait for your decision on which scanners leave which profiles.
+
+================================================================================
+a) WHAT EACH OF THE 9 SCANNERS ACTUALLY ASSESSES, AND WHAT IT GENUINELY NEEDS
+================================================================================
+
+nmap     — Network port/service scanner. Needs a network-reachable host
+           (IP, resolvable hostname) or a CIDR range. Does not consume URLs
+           directly; a URL's host (+ port) would work if decomposed.
+
+nuclei   — Template-driven vulnerability scanner covering both raw network/
+           TLS/DNS checks and full HTTP-based web checks depending on the
+           template category. Genuinely usable against an IP, a hostname,
+           or a URL — its declared set matches its real capability.
+
+ffuf     — HTTP(S) content/parameter fuzzer. Genuinely needs a full URL
+           (scheme + host [+ port]) to build requests against — see the
+           real bug found below, its adapter does NOT construct one from a
+           bare hostname.
+
+gobuster — Same category as ffuf (KingSec runs it in `dir` mode: HTTP
+           directory enumeration). Genuinely needs a full URL for the same
+           reason — see the same bug below.
+
+nikto    — Web server vulnerability scanner. Genuinely needs an HTTP(S)
+           target with host/port/scheme, but its adapter correctly derives
+           all three from EITHER a full URL or a bare `host[:port]` string
+           — see below, this one is correctly implemented.
+
+amass    — Subdomain enumeration (passive/active DNS, certificate-
+           transparency logs, brute-forcing) of a REGISTRABLE DOMAIN.
+           Genuinely needs a real domain name with a public DNS zone to
+           enumerate subdomains of. See (d).
+
+trivy    — Container image / filesystem / git-repo vulnerability scanner.
+           Genuinely needs an image reference, a local filesystem path, or
+           a git repo URL. This is not a network-reachable target at all —
+           a fundamentally different kind of input than IP/hostname/URL.
+           See (c).
+
+zap      — Web application vulnerability scanner (proxy-based spider +
+           active scan). Genuinely needs an HTTP(S) URL. Its {URL}
+           declaration is correct.
+
+semgrep  — Static source-code analyzer. Genuinely needs a local filesystem
+           path to source code (a git checkout or directory) — not a
+           network-reachable target at all, same category problem as
+           trivy. See (c).
+
+================================================================================
+b) PER-PROFILE SCANNER x TARGET-TYPE FIT (8 profiles)
+================================================================================
+Real registry target_types (confirmed by direct code read, not assumed):
+  nmap={IP_ADDRESS,HOSTNAME,NETWORK}  nuclei={IP_ADDRESS,HOSTNAME,URL}
+  ffuf={HOSTNAME,URL}  gobuster={HOSTNAME,URL}  nikto={HOSTNAME,URL}
+  amass={HOSTNAME}  trivy={HOSTNAME}  zap={URL}  semgrep={HOSTNAME}
+
+quick-scan (types: IP_ADDRESS, HOSTNAME; scanners: nmap)
+  Fully fits both target types. No permanently-incompatible scanner.
+
+network-scan (types: NETWORK, IP_ADDRESS, HOSTNAME; scanners: nmap, nuclei)
+  nmap fits all 3. nuclei does NOT declare NETWORK — every NETWORK-target
+  run of this profile will ALWAYS show "Nuclei did not run: incompatible."
+  Not blocking (nuclei isn't required), but a permanent, predictable
+  warning on that one target type.
+
+web-scan (types: URL; scanners: nmap[optional], gobuster, ffuf, nuclei, zap)
+  gobuster/ffuf/nuclei/zap fit. nmap does not declare URL — EVERY run of
+  this profile permanently shows "Nmap did not run: incompatible" (this is
+  the exact Phase 2A finding; nmap is now optional so it no longer blocks
+  the profile, but the coverage warning fires on literally every run).
+
+api-scan (types: URL; scanners: ffuf, nuclei, zap)
+  All 3 fit URL. No permanently-incompatible scanner — a genuinely
+  well-fit profile as currently defined.
+
+code-review (types: HOSTNAME, IP_ADDRESS; scanners: semgrep, required)
+  semgrep declares HOSTNAME only, not IP_ADDRESS. For an IP_ADDRESS target
+  specifically, the ONLY scanner in this profile is required AND
+  incompatible — plan.can_proceed is FALSE for every IP_ADDRESS run,
+  structurally identical to the web-scan/nmap bug this phase exists to
+  prevent recurring. TestProfileRequiredScannersAreTargetTypeCompatible
+  (Phase 2A) does NOT catch this: it only asserts "compatible with AT
+  LEAST ONE supported target type" (HOSTNAME satisfies that), not "every
+  declared supported target type actually works." This is a real gap in
+  that test's coverage.
+  Deeper problem, independent of target_types: semgrep needs a local
+  source-code checkout, which cannot be derived from a bare hostname or IP
+  at all. Even a "fixed" declaration doesn't make this profile coherent —
+  there is no way to get from "example.com" to "a git checkout of
+  example.com's source" without an entirely different target concept
+  (a repo URL or local path).
+
+container-scan (types: HOSTNAME, IP_ADDRESS; scanners: trivy, required)
+  Identical shape to code-review: trivy declares HOSTNAME only, not
+  IP_ADDRESS — same partial-required-incompatibility defect for
+  IP_ADDRESS targets. And the same deeper problem: trivy needs an image
+  reference, filesystem path, or git repo, not a network hostname/IP —
+  no amount of target_types tweaking fixes the underlying model mismatch.
+
+external-footprint (types: HOSTNAME, IP_ADDRESS; scanners: amass, nmap)
+  nmap (required) fits both. amass (optional) declares HOSTNAME only — for
+  IP_ADDRESS runs, amass is ALWAYS "did not run: incompatible." Not
+  blocking, but every IP_ADDRESS run of this profile carries a permanent,
+  predictable, low-value warning — exactly the "operators learn to skim"
+  pattern this task is checking for.
+
+full-assessment (types: IP_ADDRESS, HOSTNAME, URL; scanners: all 9, none required)
+  Never blocked (nothing required), but no single target type is
+  compatible with all 9 scanners:
+    IP_ADDRESS: 2 of 9 compatible (nmap, nuclei) — 7 ALWAYS skip.
+    HOSTNAME:   8 of 9 compatible — only zap ALWAYS skips.
+    URL:        5 of 9 compatible (gobuster, ffuf, nuclei, zap, nikto) —
+                nmap, semgrep, trivy, amass ALWAYS skip (4 of 9).
+  This is the profile Run #4 used (IP_ADDRESS) — 7 of 9 permanently-skip
+  is the worst case of any profile in the product, and it's the one
+  labelled "Full Assessment... runs every available scanner."
+
+================================================================================
+c) ARE THE target_types DECLARATIONS CORRECT? CHECKED ALL 9, NOT JUST TWO.
+================================================================================
+
+WRONG (semantic mismatch — these scanners don't operate on network hosts
+at all, regardless of what target_types claims):
+  - trivy  {HOSTNAME}   — needs an image ref / filesystem path / git repo.
+  - semgrep {HOSTNAME}  — needs a local filesystem path / git checkout.
+  Both declarations are a "least-wrong" placeholder that lets these
+  scanners appear selectable in the current target model, not an accurate
+  description of what they need. No target_types value in the CURRENT
+  Target/TargetType model (IP_ADDRESS/HOSTNAME/NETWORK/URL — all
+  network-reachable-target concepts) correctly describes either scanner's
+  real input. This is a target-MODEL gap, not just a wrong enum value —
+  seeded directly into Task 2's URL-model rework, but neither trivy nor
+  semgrep even reaches that far; they need an entirely different kind of
+  target (image/path/repo), which Task 2 as scoped does not appear to add.
+
+WRONG (functional bug — target_types claims HOSTNAME support that the
+adapter does not actually implement):
+  - ffuf     {HOSTNAME,URL} — infrastructure/scanner/ffuf.py:93,
+    `_build_args()`: `base_url = target.value.rstrip("/")`, then
+    `-u {base_url}/FUZZ`. For a bare HOSTNAME target ("example.com"), this
+    produces `ffuf -u example.com/FUZZ ...` with no scheme — ffuf requires
+    a full URL and will reject or fail against this. HOSTNAME is declared
+    compatible but not actually functional.
+  - gobuster {HOSTNAME,URL} — infrastructure/scanner/gobuster.py:97,
+    `_build_args()`: `target.value` passed directly as the `-u` argument
+    with no scheme handling, same class of bug as ffuf.
+  I did not find these by starting from your trivy/semgrep example — they
+  turned up specifically because you asked me to check all 9, which is
+  exactly the value of that instruction.
+
+CORRECTLY IMPLEMENTED (declaration matches real, working behavior):
+  - nmap    {IP_ADDRESS,HOSTNAME,NETWORK} — matches nmap's real target
+    forms; no evidence of a construction bug.
+  - nuclei  {IP_ADDRESS,HOSTNAME,URL} — nuclei genuinely supports all
+    three forms via its own template system.
+  - zap     {URL} — correct and narrowly scoped.
+  - nikto   {HOSTNAME,URL} — infrastructure/scanner/nikto.py's
+    `_parse_target()` genuinely handles EITHER form: parses a full URL via
+    `urlparse`, OR a bare `host[:port]` string, correctly extracting
+    host/port/SSL either way. This one is real, not a placeholder.
+
+UNRESOLVED, NEEDS A PRODUCT DECISION (not a code bug, a modeling
+question):
+  - amass {HOSTNAME} — technically "correct" in the sense that amass only
+    ever declares HOSTNAME, never IP_ADDRESS/URL/NETWORK, so it's not
+    falsely claiming compatibility with something it categorically can't
+    touch. But HOSTNAME as KingSec validates it (see (d)) accepts anything
+    syntactically hostname-shaped, including "localhost" and any internal
+    machine name — not only real, registrable public domains, which is
+    the only thing amass can meaningfully operate against.
+
+================================================================================
+d) CAN AMASS DO ANYTHING USEFUL AGAINST AN IP OR "LOCALHOST"? NO.
+================================================================================
+Confirmed by design, not by running it: amass enumerates subdomains of a
+registrable domain via DNS techniques (passive sources, certificate-
+transparency logs, active brute-forcing). It has no operation defined
+against a bare IP address at all (no domain to enumerate subdomains of),
+and "localhost" is not a registrable domain — it has no public DNS zone
+and therefore no subdomains to find. Checked KingSec's own HOSTNAME
+validation (`domain/target.py:_validate_hostname`): it only checks
+RFC 1034/1123 LABEL SYNTAX (length, allowed characters per label) — it has
+no concept of "is this a real, registrable, publicly-resolvable domain."
+"localhost" passes this validation as a syntactically valid single-label
+hostname. So today, a HOSTNAME target of "localhost" is accepted by
+KingSec, marked compatible with amass by the registry, and would run
+amass against it — producing zero useful output, not because of a bug in
+amass's execution, but because the target was never a domain amass could
+do anything with in the first place. The registry's boolean
+compatible/incompatible check cannot express this — it's a "compatible
+but useless" case, not an "incompatible" one.
+
+================================================================================
+SUMMARY OF FINDINGS REQUIRING A DECISION
+================================================================================
+1. code-review and container-scan have the SAME structural defect class as
+   the web-scan/nmap bug (a required scanner incompatible with one of the
+   profile's own declared supported target types) — for IP_ADDRESS
+   specifically. Existing Phase 2A static test does not catch this
+   (checks "at least one," not "every declared type").
+2. trivy and semgrep fundamentally do not fit ANY of KingSec's current
+   network-reachable target types (IP_ADDRESS/HOSTNAME/NETWORK/URL) — this
+   is a target-model gap, not a wrong enum value.
+3. ffuf and gobuster's HOSTNAME support is declared but not actually
+   implemented — a real functional bug independent of anything Task 2
+   changes.
+4. amass (and by the same logic, any domain-only tool) is technically
+   "compatible" with any syntactically valid hostname including
+   "localhost," but only useful against a real registrable domain — a gap
+   the current boolean compatibility model can't express.
+
+Waiting for your decision on which scanners leave which profiles before
+touching any code, per the explicit instruction. Not proceeding to Task 2.

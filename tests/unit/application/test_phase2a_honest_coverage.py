@@ -32,6 +32,8 @@ from kingsec.application.assessment_execution import AssessmentExecutionEngine
 from kingsec.application.assessment_profiles import ExecutionPlanner
 from kingsec.application.dto import SubmitAssessmentRequest
 from kingsec.application.errors import AssessmentNotFoundError
+from kingsec.application.ports import AssessmentRepository
+from kingsec.application.ports.repositories import AssessmentPage
 from kingsec.application.ports.scanner_registry import ScannerPluginRegistry
 from kingsec.application.scanner_discovery import AssetRequirement, ScannerStatus, _check_asset
 from kingsec.application.submit_assessment import SubmitAssessment
@@ -39,7 +41,7 @@ from kingsec.application.use_cases.resolve_orphaned_assessments import ResolveOr
 from kingsec.bootstrap.container import Container
 from kingsec.domain import Assessment, AssessmentId, Finding, Report, ScannerId, Target, TargetType
 from kingsec.domain.authorization import Authorization
-from kingsec.domain.enums import AssessmentStatus
+from kingsec.domain.enums import AssessmentStatus, ScannerRunState
 from kingsec.domain.report import failed_scanners_in
 from kingsec.infrastructure.config import Settings
 from kingsec.infrastructure.reporting.templates import render_report_html
@@ -49,7 +51,7 @@ from kingsec.infrastructure.scanner.registry import InMemoryPluginRegistry
 # --- Shared fakes --------------------------------------------------------
 
 
-class _FakeAssessmentRepository:
+class _FakeAssessmentRepository(AssessmentRepository):
     def __init__(self, assessments: dict[str, Assessment] | None = None) -> None:
         self._assessments = assessments or {}
         self.saved: list[Assessment] = []
@@ -64,14 +66,24 @@ class _FakeAssessmentRepository:
         self._assessments[str(assessment.id)] = assessment
         self.saved.append(assessment)
 
-    def list(self, *, limit: int = 50, offset: int = 0) -> list[Assessment]:
-        return list(self._assessments.values())[offset : offset + limit]
+    def list(self, *, limit: int = 50, offset: int = 0) -> AssessmentPage:
+        return AssessmentPage(items=tuple(list(self._assessments.values())[offset : offset + limit]))
 
     def find_by_schedule_occurrence_id(self, occurrence_id: str) -> list[Assessment]:
         return []
 
     def find_running(self) -> list[Assessment]:
         return [a for a in self._assessments.values() if a.status is AssessmentStatus.RUNNING]
+
+    def find_running_ids(self) -> list[str]:
+        return [str(a.id) for a in self._assessments.values() if a.status is AssessmentStatus.RUNNING]
+
+    def force_fail_running(self, assessment_id: str, reason: str) -> bool:
+        a = self._assessments.get(assessment_id)
+        if a is None or a.status is not AssessmentStatus.RUNNING:
+            return False
+        a.fail(reason)
+        return True
 
     def delete(self, assessment_id: AssessmentId) -> None:
         del self._assessments[str(assessment_id)]
@@ -184,26 +196,27 @@ def _authorized_assessment(*, profile_id: str, target_type: TargetType = TargetT
 # things); nuclei installed but NOT usable (no templates - Defect 5,
 # "Missing Nuclei templates: nuclei -update-templates", the exact message
 # reproduced here); nikto not installed (Defect 8, blocked by Windows
-# Defender). Under the real registry, gobuster/ffuf/semgrep/trivy/amass/zap
-# are all structurally incompatible with ip_address regardless of discovery
-# status, so their entries below are illustrative only (compatibility is
-# checked first and wins).
+# Defender). Under the real registry, gobuster/ffuf/zap are all structurally
+# incompatible with ip_address regardless of discovery status, so their
+# entries below are illustrative only (compatibility is checked first and
+# wins).
 #
-# Real outcome this produces: 1 of 9 succeeds (Nmap) - matching BOTH Phase
+# Real outcome this produces: 1 of 6 succeeds (Nmap) - matching BOTH Phase
 # 1's actual recorded Run #4 result (E2E-EVIDENCE.md: "Nmap... actually ran
 # and completed with 9 real findings" while every other scanner was either
 # stuck pending or correctly skipped, never succeeded) AND this phase's own
-# live DVWA re-verification (docs/STATUS.md: "1 of 9 (Nmap)"). The
-# previous "3 of 9" was neither.
+# live DVWA re-verification (docs/STATUS.md: "1 of 9 (Nmap)"). Phase 1's
+# real full-assessment run scheduled 9 scanners; Phase 2B Decision 1/2
+# removed semgrep, trivy, and amass from the profile (they cannot take any
+# target type KingSec's current model expresses - see
+# assessment_profiles.py), so this fixture now only needs discovery
+# statuses for full-assessment's current 6 scanners.
 _STATUSES = {
     "nmap": _status("nmap", "Nmap", installed=True, usable=True),
     "nuclei": _status("nuclei", "Nuclei", installed=True, usable=False),
     "gobuster": _status("gobuster", "Gobuster", installed=True, usable=True),
     "ffuf": _status("ffuf", "FFUF", installed=True, usable=True),
     "zap": _status("zap", "OWASP ZAP", installed=True, usable=True),
-    "semgrep": _status("semgrep", "Semgrep", installed=True, usable=True),
-    "trivy": _status("trivy", "Trivy", installed=True, usable=True),
-    "amass": _status("amass", "Amass", installed=True, usable=True),
     "nikto": _status("nikto", "Nikto", installed=False, usable=False),
 }
 
@@ -231,8 +244,17 @@ class TestReferenceCaseRun4Reproduction:
     (Nmap) ever actually running — 6 were silently stuck at "pending"
     and 2 (Nuclei, Nikto) were correctly skipped but undisclosed. This
     test would fail against that code (it asserts ``COMPLETED_WITH_GAPS``
-    and a verdict naming all 8 non-running scanners) and passes against
+    and a verdict naming every non-running scanner) and passes against
     the fixed code.
+
+    Phase 2B Decision 1/2 note: ``full-assessment`` now schedules 6
+    scanners, not the original 9 (semgrep, trivy, and amass were removed
+    from the profile — see assessment_profiles.py). The fixture below
+    still models Phase 1's real 9-scanner environment via ``_STATUSES``
+    for historical accuracy, but the planner only ever consults the
+    scanners actually listed in the profile, so the assertions here
+    check 6 scheduled / 1 succeeded / 5 non-succeeded, matching
+    ``full-assessment``'s current shape.
     """
 
     def test_status_is_completed_with_gaps_not_completed(self) -> None:
@@ -245,12 +267,12 @@ class TestReferenceCaseRun4Reproduction:
 
         result = repo.saved[-1]
         assert result.status == AssessmentStatus.COMPLETED_WITH_GAPS
-        assert len(result.scanner_summary) == 9
+        assert len(result.scanner_summary) == 6
 
         succeeded = [s for s in result.scanner_summary if s.status.is_success]
         non_succeeded = failed_scanners_in(result.scanner_summary)
         assert len(succeeded) == 1
-        assert len(non_succeeded) == 8
+        assert len(non_succeeded) == 5
         assert {s.name for s in succeeded} == {"Nmap"}
 
     def test_report_verdict_names_every_non_running_scanner(self) -> None:
@@ -269,7 +291,7 @@ class TestReferenceCaseRun4Reproduction:
         # regardless (this is the exact Run #4 defect: a clean-looking
         # score hiding a scan that mostly didn't happen).
         assert report.verdict.action_required is True
-        for name in ("Nuclei", "Gobuster", "FFUF", "Semgrep", "Trivy", "Amass", "OWASP ZAP", "Nikto"):
+        for name in ("Nuclei", "Gobuster", "FFUF", "OWASP ZAP", "Nikto"):
             assert name in report.verdict.headline, f"{name!r} missing from verdict headline"
 
 
@@ -336,33 +358,40 @@ def _all_profile_target_type_pairs() -> list[tuple[str, TargetType]]:
 
 
 class TestProfileRequiredScannersAreTargetTypeCompatible:
-    """Correction 2(d) review, class-level fix: a profile must never
-    declare a required scanner that is incompatible with EVERY one of its
-    own supported target types — if it does, that profile can never
-    proceed, for any target, and nothing catches it structurally. This is
-    exactly the web-scan/nmap defect (Q found via Correction 1's real
-    5-run timing test): web-scan supports only URL, requires nmap, and
-    nmap never declares URL support.
+    """Phase 2B Task 1 review: the original spec here was wrong. "Compatible
+    with at least one supported target type" lets a profile declare support
+    for a target type under which its required scanner can NEVER run - the
+    exact shape of the code-review/container-scan defect (semgrep/trivy
+    declare HOSTNAME only, but both profiles also claim IP_ADDRESS support).
+    A profile that "can proceed" for HOSTNAME but silently can never proceed
+    for one of its OTHER declared types is exactly the web-scan/nmap defect
+    class, just confined to a subset of the profile's targets instead of
+    all of them.
+
+    Strengthened: every required scanner must be compatible with EVERY
+    target type the profile declares it supports - not merely one of them.
 
     Uses the REAL plugin registry's declared target_types (see
     _real_registry()), not a stub — a fake registry could never fail this
     test even with a genuinely broken profile.
     """
 
-    def test_every_required_scanner_supports_at_least_one_profile_target_type(self) -> None:
+    def test_every_required_scanner_supports_every_declared_profile_target_type(self) -> None:
         registry = _real_registry()
         planner = ExecutionPlanner()
         violations = []
         for profile in planner.list_profiles():
             for scanner_id in profile.required_scanners:
-                compatible_types = [
-                    tt for tt in profile.supported_target_types if registry.is_compatible(ScannerId(scanner_id), tt)
+                incompatible_types = [
+                    tt
+                    for tt in profile.supported_target_types
+                    if not registry.is_compatible(ScannerId(scanner_id), tt)
                 ]
-                if not compatible_types:
+                if incompatible_types:
                     violations.append(
-                        f"profile {profile.id!r}: required scanner {scanner_id!r} is compatible "
-                        f"with none of its supported target types "
-                        f"{[t.value for t in profile.supported_target_types]}"
+                        f"profile {profile.id!r}: required scanner {scanner_id!r} is NOT compatible "
+                        f"with {[t.value for t in incompatible_types]}, a target type this profile "
+                        f"declares support for"
                     )
         assert not violations, "\n".join(violations)
 
@@ -477,6 +506,68 @@ class TestPlanCoversEveryScanner:
         # No scanner appears in more than one bucket.
         total_entries = len(plan.selected_scanners) + len(plan.skipped_scanners) + len(plan.unavailable_scanners)
         assert total_entries == len(profile.scanners)
+
+
+class TestDoctorAgreesWithPlanner:
+    """Task 3a's required test: kingsec doctor's per-scanner verdict must
+    match the planner's real selection decision for that scanner, across
+    EVERY profile - derived from the exact same ScannerDiscoveryService/
+    ScannerPluginRegistry the planner itself uses (_doctor.py calls
+    bootstrap.composition.build_execution_planner(), the identical
+    construction _register_adapters() uses for the real, running app),
+    never a second, independently-derived check that could silently
+    disagree with it.
+
+    Uses ``_STATUSES`` (mixed usable/not-usable, not the permissive
+    fixture) so this actually exercises doctor's "NOT usable" branch, not
+    only the trivial all-usable case.
+    """
+
+    @pytest.mark.parametrize("profile_id,target_type", _all_profile_target_type_pairs())
+    def test_doctor_verdict_matches_plan_for_every_scanner(self, profile_id: str, target_type: TargetType) -> None:
+        from kingsec._doctor import _target_types_served
+
+        registry = _real_registry()
+        planner = ExecutionPlanner(discovery=_FakeDiscovery(_STATUSES), registry=registry)
+        profile = planner.get_profile(profile_id)
+        assert profile is not None
+
+        plan = planner.plan(profile_id, "target-value", target_type)
+        plan_by_id = {
+            e.scanner_id: e
+            for e in (*plan.selected_scanners, *plan.skipped_scanners, *plan.unavailable_scanners)
+        }
+        statuses = {s.scanner_id: s for s in planner.discovery.get_all_statuses()}
+
+        for scanner_id in profile.scanners:
+            entry = plan_by_id[scanner_id]
+            status = statuses[scanner_id]
+
+            doctor_target_types = _target_types_served(planner, scanner_id)
+            doctor_serves_this_type = target_type in doctor_target_types
+            # doctor's "which target types it can serve" must match
+            # is_compatible() exactly - the same primitive plan() itself
+            # calls (assessment_profiles.py's plan(), the registry.is_compatible
+            # check).
+            assert doctor_serves_this_type == registry.is_compatible(ScannerId(scanner_id), target_type)
+
+            if not doctor_serves_this_type:
+                assert entry.selected is False
+                assert entry.skip_state == ScannerRunState.SKIPPED_INCOMPATIBLE
+            elif status.usable:
+                assert entry.selected is True, (
+                    f"{scanner_id!r}: doctor says usable and compatible with {target_type.value!r}, "
+                    f"but the planner did not select it for profile {profile_id!r}"
+                )
+            else:
+                assert entry.selected is False, (
+                    f"{scanner_id!r}: doctor says NOT usable, but the planner selected it anyway "
+                    f"for profile {profile_id!r} - doctor and the planner disagree"
+                )
+                assert entry.skip_state in (
+                    ScannerRunState.SKIPPED_ASSET_MISSING,
+                    ScannerRunState.SKIPPED_BINARY_MISSING,
+                )
 
 
 # --- 4. Wordlist detection on a real Windows-style path -------------------
@@ -598,7 +689,16 @@ class TestCoverageAwareVerdictAndScore:
         assert "<td>0</td>" not in html.split('<section id="findings">')[1].split("</section>")[0]
 
     def test_ai_unavailable_callout_has_no_operator_setup_instructions(self) -> None:
+        """Phase 2A-b closed the operator-instruction leak ("Configure a
+        provider in Settings"). Task 4 FIX 2 went further: a customer
+        report must not mention AI/provider availability AT ALL, not
+        even in customer-friendly phrasing - "not available for this
+        report" was itself still plumbing language, and could
+        contradict "no analysis is required" when no Critical/High
+        findings existed. Both standards checked here so this test keeps
+        guarding the original regression while covering the newer one."""
         report = self._completed_with_gaps_report()
         html = render_report_html(report)
         assert "Configure a provider in Settings" not in html
-        assert "not available for this report" in html
+        assert "not available for this report" not in html
+        assert "AI" not in html

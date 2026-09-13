@@ -389,6 +389,48 @@ def _cover_page(report: Report, *, brand_name: str) -> str:
     )
 
 
+def _port_coverage_note(report: Report) -> str:
+    """Task 4: what nmap's port scan actually covered, for the Limitations
+    section - derived from the recorded ScannerRunSummary.port_specification,
+    never a hardcoded sentence, so this text cannot silently go stale
+    relative to what the scanner actually recorded (see the linkage test,
+    test_templates.py).
+
+    Task 4 FIX 1: None now means exactly one thing - genuinely never
+    recorded (a row persisted before this field existed at all, or
+    before the two-invocation design ran for a URL target). Every REAL
+    nmap run, URL or not, now records a real string
+    (resolve_port_specification() in nmap.py never returns None any
+    more - a non-URL run gets an explicit sentinel, not an absent key).
+    Collapsing "nmap's own default was genuinely used" and "we don't
+    know what was used" into the same None value - and thus the same
+    sentence - was the exact "nothing found vs nothing looked" defect
+    already logged in docs/STATUS.md, reintroduced inside the very
+    phase that named it. Only a SUCCEEDED nmap entry counts at all - a
+    FAILED/SKIPPED nmap must not get any port-coverage claim, known or
+    unknown.
+    """
+    nmap_runs = [s for s in report.scanner_summary if s.scanner_id == "nmap" and s.status.is_success]
+    if not nmap_runs:
+        return ""
+    spec = nmap_runs[0].port_specification
+    if spec is None:
+        # Genuinely never recorded - never guess what nmap's default was,
+        # never imply "nmap's own default" when the record doesn't say so.
+        return (
+            " Port coverage for this scan was not recorded; treat the port scope as unknown "
+            "— a service on any port may or may not have been seen by this assessment."
+        )
+    # Recorded fact - embed verbatim rather than paraphrase (covers both
+    # the non-URL sentinel and a URL target's two-invocation description),
+    # so this sentence and the recorded fact can never drift apart.
+    return (
+        f" Nmap's port scan of this target covered: {escape(spec)}. This is not every "
+        "possible port — a service running on a port outside that coverage would not "
+        "have been seen by this assessment."
+    )
+
+
 def _limitations(report: Report) -> str:
     """A general, honest limitations statement.
 
@@ -430,7 +472,8 @@ def _limitations(report: Report) -> str:
         "constitute a comprehensive security audit. Automated tools carry an inherent risk "
         "of false negatives (real issues not detected) and false positives (flagged issues "
         "that are not actually exploitable) — findings above should be independently verified "
-        f"before remediation is prioritized on their basis alone. {cve_note} A change to "
+        f"before remediation is prioritized on their basis alone. {cve_note}"
+        f"{_port_coverage_note(report)} A change to "
         "the target's configuration after this assessment invalidates these results.</p>"
         "</section>"
     )
@@ -496,38 +539,22 @@ def _executive_summary(report: Report) -> str:
 
 
 def _business_impact(report: Report) -> str:
-    """AI-generated, plain-language business-risk framing for Critical/High findings.
+    """Plain-language business-risk framing for Critical/High findings.
 
-    This section serves two roles in the required report structure: the
-    "Business Impact" section (per-critical-finding business translation) and
-    the "AI-Generated Explanations" section (same content, same graceful
-    degradation) — the two ask for the same underlying content at different
-    granularity, so this renders it once rather than duplicating identical
-    text under two headings.
+    Task 4 FIX 2: this is a customer deliverable, and an optional
+    integration the assessor has or hasn't configured is internal
+    plumbing - never something the customer's own report should
+    disclose. Previously rendered a top-level "AI-generated... are not
+    available for this report" callout whenever no finding had a real
+    explanation, INDEPENDENT of whether any explanation was even
+    relevant - so a report with no Critical/High findings at all still
+    got that sentence, directly contradicting the very next sentence
+    ("no business-impact analysis is required"). Fixed: no top-level
+    callout about explanation availability at all, ever. If no analysis
+    is required, the report says only that. If findings exist without a
+    real explanation, each card says so in plain terms with no mention
+    of AI, a provider, or configuration - see _business_impact_card().
     """
-    # Checks the OBSERVABLE outcome (did any finding actually get a real
-    # explanation) rather than report.ai_enabled alone: an AI adapter is
-    # always injected in this deployment regardless of whether an API key is
-    # configured (ai_enabled=True in both cases), so ai_enabled by itself
-    # can't distinguish "AI worked" from "AI was attempted and failed for
-    # everything" (e.g. no key). Checking the actual per-finding outcome
-    # covers both that case and the "no adapter at all" case correctly. Must
-    # be visible regardless of whether this assessment has Critical/High
-    # findings — it's the only place "AI-Generated Explanations" graceful
-    # degradation is surfaced, so it can't be hidden behind an early return
-    # for the no-findings case.
-    ai_available = any(e.ai_explanation for e in report.entries)
-    # Phase 2A-b: this is a customer deliverable - no operator setup
-    # instructions ("Configure a provider in Settings...") belong here.
-    # State the fact in customer-appropriate language and stop.
-    ai_status = (
-        ""
-        if ai_available
-        else (
-            '<p class="callout">AI-generated, plain-language business-impact explanations are not '
-            "available for this report.</p>"
-        )
-    )
     critical = [e for e in report.entries if e.severity in (Severity.CRITICAL, Severity.HIGH)]
     if not critical:
         body = (
@@ -536,11 +563,16 @@ def _business_impact(report: Report) -> str:
         )
     else:
         body = "".join(_business_impact_card(e) for e in critical)
-    return f'<section id="business-impact"><h2>Business Impact</h2>{ai_status}{body}</section>'
+    return f'<section id="business-impact"><h2>Business Impact</h2>{body}</section>'
 
 
 def _business_impact_card(entry: FindingSummary) -> str:
-    text = entry.ai_explanation or "The AI provider did not return a business-impact explanation for this finding."
+    # Task 4 FIX 2: no mention of AI, a provider, or configuration here -
+    # this is a customer deliverable, and which optional integration the
+    # assessor has or hasn't set up is not the customer's business. State
+    # the plain fact (no explanation is available for this finding) and
+    # nothing about why.
+    text = entry.ai_explanation or "No business-impact explanation is available for this finding."
     return (
         '<div class="finding-card">'
         f"<h3>{_badge(entry.severity)} {escape(entry.title)}</h3>"
@@ -774,6 +806,13 @@ def _scanner_summary(report: Report) -> str:
             detail = f"{s.findings_count} finding" + ("" if s.findings_count == 1 else "s")
         else:
             detail = _clean_scanner_reason(s.skipped_reason) if s.skipped_reason else "did not complete"
+        if s.warnings:
+            # Phase 2B Task 2: a scanner can succeed but not quite as
+            # configured (e.g. an operator's own port selection silently
+            # overridden) - folded into the grouping key itself so two
+            # scanners with the same finding count but different warnings
+            # never merge into one misleading sentence.
+            detail = f"{detail} — {'; '.join(s.warnings)}"
         key = (s.status, detail)
         groups.setdefault(key, []).append(s.name)
         if key not in order:

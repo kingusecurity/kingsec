@@ -152,7 +152,7 @@ class TestCreatingRecoveryNoLinkedAssessment:
         with pytest.raises(ScheduledOccurrenceUnresolvedError):
             orchestrator.execute(schedule)
 
-        assert assessments.list() == []
+        assert assessments.list().items == ()
         unresolved_entries = [e for e in audit.entries if e.action == AuditAction.SCHEDULE_OCCURRENCE_UNRESOLVED]
         assert len(unresolved_entries) == 1
         assert "no linked assessment" in unresolved_entries[0].reason
@@ -191,7 +191,7 @@ class TestCreatingRecoveryOneAuthorizedAssessment:
 
         assert result.outcome == ScheduledAssessmentOutcome.SUBMITTED
         assert result.assessment_id == create_result.assessment_id
-        assert len(assessments.list()) == 1, "recovery must not create a second assessment"
+        assert len(assessments.list().items) == 1, "recovery must not create a second assessment"
 
     def test_concurrent_recovery_attempts_produce_no_duplicate(self, session_factory) -> None:
         """Multiple recovery attempts (e.g. two scheduler instances both
@@ -250,7 +250,7 @@ class TestCreatingRecoveryOneAuthorizedAssessment:
         assert len(outcomes) + len(errors) == attempt_count
         assert ScheduledAssessmentOutcome.SUBMITTED in outcomes, "at least one attempt must have completed the recovery"
 
-        final_assessments = LegacyAssessmentRepository(session_factory).list()
+        final_assessments = LegacyAssessmentRepository(session_factory).list().items
         assert len(final_assessments) == 1, (
             f"{len(final_assessments)} real assessments exist after {attempt_count} concurrent "
             "recovery attempts against the same evidence - expected exactly 1"
@@ -297,7 +297,7 @@ class TestCreatingRecoveryMultipleLinkedAssessments:
             orchestrator.execute(schedule)
 
         before_ids = {first.assessment_id, second.assessment_id}
-        after_ids = {str(a.id) for a in assessments.list()}
+        after_ids = {str(a.id) for a in assessments.list().items}
         assert after_ids == before_ids, "neither existing assessment must be modified"
         refreshed = occurrences.try_claim(str(schedule.id), derive_occurrence_key(schedule))
         assert refreshed.status == OccurrenceStatus.CREATING, "the occurrence must not be silently advanced"
@@ -476,7 +476,7 @@ class TestSchedulerDoesNotSilentlyFinalizeAnAbandonedOccurrence:
 
         after = schedule_repo.find_by_id(str(schedule.id))
         assert after.next_run is not None, "a genuinely SUBMITTED occurrence must finalize normally"
-        assert len(assessments.list()) == 1
+        assert len(assessments.list().items) == 1
 
     def test_normal_successful_execution_finalizes_normally(self, session_factory) -> None:
         schedule_repo = SqlAlchemyScheduleRepository(session_factory)
@@ -487,4 +487,4 @@ class TestSchedulerDoesNotSilentlyFinalizeAnAbandonedOccurrence:
 
         after = schedule_repo.find_by_id(str(schedule.id))
         assert after.next_run is not None, "a normal, uninterrupted poll cycle must finalize normally"
-        assert len(assessments.list()) == 1
+        assert len(assessments.list().items) == 1

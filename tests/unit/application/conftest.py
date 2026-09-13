@@ -25,7 +25,7 @@ from kingsec.application.ports import (
     ReportRepository,
     ScannerPort,
 )
-from kingsec.application.ports.repositories import FindingProjection, ReportProjection
+from kingsec.application.ports.repositories import AssessmentPage, FindingProjection, ReportProjection
 from kingsec.domain import (
     Assessment,
     AssessmentId,
@@ -58,15 +58,25 @@ class InMemoryAssessmentRepository(AssessmentRepository):
         *,
         limit: int = 50,
         offset: int = 0,
-    ) -> list[Assessment]:
+    ) -> AssessmentPage:
         ordered = sorted(self._store.values(), key=lambda a: a.created_at, reverse=True)
-        return ordered[offset : offset + limit]
+        return AssessmentPage(items=tuple(ordered[offset : offset + limit]))
 
     def find_by_schedule_occurrence_id(self, occurrence_id: str) -> list[Assessment]:
         return [a for a in self._store.values() if a.schedule_occurrence_id == occurrence_id]
 
     def find_running(self) -> list[Assessment]:
         return [a for a in self._store.values() if a.status is AssessmentStatus.RUNNING]
+
+    def find_running_ids(self) -> list[str]:
+        return [a.id.value for a in self._store.values() if a.status is AssessmentStatus.RUNNING]
+
+    def force_fail_running(self, assessment_id: str, reason: str) -> bool:
+        assessment = self._store.get(assessment_id)
+        if assessment is None or assessment.status is not AssessmentStatus.RUNNING:
+            return False
+        assessment.fail(reason)
+        return True
 
     def delete(self, assessment_id: AssessmentId) -> None:
         if assessment_id.value not in self._store:

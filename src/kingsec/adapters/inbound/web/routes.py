@@ -362,6 +362,7 @@ async def list_assessments(
         total=result.total,
         limit=result.limit,
         offset=result.offset,
+        unreadable_ids=list(result.unreadable_ids),
     )
 
 

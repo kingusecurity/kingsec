@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import dataclasses
 
+from kingsec.domain import ScannerRunState, ScannerRunSummary
 from kingsec.infrastructure.reporting import render_report_html
+from kingsec.infrastructure.scanner.nmap import NON_URL_DEFAULT_PORT_SPECIFICATION
 from tests.unit.infrastructure.reporting.conftest import build_report
 
 _SECTIONS = (
@@ -84,11 +86,22 @@ class TestDeterminism:
 
 
 class TestBusinessImpact:
-    def test_ai_status_note_shows_even_with_no_critical_or_high_findings(self) -> None:
-        # Regression test: a real assessment with only Low/Informational
-        # findings (e.g. plain open-port scans) and no AI provider configured
-        # previously rendered NOTHING about AI at all — the "no critical/high
-        # findings" early return skipped the AI-status note entirely.
+    """Task 4 FIX 2: this is a customer deliverable - whether the assessor
+    has an AI provider configured is internal plumbing, never something
+    the customer's own report should disclose. Previously, a report with
+    no Critical/High findings AND no AI configured rendered BOTH "no
+    business-impact analysis is required" AND "AI-generated... are not
+    available for this report" together - directly contradictory (the
+    second sentence implies analysis WAS needed and just isn't
+    available). Fixed: no top-level AI-availability callout at all,
+    ever; a report needing no analysis says only that.
+    """
+
+    def test_no_critical_or_high_findings_says_only_that_no_ai_mention(self) -> None:
+        """The exact regression this fix closes: no Critical/High
+        findings (analysis genuinely not required) must render ONLY that
+        sentence - no AI/provider/configuration language alongside it,
+        contradictory or otherwise."""
         from kingsec.domain import Severity
 
         report = build_report()
@@ -96,13 +109,30 @@ class TestBusinessImpact:
         report = dataclasses.replace(report, entries=low_entries)  # ai_enabled stays False
         html = render_report_html(report)
         assert "No Critical or High severity findings" in html
-        assert "are not available for this report" in html
+        assert "AI" not in html
+        assert "provider" not in html.lower()
 
-    def test_no_ai_configured_shows_honest_note(self) -> None:
-        # build_report()'s critical finding has no ai_explanation and
-        # ai_enabled defaults to False.
-        html = render_report_html(build_report())
-        assert "are not available for this report" in html
+    def test_no_ai_provider_configured_contains_no_reference_to_it_at_all(self) -> None:
+        """Required test (Task 4 FIX 2): a report rendered with no AI
+        provider configured contains no reference to provider
+        availability, configuration, or AI at all - even though this
+        report DOES have a Critical finding that would benefit from a
+        business-impact explanation (build_report()'s default fixture),
+        making this the harder case than the no-findings one above.
+        "configuration" is checked within the Business Impact section
+        specifically, not the whole document - the unrelated Limitations
+        sentence about the SCANNED TARGET's configuration is a different,
+        legitimate use of the same English word."""
+        html = render_report_html(build_report())  # ai_enabled=False by default
+        assert "AI" not in html
+        assert "provider" not in html.lower()
+        start = html.find('<section id="business-impact">')
+        end = html.find("</section>", start) + len("</section>")
+        business_impact_html = html[start:end]
+        assert "configur" not in business_impact_html.lower()
+        # Still honest that no explanation exists for this finding -
+        # just without saying why.
+        assert "No business-impact explanation is available for this finding" in business_impact_html
 
     def test_ai_enabled_renders_explanation_text(self) -> None:
         report = build_report()
@@ -113,12 +143,14 @@ class TestBusinessImpact:
         report = dataclasses.replace(report, entries=enriched_entries, ai_enabled=True)
         html = render_report_html(report)
         assert "could expose customer data" in html
-        assert "are not available for this report" not in html
+        assert "No business-impact explanation is available" not in html
 
-    def test_ai_enabled_but_call_failed_shows_per_finding_note(self) -> None:
+    def test_ai_enabled_but_call_failed_shows_per_finding_note_no_ai_mention(self) -> None:
         report = dataclasses.replace(build_report(), ai_enabled=True)  # entries keep ai_explanation=None
         html = render_report_html(report)
-        assert "did not return a business-impact explanation" in html
+        assert "No business-impact explanation is available for this finding" in html
+        assert "AI" not in html
+        assert "provider" not in html.lower()
 
     def test_no_critical_or_high_findings_skips_analysis(self) -> None:
         report = build_report(title="Missing headers")
@@ -213,6 +245,102 @@ class TestLimitations:
         assert "does not correlate findings to specific CVE identifiers" not in html
         assert "CVE-2026-53666" in html
         assert "6.1 (CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N)" in html
+
+
+class TestPortCoverageDisclosure:
+    """Task 4: the Limitations section must state real nmap port coverage,
+    derived from ScannerRunSummary.port_specification - never a fixed
+    sentence that could go stale relative to what the scanner actually
+    recorded. The required test is test_disclosure_changes_with_the_recorded_specification
+    below: it asserts the LINKAGE (different spec -> different rendered
+    text), not just that some particular wording appears once.
+    """
+
+    def _nmap_summary(self, *, port_specification: str | None, status: ScannerRunState = ScannerRunState.SUCCEEDED) -> ScannerRunSummary:
+        return ScannerRunSummary(
+            scanner_id="nmap",
+            name="Nmap",
+            status=status,
+            findings_count=1,
+            port_specification=port_specification,
+        )
+
+    def test_no_disclosure_when_nmap_did_not_run(self) -> None:
+        html = render_report_html(build_report(scanner_summary=()))
+        assert "Nmap's port scan" not in html
+
+    def test_url_target_specification_appears_verbatim(self) -> None:
+        spec = "nmap default port sweep + explicit port 18080"
+        html = render_report_html(build_report(scanner_summary=(self._nmap_summary(port_specification=spec),)))
+        assert spec in html
+        assert "not every possible port" in html
+
+    def test_disclosure_changes_with_the_recorded_specification(self) -> None:
+        """THE required linkage test (Task 4, point 4): a test that only
+        asserted fixed wording would pass even if _port_coverage_note()
+        silently stopped reading port_specification at all. Assert the
+        actual linkage instead - two different recorded specifications
+        must produce two different rendered disclosures, each containing
+        its OWN specification text and not the other's."""
+        spec_a = "nmap default port sweep + explicit port 18080"
+        spec_b = "nmap default port sweep + explicit port 9443"
+
+        html_a = render_report_html(build_report(scanner_summary=(self._nmap_summary(port_specification=spec_a),)))
+        html_b = render_report_html(build_report(scanner_summary=(self._nmap_summary(port_specification=spec_b),)))
+
+        assert spec_a in html_a
+        assert spec_b not in html_a
+        assert spec_b in html_b
+        assert spec_a not in html_b
+
+    def test_non_url_target_states_nmaps_own_default_not_a_kingsec_choice(self) -> None:
+        """Task 4 FIX 1: a genuine non-URL run now RECORDS the explicit
+        sentinel (never None - None means "not recorded" now, a
+        different fact). The Limitations section must disclose real
+        coverage and attribute the default to nmap, never imply KingSec
+        selected the ports (Task 4, point 3)."""
+        html = render_report_html(
+            build_report(scanner_summary=(self._nmap_summary(port_specification=NON_URL_DEFAULT_PORT_SPECIFICATION),))
+        )
+        assert "own default port selection" in html
+        assert "not every possible port" in html
+
+    def test_failed_nmap_gets_no_default_port_claim(self) -> None:
+        """A FAILED nmap must not be silently read as "used the default" -
+        port_specification is None here too, but for a different reason
+        (nmap never completed), and the two must not be conflated."""
+        html = render_report_html(
+            build_report(scanner_summary=(self._nmap_summary(port_specification=None, status=ScannerRunState.FAILED),))
+        )
+        assert "Nmap's port scan" not in html
+
+    def test_absent_key_disclosure_says_not_recorded(self) -> None:
+        """port_specification=None (a genuinely absent key - a row
+        persisted before this field existed) must disclose as unknown,
+        never assert nmap's default was used when the record doesn't
+        say so (Task 4 FIX 1)."""
+        html = render_report_html(build_report(scanner_summary=(self._nmap_summary(port_specification=None),)))
+        assert "was not recorded" in html
+        assert "unknown" in html
+        assert "own default port selection" not in html
+
+    def test_absent_key_and_explicit_non_url_sentinel_render_different_disclosures(self) -> None:
+        """THE required test for FIX 1: a summary with an ABSENT key
+        (port_specification=None, e.g. a pre-Task-2 row) and a summary
+        with the explicit non-URL sentinel (a genuine current non-URL
+        run) must render DIFFERENT disclosures. If they render the same,
+        the fix has not landed - that collapse is exactly the "nothing
+        found vs nothing looked" defect this fix exists to close."""
+        html_absent = render_report_html(build_report(scanner_summary=(self._nmap_summary(port_specification=None),)))
+        html_explicit = render_report_html(
+            build_report(scanner_summary=(self._nmap_summary(port_specification=NON_URL_DEFAULT_PORT_SPECIFICATION),))
+        )
+
+        assert html_absent != html_explicit
+        assert "was not recorded" in html_absent
+        assert "was not recorded" not in html_explicit
+        assert "own default port selection" in html_explicit
+        assert "own default port selection" not in html_absent
 
 
 class TestVisualElements:
@@ -385,6 +513,43 @@ class TestScannerCoverage:
         html = render_report_html(build_report(scanner_summary=summary))
         section = html.split('id="scanner-coverage"')[1].split("</section>")[0]
         assert "Nmap: completed, 1 finding." in section
+
+    def test_succeeded_scanner_warning_is_rendered(self) -> None:
+        """Phase 2B Task 2: a scanner that succeeded but not quite as
+        configured (e.g. nmap's URL-derived port overriding an operator's
+        own -p) must say so in the report, not only in a log line - the
+        report is the user surface, the log is not."""
+        from kingsec.domain import ScannerRunSummary
+        from kingsec.domain.enums import ScannerRunState
+
+        summary = (
+            ScannerRunSummary(
+                scanner_id="nmap",
+                name="Nmap",
+                status=ScannerRunState.SUCCEEDED,
+                findings_count=9,
+                warnings=("Operator-configured port selection (-p 9999) was overridden by the URL's own port.",),
+            ),
+        )
+        html = render_report_html(build_report(scanner_summary=summary))
+        section = html.split('id="scanner-coverage"')[1].split("</section>")[0]
+        assert "Nmap: completed, 9 findings" in section
+        assert "Operator-configured port selection" in section
+        assert "was overridden by the URL" in section
+
+    def test_no_warning_produces_unchanged_sentence(self) -> None:
+        """A scanner with no warnings renders exactly as before this task -
+        no stray separator or empty warning clause."""
+        from kingsec.domain import ScannerRunSummary
+        from kingsec.domain.enums import ScannerRunState
+
+        summary = (
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=9),
+        )
+        html = render_report_html(build_report(scanner_summary=summary))
+        section = html.split('id="scanner-coverage"')[1].split("</section>")[0]
+        assert "Nmap: completed, 9 findings." in section
+        assert "—" not in section
 
     def test_scanner_names_are_escaped(self) -> None:
         from kingsec.domain import ScannerRunSummary

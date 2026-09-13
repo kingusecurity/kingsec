@@ -5,6 +5,13 @@ interface. All subprocess execution, argument building, and JSON parsing are
 delegated to the already-tested adapter — this class adds only the metadata,
 capability declaration, and availability check that the plugin framework
 requires.
+
+Phase 2B Decision 1: NOT WIRED TO ANY PROFILE. Semgrep is a static
+source-code analyzer — it genuinely needs a local filesystem path to a
+source checkout, not a network-reachable target (IP/hostname/URL), which
+is the only kind of target KingSec's current model expresses. Kept
+registered and tested so it is ready the moment a real ``repository`` or
+``path`` target type exists (see docs/STATUS.md's Phase 2B roadmap item).
 """
 
 from __future__ import annotations
@@ -21,9 +28,9 @@ from kingsec.domain import (
     ScannerCapability,
     ScannerId,
     ScannerPluginMetadata,
+    ScannerRequirement,
     ScannerResult,
     Target,
-    TargetType,
 )
 from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE
 
@@ -66,7 +73,7 @@ class SemgrepPlugin(ScannerPluginPort):
         """Declare Semgrep scanning capabilities."""
         return (
             ScannerCapability(
-                target_types=frozenset({TargetType.HOSTNAME}),
+                requirement=ScannerRequirement.REACHABLE_HOST,
                 scan_categories=frozenset({ScanCategory.VULNERABILITY, ScanCategory.INFORMATION}),
                 output_format=OutputFormat.STRUCTURED_JSON,
             ),

@@ -1,0 +1,179 @@
+================================================================================
+KINGSEC TASK 3B — ASSET PROVISIONING (nuclei templates, ffuf/gobuster
+wordlists)
+INVESTIGATION AND PROPOSAL ONLY. Nothing implemented, nothing installed.
+================================================================================
+
+Scope, per explicit instruction: investigate what nuclei/ffuf/gobuster
+actually need, present three options (documented one-time setup command,
+documented manual path, bundling), state the licence consequence of
+bundling for EACH specific asset (not assumed — checked, the same
+scrutiny nmap-services already got), and recommend one option with
+reasoning. Stop here for approval. Nothing was installed on this host to
+produce this document — every fact below is from the project's own
+public pages (fetched directly), not from running `nuclei -update-templates`
+or any equivalent command locally.
+
+
+--------------------------------------------------------------------------------
+1. WHAT NUCLEI TEMPLATES ACTUALLY REQUIRE
+--------------------------------------------------------------------------------
+
+Source repository: github.com/projectdiscovery/nuclei-templates.
+
+Size: the GitHub API reports the repository's git size as 728,367 KB
+(~728 MB) — this figure includes full git history, not just a checkout.
+The actual mechanism KingSec's own scanner_discovery.py manifest already
+documents (`nuclei -update-templates`, the tool's own sanctioned
+update path) downloads a release ARCHIVE of the current templates only,
+no git history — smaller than the git-clone figure, but still a
+non-trivial download (thousands of files; ~12,000 templates at last
+count, per the repo's own description: "Community curated list of
+templates for the nuclei engine"). It is not a fixed, one-time asset —
+new templates are added continuously (new CVEs, new detections), so
+"the current templates" is a moving target, not a version KingSec could
+freeze and still call current a month later.
+
+Update mechanism: `nuclei -update-templates` (nuclei's own built-in
+subcommand — not a KingSec mechanism). This is also nuclei's DEFAULT
+behavior on a normal scan invocation unless suppressed with `-duc`
+(disable-update-check) — nuclei checks for template updates and offers
+to fetch them itself, on every run, unless told not to.
+
+License: MIT (verified directly against the repository's own LICENSE.md
+this session — see docs/LICENSING-RISK.md item 2). Fully permissive for
+commercial use, modification, and redistribution, conditioned only on
+retaining the copyright/license notice.
+
+
+--------------------------------------------------------------------------------
+2. WHAT FFUF/GOBUSTER ACTUALLY NEED, AND WHICH WORDLISTS
+--------------------------------------------------------------------------------
+
+Both are pure content-discovery/fuzzing tools — they take a `-w
+<wordlist-file>` and try each line as a path/subdomain/parameter. There
+is no "correct" wordlist; coverage is a direct function of which list is
+used. KingSec's current design (Correction 4, this engagement) already
+requires the OPERATOR to configure `KINGSEC_FFUF__WORDLIST` /
+`KINGSEC_GOBUSTER__WORDLIST` explicitly — there is no default file path
+baked in today, by design (a stale hardcoded Linux path was the exact
+defect Correction 4 fixed).
+
+The de facto standard source for a wordlist worth recommending is
+SecLists (github.com/danielmiessler/SecLists) — the community-maintained
+collection most penetration-testing tooling documentation points to.
+
+Size: the GitHub API reports SecLists' repository size as 3,608,314 KB
+(~3.6 GB) in total — this is the ENTIRE collection (password lists, DNS
+lists, fuzzing payloads, usernames, etc.), not any single wordlist.
+Bundling the whole repository is not a realistic option regardless of
+licensing (see below) — it is roughly 5x KingSec's own current
+installed footprint.
+
+A specific, commonly-recommended candidate for web content discovery
+(the actual ffuf/gobuster use case) is
+`Discovery/Web-Content/common.txt` — a small, focused list (a few
+thousand common paths/filenames), not the multi-gigabyte collection.
+This is the file this proposal's licence check (below) actually
+inspected, not the repository as a whole.
+
+License: MIT (Daniel Miessler, 2018 — verified directly against the
+repository's own LICENSE file this session). The README states the
+project as a whole is MIT-licensed and does not call out per-list
+exceptions in the section fetched. IMPORTANT CAVEAT, stated plainly
+rather than glossed over: SecLists is a large, multi-source AGGREGATION
+with a long history of lists originally sourced from other tools/
+projects; this investigation spot-checked exactly ONE candidate file
+(`Discovery/Web-Content/common.txt` — no embedded header, attribution
+note, or separate license text found at the top of that file) and did
+NOT exhaustively audit the full ~3.6 GB collection's provenance file by
+file. If bundling is ever chosen, whichever SPECIFIC file is actually
+shipped must get its own individual check before shipping — this
+document clears the one file it checked, not the whole repository.
+
+
+--------------------------------------------------------------------------------
+3. THREE OPTIONS
+--------------------------------------------------------------------------------
+
+(a) DOCUMENTED ONE-TIME SETUP COMMAND
+    Operator runs `nuclei -update-templates` once after installing
+    nuclei (nuclei's own sanctioned command), and downloads ONE
+    specific, documented wordlist file (e.g. curl
+    Discovery/Web-Content/common.txt from SecLists' raw URL) to a path
+    they then set via KINGSEC_FFUF__WORDLIST/KINGSEC_GOBUSTER__WORDLIST.
+    Zero bytes shipped by KingSec, zero licensing exposure (KingSec
+    never redistributes either asset — the operator's own machine
+    fetches directly from the upstream project). `kingsec doctor` (Task
+    3a, already built) tells the operator exactly this is missing and
+    exactly which command fixes it, closing most of the "operator
+    discovers it only after an empty scan" pain this task exists to
+    fix — without KingSec ever taking on a redistribution or staleness
+    obligation for either asset.
+
+(b) DOCUMENTED MANUAL PATH
+    Same destination, no scripted command — INSTALL.md/README links to
+    nuclei's own template-update docs and to SecLists' repository,
+    operator follows the upstream project's own instructions entirely
+    by hand. Same licensing profile as (a) (KingSec redistributes
+    nothing either way) but strictly more manual effort for the
+    operator, with no offsetting benefit over (a) — (a) already uses
+    nuclei's own single command and a single documented `curl`, not a
+    KingSec-built installer.
+
+(c) BUNDLING
+    Ship a copy of the templates and/or a wordlist inside KingSec's own
+    distribution (repo, installer, or Docker image).
+    - nuclei-templates: NOT viable regardless of licensing. ~728 MB of
+      git history / a large, constantly-changing archive is not a
+      "bundle once" asset — a copy frozen at build time is stale within
+      days (new CVE detections ship to nuclei-templates continuously),
+      and shipping a stale copy while implying it's current is its own
+      "nothing found vs nothing looked" risk (a scan that silently
+      missed a template added last week reads identically to a clean
+      scan). Licensing is not the blocker here (MIT permits it) — currency
+      and size are.
+    - A SINGLE small wordlist file (e.g. common.txt, likely well under
+      1 MB): licensing permits this (MIT, with the copyright/license
+      notice retained per the license's own terms) AND size is a
+      non-issue. This is the one piece of (c) that is actually
+      plausible on its own narrow merits.
+
+
+--------------------------------------------------------------------------------
+4. RECOMMENDATION
+--------------------------------------------------------------------------------
+
+Recommend (a), documented one-time setup command, for BOTH assets — not
+a split recommendation, for a reason that applies to both: KingSec's own
+value proposition for security tooling is accuracy and currency, and
+both of these assets degrade in exactly that dimension the moment
+KingSec freezes a copy of either one. nuclei-templates is the clear
+case (728 MB, changes constantly, MIT permits bundling but currency
+doesn't). The wordlist case is closer — bundling one small MIT-licensed
+file is technically clean — but the same principle still applies at
+smaller scale: a wordlist is not something KingSec has special expertise
+in choosing, "the KingSec-provided default" would read as an endorsement
+("this is the right list") that isn't really true (coverage is
+target-dependent), and `kingsec doctor` already gives an operator a
+precise, actionable fix command the moment it's missing — which is the
+actual first-run pain point this task names, not the download itself.
+
+Concretely: document exactly one `nuclei -update-templates` command and
+exactly one wordlist URL (SecLists' `common.txt`, or the operator's own
+choice) in INSTALL.md/README, have `kingsec doctor` point at that same
+documented fix (already implemented, Task 3a — its `install_hints`
+already say "nuclei -update-templates" and "Configure
+KINGSEC_FFUF__WORDLIST..."), and stop there. This closes the "empty
+scan with no explanation" problem without KingSec taking on a
+redistribution, staleness, or "we chose this list for you" obligation
+for either asset.
+
+Not recommending: bundling nuclei-templates (ruled out on currency/size,
+not licensing) or the manual-path-only option (b) (strictly more
+operator effort than (a) for identical licensing exposure, no benefit).
+
+Stopping here per explicit instruction, for approval before any of this
+is implemented, and nothing was installed on this host to produce this
+document.
+================================================================================

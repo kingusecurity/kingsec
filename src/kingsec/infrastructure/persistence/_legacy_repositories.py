@@ -23,7 +23,7 @@ from kingsec.application import (
     AssessmentRepository,
     ReportRepository,
 )
-from kingsec.application.ports.repositories import FindingProjection, ReportProjection
+from kingsec.application.ports.repositories import AssessmentPage, FindingProjection, ReportProjection
 from kingsec.domain import Assessment, AssessmentId, Report
 from kingsec.infrastructure.logging import get_logger
 
@@ -84,15 +84,16 @@ class LegacyAssessmentRepository(AssessmentRepository):
         *,
         limit: int = 50,
         offset: int = 0,
-    ) -> builtins.list[Assessment]:
-        """Return assessments ordered by created_at DESC with pagination.
+    ) -> AssessmentPage:
+        """Return one page of assessments ordered by created_at DESC.
 
         Args:
             limit: Maximum number of results (clamped to 200).
             offset: Number of results to skip.
 
         Returns:
-            A list of assessments, most recent first. May be empty.
+            A page of assessments, most recent first (may be empty), plus
+            any unreadable row ids (Phase 2B Task 2 Condition 1).
         """
         clamped_limit = min(max(limit, 1), 200)
         try:
@@ -116,6 +117,20 @@ class LegacyAssessmentRepository(AssessmentRepository):
                 return ops.find_running_assessments(session)
         except SQLAlchemyError as exc:
             ops.raise_persistence_error("failed to find running assessments", exc, "-")
+
+    def find_running_ids(self) -> builtins.list[str]:
+        try:
+            with self._session_factory() as session:
+                return ops.find_running_ids(session)
+        except SQLAlchemyError as exc:
+            ops.raise_persistence_error("failed to find running assessment ids", exc, "-")
+
+    def force_fail_running(self, assessment_id: str, reason: str) -> bool:
+        try:
+            with self._session_factory.begin() as session:
+                return ops.force_fail_running(session, assessment_id, reason)
+        except SQLAlchemyError as exc:
+            ops.raise_persistence_error("failed to force-fail running assessment", exc, assessment_id)
 
     def delete(self, assessment_id: AssessmentId) -> None:
         """Delete an assessment and all its children (cascade).

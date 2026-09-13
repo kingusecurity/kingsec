@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 
 import uvicorn
 
@@ -52,12 +53,36 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Bind port (default: KINGSEC_SERVER__PORT, or 8765)",
     )
+    # No subcommand (the default) starts the server, exactly as before
+    # this existed — `dest="command"` stays None in that case, so
+    # `kingsec --host ... --port ...` is unchanged. Only `kingsec doctor`
+    # is new.
+    subparsers = parser.add_subparsers(dest="command")
+    doctor_parser = subparsers.add_parser(
+        "doctor",
+        help="Read-only scanner preflight check (see 'kingsec doctor --help')",
+    )
+    doctor_parser.add_argument(
+        "--profile",
+        default=None,
+        help="Profile whose scanners gate the exit code (default: 'full-assessment')",
+    )
+    doctor_parser.add_argument(
+        "--env-file",
+        default=None,
+        help="Optional .env path to load settings from",
+    )
     return parser.parse_args(argv)
 
 
 def main() -> None:
-    """Parse CLI arguments, then compose, wire, and serve the KingSec API."""
+    """Parse CLI arguments, then either run a subcommand or serve the API."""
     args = _parse_args()
+
+    if args.command == "doctor":
+        from kingsec._doctor import DEFAULT_PROFILE_ID, run_doctor
+
+        sys.exit(run_doctor(profile_id=args.profile or DEFAULT_PROFILE_ID, env_file=args.env_file, stream=sys.stdout))
 
     # Route CLI overrides through the same env vars the settings layer
     # already reads, so --host/--port are validated by the existing

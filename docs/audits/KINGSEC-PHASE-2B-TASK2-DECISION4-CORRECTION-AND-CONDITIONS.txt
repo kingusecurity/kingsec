@@ -1,0 +1,293 @@
+KINGSEC — PHASE 2B TASK 2: DECISION 4 CORRECTION + CONDITIONS 1/2 PROPOSAL
+No code changes in this round. Decision 3 NOT applied. Nothing committed.
+Branch: feat/phase-2b-real-coverage (unchanged from last round).
+
+================================================================================
+BLOCKING QUESTION — DECISION 4: WHAT RANGE DID I ACTUALLY USE?
+================================================================================
+
+NmapSettings.host_port_range = "1-1000" — a literal, contiguous numeric
+range. You are right: this is a coverage regression, not a fix.
+
+Checked against Phase 1 Run #4's nine real found ports:
+
+    135   - within 1-1000
+    445   - within 1-1000
+    902   - within 1-1000
+    912   - within 1-1000
+    1001  - OUTSIDE 1-1000
+    3000  - OUTSIDE 1-1000   (the Node service)
+    3389  - OUTSIDE 1-1000   (RDP)
+    5357  - OUTSIDE 1-1000
+    5678  - OUTSIDE 1-1000
+
+Five of nine would have been missed by my range - confirmed exactly as you
+stated, not disputed.
+
+Before proposing a fix, checked whether nmap's REAL --top-ports 1000
+(frequency-ranked, not the literal range I actually implemented) would
+have caught all nine - this needed to be tested, not assumed, since it
+determines whether "just use nmap's real top-ports data" is sufficient on
+its own. Extracted the real ranking from this machine's own installed
+nmap's nmap-services file (nmap 7.99, the same binary used for Decision 4's
+earlier CLI verification):
+
+    port 135:  rank 13   (well within top 1000)
+    port 445:  rank 9
+    port 902:  rank 170
+    port 912:  rank 349
+    port 1001: rank 578
+    port 3000: rank 83
+    port 3389: rank 7
+    port 5357: rank 67
+    port 5678: rank 812
+
+All nine ARE within nmap's real frequency-ranked top 1000 - my mistake was
+specifically implementing a literal numeric range ("1-1000") instead of
+nmap's actual ranking, not a flaw in the general "top 1000" concept.
+
+--------------------------------------------------------------------------
+PROPOSED FIX (adopting your suggestion, not arguing against it)
+--------------------------------------------------------------------------
+Your reasoning is correct and I'm not proposing an alternative: depending
+on nmap's internal nmap-services file at runtime is fragile in a way that
+matters here specifically - its exact install path varies by OS/package
+manager, its content can change between nmap versions and package updates
+without KingSec's own tests noticing, and (as Decision 4's original design
+already established) it cannot be combined with an explicit -p as a
+separate --top-ports flag at scan time anyway - the concrete port numbers
+have to be materialized into KingSec's own -p list regardless of where
+they come from. Given that, sourcing them from a runtime file read buys
+nothing but fragility.
+
+Proposed: capture a snapshot of nmap's real top-1000-by-frequency ranking
+(the exact data just extracted above, from a real nmap install, not
+invented) as KingSec's own explicit, documented, version-controlled
+constant - e.g. infrastructure/scanner/nmap_default_ports.py, a tuple of
+1000 ints with a docstring stating its provenance (nmap 7.99's
+nmap-services, snapshotted <date>, frequency-ranked) and explicitly noting
+it was chosen because it demonstrably covers every port Phase 1's Run #4
+actually found. NmapSettings.host_port_range changes from a range string
+to referencing this list; resolve_port_specification() unions it with the
+URL's explicit port (deduplicating, same as today) and joins it into the
+-p list nmap actually receives.
+
+This is deterministic (frozen at commit time, not re-derived from whatever
+nmap happens to be installed on a given machine), testable without nmap
+installed at all (it's a plain Python tuple), and gives Task 4's
+disclosure work an honest, inspectable spec to point to - "these are the
+1000 ports KingSec checks by default" is a true, stable sentence once this
+lands, which it is not today.
+
+--------------------------------------------------------------------------
+REQUIRED REGRESSION TEST (specified, not yet written - see STOP note)
+--------------------------------------------------------------------------
+Once the above is implemented, the test must do exactly what you specified:
+assert on ScannerResult.port_specification (the recorded spec, not args
+presence) for http://127.0.0.1:18080, and check that every one of
+{135, 445, 902, 912, 1001, 3000, 3389, 5357, 5678, 18080} appears in it as
+an individual port token - written so that narrowing the default list back
+down (e.g. someone "simplifying" it to a literal range again) fails this
+test immediately, by name, the same way this round's report just did by
+hand.
+
+--------------------------------------------------------------------------
+STRIPPED OPERATOR PORT MUST SURFACE IN THE REPORT, NOT ONLY THE LOG
+--------------------------------------------------------------------------
+Checked whether this plumbing already exists: it does not, fully.
+ScannerResult.warnings is captured today and does reach
+ScannerProgress.warnings (execution_engine.complete_scanner() stores it) -
+but ScannerRunSummary, the durable, post-scan record that actually
+survives into the persisted assessment and the report
+(domain/assessment.py), has NO warnings field at all. The plumbing
+currently dead-ends in memory, before the report layer.
+
+Proposed (not implemented):
+  1. domain/assessment.py: add warnings: tuple[str, ...] = () to
+     ScannerRunSummary.
+  2. submit_assessment.py: the existing ScannerRunSummary(...) construction
+     site (which already reads p.skipped_reason, p.error from
+     ScannerProgress) also reads p.warnings.
+  3. nmap's plugin scan() (plugins/nmap/adapter.py): when
+     _strip_port_selector_flags() actually removes something, populate
+     ScannerResult.warnings with a plain-English sentence naming what was
+     overridden (not just log it) - e.g. "operator-configured port
+     selection (-p 9999) was overridden by the URL's own port (18080)".
+  4. Report rendering (domain/report.py / templates.py's Scanner Coverage
+     section, which already renders a per-scanner reason for anything
+     that didn't succeed): extend it to also render a succeeded scanner's
+     warnings, since this case is exactly "the scanner ran, but not quite
+     how the operator configured it" - a fact the coverage section already
+     exists to communicate honestly.
+
+Three files, all named above. Not yet touched.
+
+================================================================================
+CONDITION 1 — SKIPPED ROWS MUST BE VISIBLE TO THE CALLER, NOT ONLY LOGGED
+================================================================================
+
+Traced the exact path a fix would need to reach: repository .list() (one
+caller only - application/use_cases/list_assessments.py's ListAssessments)
+-> ListAssessmentsResponse (application/dto.py) -> the HTTP schema
+ListAssessmentsResponse (adapters/inbound/web/schemas.py) -> the UI. Small,
+single-caller blast radius on the application side - good news for this
+specific fix.
+
+PROPOSED SHAPE (not implemented):
+
+  A new, small port-level type, alongside AssessmentRepository:
+
+    @dataclass(frozen=True, slots=True)
+    class AssessmentPage:
+        items: tuple[Assessment, ...]
+        unreadable_count: int   # rows that exist but could not be
+                                 # reconstructed into a domain Assessment
+
+  AssessmentRepository.list()'s return type changes from list[Assessment]
+  to AssessmentPage. Every implementation of the port needs updating
+  (the real SQLAlchemy one, and any in-memory/fake ones tests construct) -
+  each counts how many rows it skipped during reconstruction (the same
+  per-row try/except from the prior C2 proposal) and reports that count
+  alongside the successfully-reconstructed items, instead of the count
+  only ever reaching a log line.
+
+  ListAssessmentsResponse (application/dto.py) gains:
+    unreadable_count: int = 0
+
+  The HTTP schema ListAssessmentsResponse (adapters/inbound/web/schemas.py)
+  gains the same field, so it's actually present in the JSON the frontend
+  receives - not just available inside the backend and silently dropped
+  at the API boundary.
+
+  UI: out of scope for me to design here (frontend work), but named
+  explicitly so it isn't lost - the honest behaviour this fixes is "9 of
+  10 assessments shown, 1 could not be loaded" being a real, renderable
+  fact instead of indistinguishable from "10 assessments exist." A banner
+  or count annotation on the list view is the natural place for it.
+
+Not yet implemented. Four files: the port definition, the SQLAlchemy
+repository implementation, application/dto.py, and
+adapters/inbound/web/schemas.py.
+
+================================================================================
+CONDITION 2 — ORPHAN RECOVERY MUST NOT SKIP SILENTLY
+================================================================================
+
+Read resolve_orphaned_assessments.py in full to check what it actually
+needs. Its own docstring already states the scope precisely: "this never
+touches a scanner, job runner, or the execution ledger" - and reading
+execute()/_resolve_one(), it genuinely never touches target.value or
+target.type either. It calls assessment.fail(reason) (a pure status
+transition) and assessments.save(assessment) - the ONLY reason it needs a
+full domain Assessment object at all is that find_running() currently
+hands it one, fully reconstructed, Target included. The Target is
+structurally irrelevant to what this use case does.
+
+DECISION: resolve by ID without constructing a full Target - not "fail
+startup loudly."
+
+Reasoning: orphan recovery is best-effort, idempotent cleanup that runs
+once at startup, before any new work is submitted (its own docstring).
+Failing the entire application's startup because one orphaned row (out of
+potentially many) has a corrupted Target is a disproportionate response -
+it turns a narrow data-quality problem on one row into a total outage,
+which is a worse failure mode than the one being fixed. The by-ID path is
+also not a workaround bolted on for this one bug - it is a genuine
+simplification of what this use case has always needed, since it never
+legitimately required Target reconstruction in the first place.
+
+PROPOSED FIX (not implemented):
+
+  1. A new, narrow repository operation - NOT a variant of find_running()
+     that still returns domain Assessment objects:
+
+       AssessmentRepository.find_running_ids() -> tuple[str, ...]
+
+     Backed by a query selecting ONLY the id column where
+     status = 'RUNNING' - it can never fail on a corrupted target_value/
+     target_type, because it never reads those columns at all.
+
+  2. A second narrow operation for the actual transition:
+
+       AssessmentRepository.force_fail_running(assessment_id: str,
+                                                reason: str) -> bool
+
+     A direct column UPDATE (status, failure_reason, updated_at) scoped to
+     that one id AND status='RUNNING' (so it's a no-op, not a corruption
+     risk, if the row already moved on for any reason) - again never
+     touching target_value/target_type, never calling
+     assessment_to_domain(). Returns whether a row was actually updated,
+     so ResolveOrphanedAssessments can still know what it resolved for
+     logging/audit purposes.
+
+  3. ResolveOrphanedAssessments.execute() changes from "load full
+     Assessment objects, call .fail() on each, save each" to:
+     find_running_ids() -> for each id, force_fail_running(id, reason) ->
+     publish an audit entry per id that was actually updated. This removes
+     the Target-reconstruction dependency from the ENTIRE orphan-recovery
+     path, not just the corrupted-row case - a structural fix, not a
+     patch for one symptom.
+
+REQUIRED TEST (specified, not yet written): insert an AssessmentORM row
+directly at the ORM level (bypassing domain construction entirely, the
+same way this round's C1 read data without going through the domain
+layer) with status='RUNNING' and a target_type/target_value combination
+that fails reconstruction TODAY - not waiting on Decision 3 to exist for
+this test to be meaningful. The simplest reliable corruption available
+right now: target_type set to a string that isn't a valid TargetType
+member name at all (TargetType[orm.target_type] raises KeyError
+immediately, today, regardless of Decision 3's status) - run
+ResolveOrphanedAssessments.execute(), then query the row's status column
+DIRECTLY (never through assessment_to_domain(), since that's the exact
+path already proven broken for this row) and assert it is now 'FAILED'.
+This proves the fix works against any reconstruction failure, present or
+future, not narrowly against Decision 3's specific credentialed-URL case.
+
+Not yet implemented. Three files: the two new repository methods (port +
+SQLAlchemy implementation), and resolve_orphaned_assessments.py's rewiring.
+
+================================================================================
+ALSO
+================================================================================
+
+--------------------------------------------------------------------------
+Recurring defect class - logged in docs/STATUS.md
+--------------------------------------------------------------------------
+Named and logged: "nothing found" and "nothing looked" are indistinguishable
+along several paths in this codebase. Three confirmed instances so far,
+all from this engagement:
+  1. Pre-Phase-2A: scanners silently stuck PENDING forever read identically
+     to "nothing to report" (the original Run #4 defect).
+  2. Pre-Phase-2A-b: an 88/100 "Sound" verdict on 1-of-9 real coverage read
+     identically to a genuinely clean, fully-scanned result.
+  3. This task: nmap silently skipping an IPv6 target as "invalid" produces
+     zero findings, exit success - identical to a real clean scan of a
+     real reachable host.
+A fourth is what Condition 1/2 exist to close before it happens: a
+corrupted row silently dropped from a list, or from orphan recovery, would
+read identically to "that row simply doesn't exist" or "nothing was
+orphaned." Logged in docs/STATUS.md as a named pattern for future phases
+to hunt for actively, not rediscover by accident each time.
+
+--------------------------------------------------------------------------
+Test-count estimation methodology
+--------------------------------------------------------------------------
+Acknowledged, not disputed: the 8 files constructing ScannerCapability
+directly were findable by a full-repo grep for "ScannerCapability(" during
+Step 1, before any code changed - I only ran that grep after the
+migration's own failures forced it. Estimating from the 6 files that had a
+named TestCapabilities class, rather than enumerating every actual
+construction site, undercounted for a reason that was avoidable, not
+inherent to the change's size. Applying this going forward: when a data
+shape used across the codebase changes, grep for every constructor call
+site before estimating impact, not just the files with a matching test
+class name.
+
+================================================================================
+STOPPING HERE
+================================================================================
+
+Nothing implemented this round: Decision 4's fix, the report-surfacing
+plumbing, Condition 1, and Condition 2 are all specified above and none
+are applied. Decision 3 has not been touched. Nothing committed. Waiting
+for approval of the designs above before implementing anything.

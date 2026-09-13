@@ -9,6 +9,7 @@ from kingsec.domain import (
     PluginConfig,
     ScanCategory,
     ScannerId,
+    ScannerRequirement,
     ScannerResult,
     Target,
     TargetType,
@@ -19,7 +20,7 @@ from kingsec.infrastructure.scanner.plugins.gobuster import GobusterPlugin
 from kingsec.infrastructure.scanner.runner import CommandResult
 from tests.unit.infrastructure.scanner.conftest import FakeRunner
 
-_TARGET = Target("example.com", TargetType.HOSTNAME)
+_TARGET = Target("http://example.com", TargetType.URL)
 
 _SAMPLE_OUTPUT = """\
 /admin                 (Status: 200) [Size: 1234]
@@ -74,13 +75,10 @@ class TestMetadata:
 
 
 class TestCapabilities:
-    def test_correct_target_types(self) -> None:
+    def test_declares_http_base_url(self) -> None:
         caps = _make_plugin().capabilities()
         assert len(caps) == 1
-        target_types = caps[0].target_types
-        assert TargetType.HOSTNAME in target_types
-        assert TargetType.URL in target_types
-        assert TargetType.IP_ADDRESS not in target_types
+        assert caps[0].requirement is ScannerRequirement.HTTP_BASE_URL
 
     def test_discovery_category(self) -> None:
         caps = _make_plugin().capabilities()
@@ -169,7 +167,7 @@ class TestScan:
         plugin.scan(_TARGET, PluginConfig())
         args = runner.calls[0][0]
         u_idx = args.index("-u")
-        assert args[u_idx + 1] == "example.com"
+        assert args[u_idx + 1] == "http://example.com"
 
     def test_build_args_includes_wordlist(self) -> None:
         runner = FakeRunner(CommandResult(0, _SAMPLE_OUTPUT, "", 0.1))

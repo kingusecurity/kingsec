@@ -1,0 +1,211 @@
+================================================================================
+KINGSEC — TASK 2 CLOSED, TWO CORRECTIONS, TASK 3 (doctor + 3b proposal)
+FINAL REPORT
+================================================================================
+
+Branch: feat/phase-2b-real-coverage
+Starting HEAD: a2666b2
+Ending HEAD:   40b423a (4 commits, pushed to origin)
+
+Covers everything from the "TASK 2 CLOSED. Two corrections first, then
+Task 3" prompt, in order. Stopping after 3b's proposal, per explicit
+instruction — Task 4 not started.
+
+
+--------------------------------------------------------------------------------
+CORRECTION 1 — nmap's licensing verdict
+--------------------------------------------------------------------------------
+
+Changed from CLEAR-conditioned-on-never-bundling to NEEDS LEGAL REVIEW
+in docs/LICENSING-RISK.md. Quoted the NPSL's actual clause ("prohibit
+redistribution AND USE of Nmap within proprietary hardware and software
+products") and Nmap's own OEM page, which lists "parsing of Nmap's
+normal output format" among the integration approaches its PAID license
+describes — exactly KingSec's own design (subprocess invocation, `-oX`,
+parse the XML). Stated the unresolved question explicitly rather than
+answering it: does invoke-and-parse-XML with zero redistribution
+constitute prohibited "use" absent an OEM license? Stated plainly this
+needs Nmap's own answer or counsel, not more reading. Drafted (not
+sent) an email to sales@nmap.com in the same file, factually describing
+KingSec's integration model and asking directly — Abdul sends it if he
+chooses to.
+
+Applied the same correction to the summary table and the file's opening
+framing paragraph, which previously implied "non-bundling" settled every
+verdict on its own — it doesn't; it only answers the redistribution
+half of the NPSL's own two-part prohibition.
+
+
+--------------------------------------------------------------------------------
+CORRECTION 2 — the alembic claim, recorded honestly
+--------------------------------------------------------------------------------
+
+Added a fourth instance to docs/STATUS.md's existing carried-over-
+conclusion pattern section: last round's "confirmed pre-existing,
+unrelated" claim about a failing alembic test was stated without
+verification. It does not reproduce, at either the branch's own
+committed HEAD (738ce02, via an isolated git worktree) or in the
+working tree — both 13/13 green. Recorded per the pattern's own
+established format (the individual mid-session explanation is a guess,
+not a finding; the pattern entry — a FAILED line characterized as
+pre-existing without checking — is the useful, reusable record).
+
+
+--------------------------------------------------------------------------------
+TASK 3A — kingsec doctor
+--------------------------------------------------------------------------------
+
+Implemented as a genuine `kingsec doctor` subcommand (argparse
+subparsers in __main__.py; `kingsec --host ... --port ...` with no
+subcommand is unchanged). Read-only by construction: never calls
+create_wired_application() (which builds a database engine and can
+create the data directory) — only load_settings() + register_scanner(),
+so it works before a database has necessarily been set up.
+
+Agreement with the planner is structural, not incidental:
+bootstrap/composition.py's previously-inline ExecutionPlanner
+construction was extracted into a public build_execution_planner()
+function, called from both the real composition root and doctor — one
+place this wiring exists, not two hand-synchronized copies.
+ExecutionPlanner gained read-only `discovery`/`registry` properties so
+doctor reads the exact same ScannerDiscoveryService/ScannerPluginRegistry
+objects the real planner decides with.
+
+REAL BUG FOUND AND FIXED while running doctor against this host:
+ScannerDiscoveryService.get_scanner_status() always included the
+"download the binary" hint even once the binary was already found, and
+could duplicate a hint or include one for a non-blocking optional asset
+— producing a misleading "download nuclei from..." fix for a scanner
+whose binary was already present (nuclei, on this exact host). Fixed at
+the source (also read by the existing /scanners REST route, not just
+doctor), with 3 new regression tests.
+
+REQUIRED TEST (doctor's verdict must match the planner's real decision,
+across every profile): TestDoctorAgreesWithPlanner,
+tests/unit/application/test_phase2a_honest_coverage.py, parametrized
+over every (profile_id, target_type) pair the real planner supports —
+PASSES.
+
+REAL OUTPUT, this Windows host, after the install_hints fix:
+
+    KingSec Doctor - scanner preflight check
+    ==========================================
+
+    [OK       ] nmap      (Nmap) v7.99
+                binary:        C:\Program Files (x86)\Nmap\nmap.EXE
+                target types:  hostname, ip_address, url, network
+                status:        usable
+
+    [UNUSABLE ] nuclei    (Nuclei) v34
+                binary:        C:\ProgramData\chocolatey\bin\nuclei.EXE
+                target types:  hostname, ip_address, url
+                status:        NOT usable
+                reason:        Missing Nuclei templates: nuclei -update-templates
+                fix:           nuclei -update-templates
+
+    [NOT FOUND] nikto     (Nikto)
+                binary:        not found on PATH or common install locations
+                target types:  hostname, ip_address, url
+                status:        NOT usable
+                reason:        'nikto' not found on PATH or common locations
+                fix:           Download from https://github.com/sullo/nikto/releases
+
+    [UNUSABLE ] ffuf      (FFUF) v2.2.1
+                binary:        C:\Users\Laptop Zone by JK\AppData\Local\Microsoft\WinGet\Links\ffuf.EXE
+                target types:  url
+                status:        NOT usable
+                reason:        Missing Wordlist file: Configure KINGSEC_FFUF__WORDLIST, e.g. a SecLists path: https://github.com/danielmiessler/SecLists
+                fix:           Configure KINGSEC_FFUF__WORDLIST, e.g. a SecLists path: https://github.com/danielmiessler/SecLists
+
+    [UNUSABLE ] gobuster  (Gobuster) v3.8.2
+                binary:        C:\ProgramData\chocolatey\bin\gobuster.EXE
+                target types:  url
+                status:        NOT usable
+                reason:        Missing Wordlist file: Configure KINGSEC_GOBUSTER__WORDLIST, e.g. a SecLists path: https://github.com/danielmiessler/SecLists
+                fix:           Configure KINGSEC_GOBUSTER__WORDLIST, e.g. a SecLists path: https://github.com/danielmiessler/SecLists
+
+    [OK       ] zap       (OWASP ZAP) v.
+                binary:        C:\ProgramData\chocolatey\bin\zap.BAT
+                target types:  url
+                status:        usable
+
+    ------------------------------------------
+    6 scanners checked: 2 usable, 4 not usable
+    Default profile 'full-assessment' scanners: nmap, nuclei, gobuster, ffuf, zap, nikto
+      UNUSABLE in this profile: nuclei, nikto, ffuf, gobuster
+    Exit code: 1
+
+(zap's version shows "v." — a pre-existing, cosmetic version-regex
+mismatch against its Windows .bat wrapper's actual `-version` output,
+unrelated to this task and not fixed here; zap still correctly reports
+usable.)
+
+
+--------------------------------------------------------------------------------
+TASK 3B — asset provisioning (investigation + proposal, NOT implemented)
+--------------------------------------------------------------------------------
+
+Full document: docs/audits/KINGSEC-TASK3B-ASSET-PROVISIONING-PROPOSAL.txt
+
+Summary: nuclei-templates is ~728MB (git size), updated continuously via
+nuclei's own `-update-templates` command, MIT-licensed. SecLists (the
+de facto wordlist source) is ~3.6GB total, MIT-licensed at the repo
+level; spot-checked one candidate file (Discovery/Web-Content/common.txt)
+directly for an embedded separate license note — none found, but this
+is a spot-check of one file, not an exhaustive audit of the whole
+collection.
+
+Recommend: documented one-time setup command for BOTH assets (nuclei's
+own `-update-templates`, one documented wordlist URL) — not bundling.
+nuclei-templates is ruled out on size/currency, not licensing (a frozen
+copy goes stale within days). The wordlist case is licensing-clean to
+bundle but not recommended anyway: KingSec has no special standing to
+pick "the" wordlist, and `kingsec doctor` already gives the operator a
+precise, actionable fix the moment either asset is missing — which is
+the actual first-run pain point this task names.
+
+Nothing was installed on this host to produce the investigation.
+`nuclei -update-templates` was never run, per explicit instruction.
+
+
+--------------------------------------------------------------------------------
+TASK 3C — INSTALL.md
+--------------------------------------------------------------------------------
+
+Corrected the "verified in this audit on Windows 10/11" claim: what was
+actually tested was Docker Desktop's Linux container on a Windows host,
+not a native Windows install — the Direct (non-Docker) Installation
+path is now explicitly marked NOT TESTED. Added a "Nikto: Windows
+Defender Quarantine" subsection documenting the known issue (a
+downloaded Perl script gets quarantined before it can run) with
+concrete remediation steps, matching this project's own prior finding
+in docs/STATUS.md.
+
+
+--------------------------------------------------------------------------------
+FULL GATE AND COMMITS
+--------------------------------------------------------------------------------
+
+pytest tests/unit -q  -> exit 0
+ruff check . (full repo) -> clean
+mypy src -> Success: no issues found in 601 source files
+
+Split into 4 commits by module boundary, each independently green,
+pushed a2666b2..40b423a:
+
+  ec4e7dd docs: correct nmap licensing verdict and record the alembic claim honestly
+  fa4cddf feat(cli): kingsec doctor - read-only scanner preflight check
+  a38dc76 docs: correct the Windows testing claim, document nikto/Defender quarantine
+  40b423a docs: Phase 2B Task 2 final report, Task 3b asset-provisioning proposal
+
+NOT included in any commit (pre-existing, unrelated to this round, left
+exactly as found): docs/PRODUCT-INVENTORY.md, docs/REMEDIATION-PLAN.md,
+docs/audits/KINGSEC-PHASE-2A-COMPLETION-REPORT.txt,
+docs/audits/KINGSEC-PHASE-2A-FOLLOWUP-RESPONSE.txt.
+
+
+--------------------------------------------------------------------------------
+STANDING INSTRUCTION
+--------------------------------------------------------------------------------
+"Stop after 3b's proposal for my approval. Do not start Task 4." Stopping here.
+================================================================================

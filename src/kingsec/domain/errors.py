@@ -44,3 +44,15 @@ class IllegalStateTransition(DomainError):
         super().__init__(message)
         self.current = current
         self.attempted = attempted
+
+
+class TargetDecompositionError(DomainError):
+    """A URL Target's value cannot be broken into usable host/port components.
+
+    Distinct from InvariantViolation: the Target itself constructed validly
+    (Target._validate_format()'s URL branch only checks scheme and netloc),
+    but decompose_url() found the value ambiguous or unusable for scanning -
+    an embedded credential, a non-numeric or out-of-range port, or an
+    unbracketed IPv6-shaped authority. Reject rather than guess in every case
+    (Phase 2B Task 2 Decision 4/Section 7).
+    """

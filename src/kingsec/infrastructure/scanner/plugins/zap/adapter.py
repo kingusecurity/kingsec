@@ -10,6 +10,7 @@ requires.
 from __future__ import annotations
 
 import shutil
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from kingsec.application.ports.scanner_plugin import ScannerPluginPort
@@ -21,9 +22,9 @@ from kingsec.domain import (
     ScannerCapability,
     ScannerId,
     ScannerPluginMetadata,
+    ScannerRequirement,
     ScannerResult,
     Target,
-    TargetType,
 )
 from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE
 
@@ -45,10 +46,12 @@ class ZapPlugin(ScannerPluginPort):
         self,
         settings: ZapSettings,
         runner: CommandRunner | None = None,
+        *,
+        data_dir: Path | None = None,
     ) -> None:
         from kingsec.infrastructure.scanner.zap import ZapScannerAdapter
 
-        self._adapter: ZapScannerAdapter = ZapScannerAdapter(settings, runner=runner)
+        self._adapter: ZapScannerAdapter = ZapScannerAdapter(settings, runner=runner, data_dir=data_dir)
         self._settings = settings
 
     def metadata(self) -> ScannerPluginMetadata:
@@ -66,7 +69,7 @@ class ZapPlugin(ScannerPluginPort):
         """Declare ZAP scanning capabilities."""
         return (
             ScannerCapability(
-                target_types=frozenset({TargetType.URL}),
+                requirement=ScannerRequirement.HTTP_BASE_URL,
                 scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                 output_format=OutputFormat.STRUCTURED_JSON,
             ),

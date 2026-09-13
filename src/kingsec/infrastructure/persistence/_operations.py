@@ -19,13 +19,14 @@ from __future__ import annotations
 
 from typing import Any, NoReturn, cast
 
-from sqlalchemy import CursorResult, delete
+from sqlalchemy import CursorResult, delete, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from kingsec.application import AssessmentNotFoundError, ReportNotFoundError
+from kingsec.application import AssessmentDataCorruptedError, AssessmentNotFoundError, ReportNotFoundError
 from kingsec.application.errors import AssessmentConflictError
-from kingsec.domain import Assessment, AssessmentId, Report
+from kingsec.application.ports.repositories import AssessmentPage
+from kingsec.domain import Assessment, AssessmentId, AssessmentStatus, Report
 from kingsec.infrastructure.logging import get_logger
 from kingsec.shared.errors import PersistenceError, log_exception
 
@@ -34,6 +35,7 @@ from .mappers import (
     assessment_to_orm,
     report_to_domain,
     report_to_orm,
+    try_assessment_to_domain,
 )
 from .models import AssessmentORM, ReportORM
 
@@ -168,12 +170,18 @@ def load_assessment(session: Session, assessment_id: AssessmentId) -> Assessment
 
     Raises:
         AssessmentNotFoundError: If no assessment has that id.
+        AssessmentDataCorruptedError: If the row exists but cannot be
+            reconstructed (Phase 2B Task 2 Condition 1) - the caller asked
+            for this specific row, so a silent skip would be dishonest.
     """
     orm = session.get(AssessmentORM, assessment_id.value)
     if orm is None:
         raise AssessmentNotFoundError(assessment_id.value)
     # Map while the session is open so lazy child collections load correctly.
-    return assessment_to_domain(orm)
+    assessment = try_assessment_to_domain(orm)
+    if assessment is None:
+        raise AssessmentDataCorruptedError(f"assessment {assessment_id.value!r} exists but could not be loaded")
+    return assessment
 
 
 def persist_report(session: Session, report: Report) -> None:
@@ -213,7 +221,7 @@ def list_assessments(
     *,
     limit: int = 50,
     offset: int = 0,
-) -> list[Assessment]:
+) -> AssessmentPage:
     """Load assessments ordered by created_at DESC with pagination.
 
     Args:
@@ -222,10 +230,22 @@ def list_assessments(
         offset: Number of results to skip.
 
     Returns:
-        A list of assessments, most recent first. May be empty.
+        A page of assessments, most recent first (may be empty), plus the
+        ids of any rows that exist but could not be reconstructed
+        (Phase 2B Task 2 Condition 1) - one corrupted row must not fail
+        every other assessment in the list.
     """
     orms = session.query(AssessmentORM).order_by(AssessmentORM.created_at.desc()).offset(offset).limit(limit).all()
-    return [assessment_to_domain(orm) for orm in orms]
+    items: list[Assessment] = []
+    unreadable_ids: list[str] = []
+    for orm in orms:
+        assessment = try_assessment_to_domain(orm)
+        if assessment is None:
+            unreadable_ids.append(orm.id)
+            _logger.warning("assessment row could not be reconstructed, skipped from list", assessment_id=orm.id)
+        else:
+            items.append(assessment)
+    return AssessmentPage(items=tuple(items), unreadable_ids=tuple(unreadable_ids))
 
 
 def find_running_assessments(session: Session) -> list[Assessment]:
@@ -242,6 +262,60 @@ def find_running_assessments(session: Session) -> list[Assessment]:
     """
     orms = session.query(AssessmentORM).filter(AssessmentORM.status == "RUNNING").all()
     return [assessment_to_domain(orm) for orm in orms]
+
+
+def find_running_ids(session: Session) -> list[str]:
+    """Return the ids of every assessment currently in RUNNING status.
+
+    Phase 2B Task 2 Condition 2: reads ONLY the id column (plus the
+    status filter) - never target_value/target_type, so this can never
+    fail on a corrupted row the way find_running_assessments() (full
+    reconstruction) can. Paired with force_fail_running().
+    """
+    rows = session.query(AssessmentORM.id).filter(AssessmentORM.status == "RUNNING").all()
+    return [row[0] for row in rows]
+
+
+def force_fail_running(session: Session, assessment_id: str, reason: str) -> bool:
+    """Force one assessment from RUNNING to FAILED without loading it.
+
+    Phase 2B Task 2 Condition 2 - THE SINGLE SANCTIONED DOMAIN-BYPASS
+    WRITE PATH, scoped to startup orphan recovery only via
+    ResolveOrphanedAssessments. Must NOT be reused as a general-purpose
+    update method.
+
+    Sets every field Assessment.fail() mutates - status and
+    failure_reason (domain/assessment.py's fail(): "self._transition_to
+    (AssessmentStatus.FAILED); self._failure_reason = reason", nothing
+    else) - PLUS version, which fail() itself never touches but which
+    persist_assessment()'s normal save() path always increments
+    (KSEC-107-01/108-01 optimistic locking). A direct write that bumped
+    status/failure_reason but left version untouched would leave a stale
+    client's optimistic-lock check passing against a row that had, in
+    fact, just changed - a new corruption source inside the corruption
+    fix, which is exactly what this function exists to avoid, not
+    reintroduce.
+
+    Scoped to WHERE id = ? AND status = 'RUNNING' - a safe no-op (returns
+    False) if the row already moved on for any reason between
+    find_running_ids() and this call, rather than an unconditional
+    overwrite.
+
+    Returns:
+        True if a row was actually updated, False otherwise (already
+        resolved, or the id no longer exists).
+    """
+    stmt = (
+        update(AssessmentORM)
+        .where(AssessmentORM.id == assessment_id, AssessmentORM.status == "RUNNING")
+        .values(
+            status=AssessmentStatus.FAILED.name,
+            failure_reason=reason,
+            version=AssessmentORM.version + 1,
+        )
+    )
+    result = cast(CursorResult[Any], session.execute(stmt))
+    return result.rowcount > 0
 
 
 def find_assessments_by_schedule_occurrence_id(session: Session, occurrence_id: str) -> list[Assessment]:
