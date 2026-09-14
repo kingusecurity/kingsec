@@ -574,3 +574,32 @@ Defect 5's 14,043 lines were. Same defect class, same fix shape (5a's
 per-finding) would apply here too. Not fixed — out of scope for this
 round, logged per the same "log, don't fix" instruction as the other two
 items above.
+
+### Backlog — Limitations section is a wall of text, defeating its own disclosures (logged, not fixed, Phase 2C Step 2, TOP ITEM for a future report-design phase)
+
+Real PDF evidence (Phase 2C Step 2's GAP report): the Limitations section
+is now ONE PARAGRAPH containing seven distinct, independently-derived
+disclosures — point-in-time scope, false positive/negative risk, CVE
+correlation, port coverage (Task 4), rate limiting (Phase 2B-c Priority
+3), authentication scope (Phase 2C Step 2 Addition 1), and config-change
+invalidation. Every one is honest and individually hard-won — each was
+its own investigation, its own fix, its own test. On a real rendered
+report this lands as an unbroken block of prose at the end of page 31.
+
+**This is no longer cosmetic.** The disclosure mechanism this whole
+phase (and Phase 2B-c, and Task 4 before it) spent weeks building —
+"derive the real gap, never hardcode a claim, state it plainly" — has
+been defeated by formatting, not by content. A disclosure an SME will
+not read past the first two sentences of is not functioning as a
+disclosure, regardless of how accurate its text is.
+
+**Not fixed here** — this needs its own scoped pass (structured
+subheadings or a bulleted list per disclosure, not one prose paragraph;
+possibly grouped by theme — scope/coverage vs. methodology/confidence),
+with its own review of how it reads on an actual printed page, not
+squeezed into a fix round already covering five unrelated defects. Log
+this as the **first item** whenever a report-design phase is scoped —
+every disclosure mechanism built in Phase 2C (and Task 4, and Phase
+2B-c) feeds into this same paragraph, so fixing its presentation is a
+prerequisite for any of those disclosures actually being read, not an
+independent nicety.
