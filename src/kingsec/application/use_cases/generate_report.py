@@ -193,6 +193,7 @@ class GenerateReport:
             HistoryPoint(
                 generated_at=datetime.fromisoformat(p.generated_at),
                 executive_score=p.executive_score,
+                score_version=p.score_version,
             )
             for p in projections
             if p.assessment_id != report.assessment_id

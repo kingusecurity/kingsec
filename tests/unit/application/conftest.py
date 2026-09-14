@@ -146,6 +146,7 @@ class InMemoryReportRepository(ReportRepository):
                 verdict_action_required=r.verdict.action_required,
                 total_findings=r.total_findings,
                 executive_score=r.executive_score,
+                score_version=r.score_version,
             )
             for r in page
         ]

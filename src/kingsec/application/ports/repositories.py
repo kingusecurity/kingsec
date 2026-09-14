@@ -226,6 +226,12 @@ class ReportProjection:
     low_count: int = 0
     info_count: int = 0
     executive_score: float = 0.0
+    # Phase 2C Step 2, Addition B: which formula executive_score was
+    # actually computed under, so callers building cross-report views
+    # (e.g. GenerateReport._with_history's trend chart) can tell which
+    # scores are directly comparable to each other, same reasoning as
+    # Report.score_version itself.
+    score_version: str = "v2"
     format: str = "pdf"
     file_size: int = 0
 

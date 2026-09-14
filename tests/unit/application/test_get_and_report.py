@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 from tests.unit.application.conftest import (
     CountingAI,
@@ -217,6 +219,28 @@ class TestGenerateReport:
         history = reports.get(second.id).history
         assert len(history) == 1
         assert history[0].executive_score == first_score
+
+    def test_history_point_carries_the_prior_reports_own_score_version(
+        self,
+        assessments: InMemoryAssessmentRepository,
+        reports: InMemoryReportRepository,
+        generator: StubReportGenerator,
+    ) -> None:
+        """Phase 2C Step 2, Addition B: a history point is meaningless
+        without knowing which formula produced its score - a v1-scored
+        prior report must still say so in the second report's history,
+        not silently inherit "v2" just because that's now the default."""
+        first = _completed(assessments)
+        GenerateReport(assessments, reports, generator).execute(GenerateReportRequest(str(first.id), is_admin=True))
+        v1_report = dataclasses.replace(reports.get(first.id), score_version="v1")
+        reports.save(v1_report)
+
+        second = _completed(assessments)
+        GenerateReport(assessments, reports, generator).execute(GenerateReportRequest(str(second.id), is_admin=True))
+
+        history = reports.get(second.id).history
+        assert len(history) == 1
+        assert history[0].score_version == "v1"
 
     def test_regenerating_the_same_report_does_not_duplicate_itself_in_history(
         self,
