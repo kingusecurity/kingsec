@@ -14,6 +14,7 @@ on work that isn't finished.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -148,15 +149,97 @@ _SCORE_PENALTY: dict[Severity, int] = {
 }
 
 
-def compute_executive_score(severity_counts: tuple[tuple[Severity, int], ...]) -> float:
-    """A single 0-100 score from a severity breakdown (100 = no weighted issues).
+def compute_executive_score_v1(severity_counts: tuple[tuple[Severity, int], ...]) -> float:
+    """DEPRECATED (Phase 2C Step 2) — the original linear-deduction formula.
 
-    Deducts a fixed penalty per finding at each severity, floored at 0. This is
-    a deliberately simple, explainable heuristic — not a CVSS-style aggregate —
-    so it can be stated in one sentence in the report.
+    Kept only to reproduce historical reports persisted with
+    score_version="v1" exactly, forever. Never call this for new report
+    generation — use compute_executive_score() (v2) below.
+
+    Defect this formula had (why it was replaced): unbounded linear
+    deduction saturates to 0 on realistic finding counts (4 Criticals, or
+    ~50 Lows, both single-target-realistic), and once saturated a customer
+    who remediates ten findings and re-runs still sees 0 — removing any
+    visible reason to buy a reassessment. See docs/E2E-EVIDENCE-PHASE2B.md
+    and the Phase 2C Step 1 calibration report for the real-data evidence.
     """
     penalty = sum(_SCORE_PENALTY[severity] * count for severity, count in severity_counts)
     return round(max(0.0, min(100.0, 100.0 - penalty)), 1)
+
+
+# Retention constants: PROVISIONAL. Read before changing.
+#
+# CRITICAL (0.72) and HIGH (0.88) are NOT calibrated against real data.
+# Evidence set to date: one observed Critical (a nuclei dvwa-default-login
+# match against DVWA — a deliberately engineered test-fixture weakness,
+# genuine but not organically discovered) and ZERO observed Highs. The only
+# High counts on record came from the ffuf flood defect and are discarded
+# noise. Both constants were chosen for mathematical properties (bounded,
+# strictly monotonic, explainable as "X% of remaining score retained per
+# finding"), not from observation.
+#
+# MEDIUM (0.95) and LOW (0.985) rest on more observations than the above but
+# are also uncalibrated: effectively one target's worth of data (Run 1's 5
+# Medium / 5 Low; Run 2 contributed none after host-service exclusion).
+#
+# CALIBRATE WHEN: at least 10 organically-discovered Critical or High
+# findings exist across 5+ distinct production-representative targets. Until
+# then these are placeholders and the score is a relative indicator, not a
+# measurement.
+#
+# UNDERFLOW: strict monotonicity holds mathematically at any finding count,
+# but stops being visible on screen well before it stops being true. For an
+# all-LOW distribution, computed directly from these constants: two
+# consecutive counts first round to the identical displayed value at
+# N=190 (both show 5.7), and the hard floor — the score rounds to 0.0, a
+# reassessment shows no improvement at all — is reached at N=503. The
+# reassessment-improvement property this formula exists to provide only
+# holds below that floor; do not claim it above. Per-severity hard floors
+# (single-severity distribution, score first rounds to 0.0 at this count):
+# CRITICAL=24, HIGH=60, MEDIUM=149, LOW=503.
+#
+# CRITICAL=24 IS THE ONE THAT MATTERS COMMERCIALLY, not just mathematically.
+# Twenty-four Criticals is a realistic count for a genuinely compromised
+# environment (not a flood-defect artifact the way thousands of Lows are) -
+# beyond it, this score can no longer tell an SME "very bad" apart from
+# "catastrophic"; both render as 0.0/Critical-band. An SME target will
+# likely never reach this. An enterprise pilot, scanning a larger or
+# already-compromised estate, might - better documented here than
+# discovered in front of one.
+#
+# Full account: docs/E2E-EVIDENCE-PHASE2B.md
+_SCORE_RETENTION: dict[Severity, float] = {
+    Severity.CRITICAL: 0.72,
+    Severity.HIGH: 0.88,
+    Severity.MEDIUM: 0.95,
+    Severity.LOW: 0.985,
+    Severity.INFORMATIONAL: 1.00,
+}
+
+
+def compute_executive_score(severity_counts: tuple[tuple[Severity, int], ...]) -> float:
+    """A single 0-100 score from a severity breakdown (100 = no weighted issues).
+
+    v2 (Phase 2C Step 2): a bounded, strictly-monotonic multiplicative
+    retention model — replaces the old linear-deduction formula
+    (compute_executive_score_v1 above), which saturated to 0 on realistic
+    finding counts and could never show a customer that remediation
+    improved their score. Computed in log-space for numerical stability on
+    large finding counts. See _SCORE_RETENTION's own docstring above for
+    which constants are calibrated against real data and which aren't.
+
+    This is a proprietary, explainable heuristic — it is explicitly NOT
+    CVSS, CIS, or NIST-derived, borrows no vocabulary or methodology from
+    those standards, and must not be presented as equivalent to or scored
+    against them.
+    """
+    log_sum = sum(
+        count * math.log(_SCORE_RETENTION[severity])
+        for severity, count in severity_counts
+        if _SCORE_RETENTION[severity] > 0
+    )
+    score = 100.0 * math.exp(log_sum)
+    return round(max(0.0, min(100.0, score)), 1)
 
 
 @dataclass(frozen=True, slots=True)
@@ -285,10 +368,22 @@ class FindingSummary:
 
 @dataclass(frozen=True, slots=True)
 class HistoryPoint:
-    """One prior report's score for the same target, for a trend chart."""
+    """One prior report's score for the same target, for a trend chart.
+
+    Phase 2C Step 2, Addition B: carries score_version because a score is
+    meaningless without knowing which formula produced it (the same reason
+    Report itself carries score_version) - a trend chart plotting v1 and
+    v2 points as if directly comparable would show apparent improvement or
+    decline that is really just a formula change. Defaults to "v2" (the
+    current formula) purely to match Report's own default; every real
+    construction site (GenerateReport._with_history, mappers.report_to_domain,
+    templates._risk_over_time_chart) sets it explicitly rather than relying
+    on this default.
+    """
 
     generated_at: datetime
     executive_score: float
+    score_version: str = "v2"
 
 
 @dataclass(frozen=True, slots=True)
@@ -328,6 +423,14 @@ class Report:
     # existed. Defaults to COMPLETED only for pre-existing callers/fixtures
     # that never set it explicitly.
     assessment_status: AssessmentStatus = AssessmentStatus.COMPLETED
+    # Phase 2C Step 2: which executive_score formula this report was
+    # actually scored under. A report is an immutable snapshot - a report
+    # persisted with score_version="v1" must keep reporting its v1 score
+    # forever, never be silently rescored under a later formula on read.
+    # Defaults to "v2" (the current formula) for every new report; existing
+    # persisted rows are backfilled to "v1" by the Alembic migration that
+    # introduced this field.
+    score_version: str = "v2"
 
     @classmethod
     def from_assessment(cls, assessment: Assessment, *, generated_at: datetime | None = None) -> Report:
@@ -402,7 +505,12 @@ class Report:
 
     @property
     def executive_score(self) -> float:
-        """A single 0-100 aggregate score derived from the severity breakdown."""
+        """A single 0-100 aggregate score derived from the severity breakdown,
+        computed under whichever formula this report was actually scored
+        with (score_version) — never silently rescored under a newer
+        formula just because one now exists."""
+        if self.score_version == "v1":
+            return compute_executive_score_v1(self.severity_counts)
         return compute_executive_score(self.severity_counts)
 
     def count_for(self, severity: Severity) -> int:

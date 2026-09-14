@@ -14,7 +14,7 @@ from kingsec.domain import (
     Severity,
 )
 from kingsec.domain.enums import ScannerRunState
-from kingsec.domain.report import compute_executive_score, generic_remediation_for
+from kingsec.domain.report import compute_executive_score, compute_executive_score_v1, generic_remediation_for
 
 # Old (pre-Phase-2A) string vocabulary -> ScannerRunState, for the test
 # helpers/fixtures below that still spell statuses the old way.
@@ -295,24 +295,122 @@ class TestOrderingAndCounts:
         assert entry.recommendation_count == 1
 
 
-class TestExecutiveScore:
+class TestExecutiveScoreV1:
+    """compute_executive_score_v1: the deprecated linear-deduction formula,
+    kept only to replay historical score_version="v1" reports exactly."""
+
     def test_no_findings_scores_100(self) -> None:
-        assert compute_executive_score(()) == 100.0
+        assert compute_executive_score_v1(()) == 100.0
 
     def test_deducts_per_severity_weight(self) -> None:
         counts = ((Severity.CRITICAL, 1), (Severity.LOW, 2))
         # 100 - (1*25 + 2*2) = 71.0
-        assert compute_executive_score(counts) == 71.0
+        assert compute_executive_score_v1(counts) == 71.0
 
     def test_floors_at_zero(self) -> None:
         counts = ((Severity.CRITICAL, 10),)
-        assert compute_executive_score(counts) == 0.0
+        assert compute_executive_score_v1(counts) == 0.0
 
-    def test_report_exposes_matching_score(self, running) -> None:
+    def test_report_with_v1_score_version_uses_v1_formula(self, running) -> None:
         _complete(running, [make_finding(Severity.HIGH), make_finding(Severity.LOW)])
-        report = Report.from_assessment(running)
+        report = dataclasses.replace(Report.from_assessment(running), score_version="v1")
         # 100 - (1*10 + 1*2) = 88.0
         assert report.executive_score == 88.0
+
+
+class TestExecutiveScoreV2:
+    """Phase 2C Step 2: compute_executive_score (v2) - the current,
+    multiplicative retention model. Reference values are the Phase 2C
+    Step 1 calibration report's own 8 verified values (docs/audits, and
+    Downloads/KINGSEC-PHASE-2C-STEP1-CALIBRATION-REPORT.txt)."""
+
+    @pytest.mark.parametrize(
+        ("counts", "expected"),
+        [
+            ((), 100.0),
+            (((Severity.LOW, 1),), 98.5),
+            (((Severity.MEDIUM, 10),), 59.9),
+            (((Severity.CRITICAL, 1),), 72.0),
+            (((Severity.CRITICAL, 4),), 26.9),
+            (((Severity.LOW, 50),), 47.0),
+            (((Severity.LOW, 200),), 4.9),
+            (
+                (
+                    (Severity.HIGH, 2),
+                    (Severity.MEDIUM, 3),
+                    (Severity.LOW, 20),
+                    (Severity.INFORMATIONAL, 5),
+                ),
+                49.1,
+            ),
+        ],
+    )
+    def test_reference_values_exact(self, counts, expected) -> None:
+        assert compute_executive_score(counts) == expected
+
+    def test_report_defaults_to_v2(self, running) -> None:
+        _complete(running, [make_finding(Severity.HIGH), make_finding(Severity.LOW)])
+        report = Report.from_assessment(running)
+        assert report.score_version == "v2"
+        # retention: 0.88 * 0.985 = 0.8668 -> 86.68 -> rounds to 86.7
+        assert report.executive_score == 86.7
+
+    def test_informational_findings_never_change_the_score(self) -> None:
+        baseline = ((Severity.CRITICAL, 1), (Severity.MEDIUM, 3), (Severity.LOW, 10))
+        base_score = compute_executive_score(baseline)
+        for info_count in (0, 1, 5, 100, 10_000):
+            with_info = (*baseline, (Severity.INFORMATIONAL, info_count))
+            assert compute_executive_score(with_info) == base_score
+
+    @pytest.mark.parametrize(
+        "counts",
+        [
+            ((Severity.CRITICAL, 1),),
+            ((Severity.HIGH, 5),),
+            ((Severity.MEDIUM, 20),),
+            ((Severity.LOW, 50),),
+            ((Severity.LOW, 100),),
+            ((Severity.LOW, 189),),  # one below the first visible tie at N=190
+            ((Severity.CRITICAL, 2), (Severity.HIGH, 3), (Severity.MEDIUM, 10), (Severity.LOW, 50)),
+            ((Severity.CRITICAL, 1), (Severity.LOW, 1)),
+        ],
+    )
+    def test_removing_a_finding_strictly_increases_score_below_underflow_threshold_n190(self, counts) -> None:
+        """Strict monotonicity holds mathematically at any count (see
+        _SCORE_RETENTION's docstring, domain/report.py), but stops being
+        OBSERVABLE at the 1-decimal rendered score once two consecutive
+        counts round identically - for an all-LOW distribution that first
+        happens at N=190. This test is scoped to distributions below that
+        point specifically so the property is checked where it's actually
+        visible, not claimed past where it silently stops mattering."""
+        before = compute_executive_score(counts)
+        for i, (severity, _count) in enumerate(counts):
+            reduced = tuple(
+                (s, c - 1) if j == i else (s, c) for j, (s, c) in enumerate(counts)
+            )
+            reduced = tuple((s, c) for s, c in reduced if c > 0)
+            after = compute_executive_score(reduced)
+            assert after > before, f"removing one {severity.name} did not increase the score ({before} -> {after})"
+
+    @pytest.mark.parametrize(
+        "counts",
+        [
+            ((Severity.CRITICAL, 10_000),),
+            ((Severity.HIGH, 10_000),),
+            ((Severity.MEDIUM, 10_000),),
+            ((Severity.LOW, 10_000),),
+            ((Severity.INFORMATIONAL, 10_000),),
+            (
+                (Severity.CRITICAL, 2_500),
+                (Severity.HIGH, 2_500),
+                (Severity.MEDIUM, 2_500),
+                (Severity.LOW, 2_500),
+            ),
+        ],
+    )
+    def test_score_stays_within_bounds_for_counts_up_to_10000(self, counts) -> None:
+        score = compute_executive_score(counts)
+        assert 0.0 <= score <= 100.0
 
 
 class TestGenericRemediation:
