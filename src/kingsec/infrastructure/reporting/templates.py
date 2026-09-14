@@ -144,8 +144,10 @@ tr { page-break-inside: avoid; }
 .sev-informational { background: #546e7a; }
 
 /* ---- Callouts, cards ----------------------------------------------------- */
-.callout { padding: 12px 14px; border-radius: 6px; border-left: 4px solid #0b3d63; background: #f1f5f9; }
+.callout { padding: 12px 14px; border-radius: 6px; border-left: 4px solid #0b3d63; background: #f1f5f9; margin: 0 0 10px; }
 .action-required { border-left-color: #b00020; background: #fdecea; }
+.action-critical { border-left-color: #b00020; background: #fdecea; }
+.action-high { border-left-color: #e65100; background: #fde6d8; }
 .finding-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; margin: 14px 0;
      page-break-inside: avoid; background: #fff; }
 .finding-card h3 { margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
@@ -183,24 +185,36 @@ def _badge(severity: Severity) -> str:
 def _score_narrative(score: float) -> str:
     if score >= 90:
         return "This places the assessed environment in strong standing overall."
-    if score >= 70:
-        return "This places the assessed environment in generally sound standing, with room for improvement."
-    if score >= 40:
-        return "This indicates meaningful security gaps that warrant attention."
-    return "This indicates serious security exposure that warrants prompt attention."
+    if score >= 75:
+        return "This places the assessed environment in good standing, with room for improvement."
+    if score >= 50:
+        return "This indicates a fair security posture with issues that warrant attention."
+    if score >= 25:
+        return "This indicates a weak security posture with issues that warrant prompt attention."
+    return "This indicates serious security exposure that warrants immediate attention."
 
 
 def _score_band(score: float) -> tuple[str, str]:
     """Map a 0-100 score to (color, band label), aligned with _score_narrative's
     thresholds and reusing the same severity palette used everywhere else in
-    the report so the color already carries meaning for the reader."""
+    the report so the color already carries meaning for the reader.
+
+    Phase 2C Step 2: bands (90-100 Strong | 75-89 Good | 50-74 Fair |
+    25-49 Weak | 0-24 Critical) describe the SCORE NUMBER being shown,
+    independent of which formula (v1 or v2, see Report.score_version)
+    produced it - a v1 report's score is banded the same way a v2 report's
+    is, since the bands are a presentation concern about the number, not
+    about the formula's identity.
+    """
     if score >= 90:
         return "#2e7d32", "Strong"
-    if score >= 70:
-        return "#f9a825", "Sound"
-    if score >= 40:
-        return "#e65100", "Needs Attention"
-    return "#b00020", "Critical Exposure"
+    if score >= 75:
+        return "#7cb342", "Good"
+    if score >= 50:
+        return "#f9a825", "Fair"
+    if score >= 25:
+        return "#e65100", "Weak"
+    return "#b00020", "Critical"
 
 
 # Solid (not alpha-blended) light tints for the score-band pill background —
@@ -208,6 +222,7 @@ def _score_band(score: float) -> tuple[str, str]:
 # so this uses plain opaque hex rather than relying on it.
 _SCORE_BAND_TINTS: dict[str, str] = {
     "#2e7d32": "#e6f2e8",
+    "#7cb342": "#eef5e3",
     "#f9a825": "#fdf3dc",
     "#e65100": "#fde6d8",
     "#b00020": "#fbdde1",
@@ -223,6 +238,70 @@ _SCORE_BAND_TINTS: dict[str, str] = {
 # "no severity" rather than inventing a new color.
 _PARTIAL_COVERAGE_COLOR = "#546e7a"
 _PARTIAL_COVERAGE_LABEL = "Partial Coverage"
+
+# Phase 2C Step 2, (d) (approved threshold): zero findings above
+# Informational severity scores exactly 100.0 under BOTH formulas -
+# Informational carries zero penalty in v1 and retention 1.00 (i.e. "does
+# not affect the score") in v2 - so this condition and "the raw score would
+# read Strong" are the same condition; there is no other band this override
+# could ever suppress. "Strong" implies deep, hard-won assurance; a scan
+# that simply found nothing above Informational hasn't earned that reading
+# on its own - contrast Original Task-6 Run 4/5 (91.3, Strong, earned via 6
+# real Low findings from genuine nmap port enumeration against a target
+# with no authentication boundary even applicable) with post-2B-c Run 2/3
+# (2 Informational findings and 0 findings respectively, both previously
+# 100.0/Strong despite being the LEAST-tested targets in the whole
+# dataset). Extends the same override point Phase 2A-b's
+# COMPLETED_WITH_GAPS check uses above (same neutral slate color, so the
+# reader learns once that this shade means "don't read this as reassuring
+# green") rather than building a parallel mechanism - but a DIFFERENT
+# label, since "Partial Coverage" would misstate what actually happened
+# here (every scanner completed; there was simply nothing to find above
+# Informational).
+_NO_SIGNAL_COLOR = "#546e7a"
+_NO_SIGNAL_LABEL = "No Findings — Coverage Limited"
+_NO_SIGNAL_NARRATIVE = (
+    "This reflects an absence of findings above Informational severity in "
+    "this specific scan, not independent assurance of a strong security "
+    "posture — an unauthenticated external scan that finds little may "
+    "simply have had little surface to test against (see Limitations for "
+    "what this assessment did not examine)."
+)
+
+
+def _is_no_signal(report: Report) -> bool:
+    """True when nothing above Informational severity was recorded -
+    derived from the report's own severity_counts (never hardcoded), so it
+    tracks whatever findings actually exist rather than a fixed count. An
+    entirely empty severity_counts (zero findings at all) also counts as
+    no-signal: ``all()`` over an empty sequence is True, which is exactly
+    the desired behavior here, not an edge-case accident.
+    """
+    return all(severity is Severity.INFORMATIONAL for severity, count in report.severity_counts if count > 0)
+
+# Phase 2C Step 2, Addition 1 (confirmed correct by explicit user sign-off,
+# Phase 2C Step 2 addendum, Addition A): no field anywhere in KingSec's
+# scanning domain records whether a scan was credentialed - there is
+# nothing on Report to derive this sentence from yet, and inventing a fake
+# derivation seam would imply a configurability that doesn't exist. This
+# constant IS the single seat of that fact.
+#
+# THE DAY CREDENTIALED SCANNING IS ADDED: this constant must stop being
+# unconditional. _authentication_scope_note() below must start branching on
+# real per-assessment state (which fields, TBD by that feature's own
+# design) instead of returning this fixed string - update HERE, not by
+# editing prose anywhere else in the report. TestAuthenticationScopeDisclosure
+# in tests/unit/infrastructure/reporting/test_templates.py enforces that
+# every rendered report contains this sentence; that test must be extended
+# alongside this constant, not left asserting a claim that stopped being
+# universally true.
+_AUTHENTICATION_SCOPE_SENTENCE = (
+    " This was an unauthenticated external assessment: nothing requiring a login, "
+    "session, or credentials was examined, and any application logic reachable only "
+    "after authentication was not tested. A clean or low-finding result above "
+    "reflects only what is reachable without credentials and says nothing about "
+    "what sits behind a login."
+)
 
 
 def _risk_gauge(score: float, color: str) -> str:
@@ -489,6 +568,22 @@ def _severity_demotion_note(report: Report) -> str:
     )
 
 
+def _authentication_scope_note(report: Report) -> str:
+    """Phase 2C Step 2, Addition 1: disclose the unauthenticated scope on
+    EVERY report, not only zero-finding ones.
+
+    A clean or low-finding result says nothing about what sits behind a
+    login - that gap must be stated regardless of how the scan otherwise
+    turned out. The actual sentence lives in _AUTHENTICATION_SCOPE_SENTENCE
+    above (the single seat of this fact, with its own comment on what must
+    change when credentialed scanning lands) - this function's only job is
+    to be the one call site that renders it into the report. Do not inline
+    or duplicate the sentence anywhere else.
+    """
+    del report  # unused: the sentence is unconditional, see the constant's own comment
+    return _AUTHENTICATION_SCOPE_SENTENCE
+
+
 def _limitations(report: Report) -> str:
     """A general, honest limitations statement.
 
@@ -531,7 +626,8 @@ def _limitations(report: Report) -> str:
         "of false negatives (real issues not detected) and false positives (flagged issues "
         "that are not actually exploitable) — findings above should be independently verified "
         f"before remediation is prioritized on their basis alone. {cve_note}"
-        f"{_port_coverage_note(report)}{_rate_limit_note(report)}{_severity_demotion_note(report)} A change to "
+        f"{_port_coverage_note(report)}{_rate_limit_note(report)}{_severity_demotion_note(report)}"
+        f"{_authentication_scope_note(report)} A change to "
         "the target's configuration after this assessment invalidates these results.</p>"
         "</section>"
     )
@@ -557,14 +653,33 @@ def _executive_summary(report: Report) -> str:
             "This figure reflects only the scanners that completed and must not be "
             "read as an overall security rating."
         )
-    else:
-        band_color, band_label = _score_band(score)
+    elif report.score_version == "v1":
+        # Historical reports scored under the deprecated linear-deduction
+        # formula must keep describing THAT formula, not the v2 one that
+        # didn't exist when they were generated (domain/report.py,
+        # compute_executive_score_v1's own docstring).
+        no_signal = _is_no_signal(report)
+        band_color, band_label = (_NO_SIGNAL_COLOR, _NO_SIGNAL_LABEL) if no_signal else _score_band(score)
+        narrative = _NO_SIGNAL_NARRATIVE if no_signal else escape(_score_narrative(score))
         score_copy = (
             f"Overall Risk Score: <strong>{score:.1f} / 100</strong>. "
-            f"{escape(_score_narrative(score))} "
+            f"{narrative} "
             "This score deducts fixed points per finding by severity "
             "(Critical 25, High 10, Medium 5, Low 2) from a 100-point baseline — "
-            "a simple, explainable measure, not a formal risk-modeling output."
+            "a simple, explainable measure, not a formal risk-modeling output. "
+            "(Historical scoring model.)"
+        )
+    else:
+        no_signal = _is_no_signal(report)
+        band_color, band_label = (_NO_SIGNAL_COLOR, _NO_SIGNAL_LABEL) if no_signal else _score_band(score)
+        narrative = _NO_SIGNAL_NARRATIVE if no_signal else escape(_score_narrative(score))
+        score_copy = (
+            f"Overall Risk Score: <strong>{score:.1f} / 100</strong>. "
+            f"{narrative} "
+            "This score applies a fixed retention percentage per finding by severity, "
+            "multiplicatively, from a 100-point baseline — bounded and never fully "
+            "exhausted, so remediating findings always raises it. A simple, "
+            "explainable measure, not a formal risk-modeling output."
         )
 
     action = (
@@ -590,10 +705,41 @@ def _executive_summary(report: Report) -> str:
         f"{escape(report.generated_at.strftime('%Y-%m-%d'))}. {escape(verdict.headline)} "
         f"The assessment recorded <strong>{report.total_findings}</strong> finding(s) in total, "
         f"with a highest observed severity of <strong>{escape(highest)}</strong>.</p>"
+        f"{_urgent_action_note(report)}"
         f"{score_panel}"
         f"{action}"
         "</section>"
     )
+
+
+def _urgent_action_note(report: Report) -> str:
+    """Phase 2C Step 2, Addition 2: a Critical (or High) finding forces an
+    unconditional act-now callout, independent of the blended score/band.
+
+    From the Phase 2C Step 1 calibration report: one confirmed Critical
+    blended with 25 Informational findings into a single "Fair, 51.7"
+    number risks an SME reading "schedule it for next sprint" when the
+    honest message is "an attacker can log in right now." The band label
+    must never be the only carrier of that fact - this renders above it,
+    unconditionally, driven by the report's own recorded severity counts
+    (never a hardcoded claim), and stacks independently for Critical and
+    High so neither masks the other.
+    """
+    parts: list[str] = []
+    if report.count_for(Severity.CRITICAL) > 0:
+        parts.append(
+            '<p class="callout action-critical"><strong>Critical finding(s) present — '
+            "immediate remediation required.</strong> At least one Critical-severity "
+            "finding was confirmed in this assessment. This requires action before any "
+            "other prioritization, independent of the score below.</p>"
+        )
+    if report.count_for(Severity.HIGH) > 0:
+        parts.append(
+            '<p class="callout action-high"><strong>High-severity finding(s) present — '
+            "prompt remediation recommended.</strong> At least one High-severity finding "
+            "was confirmed in this assessment and should be addressed promptly.</p>"
+        )
+    return "".join(parts)
 
 
 def _business_impact(report: Report) -> str:
@@ -695,12 +841,44 @@ def _severity_distribution_chart(report: Report) -> str:
 def _risk_over_time_chart(report: Report) -> str:
     """A hand-rolled inline SVG line chart of this target's score history.
 
-    Degrades honestly when there isn't enough history: fewer than 2 points
-    (including this report) means there's nothing to plot a trend from.
+    Degrades honestly when there isn't enough history: fewer than 2
+    comparable points (including this report) means there's nothing to
+    plot a trend from.
+
+    Phase 2C Step 2, Addition B: a score is meaningless without knowing
+    which formula produced it (the same reason Report/HistoryPoint carry
+    score_version at all) - the same raw finding distribution can score
+    very differently under v1 vs v2 (see the Phase 2C Step 1 calibration
+    report), so a single connected line spanning a formula change would
+    show apparent improvement or decline that is really just the ruler
+    changing. History points scored under a DIFFERENT formula than this
+    report are therefore EXCLUDED from the plotted series, not blended or
+    merely marked - excluding and disclosing why is the same honesty
+    pattern this report already uses elsewhere (e.g. "was not recorded"),
+    rather than inventing a new one.
     """
-    points = [*report.history, HistoryPoint(generated_at=report.generated_at, executive_score=report.executive_score)]
+    current_point = HistoryPoint(
+        generated_at=report.generated_at,
+        executive_score=report.executive_score,
+        score_version=report.score_version,
+    )
+    comparable_history = tuple(h for h in report.history if h.score_version == report.score_version)
+    excluded_count = len(report.history) - len(comparable_history)
+    exclusion_note = (
+        f'<p class="chart-note">{excluded_count} earlier report(s) for this target were scored under a '
+        "different formula version and are excluded from this trend — their scores are not directly "
+        "comparable to the score(s) shown below.</p>"
+        if excluded_count
+        else ""
+    )
+
+    points = [*comparable_history, current_point]
     if len(points) < 2:
-        return "<p>Insufficient history to chart a trend — this is the first report for this target.</p>"
+        return (
+            "<p>Insufficient history to chart a trend — this is the first report for this target "
+            "under the current scoring formula.</p>"
+            f"{exclusion_note}"
+        )
 
     width, height = 340, 140
     left_pad, right_pad, top_pad, bottom_pad = 34, 12, 18, 24
@@ -758,6 +936,7 @@ def _risk_over_time_chart(report: Report) -> str:
         f'<text x="{left_pad}" y="{height - 2}" font-size="9">{escape(first_label)}</text>'
         f'<text x="{width - right_pad - 60}" y="{height - 2}" font-size="9">{escape(last_label)}</text>'
         "</svg>"
+        f"{exclusion_note}"
     )
 
 

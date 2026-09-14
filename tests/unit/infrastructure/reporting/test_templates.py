@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import dataclasses
 
+import pytest
+
 from kingsec.domain import ScannerRunState, ScannerRunSummary, Severity, SeverityDemotionReason
 from kingsec.infrastructure.reporting import render_report_html
 from kingsec.infrastructure.scanner.nmap import NON_URL_DEFAULT_PORT_SPECIFICATION
@@ -218,6 +220,193 @@ class TestCoverPage:
         assert "counter(page)" in html and "counter(pages)" in html
         # The cover page itself suppresses the footer via :first.
         assert "@page :first" in html
+
+
+class TestAuthenticationScopeDisclosure:
+    """Phase 2C Step 2, Addition 1: every rendered report - not only
+    zero-finding ones - must disclose that this was an unauthenticated
+    external assessment, since a clean or low-finding result says
+    nothing about what sits behind a login."""
+
+    def test_zero_finding_report_contains_the_disclosure(self) -> None:
+        html = render_report_html(build_report(with_findings=False))
+        section = html.split('id="limitations"')[1].split("</section>")[0]
+        assert "unauthenticated external assessment" in section
+        assert "reachable only after authentication was not tested" in section
+
+    def test_findings_rich_report_contains_the_disclosure(self) -> None:
+        html = render_report_html(build_report())  # default fixture has CRITICAL + LOW
+        section = html.split('id="limitations"')[1].split("</section>")[0]
+        assert "unauthenticated external assessment" in section
+
+    def test_completed_with_gaps_report_contains_the_disclosure(self) -> None:
+        from kingsec.domain.enums import AssessmentStatus
+
+        report = dataclasses.replace(build_report(), assessment_status=AssessmentStatus.COMPLETED_WITH_GAPS)
+        html = render_report_html(report)
+        section = html.split('id="limitations"')[1].split("</section>")[0]
+        assert "unauthenticated external assessment" in section
+
+    @pytest.mark.parametrize(
+        "report",
+        [
+            build_report(with_findings=False),
+            build_report(),
+            build_report(title="<script>alert(1)</script>"),
+            dataclasses.replace(build_report(), ai_enabled=True),
+            dataclasses.replace(
+                build_report(),
+                scanner_summary=(
+                    ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=1),
+                ),
+            ),
+            dataclasses.replace(build_report(), score_version="v1"),
+        ],
+        ids=[
+            "zero-findings",
+            "default-findings",
+            "html-in-title",
+            "ai-enabled",
+            "with-scanner-summary",
+            "v1-scored",
+        ],
+    )
+    def test_sentence_present_across_report_variants(self, report) -> None:
+        """The seat named in _AUTHENTICATION_SCOPE_SENTENCE's own comment
+        (templates.py) is only real if no reachable report shape can
+        render without it - this asserts that across a representative
+        matrix, not just the three named cases above."""
+        html = render_report_html(report)
+        section = html.split('id="limitations"')[1].split("</section>")[0]
+        assert "unauthenticated external assessment" in section
+
+
+class TestUrgentActionFraming:
+    """Phase 2C Step 2, Addition 2: a Critical (or High) finding must force
+    an unconditional act-now callout, above and independent of the
+    computed score/band - the band label alone must never be the only
+    carrier of that message.
+
+    report.count_for() (used by _urgent_action_note) reads the report's
+    own precomputed severity_counts field, not a live count of .entries -
+    so these tests rebuild severity_counts to match whatever .entries they
+    construct, exactly as Report.from_assessment() itself does.
+    """
+
+    @staticmethod
+    def _with_entries(report, entries):
+        from collections import Counter
+
+        counts = Counter(e.severity for e in entries)
+        severity_counts = tuple(sorted(counts.items(), key=lambda kv: kv[0], reverse=True))
+        return dataclasses.replace(report, entries=entries, severity_counts=severity_counts)
+
+    def test_critical_plus_informational_gets_immediate_action_framing_regardless_of_band(self) -> None:
+        # 1 Critical blended with 25 Informational findings - Phase 2C Step
+        # 1's exact scenario: this must NOT read as merely "Fair"/"Good".
+        report = build_report()
+        critical = next(e for e in report.entries if e.severity is Severity.CRITICAL)
+        info_entries = tuple(
+            dataclasses.replace(critical, title=f"Info {i}", severity=Severity.INFORMATIONAL) for i in range(25)
+        )
+        report = self._with_entries(report, (critical, *info_entries))
+        html = render_report_html(report)
+
+        assert "Critical finding(s) present" in html
+        assert "immediate remediation required" in html
+        # Independent of / above the score panel, not inside the band label.
+        assert html.index("Critical finding(s) present") < html.index("Overall Risk Score")
+
+    def test_no_critical_or_high_omits_the_callout(self) -> None:
+        report = build_report()
+        low_entries = tuple(dataclasses.replace(e, severity=Severity.LOW) for e in report.entries)
+        report = self._with_entries(report, low_entries)
+        html = render_report_html(report)
+        assert "Critical finding(s) present" not in html
+        assert "High-severity finding(s) present" not in html
+
+    def test_high_without_critical_gets_its_own_framing(self) -> None:
+        report = build_report()
+        high_entries = tuple(dataclasses.replace(e, severity=Severity.HIGH) for e in report.entries)
+        report = self._with_entries(report, high_entries)
+        html = render_report_html(report)
+        assert "High-severity finding(s) present" in html
+        assert "prompt remediation recommended" in html
+        assert "Critical finding(s) present" not in html
+
+    def test_critical_and_high_both_present_stack_independently(self) -> None:
+        report = build_report()
+        entries = list(report.entries)
+        entries.append(dataclasses.replace(entries[0], title="Extra High", severity=Severity.HIGH))
+        report = self._with_entries(report, tuple(entries))
+        html = render_report_html(report)
+        assert "Critical finding(s) present" in html
+        assert "High-severity finding(s) present" in html
+
+
+class TestNoSignalBandOverride:
+    """Phase 2C Step 2, (d) (approved threshold): zero findings above
+    Informational severity always scores 100.0 under both formulas and
+    would otherwise band as "Strong" - that label implies deep, hard-won
+    assurance a merely quiet unauthenticated scan hasn't earned. Extends
+    Phase 2A's partial-coverage override point with a distinct label,
+    since "Partial Coverage" would misstate what happened here (every
+    scanner completed)."""
+
+    @staticmethod
+    def _with_entries(report, entries):
+        from collections import Counter
+
+        counts = Counter(e.severity for e in entries)
+        severity_counts = tuple(sorted(counts.items(), key=lambda kv: kv[0], reverse=True))
+        return dataclasses.replace(report, entries=entries, severity_counts=severity_counts)
+
+    def test_zero_findings_total_gets_the_override(self) -> None:
+        html = render_report_html(build_report(with_findings=False))
+        assert "No Findings — Coverage Limited" in html
+        assert ">Strong</span>" not in html
+
+    def test_informational_only_findings_get_the_override(self) -> None:
+        report = build_report()
+        info_entries = tuple(dataclasses.replace(e, severity=Severity.INFORMATIONAL) for e in report.entries)
+        report = self._with_entries(report, info_entries)
+        html = render_report_html(report)
+        assert "No Findings — Coverage Limited" in html
+        assert ">Strong</span>" not in html
+
+    def test_a_low_finding_does_not_trigger_the_override(self) -> None:
+        """Original Task-6 Run 4/5's exact shape (real Low findings from
+        genuine nmap port enumeration) must still read Strong - the
+        override is for near-zero SIGNAL, not merely a high raw score."""
+        report = build_report()
+        low_entries = tuple(dataclasses.replace(e, severity=Severity.LOW) for e in report.entries)
+        report = self._with_entries(report, low_entries)
+        html = render_report_html(report)
+        assert "No Findings — Coverage Limited" not in html
+        assert ">Strong</span>" in html
+
+    def test_completed_with_gaps_zero_findings_keeps_partial_coverage_label(self) -> None:
+        """The pre-existing Phase 2A override takes priority: a report
+        that is BOTH zero-signal AND incomplete must show the honest
+        "coverage was incomplete" label, not the unrelated no-signal one -
+        the two must never fight over the same band slot."""
+        from kingsec.domain.enums import AssessmentStatus
+
+        report = dataclasses.replace(
+            build_report(with_findings=False), assessment_status=AssessmentStatus.COMPLETED_WITH_GAPS
+        )
+        html = render_report_html(report)
+        assert "Partial Coverage" in html
+        assert "No Findings — Coverage Limited" not in html
+
+    def test_override_applies_to_v1_scored_reports_too(self) -> None:
+        # v1's penalty for Informational is 0 and for zero findings is 0,
+        # so this condition scores 100.0 under v1 as well - the override
+        # is about the SIGNAL, not about which formula scored it.
+        report = dataclasses.replace(build_report(with_findings=False), score_version="v1")
+        html = render_report_html(report)
+        assert "No Findings — Coverage Limited" in html
+        assert ">Strong</span>" not in html
 
 
 class TestLimitations:
@@ -490,6 +679,56 @@ class TestVisualElements:
         assert first_point_label is not None, "expected the first point's '100' label to use text-anchor=start"
         assert axis_100_label is not None
         assert float(first_point_label.group(1)) > float(axis_100_label.group(1)) + 5
+
+
+class TestRiskOverTimeVersionDisclosure:
+    """Phase 2C Step 2, Addition B: a trend chart must never plot v1 and
+    v2 points as if directly comparable - a history point scored under a
+    different formula than the current report is excluded from the
+    plotted series and its exclusion disclosed, never silently blended
+    into one undifferentiated line."""
+
+    def test_mixed_version_history_excludes_prior_version_points(self) -> None:
+        from kingsec.domain.report import HistoryPoint
+
+        report = build_report()  # score_version defaults to "v2"
+        prior_v1 = HistoryPoint(generated_at=report.generated_at, executive_score=12.3, score_version="v1")
+        prior_v2 = HistoryPoint(generated_at=report.generated_at, executive_score=77.7, score_version="v2")
+        report = dataclasses.replace(report, history=(prior_v1, prior_v2))
+
+        html = render_report_html(report)
+        chart_section = html.split('aria-label="Risk score over time chart"')[1].split("</svg>")[0]
+
+        # The v1 point's score must not appear as a plotted value...
+        assert ">12</text>" not in chart_section
+        # ...while the same-version point still does.
+        assert ">78</text>" in chart_section
+        # And the exclusion must be disclosed, not silently dropped.
+        assert "1 earlier report(s)" in html
+        assert "different formula version" in html
+
+    def test_all_same_version_history_has_no_exclusion_note(self) -> None:
+        from kingsec.domain.report import HistoryPoint
+
+        report = build_report()
+        prior = HistoryPoint(generated_at=report.generated_at, executive_score=50.0, score_version="v2")
+        report = dataclasses.replace(report, history=(prior,))
+        html = render_report_html(report)
+        assert "different formula version" not in html
+
+    def test_only_mixed_version_history_falls_back_to_insufficient_history(self) -> None:
+        """If EVERY prior point is a different formula version than the
+        current report, none are comparable - this must read as
+        insufficient (same-formula) history, honestly, not silently show
+        a single-point chart or crash."""
+        from kingsec.domain.report import HistoryPoint
+
+        report = build_report()
+        prior_v1 = HistoryPoint(generated_at=report.generated_at, executive_score=12.3, score_version="v1")
+        report = dataclasses.replace(report, history=(prior_v1,))
+        html = render_report_html(report)
+        assert "Insufficient history" in html
+        assert "different formula version" in html
 
 
 class TestRiskPrioritization:
