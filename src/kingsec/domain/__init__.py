@@ -31,7 +31,7 @@ from .backup import (
     RestoreOperation,
     RetentionPolicy,
 )
-from .enums import AssessmentStatus, FindingStatus, Role, ScannerRunState, Severity
+from .enums import AssessmentStatus, FindingStatus, Role, ScannerRunState, Severity, SeverityDemotionReason
 from .errors import DomainError, IllegalStateTransition, InvariantViolation, TargetDecompositionError
 from .evidence import Evidence, Recommendation
 from .finding import Finding
@@ -244,6 +244,7 @@ __all__ = [
     "SessionStatus",
     "SessionType",
     "Severity",
+    "SeverityDemotionReason",
     "StartupCheck",
     "SystemMetrics",
     "Target",

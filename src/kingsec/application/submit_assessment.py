@@ -411,6 +411,12 @@ def _execute_scan(
                     # Task 4: survives to the persisted report so the
                     # Limitations section can state real port coverage.
                     port_specification=p.port_specification,
+                    # Phase 2B-c Priority 3: same disclosure, for the
+                    # rate limiting ffuf/gobuster applied this run.
+                    rate_limit_description=p.rate_limit_description,
+                    # Phase 2B-c Priority 4: same disclosure, for a
+                    # FAILED/TIMED_OUT scanner's real stderr.
+                    stderr_excerpt=p.stderr_excerpt,
                 )
                 for p in progress
             )

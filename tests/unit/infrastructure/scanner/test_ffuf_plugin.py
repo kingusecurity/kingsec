@@ -15,7 +15,12 @@ from kingsec.domain import (
     TargetType,
 )
 from kingsec.infrastructure.config.models import FfufSettings
-from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE, ScannerExecutionError
+from kingsec.infrastructure.scanner.errors import (
+    BINARY_ABSENT_USER_MESSAGE,
+    NONZERO_EXIT_USER_MESSAGE,
+    WILDCARD_RESPONSE_USER_MESSAGE,
+    ScannerExecutionError,
+)
 from kingsec.infrastructure.scanner.plugins.ffuf import FfufPlugin
 from kingsec.infrastructure.scanner.runner import CommandResult
 from tests.unit.infrastructure.scanner.conftest import FakeRunner
@@ -39,14 +44,22 @@ _SAMPLE_JSONL = (
 # ---------------------------------------------------------------------------
 
 
+def _not_a_wildcard(url: str, timeout: float) -> bool:
+    """Default fake wildcard probe for every test in this file that
+    isn't specifically testing the wildcard check itself - never makes a
+    real network call, always reports "target 404s normally"."""
+    return False
+
+
 def _make_plugin(
     *,
     binary_path: str = "ffuf",
     wordlist: str = "/usr/share/wordlists/common.txt",
     runner: FakeRunner | None = None,
+    wildcard_probe=_not_a_wildcard,
 ) -> FfufPlugin:
     settings = FfufSettings(binary_path=binary_path, wordlist=wordlist)
-    return FfufPlugin(settings, runner=runner)
+    return FfufPlugin(settings, runner=runner, wildcard_probe=wildcard_probe)
 
 
 # ===========================================================================
@@ -190,6 +203,165 @@ class TestScan:
 
 
 # ===========================================================================
+# Phase 2B-c Priority 3: request-rate limiting
+# ===========================================================================
+
+
+class TestRateLimiting:
+    def test_default_settings_apply_the_conservative_rate_limit(self) -> None:
+        runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))
+        plugin = _make_plugin(runner=runner)
+        plugin.scan(_TARGET, PluginConfig())
+        args = runner.calls[0][0]
+        assert "-rate" in args
+        assert args[args.index("-rate") + 1] == "40"
+
+    def test_rate_limit_per_second_zero_disables_the_flag(self) -> None:
+        settings = FfufSettings(
+            binary_path="ffuf", wordlist="/wordlist.txt", rate_limit_per_second=0
+        )
+        runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))
+        plugin = FfufPlugin(settings, runner=runner, wildcard_probe=_not_a_wildcard)
+        plugin.scan(_TARGET, PluginConfig())
+        args = runner.calls[0][0]
+        assert "-rate" not in args
+
+    def test_operator_configured_rate_in_scan_args_is_not_duplicated(self) -> None:
+        settings = FfufSettings(
+            binary_path="ffuf",
+            wordlist="/wordlist.txt",
+            scan_args=("-rate", "5"),
+        )
+        runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))
+        plugin = FfufPlugin(settings, runner=runner, wildcard_probe=_not_a_wildcard)
+        plugin.scan(_TARGET, PluginConfig())
+        args = runner.calls[0][0]
+        assert args.count("-rate") == 1
+        assert args[args.index("-rate") + 1] == "5"
+
+    def test_scan_result_discloses_the_applied_rate_limit(self) -> None:
+        runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))
+        plugin = _make_plugin(runner=runner)
+        result = plugin.scan(_TARGET, PluginConfig())
+        assert result.rate_limit_description == "40 requests/second (ffuf -rate)"
+
+    def test_scan_result_discloses_disabled_rate_limit(self) -> None:
+        settings = FfufSettings(
+            binary_path="ffuf", wordlist="/wordlist.txt", rate_limit_per_second=0
+        )
+        runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))
+        plugin = FfufPlugin(settings, runner=runner, wildcard_probe=_not_a_wildcard)
+        result = plugin.scan(_TARGET, PluginConfig())
+        assert result.rate_limit_description == "disabled (rate_limit_per_second=0)"
+
+    def test_scan_result_discloses_operator_configured_rate(self) -> None:
+        settings = FfufSettings(
+            binary_path="ffuf",
+            wordlist="/wordlist.txt",
+            scan_args=("-rate", "5"),
+        )
+        runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))
+        plugin = FfufPlugin(settings, runner=runner, wildcard_probe=_not_a_wildcard)
+        result = plugin.scan(_TARGET, PluginConfig())
+        assert result.rate_limit_description == "operator-configured via scan_args (-rate)"
+
+
+# ===========================================================================
+# Phase 2B-c Priority 1a: wildcard/catch-all detection
+# ===========================================================================
+
+
+class TestWildcardDetectionAbortsBeforeFlooding:
+    """Verified against a real target (Juice Shop, an Angular SPA): a
+    random nonexistent path returns HTTP 200, and without this check ffuf
+    matched nearly every wordlist entry against that same catch-all
+    response - 4639 "findings" in one real run
+    (docs/E2E-EVIDENCE-PHASE2B.md Defect 3), dozens scored High purely
+    from the path's name. Matches gobuster's own standard: abort with an
+    actionable reason, never flood."""
+
+    def test_wildcard_response_aborts_before_running_ffuf_at_all(self) -> None:
+        def _is_wildcard(url: str, timeout: float) -> bool:
+            return True
+
+        runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))
+        plugin = _make_plugin(runner=runner, wildcard_probe=_is_wildcard)
+
+        with pytest.raises(ScannerExecutionError) as exc_ctx:
+            plugin.scan(_TARGET, PluginConfig())
+
+        assert exc_ctx.value.user_message == WILDCARD_RESPONSE_USER_MESSAGE
+        # Never a flood, never even a real invocation - the wordlist pass
+        # itself must never run once a wildcard is detected.
+        assert runner.calls == []
+
+    def test_wildcard_abort_reason_is_specific_and_actionable(self) -> None:
+        """Matches gobuster's own standard: name the exact condition and
+        what to do about it, not a generic failure."""
+
+        def _is_wildcard(url: str, timeout: float) -> bool:
+            return True
+
+        runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))
+        plugin = _make_plugin(runner=runner, wildcard_probe=_is_wildcard)
+
+        with pytest.raises(ScannerExecutionError) as exc_ctx:
+            plugin.scan(_TARGET, PluginConfig())
+
+        message = exc_ctx.value.user_message
+        assert "404" in message or "catch-all" in message.lower() or "wildcard" in message.lower()
+        assert message != NONZERO_EXIT_USER_MESSAGE
+
+    def test_probe_receives_a_random_nonexistent_path_under_the_target(self) -> None:
+        seen_urls: list[str] = []
+
+        def _capture(url: str, timeout: float) -> bool:
+            seen_urls.append(url)
+            return False
+
+        runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))
+        plugin = _make_plugin(runner=runner, wildcard_probe=_capture)
+
+        plugin.scan(_TARGET, PluginConfig())
+
+        assert len(seen_urls) == 1
+        assert seen_urls[0].startswith(_TARGET.value)
+        assert seen_urls[0] != _TARGET.value  # a real sub-path, not the bare target
+
+    def test_two_probe_calls_use_different_random_paths(self) -> None:
+        """The probe path must be unpredictable - a fixed, guessable path
+        could itself coincidentally exist on some targets."""
+        seen_urls: list[str] = []
+
+        def _capture(url: str, timeout: float) -> bool:
+            seen_urls.append(url)
+            return False
+
+        runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))
+        plugin1 = _make_plugin(runner=runner, wildcard_probe=_capture)
+        plugin2 = _make_plugin(runner=runner, wildcard_probe=_capture)
+
+        plugin1.scan(_TARGET, PluginConfig())
+        plugin2.scan(_TARGET, PluginConfig())
+
+        assert seen_urls[0] != seen_urls[1]
+
+    def test_non_wildcard_target_proceeds_to_the_real_scan_normally(self) -> None:
+        """Flip side: a target that correctly 404s must not be blocked."""
+
+        def _not_wildcard(url: str, timeout: float) -> bool:
+            return False
+
+        runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))
+        plugin = _make_plugin(runner=runner, wildcard_probe=_not_wildcard)
+
+        result = plugin.scan(_TARGET, PluginConfig())
+
+        assert len(result.findings) == 2
+        assert len(runner.calls) == 1
+
+
+# ===========================================================================
 # Provisioning
 # ===========================================================================
 
@@ -227,6 +399,7 @@ class TestProvisioning:
         ffuf_plugin = FfufPlugin(
             FfufSettings(binary_path="python", wordlist="/tmp/wl.txt"),
             runner=runner,
+            wildcard_probe=_not_a_wildcard,
         )
         registry.register(ffuf_plugin)
 

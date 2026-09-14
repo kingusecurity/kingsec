@@ -472,6 +472,15 @@ ACCEPTANCE:
 
 Track in `docs/PHASES.md`; none of these block revenue.
 
+- **Report-design phase, top item:** the Limitations section is one
+  prose paragraph holding seven independently-built disclosures
+  (point-in-time scope, FP/FN risk, CVE correlation, port coverage,
+  rate limiting, authentication scope, config-change invalidation) - an
+  SME will not read past the first two sentences on page 31. Every
+  disclosure mechanism this project has built feeds into that one
+  paragraph, so restructuring its presentation (subheadings or bullets,
+  not prose) is a prerequisite for any of them actually being read.
+  Full detail: `docs/STATUS.md`, Phase 2C Step 2 backlog entry.
 - Wire up the 4 unenforced licence gates, or delete them
 - Make report branding a real configurable feature, or remove the code
 - Remove the telemetry docstring's claim, or implement opt-in remote reporting

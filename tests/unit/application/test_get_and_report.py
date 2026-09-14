@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 from tests.unit.application.conftest import (
+    CountingAI,
     FailingAI,
     InMemoryAssessmentRepository,
     InMemoryReportRepository,
     StubAI,
     StubReportGenerator,
     StubScanner,
+    UnconfiguredAI,
     make_findings,
 )
 
@@ -29,9 +33,11 @@ from kingsec.application.ports import (
     ReportRepository,
     ScannerPort,
 )
+from kingsec.application.use_cases.generate_report import _AI_ENRICHMENT_MAX_CALLS
 from kingsec.domain import (
     Assessment,
     Authorization,
+    Finding,
     IllegalStateTransition,
     Severity,
     Target,
@@ -39,11 +45,13 @@ from kingsec.domain import (
 )
 
 
-def _completed(assessments: InMemoryAssessmentRepository) -> Assessment:
+def _completed(assessments: InMemoryAssessmentRepository, findings: list[Finding] | None = None) -> Assessment:
     assessment = Assessment.create(Target("10.0.0.5", TargetType.IP_ADDRESS))
     assessment.authorize(Authorization.grant("tester", scope="10.0.0.5"))
     assessments.save(assessment)
-    StartAssessment(assessments, StubScanner(make_findings())).execute(StartAssessmentRequest(str(assessment.id)))
+    StartAssessment(assessments, StubScanner(findings if findings is not None else make_findings())).execute(
+        StartAssessmentRequest(str(assessment.id))
+    )
     return assessment
 
 
@@ -98,12 +106,15 @@ class TestGenerateReport:
         assert report.ai_enabled is False
         assert all(entry.ai_explanation is None for entry in report.entries)
 
-    def test_ai_port_enriches_every_entry(
+    def test_ai_port_enriches_critical_and_high_entries_only(
         self,
         assessments: InMemoryAssessmentRepository,
         reports: InMemoryReportRepository,
         generator: StubReportGenerator,
     ) -> None:
+        # Phase 2B-c Priority 2 (5b): make_findings() is one CRITICAL + one
+        # LOW — only the CRITICAL entry qualifies for enrichment under the
+        # severity floor.
         assessment = _completed(assessments)
         GenerateReport(assessments, reports, generator, ai=StubAI()).execute(
             GenerateReportRequest(str(assessment.id), is_admin=True)
@@ -111,7 +122,50 @@ class TestGenerateReport:
 
         report = reports.get(assessment.id)
         assert report.ai_enabled is True
-        assert all(entry.ai_explanation is not None for entry in report.entries)
+        by_severity = {entry.severity: entry for entry in report.entries}
+        assert by_severity[Severity.CRITICAL].ai_explanation is not None
+        assert by_severity[Severity.LOW].ai_explanation is None
+
+    def test_unconfigured_ai_skips_entire_pass_without_per_finding_calls(
+        self,
+        assessments: InMemoryAssessmentRepository,
+        reports: InMemoryReportRepository,
+        generator: StubReportGenerator,
+    ) -> None:
+        # Phase 2B-c Priority 2 (5a): UnconfiguredAI raises AssertionError if
+        # recommend()/explain_business_risk() is ever called - reaching the
+        # assertions below at all proves the whole pass was skipped, not
+        # attempted-and-caught per finding (the prior behavior that produced
+        # 14,043 identical log lines for one unconfigured report).
+        assessment = _completed(assessments)
+        GenerateReport(assessments, reports, generator, ai=UnconfiguredAI()).execute(
+            GenerateReportRequest(str(assessment.id), is_admin=True)
+        )
+
+        report = reports.get(assessment.id)
+        assert report.ai_enabled is False
+        assert all(entry.ai_explanation is None for entry in report.entries)
+
+    def test_ai_enrichment_has_a_hard_ceiling_regardless_of_severity(
+        self,
+        assessments: InMemoryAssessmentRepository,
+        reports: InMemoryReportRepository,
+        generator: StubReportGenerator,
+    ) -> None:
+        # Phase 2B-c Priority 2 (5b): a report with far more CRITICAL findings
+        # than the ceiling must still never attempt more than the ceiling's
+        # worth of AI calls - "Critical and High only" is not itself a bound
+        # if a target has thousands of critical-severity findings.
+        many_critical = [
+            Finding.create(f"Finding {i}", "detail", Severity.CRITICAL) for i in range(_AI_ENRICHMENT_MAX_CALLS + 25)
+        ]
+        assessment = _completed(assessments, findings=many_critical)
+        counting_ai = CountingAI()
+        GenerateReport(assessments, reports, generator, ai=counting_ai).execute(
+            GenerateReportRequest(str(assessment.id), is_admin=True)
+        )
+
+        assert len(counting_ai.explain_calls) == _AI_ENRICHMENT_MAX_CALLS
 
     def test_failing_ai_degrades_gracefully(
         self,
@@ -165,6 +219,28 @@ class TestGenerateReport:
         history = reports.get(second.id).history
         assert len(history) == 1
         assert history[0].executive_score == first_score
+
+    def test_history_point_carries_the_prior_reports_own_score_version(
+        self,
+        assessments: InMemoryAssessmentRepository,
+        reports: InMemoryReportRepository,
+        generator: StubReportGenerator,
+    ) -> None:
+        """Phase 2C Step 2, Addition B: a history point is meaningless
+        without knowing which formula produced its score - a v1-scored
+        prior report must still say so in the second report's history,
+        not silently inherit "v2" just because that's now the default."""
+        first = _completed(assessments)
+        GenerateReport(assessments, reports, generator).execute(GenerateReportRequest(str(first.id), is_admin=True))
+        v1_report = dataclasses.replace(reports.get(first.id), score_version="v1")
+        reports.save(v1_report)
+
+        second = _completed(assessments)
+        GenerateReport(assessments, reports, generator).execute(GenerateReportRequest(str(second.id), is_admin=True))
+
+        history = reports.get(second.id).history
+        assert len(history) == 1
+        assert history[0].score_version == "v1"
 
     def test_regenerating_the_same_report_does_not_duplicate_itself_in_history(
         self,

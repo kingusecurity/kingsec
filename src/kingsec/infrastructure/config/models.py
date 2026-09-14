@@ -261,7 +261,15 @@ class ScannerSettings(BaseModel):
     # Directory of templates. None -> let the scanner use its own default set.
     templates_dir: Path | None = None
     # Hard wall-clock timeout for a single scan, in seconds (must be positive).
-    timeout_seconds: float = Field(default=300.0, gt=0)
+    # Phase 2B-c small item: raised from 300s to 600s. Task 6's real E2E run
+    # (docs/E2E-EVIDENCE-PHASE2B.md Defect 1) reproduced nuclei genuinely
+    # timing out at 300s against DVWA with the full ~13,900-template set,
+    # while the identical binary/templates completed against Juice Shop -
+    # 300s was too tight for a real target, not just a worst case. Already
+    # operator-configurable via KINGSEC_SCANNER__TIMEOUT_SECONDS, same as
+    # every other field on this settings class - this only changes the
+    # shipped default.
+    timeout_seconds: float = Field(default=600.0, gt=0)
     # Requests-per-second cap: a politeness/safety control (must be positive).
     rate_limit: int = Field(default=150, gt=0)
 
@@ -436,6 +444,13 @@ class GobusterSettings(BaseModel):
     timeout_seconds: float = Field(default=600.0, gt=0)
     # Scan arguments. The adapter appends dir -u <target> -w <wordlist>.
     scan_args: tuple[str, ...] = ()
+    # Phase 2B-c Priority 3: per-request delay in milliseconds (gobuster's
+    # own --delay flag), applied unless the operator's scan_args already
+    # sets --delay. A conservative default (100ms) rather than 0/unlimited -
+    # real throughput also depends on thread count (-t in scan_args),
+    # unmanaged here by design (deliberately narrow, matching port_specification's
+    # own precedent of not becoming a generic "scan parameters" bag).
+    delay_ms: int = Field(default=100, ge=0)
 
     @field_validator("binary_path")
     @classmethod
@@ -460,6 +475,11 @@ class FfufSettings(BaseModel):
     timeout_seconds: float = Field(default=600.0, gt=0)
     # Scan arguments. The adapter appends -u <target>/FUZZ -w <wordlist> -json.
     scan_args: tuple[str, ...] = ()
+    # Phase 2B-c Priority 3: requests/second (ffuf's own -rate flag),
+    # applied unless the operator's scan_args already sets -rate. A
+    # conservative default rather than 0/unlimited - Task 6's real E2E run
+    # against Juice Shop had no rate limit at all. 0 disables limiting.
+    rate_limit_per_second: int = Field(default=40, ge=0)
 
     @field_validator("binary_path")
     @classmethod

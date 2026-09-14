@@ -89,6 +89,8 @@ class ScannerProgress:
     error: str | None = None
     skipped_reason: str | None = None
     port_specification: str | None = None
+    rate_limit_description: str | None = None
+    stderr_excerpt: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -277,6 +279,7 @@ class AssessmentExecutionEngine:
         findings_count: int = 0,
         warnings: tuple[str, ...] = (),
         port_specification: str | None = None,
+        rate_limit_description: str | None = None,
     ) -> None:
         """Mark a scanner as successfully completed."""
         with self._lock:
@@ -304,6 +307,7 @@ class AssessmentExecutionEngine:
                 findings_count=findings_count,
                 warnings=warnings,
                 port_specification=port_specification,
+                rate_limit_description=rate_limit_description,
             )
             state.events.append(ExecutionEvent(
                 event_type="scanner.completed",
@@ -318,6 +322,8 @@ class AssessmentExecutionEngine:
         assessment_id: str,
         scanner_id: str,
         error: str,
+        *,
+        stderr_excerpt: str | None = None,
     ) -> None:
         """Mark a scanner as failed."""
         with self._lock:
@@ -335,6 +341,7 @@ class AssessmentExecutionEngine:
                 start_time=existing.start_time,
                 end_time=now,
                 error=error,
+                stderr_excerpt=stderr_excerpt,
             )
             state.events.append(ExecutionEvent(
                 event_type="scanner.failed",
@@ -349,6 +356,8 @@ class AssessmentExecutionEngine:
         assessment_id: str,
         scanner_id: str,
         error: str,
+        *,
+        stderr_excerpt: str | None = None,
     ) -> None:
         """Mark a scanner as timed out (its watchdog fired).
 
@@ -373,6 +382,7 @@ class AssessmentExecutionEngine:
                 start_time=existing.start_time,
                 end_time=now,
                 error=error,
+                stderr_excerpt=stderr_excerpt,
             )
             state.events.append(ExecutionEvent(
                 event_type="scanner.timed_out",

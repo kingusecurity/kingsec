@@ -59,6 +59,17 @@ class AIPort(ABC):
         guidance.
         """
 
+    @abstractmethod
+    def is_configured(self) -> bool:
+        """Return whether this port can actually reach a provider right now.
+
+        A cheap, local check (e.g. "is an API key present?") with no
+        network call - callers use this to skip an entire enrichment pass
+        up front instead of discovering the same "not configured" failure
+        once per finding (Phase 2B-c Defect 5: 14,043 identical log lines
+        from a 4,000-finding report with no provider configured).
+        """
+
 
 class ReportGeneratorPort(ABC):
     """Renders a domain report into a deliverable artifact (PDF/HTML/etc.)."""

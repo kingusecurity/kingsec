@@ -106,6 +106,13 @@ class FindingORM(Base):
     cwe_ids: Mapped[str | None] = mapped_column(String, nullable=True)
     cvss_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     cvss_vector: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Phase 2B-c Priority 1b: the severity path/status-only classification
+    # would have assigned, and why it was demoted - both NULL when this
+    # finding was never demoted. original_severity stores Severity.name
+    # (same convention as `severity` above); demotion_reason stores
+    # SeverityDemotionReason.value (same convention as `status` above).
+    original_severity: Mapped[str | None] = mapped_column(String, nullable=True)
+    demotion_reason: Mapped[str | None] = mapped_column(String, nullable=True)
 
     assessment: Mapped[AssessmentORM] = relationship(back_populates="findings")
     evidence: Mapped[list["EvidenceORM"]] = relationship(
@@ -203,6 +210,13 @@ class ReportORM(Base):
     assessment_status: Mapped[str] = mapped_column(
         String, nullable=False, default="completed"
     )
+    # Phase 2C Step 2: which executive_score formula this report was
+    # actually scored under ("v1" linear-deduction, deprecated, or "v2"
+    # multiplicative retention) - a report is an immutable snapshot, so
+    # this must never be inferred at read time. Existing rows are
+    # backfilled to "v1" by the migration that introduced this column;
+    # every new row from here on is "v2".
+    score_version: Mapped[str] = mapped_column(String, nullable=False, default="v2")
 
 
 class UserORM(Base):

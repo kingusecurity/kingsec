@@ -14,12 +14,13 @@ on work that isn't finished.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
 from .assessment import Assessment, ScannerRunSummary
-from .enums import AssessmentStatus, FindingStatus, Severity
+from .enums import AssessmentStatus, FindingStatus, Severity, SeverityDemotionReason
 from .errors import IllegalStateTransition
 from .evidence import Evidence, Recommendation
 
@@ -92,17 +93,15 @@ def _coverage_lead(failed: tuple[ScannerRunSummary, ...], total_attempted: int) 
         "see Scanner Coverage for details."
     )
 
-# A deliberately simple, deterministic sizing heuristic keyed off severity —
-# not an estimate of actual engineering hours, which no data source here can
-# support. Stated as a heuristic in the report so it's never mistaken for a
-# precise estimate (see FindingSummary.estimated_effort).
-_EFFORT_BY_SEVERITY: dict[Severity, str] = {
-    Severity.CRITICAL: "Large",
-    Severity.HIGH: "Large",
-    Severity.MEDIUM: "Medium",
-    Severity.LOW: "Small",
-    Severity.INFORMATIONAL: "Small",
-}
+# Phase 2C Step 2, FIX 2: a severity-based "estimated fix effort" heuristic
+# (_EFFORT_BY_SEVERITY, FindingSummary.estimated_effort) used to live here.
+# Removed - real report evidence showed it rendering "Large" for changing a
+# default password (a Critical-severity but trivial-to-fix finding), because
+# severity measures IMPACT, not engineering effort, and no real
+# effort-tracking data exists anywhere upstream to ground an estimate in
+# instead. A fabricated estimate on a customer deliverable is worse than no
+# estimate - do not reintroduce a differently-shaped guess (e.g. by finding
+# type or CWE) without a real data source behind it.
 
 # Generic, curated remediation guidance for finding TYPES the current scanner
 # integrations actually produce — used only as a fallback when no AI (or
@@ -123,9 +122,97 @@ _GENERIC_REMEDIATION_BY_TITLE_PREFIX: tuple[tuple[str, str, str], ...] = (
     ),
 )
 
+# Phase 2C Step 2, FIX 1: real DVWA report evidence showed the single
+# Critical finding (a nuclei dvwa-default-login match, CWE-798) rendering
+# "No specific remediation guidance is available for this finding" - the
+# most important finding in the report was the least actionable, because
+# nuclei templates routinely carry no info.remediation text and the title-
+# prefix table above only ever covered Nmap's "Open port " findings.
+#
+# Keyed by CWE id (normalized upper-case for lookup - Nuclei's own
+# classification.cwe-id has been observed both upper- and lower-case in
+# real captured output, e.g. "cwe-693" for http-missing-security-headers).
+# Covers, at minimum, every CWE actually observed in this project's E2E
+# evidence: CWE-798 (hard-coded credentials), CWE-200 (sensitive
+# information exposure), CWE-614 (cookie missing Secure), CWE-1004
+# (cookie missing HttpOnly), CWE-693 (protection mechanism failure - the
+# CWE nuclei's own http-missing-security-headers.yaml template declares).
+# Real, well-known, CWE-class guidance - same standard as the title-prefix
+# table above, not a fabrication.
+_GENERIC_REMEDIATION_BY_CWE: dict[str, tuple[str, str]] = {
+    "CWE-798": (
+        "Remove hard-coded or default credentials",
+        "Change any default or hard-coded credentials immediately, generate "
+        "unique credentials per deployment at install time, enforce a strong "
+        "password policy, and rotate any credentials that may have been exposed.",
+    ),
+    "CWE-200": (
+        "Restrict exposure of sensitive information",
+        "Review what this response or endpoint discloses and restrict it to "
+        "authorized users only. Remove sensitive data from responses, logs, and "
+        "error messages where it is not required, and apply access controls "
+        "where disclosure is needed for legitimate functionality.",
+    ),
+    "CWE-614": (
+        "Set the Secure attribute on sensitive cookies",
+        "Mark cookies that carry session or sensitive data with the Secure "
+        "attribute (and HttpOnly/SameSite as appropriate) so they are never "
+        "sent over an unencrypted connection, and serve the application "
+        "exclusively over HTTPS.",
+    ),
+    "CWE-1004": (
+        "Set the HttpOnly attribute on sensitive cookies",
+        "Mark cookies that carry session or sensitive data with the HttpOnly "
+        "attribute so they cannot be read or modified by client-side script, "
+        "mitigating session theft via cross-site scripting.",
+    ),
+    "CWE-693": (
+        "Configure the missing protection mechanism",
+        "Configure the specific missing HTTP security header(s) or protection "
+        "mechanism identified in this finding's description at the web server "
+        "or application layer, following current browser/platform security "
+        "best practices appropriate to this application's risk profile.",
+    ),
+}
 
-def generic_remediation_for(title: str, severity: Severity) -> Recommendation | None:
+# Phase 2C Step 2, FIX 1's unconditional requirement: "Never render 'no
+# guidance available' for a Critical or High finding" - stronger than "cover
+# more CWEs", since a Critical/High finding with no CWE at all, or a CWE not
+# yet in the table above, must still never render silence. This is
+# deliberately NOT a technical fix (it cannot honestly claim one for a
+# finding type it doesn't recognize) - it says so plainly and directs the
+# reader to get human judgment, which is a true and useful thing to say
+# about a serious finding this table doesn't yet cover.
+_SEVERITY_FALLBACK_REMEDIATION: dict[Severity, tuple[str, str]] = {
+    Severity.CRITICAL: (
+        "Investigate and remediate immediately",
+        "No specific automated remediation guidance is available for this "
+        "finding type. Given its Critical severity, treat it as urgent: engage "
+        "a security analyst to confirm exploitability and determine the "
+        "appropriate fix before deprioritizing this finding.",
+    ),
+    Severity.HIGH: (
+        "Investigate and remediate promptly",
+        "No specific automated remediation guidance is available for this "
+        "finding type. Given its High severity, have a security analyst assess "
+        "exploitability and determine the appropriate fix promptly.",
+    ),
+}
+
+
+def generic_remediation_for(
+    title: str, severity: Severity, cwe_ids: tuple[str, ...] = ()
+) -> Recommendation | None:
     """A generic recommendation for well-known finding types, or None.
+
+    Checked in order: (1) title-prefix match against a curated table of
+    finding TYPES this project's scanners actually produce, (2) CWE-class
+    match against a curated table of well-known CWE remediation, (3) for
+    Critical/High severity only, an honest "no specific guidance, get human
+    judgment" fallback - see _SEVERITY_FALLBACK_REMEDIATION's own docstring
+    for why that one is deliberately not a technical fix. Below Critical/
+    High, an unmatched finding type still returns None rather than
+    fabricating guidance.
 
     Priority mirrors the finding's own severity (the same convention used for
     AI-generated recommendations) rather than a fixed value.
@@ -133,6 +220,15 @@ def generic_remediation_for(title: str, severity: Severity) -> Recommendation | 
     for prefix, rec_title, rec_description in _GENERIC_REMEDIATION_BY_TITLE_PREFIX:
         if title.startswith(prefix):
             return Recommendation(title=rec_title, description=rec_description, priority=severity)
+    for cwe in cwe_ids:
+        cwe_match = _GENERIC_REMEDIATION_BY_CWE.get(cwe.upper())
+        if cwe_match:
+            rec_title, rec_description = cwe_match
+            return Recommendation(title=rec_title, description=rec_description, priority=severity)
+    severity_fallback = _SEVERITY_FALLBACK_REMEDIATION.get(severity)
+    if severity_fallback:
+        rec_title, rec_description = severity_fallback
+        return Recommendation(title=rec_title, description=rec_description, priority=severity)
     return None
 
 
@@ -148,15 +244,97 @@ _SCORE_PENALTY: dict[Severity, int] = {
 }
 
 
-def compute_executive_score(severity_counts: tuple[tuple[Severity, int], ...]) -> float:
-    """A single 0-100 score from a severity breakdown (100 = no weighted issues).
+def compute_executive_score_v1(severity_counts: tuple[tuple[Severity, int], ...]) -> float:
+    """DEPRECATED (Phase 2C Step 2) — the original linear-deduction formula.
 
-    Deducts a fixed penalty per finding at each severity, floored at 0. This is
-    a deliberately simple, explainable heuristic — not a CVSS-style aggregate —
-    so it can be stated in one sentence in the report.
+    Kept only to reproduce historical reports persisted with
+    score_version="v1" exactly, forever. Never call this for new report
+    generation — use compute_executive_score() (v2) below.
+
+    Defect this formula had (why it was replaced): unbounded linear
+    deduction saturates to 0 on realistic finding counts (4 Criticals, or
+    ~50 Lows, both single-target-realistic), and once saturated a customer
+    who remediates ten findings and re-runs still sees 0 — removing any
+    visible reason to buy a reassessment. See docs/E2E-EVIDENCE-PHASE2B.md
+    and the Phase 2C Step 1 calibration report for the real-data evidence.
     """
     penalty = sum(_SCORE_PENALTY[severity] * count for severity, count in severity_counts)
     return round(max(0.0, min(100.0, 100.0 - penalty)), 1)
+
+
+# Retention constants: PROVISIONAL. Read before changing.
+#
+# CRITICAL (0.72) and HIGH (0.88) are NOT calibrated against real data.
+# Evidence set to date: one observed Critical (a nuclei dvwa-default-login
+# match against DVWA — a deliberately engineered test-fixture weakness,
+# genuine but not organically discovered) and ZERO observed Highs. The only
+# High counts on record came from the ffuf flood defect and are discarded
+# noise. Both constants were chosen for mathematical properties (bounded,
+# strictly monotonic, explainable as "X% of remaining score retained per
+# finding"), not from observation.
+#
+# MEDIUM (0.95) and LOW (0.985) rest on more observations than the above but
+# are also uncalibrated: effectively one target's worth of data (Run 1's 5
+# Medium / 5 Low; Run 2 contributed none after host-service exclusion).
+#
+# CALIBRATE WHEN: at least 10 organically-discovered Critical or High
+# findings exist across 5+ distinct production-representative targets. Until
+# then these are placeholders and the score is a relative indicator, not a
+# measurement.
+#
+# UNDERFLOW: strict monotonicity holds mathematically at any finding count,
+# but stops being visible on screen well before it stops being true. For an
+# all-LOW distribution, computed directly from these constants: two
+# consecutive counts first round to the identical displayed value at
+# N=190 (both show 5.7), and the hard floor — the score rounds to 0.0, a
+# reassessment shows no improvement at all — is reached at N=503. The
+# reassessment-improvement property this formula exists to provide only
+# holds below that floor; do not claim it above. Per-severity hard floors
+# (single-severity distribution, score first rounds to 0.0 at this count):
+# CRITICAL=24, HIGH=60, MEDIUM=149, LOW=503.
+#
+# CRITICAL=24 IS THE ONE THAT MATTERS COMMERCIALLY, not just mathematically.
+# Twenty-four Criticals is a realistic count for a genuinely compromised
+# environment (not a flood-defect artifact the way thousands of Lows are) -
+# beyond it, this score can no longer tell an SME "very bad" apart from
+# "catastrophic"; both render as 0.0/Critical-band. An SME target will
+# likely never reach this. An enterprise pilot, scanning a larger or
+# already-compromised estate, might - better documented here than
+# discovered in front of one.
+#
+# Full account: docs/E2E-EVIDENCE-PHASE2B.md
+_SCORE_RETENTION: dict[Severity, float] = {
+    Severity.CRITICAL: 0.72,
+    Severity.HIGH: 0.88,
+    Severity.MEDIUM: 0.95,
+    Severity.LOW: 0.985,
+    Severity.INFORMATIONAL: 1.00,
+}
+
+
+def compute_executive_score(severity_counts: tuple[tuple[Severity, int], ...]) -> float:
+    """A single 0-100 score from a severity breakdown (100 = no weighted issues).
+
+    v2 (Phase 2C Step 2): a bounded, strictly-monotonic multiplicative
+    retention model — replaces the old linear-deduction formula
+    (compute_executive_score_v1 above), which saturated to 0 on realistic
+    finding counts and could never show a customer that remediation
+    improved their score. Computed in log-space for numerical stability on
+    large finding counts. See _SCORE_RETENTION's own docstring above for
+    which constants are calibrated against real data and which aren't.
+
+    This is a proprietary, explainable heuristic — it is explicitly NOT
+    CVSS, CIS, or NIST-derived, borrows no vocabulary or methodology from
+    those standards, and must not be presented as equivalent to or scored
+    against them.
+    """
+    log_sum = sum(
+        count * math.log(_SCORE_RETENTION[severity])
+        for severity, count in severity_counts
+        if _SCORE_RETENTION[severity] > 0
+    )
+    score = 100.0 * math.exp(log_sum)
+    return round(max(0.0, min(100.0, score)), 1)
 
 
 @dataclass(frozen=True, slots=True)
@@ -245,6 +423,14 @@ class FindingSummary:
     # dependency). None means "not attempted or the AI call failed for this
     # finding"; the report renders an honest note in that case.
     ai_explanation: str | None = None
+    # Phase 2B-c Priority 1b: carried straight from the source Finding -
+    # both None unless a scanner's content-based heuristic demoted this
+    # finding's severity below what path/status-only scoring would have
+    # assigned. Structured, so the report can disclose demotions honestly
+    # (see _severity_demotion_note in templates.py) rather than silently
+    # changing the answer.
+    original_severity: Severity | None = None
+    demotion_reason: SeverityDemotionReason | None = None
 
     @property
     def evidence_count(self) -> int:
@@ -257,30 +443,35 @@ class FindingSummary:
     @property
     def effective_recommendations(self) -> tuple[Recommendation, ...]:
         """Real (AI/analyst) recommendations if any exist, else a generic
-        fallback for well-known finding types (see ``generic_remediation_for``).
-        Never fabricates for finding types not in that curated table."""
+        fallback: by finding-type title, then by CWE class, then (Critical/
+        High only) an honest "get human judgment" note - see
+        ``generic_remediation_for``'s own docstring for the exact order.
+        Below Critical/High, never fabricates for finding types not in the
+        curated tables."""
         if self.recommendations:
             return self.recommendations
-        generic = generic_remediation_for(self.title, self.severity)
+        generic = generic_remediation_for(self.title, self.severity, self.cwe_ids)
         return (generic,) if generic else ()
-
-    @property
-    def estimated_effort(self) -> str:
-        """A deterministic severity-based sizing heuristic (Large/Medium/Small).
-
-        This is not a data-driven estimate — no real effort-tracking data
-        exists anywhere upstream — so it's a stated heuristic, not a specific
-        time/hours claim.
-        """
-        return _EFFORT_BY_SEVERITY[self.severity]
 
 
 @dataclass(frozen=True, slots=True)
 class HistoryPoint:
-    """One prior report's score for the same target, for a trend chart."""
+    """One prior report's score for the same target, for a trend chart.
+
+    Phase 2C Step 2, Addition B: carries score_version because a score is
+    meaningless without knowing which formula produced it (the same reason
+    Report itself carries score_version) - a trend chart plotting v1 and
+    v2 points as if directly comparable would show apparent improvement or
+    decline that is really just a formula change. Defaults to "v2" (the
+    current formula) purely to match Report's own default; every real
+    construction site (GenerateReport._with_history, mappers.report_to_domain,
+    templates._risk_over_time_chart) sets it explicitly rather than relying
+    on this default.
+    """
 
     generated_at: datetime
     executive_score: float
+    score_version: str = "v2"
 
 
 @dataclass(frozen=True, slots=True)
@@ -320,6 +511,14 @@ class Report:
     # existed. Defaults to COMPLETED only for pre-existing callers/fixtures
     # that never set it explicitly.
     assessment_status: AssessmentStatus = AssessmentStatus.COMPLETED
+    # Phase 2C Step 2: which executive_score formula this report was
+    # actually scored under. A report is an immutable snapshot - a report
+    # persisted with score_version="v1" must keep reporting its v1 score
+    # forever, never be silently rescored under a later formula on read.
+    # Defaults to "v2" (the current formula) for every new report; existing
+    # persisted rows are backfilled to "v1" by the Alembic migration that
+    # introduced this field.
+    score_version: str = "v2"
 
     @classmethod
     def from_assessment(cls, assessment: Assessment, *, generated_at: datetime | None = None) -> Report:
@@ -361,6 +560,8 @@ class Report:
                 cwe_ids=f.cwe_ids,
                 cvss_score=f.cvss_score,
                 cvss_vector=f.cvss_vector,
+                original_severity=f.original_severity,
+                demotion_reason=f.demotion_reason,
             )
             for f in ordered
         )
@@ -392,7 +593,12 @@ class Report:
 
     @property
     def executive_score(self) -> float:
-        """A single 0-100 aggregate score derived from the severity breakdown."""
+        """A single 0-100 aggregate score derived from the severity breakdown,
+        computed under whichever formula this report was actually scored
+        with (score_version) — never silently rescored under a newer
+        formula just because one now exists."""
+        if self.score_version == "v1":
+            return compute_executive_score_v1(self.severity_counts)
         return compute_executive_score(self.severity_counts)
 
     def count_for(self, severity: Severity) -> int:

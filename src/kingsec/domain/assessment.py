@@ -58,6 +58,16 @@ class ScannerRunSummary:
     # report so the Limitations section can state real port coverage
     # instead of implying "assessment of <target>" means every port.
     port_specification: str | None = None
+    # Phase 2B-c Priority 3: the same disclosure, for request-rate
+    # limiting - only ffuf/gobuster populate this. See ScannerResult's
+    # identical field (domain/scanner.py) for the full rationale.
+    rate_limit_description: str | None = None
+    # Phase 2B-c Priority 4 (recurring-class instance nine): the raw
+    # stderr tail from a FAILED/TIMED_OUT scanner's own subprocess -
+    # already captured at raise time (every scanner's ScannerExecutionError
+    # includes it in context["stderr"]) but previously dead-ended there,
+    # never reaching the operator. None for a SUCCEEDED/SKIPPED run.
+    stderr_excerpt: str | None = None
 
 # Legal state transitions. An empty set marks a terminal state.
 _ALLOWED_ASSESSMENT_TRANSITIONS: dict[AssessmentStatus, set[AssessmentStatus]] = {

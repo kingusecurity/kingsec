@@ -146,6 +146,7 @@ class InMemoryReportRepository(ReportRepository):
                 verdict_action_required=r.verdict.action_required,
                 total_findings=r.total_findings,
                 executive_score=r.executive_score,
+                score_version=r.score_version,
             )
             for r in page
         ]
@@ -182,6 +183,9 @@ class StubAI(AIPort):
     def explain_business_risk(self, finding: Finding) -> str:
         return f"AI-generated business-risk explanation for {finding.title}."
 
+    def is_configured(self) -> bool:
+        return True
+
 
 class FailingAI(AIPort):
     def recommend(self, finding: Finding) -> Recommendation:
@@ -189,6 +193,43 @@ class FailingAI(AIPort):
 
     def explain_business_risk(self, finding: Finding) -> str:
         raise RuntimeError("AI provider unavailable")
+
+    def is_configured(self) -> bool:
+        return True
+
+
+class UnconfiguredAI(AIPort):
+    """Phase 2B-c Priority 2 (5a): simulates no AI provider configured at
+    all - ``is_configured()`` is False, so callers must skip the entire
+    enrichment pass without ever calling recommend()/explain_business_risk()."""
+
+    def recommend(self, finding: Finding) -> Recommendation:
+        raise AssertionError("recommend() must not be called when is_configured() is False")
+
+    def explain_business_risk(self, finding: Finding) -> str:
+        raise AssertionError("explain_business_risk() must not be called when is_configured() is False")
+
+    def is_configured(self) -> bool:
+        return False
+
+
+class CountingAI(AIPort):
+    """Phase 2B-c Priority 2 (5b): records every ``explain_business_risk()``
+    call so tests can assert the hard enrichment ceiling is actually
+    enforced, not just documented."""
+
+    def __init__(self) -> None:
+        self.explain_calls: list[Finding] = []
+
+    def recommend(self, finding: Finding) -> Recommendation:
+        return Recommendation(title=f"Fix {finding.title}", description="stub", priority=finding.severity)
+
+    def explain_business_risk(self, finding: Finding) -> str:
+        self.explain_calls.append(finding)
+        return f"AI-generated business-risk explanation for {finding.title}."
+
+    def is_configured(self) -> bool:
+        return True
 
 
 class StubReportGenerator(ReportGeneratorPort):

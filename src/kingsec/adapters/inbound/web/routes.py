@@ -22,6 +22,7 @@ Security notes
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -540,7 +541,10 @@ async def generate_report(
         requesting_username=current_user.username,
         is_admin=_is_admin(current_user),
     )
-    result = service.generate_report(request)
+    # Phase 2B-c Priority 2 (5c): report generation renders a PDF/HTML
+    # artifact synchronously (WeasyPrint) - offload to a thread so a large
+    # report never blocks the event loop for every other request in flight.
+    result = await asyncio.to_thread(service.generate_report, request)
     return schemas.GenerateReportResponse(
         assessment_id=result.assessment_id,
         verdict=result.verdict,
@@ -1138,7 +1142,11 @@ async def download_report(
     repo: ReportRepository = app.resolve(ReportRepository)
     generator: ReportGeneratorPort = app.resolve(ReportGeneratorPort)
     report = repo.get(AssessmentId(assessment_id))
-    rendered = generator.render(report, format=format)
+    # Phase 2B-c Priority 2 (5c): same offload as generate_report() above -
+    # render() is a blocking WeasyPrint call (5d also makes this a cheap
+    # cache read on repeat calls, but the first render for a given report
+    # still pays the full cost and must not block the event loop).
+    rendered = await asyncio.to_thread(generator.render, report, format=format)
     from fastapi.responses import Response
 
     return Response(

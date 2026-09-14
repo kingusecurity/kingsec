@@ -245,6 +245,12 @@ class ScannerResult:
     port_specification: str | None = None
     scanner_version: str | None = None
     warnings: tuple[str, ...] = ()
+    # Phase 2B-c Priority 3: what rate limiting actually applied this run,
+    # in the scanner's own terms (e.g. "40 requests/second (ffuf -rate)").
+    # Only ffuf/gobuster populate this; every other scanner leaves it None.
+    # Deliberately narrow, same precedent as port_specification above - see
+    # infrastructure/scanner/ffuf.py's resolve_rate_limit_description().
+    rate_limit_description: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.scanner_id, ScannerId):

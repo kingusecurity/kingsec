@@ -126,6 +126,27 @@ def safe_failure_message(exc: BaseException) -> str:
     return KingSecError.default_user_message
 
 
+def scanner_stderr_excerpt(exc: BaseException) -> str | None:
+    """The raw stderr tail captured in a scanner failure's context, if any
+    (Phase 2B-c Priority 4 - recurring-class instance nine: a scanner's
+    real failure reason was captured at raise time but dead-ended in an
+    exception's context, never reaching the operator).
+
+    Deliberately distinct from safe_failure_message() above: this is the
+    scanner TOOL's own diagnostic output (already truncated to 500 chars
+    at the point of capture - see e.g. ffuf.py's ScannerExecutionError
+    raise sites), not free-form exception text, and is surfaced only in
+    the Scanner Coverage section for the operator reviewing why a run
+    failed - never folded into the generic safe_failure_message() used
+    at the application error boundary.
+    """
+    if isinstance(exc, KingSecError):
+        stderr = exc.context.get("stderr")
+        if isinstance(stderr, str) and stderr:
+            return stderr
+    return None
+
+
 def compose_all_scanners_failed_message(failed_scanners: Sequence[ScannerRunSummary]) -> str:
     """A safe, user-facing failure_reason for an assessment where every
     attempted scanner failed.

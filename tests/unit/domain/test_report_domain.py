@@ -14,7 +14,7 @@ from kingsec.domain import (
     Severity,
 )
 from kingsec.domain.enums import ScannerRunState
-from kingsec.domain.report import compute_executive_score, generic_remediation_for
+from kingsec.domain.report import compute_executive_score, compute_executive_score_v1, generic_remediation_for
 
 # Old (pre-Phase-2A) string vocabulary -> ScannerRunState, for the test
 # helpers/fixtures below that still spell statuses the old way.
@@ -295,24 +295,122 @@ class TestOrderingAndCounts:
         assert entry.recommendation_count == 1
 
 
-class TestExecutiveScore:
+class TestExecutiveScoreV1:
+    """compute_executive_score_v1: the deprecated linear-deduction formula,
+    kept only to replay historical score_version="v1" reports exactly."""
+
     def test_no_findings_scores_100(self) -> None:
-        assert compute_executive_score(()) == 100.0
+        assert compute_executive_score_v1(()) == 100.0
 
     def test_deducts_per_severity_weight(self) -> None:
         counts = ((Severity.CRITICAL, 1), (Severity.LOW, 2))
         # 100 - (1*25 + 2*2) = 71.0
-        assert compute_executive_score(counts) == 71.0
+        assert compute_executive_score_v1(counts) == 71.0
 
     def test_floors_at_zero(self) -> None:
         counts = ((Severity.CRITICAL, 10),)
-        assert compute_executive_score(counts) == 0.0
+        assert compute_executive_score_v1(counts) == 0.0
 
-    def test_report_exposes_matching_score(self, running) -> None:
+    def test_report_with_v1_score_version_uses_v1_formula(self, running) -> None:
         _complete(running, [make_finding(Severity.HIGH), make_finding(Severity.LOW)])
-        report = Report.from_assessment(running)
+        report = dataclasses.replace(Report.from_assessment(running), score_version="v1")
         # 100 - (1*10 + 1*2) = 88.0
         assert report.executive_score == 88.0
+
+
+class TestExecutiveScoreV2:
+    """Phase 2C Step 2: compute_executive_score (v2) - the current,
+    multiplicative retention model. Reference values are the Phase 2C
+    Step 1 calibration report's own 8 verified values (docs/audits, and
+    Downloads/KINGSEC-PHASE-2C-STEP1-CALIBRATION-REPORT.txt)."""
+
+    @pytest.mark.parametrize(
+        ("counts", "expected"),
+        [
+            ((), 100.0),
+            (((Severity.LOW, 1),), 98.5),
+            (((Severity.MEDIUM, 10),), 59.9),
+            (((Severity.CRITICAL, 1),), 72.0),
+            (((Severity.CRITICAL, 4),), 26.9),
+            (((Severity.LOW, 50),), 47.0),
+            (((Severity.LOW, 200),), 4.9),
+            (
+                (
+                    (Severity.HIGH, 2),
+                    (Severity.MEDIUM, 3),
+                    (Severity.LOW, 20),
+                    (Severity.INFORMATIONAL, 5),
+                ),
+                49.1,
+            ),
+        ],
+    )
+    def test_reference_values_exact(self, counts, expected) -> None:
+        assert compute_executive_score(counts) == expected
+
+    def test_report_defaults_to_v2(self, running) -> None:
+        _complete(running, [make_finding(Severity.HIGH), make_finding(Severity.LOW)])
+        report = Report.from_assessment(running)
+        assert report.score_version == "v2"
+        # retention: 0.88 * 0.985 = 0.8668 -> 86.68 -> rounds to 86.7
+        assert report.executive_score == 86.7
+
+    def test_informational_findings_never_change_the_score(self) -> None:
+        baseline = ((Severity.CRITICAL, 1), (Severity.MEDIUM, 3), (Severity.LOW, 10))
+        base_score = compute_executive_score(baseline)
+        for info_count in (0, 1, 5, 100, 10_000):
+            with_info = (*baseline, (Severity.INFORMATIONAL, info_count))
+            assert compute_executive_score(with_info) == base_score
+
+    @pytest.mark.parametrize(
+        "counts",
+        [
+            ((Severity.CRITICAL, 1),),
+            ((Severity.HIGH, 5),),
+            ((Severity.MEDIUM, 20),),
+            ((Severity.LOW, 50),),
+            ((Severity.LOW, 100),),
+            ((Severity.LOW, 189),),  # one below the first visible tie at N=190
+            ((Severity.CRITICAL, 2), (Severity.HIGH, 3), (Severity.MEDIUM, 10), (Severity.LOW, 50)),
+            ((Severity.CRITICAL, 1), (Severity.LOW, 1)),
+        ],
+    )
+    def test_removing_a_finding_strictly_increases_score_below_underflow_threshold_n190(self, counts) -> None:
+        """Strict monotonicity holds mathematically at any count (see
+        _SCORE_RETENTION's docstring, domain/report.py), but stops being
+        OBSERVABLE at the 1-decimal rendered score once two consecutive
+        counts round identically - for an all-LOW distribution that first
+        happens at N=190. This test is scoped to distributions below that
+        point specifically so the property is checked where it's actually
+        visible, not claimed past where it silently stops mattering."""
+        before = compute_executive_score(counts)
+        for i, (severity, _count) in enumerate(counts):
+            reduced = tuple(
+                (s, c - 1) if j == i else (s, c) for j, (s, c) in enumerate(counts)
+            )
+            reduced = tuple((s, c) for s, c in reduced if c > 0)
+            after = compute_executive_score(reduced)
+            assert after > before, f"removing one {severity.name} did not increase the score ({before} -> {after})"
+
+    @pytest.mark.parametrize(
+        "counts",
+        [
+            ((Severity.CRITICAL, 10_000),),
+            ((Severity.HIGH, 10_000),),
+            ((Severity.MEDIUM, 10_000),),
+            ((Severity.LOW, 10_000),),
+            ((Severity.INFORMATIONAL, 10_000),),
+            (
+                (Severity.CRITICAL, 2_500),
+                (Severity.HIGH, 2_500),
+                (Severity.MEDIUM, 2_500),
+                (Severity.LOW, 2_500),
+            ),
+        ],
+    )
+    def test_score_stays_within_bounds_for_counts_up_to_10000(self, counts) -> None:
+        score = compute_executive_score(counts)
+        assert 0.0 <= score <= 100.0
 
 
 class TestGenericRemediation:
@@ -322,9 +420,51 @@ class TestGenericRemediation:
         assert "firewall" in rec.description.lower()
         assert rec.priority is Severity.LOW  # mirrors the finding's own severity
 
-    def test_unknown_finding_type_returns_none(self) -> None:
-        # Never fabricate guidance for finding types not in the curated table.
-        assert generic_remediation_for("Some exotic zero-day finding", Severity.HIGH) is None
+    def test_unknown_finding_type_below_high_returns_none(self) -> None:
+        # Never fabricate guidance for finding types not in the curated
+        # tables - below Critical/High, where FIX 1's unconditional
+        # guidance requirement does not apply, this still stays honest.
+        assert generic_remediation_for("Some exotic zero-day finding", Severity.MEDIUM) is None
+        assert generic_remediation_for("Some exotic zero-day finding", Severity.LOW) is None
+        assert generic_remediation_for("Some exotic zero-day finding", Severity.INFORMATIONAL) is None
+
+    def test_cwe_798_gets_hardcoded_credentials_guidance(self) -> None:
+        """Phase 2C Step 2, FIX 1: the exact real-data regression this fix
+        closes - a nuclei dvwa-default-login match (CWE-798) with no
+        scanner-supplied remediation must no longer render silence."""
+        rec = generic_remediation_for("DVWA Default Login", Severity.CRITICAL, cwe_ids=("CWE-798",))
+        assert rec is not None
+        assert "credential" in rec.description.lower()
+        assert rec.priority is Severity.CRITICAL
+
+    def test_cwe_lookup_is_case_insensitive(self) -> None:
+        # Real captured Nuclei output has shown lower-case "cwe-693" for the
+        # same classification a template's YAML declares as "CWE-693".
+        rec = generic_remediation_for("HTTP Missing Security Headers", Severity.INFORMATIONAL, cwe_ids=("cwe-693",))
+        assert rec is not None
+        assert "protection mechanism" in rec.description.lower()
+
+    def test_all_evidence_cwes_are_covered(self) -> None:
+        """FIX 1: 'Cover at minimum the CWEs actually observed in our
+        evidence (798, 200, 614, 1004, 693).'"""
+        for cwe in ("CWE-798", "CWE-200", "CWE-614", "CWE-1004", "CWE-693"):
+            assert generic_remediation_for("Some finding", Severity.MEDIUM, cwe_ids=(cwe,)) is not None
+
+    def test_unmatched_cwe_falls_through_to_severity_fallback_for_high(self) -> None:
+        rec = generic_remediation_for("Some exotic zero-day finding", Severity.HIGH, cwe_ids=("CWE-9999",))
+        assert rec is not None
+
+    def test_critical_or_high_never_returns_none_even_with_no_cwe(self) -> None:
+        # FIX 1's unconditional requirement: "Never render 'no guidance
+        # available' for a Critical or High finding" - even one with no
+        # CWE at all and no title-prefix match.
+        assert generic_remediation_for("Some exotic zero-day finding", Severity.CRITICAL) is not None
+        assert generic_remediation_for("Some exotic zero-day finding", Severity.HIGH) is not None
+
+    def test_severity_fallback_is_honest_not_a_fabricated_technical_fix(self) -> None:
+        rec = generic_remediation_for("Some exotic zero-day finding", Severity.CRITICAL)
+        assert rec is not None
+        assert "no specific automated remediation guidance is available" in rec.description.lower()
 
     def test_finding_summary_falls_back_when_no_real_recommendation(self, running) -> None:
         finding = make_finding(Severity.LOW, title="Open port 22/tcp")
@@ -351,21 +491,11 @@ class TestGenericRemediation:
         assert entry.effective_recommendations == ()
 
 
-class TestEstimatedEffort:
-    def test_critical_and_high_are_large(self, running) -> None:
-        _complete(running, [make_finding(Severity.CRITICAL), make_finding(Severity.HIGH)])
-        report = Report.from_assessment(running)
-        assert all(entry.estimated_effort == "Large" for entry in report.entries)
-
-    def test_medium_is_medium(self, running) -> None:
-        _complete(running, [make_finding(Severity.MEDIUM)])
-        report = Report.from_assessment(running)
-        assert report.entries[0].estimated_effort == "Medium"
-
-    def test_low_and_informational_are_small(self, running) -> None:
-        _complete(running, [make_finding(Severity.LOW), make_finding(Severity.INFORMATIONAL)])
-        report = Report.from_assessment(running)
-        assert all(entry.estimated_effort == "Small" for entry in report.entries)
+# Phase 2C Step 2, FIX 2: TestEstimatedEffort removed along with
+# FindingSummary.estimated_effort itself - a severity-based effort
+# heuristic (e.g. "Large" for changing a default password) is not
+# grounded in any real data and was visibly wrong on a real report;
+# removed rather than replaced with a differently-shaped guess.
 
 
 class TestAuthorizationMetadata:

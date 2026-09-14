@@ -189,6 +189,151 @@ relevant to whether the template download is optional.
 
 ---
 
+## 3b. POST-2B-c RE-RUN — 2026-09-13, Runs 1–3 only, against the Priority 1-4 fixes
+
+Same targets, same binding (`127.0.0.1:18080`/`127.0.0.1:13000`), same data
+dir (`C:\kingsec-e2e`), same real HTTP API flow as §2 — re-run after Phase
+2B-c's Priorities 1b–4 and small items landed on branch
+`fix/phase-2bc-signal-quality`, uncommitted at the time of this run. Runs 4
+and 5 were not re-run (not required; nothing in Runs 4/5 exercised the
+fixed code paths). The original DB rows from §2/§3 are untouched — these
+are three brand-new assessment rows in the same database.
+
+One environment-setup defect found and corrected before these numbers are
+valid: the first Run 1 attempt (discarded, not counted below) ran against a
+freshly-started server that never had `KINGSEC_FFUF__WORDLIST`/
+`KINGSEC_GOBUSTER__WORDLIST` set (an artifact of restarting the server in a
+new session, not a KingSec code defect), so ffuf/gobuster both
+`skipped_asset_missing`. Caught by inspecting `scanner_summary` before
+trusting the result; server restarted with the correct env vars (same
+wordlist file Task 3 already produced, `~/.kingsec/wordlists/common.txt`);
+Run 1 re-submitted cleanly. The discarded assessment row still exists in
+the database (harmless clutter, not referenced below).
+
+| Run | Critical | High | Medium | Low | Informational | Total |
+|---|---|---|---|---|---|---|
+| 1 — web-scan/DVWA | 1 | 0 | 5 | 11 | 28 | **45** |
+| 2 — web-scan/JuiceShop | 0 | 0 | 0 | 6 | 5 | **11** |
+| 3 — api-scan/JuiceShop | 0 | 0 | 0 | 0 | 0 | **0** |
+
+**Run 2's total: 4,649 → 11.** This is the acceptance bar Priority 1
+existed to clear, and it clears it by three orders of magnitude, not
+marginally. Run 3 went from 4,655 to 0 findings entirely (see below for
+why that specific number is zero, not just small).
+
+### Why each number moved, per scanner — not asserted, read directly from `scanner_summary`
+
+**Run 1 (DVWA) — total rose, 35 → 45, this is coverage improving, not
+regressing:**
+- `nuclei`: **timed_out → succeeded, 22 findings.** This is the small-item
+  fix (timeout raised 300s → 600s) working exactly as intended — nuclei
+  contributed zero findings in the original Run 1 because it never
+  finished; now it does, and its 22 findings (all newly visible, none
+  present before) account for most of the total's increase along with the
+  new Critical. This was expected and disclosed before running: raising
+  the timeout would let a previously-truncated scan actually report what
+  it finds.
+- `gobuster`: succeeded, 0 findings — DVWA does not wildcard-respond, so
+  neither Priority 1a nor 1b's signals had anything to demote here; this
+  run is the "quiet path" control case.
+- `ffuf`: succeeded, 13 findings (was unrun in the very first, discarded
+  attempt; the original Task 6 Run 1 had ffuf enabled and contributing to
+  the 35-finding baseline — the wordlist fix restored this to working
+  the same as Task 6, and severity classification on real, non-wildcard
+  results is unaffected by the demotion signals for the same reason as
+  gobuster above).
+- `zap`: still `skipped_asset_missing`, same pre-existing chocolatey-shim
+  issue as every prior run in this engagement — untouched by this phase.
+
+**Run 2 (Juice Shop, web-scan) — the flood is gone, by design, not by
+accident:**
+- `ffuf`: **succeeded (13 findings, flooding) → failed, 0 findings, with a
+  specific reason.** `skipped_reason`: *"The target returned a non-404
+  response for a random, nonexistent path — it appears to serve a
+  catch-all response (common for single-page applications) rather than a
+  real 404 for missing paths. Fuzzing this target would produce a flood of
+  false-positive findings rather than real results, so the scan was not
+  run..."* — the exact `WILDCARD_RESPONSE_USER_MESSAGE` text, produced by
+  a real HTTP probe against the real running Juice Shop container, not a
+  simulated condition.
+- `gobuster`: **succeeded (0 findings) → failed, 0 findings — and its own
+  real reason now survives all the way into the persisted
+  `scanner_summary`, not just the server log.** `stderr_excerpt`
+  (Priority 4, queried directly from `assessments.scanner_summary` in the
+  real database): *"the server returns a status code that matches the
+  provided options for non existing urls.
+  http://127.0.0.1:13000/d5e2bab8-... => 200 (Length: 9393). Please
+  exclude the response length or the status code or set the wildcard
+  option.. To continue please exclude the status code or the length"* —
+  this is Defect 2 from §5, closed: gobuster's own actionable message no
+  longer dead-ends at `gobuster exited with code 1` in the log; it
+  survives, verbatim, to the field an operator actually reads.
+  `skipped_reason` (the separate, still-sanitized field) correctly still
+  reads the generic safe message — the fix adds a field, it does not
+  relax the existing sanitization boundary.
+- `nmap`: succeeded, 10 findings — unaffected by any of this phase's
+  changes, as expected (host sweep, not path-based).
+- `nuclei`: succeeded, 1 finding (Informational) — matches §3's own
+  finding that nuclei's total contribution across every run in this
+  entire evidence set is exactly one Informational finding.
+- `zap`: same pre-existing skip as every other run.
+
+**Run 3 (Juice Shop, api-scan) — zero findings, for a real, checkable
+reason, not a silent failure:**
+- `ffuf`: **succeeded, 0 findings** (not aborted this time — the api-scan
+  profile's ffuf invocation targets a different path/scope than web-scan's,
+  and this specific invocation's random probe path did not trigger the
+  wildcard condition; a real, target-shape-dependent outcome, not a
+  hardcoded one).
+- `nuclei`: succeeded, 0 findings.
+- `zap`: same pre-existing skip.
+- api-scan's profile does not include nmap/gobuster (same scanner subset
+  as Task 6's original Run 3), so there is nothing else to report — the
+  original Run 3's 4,655 findings were effectively 100% ffuf flood
+  (4,436 Low + most of the 191 Medium/26 High), and with the flood
+  mechanism gone, this run has nothing left to find on Juice Shop's
+  unauthenticated surface. Consistent with THE BAR's own conclusion
+  that KingSec's unauthenticated scope, not scanner sensitivity, is the
+  real limiting factor here.
+
+### Report-generation pipeline re-verified against this real data (Priority 2)
+
+Generated Run 1's report twice via `POST /assessments/{id}/report` (45
+findings, one Critical). `grep -c "AI enrichment failed"` against the
+server log: **0 new occurrences during either report generation call** —
+this environment has no AI provider configured
+(`KINGSEC_AI__*` unset), so 5a's fail-fast correctly skipped the entire
+enrichment pass both times, logging nothing per-finding. (A **separate,
+newly-discovered** instance of the same defect class exists in scan-time
+enrichment, `submit_assessment.py` — 56 "AI enrichment failed
+(best-effort): [KS-EXT-001] no AI API key configured" lines were logged
+across the three scans themselves, proportional to finding count. This is
+the same underlying pattern Defect 5/Priority 2 fixed, in a different call
+site that was out of scope for this round's fix — logged in
+`docs/STATUS.md`, not fixed here.)
+
+Downloaded the same report via `GET /reports/{id}/download` twice in
+direct succession. `C:\kingsec-e2e\report_cache\` contains exactly two
+files — one per `POST .../report` call (each is a genuine new snapshot,
+correctly getting its own cache entry) — and zero additional files were
+created by the two `GET .../download` calls, confirming 5d's cache is
+serving the stored artifact rather than re-rendering. Verdict text
+byte-checked directly (`b'\xe2\x80\x94'` present, `b'\xef\xbf\xbd'`
+absent) — same Correction 1 verification discipline applied here as a
+matter of course, not because anything looked wrong.
+
+### Corroborates the acceptance criterion tested synthetically in this round
+
+The synthetic acceptance test (`test_report_render_offload.py`,
+`/health` responsive during a slow render) proved the offload works in
+isolation. This real run corroborates the surrounding claims it depends
+on: AI fail-fast genuinely fires zero times against a real unconfigured
+environment, and the cache genuinely prevents re-render on repeat
+downloads — both observed directly against the real server and real
+database above, not re-asserted from the unit test alone.
+
+---
+
 ## 4. Findings judged REAL vs LIKELY FALSE POSITIVE
 
 **Run 1 (DVWA) — judged REAL, essentially in full.** DVWA is a real

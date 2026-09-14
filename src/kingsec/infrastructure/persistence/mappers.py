@@ -36,6 +36,7 @@ from kingsec.domain import (
     ScannerRunState,
     ScannerRunSummary,
     Severity,
+    SeverityDemotionReason,
     Target,
     TargetDecompositionError,
     TargetType,
@@ -126,6 +127,8 @@ def finding_to_orm(finding: Finding) -> FindingORM:
         cwe_ids=_ids_to_column(finding.cwe_ids),
         cvss_score=finding.cvss_score,
         cvss_vector=finding.cvss_vector,
+        original_severity=finding.original_severity.name if finding.original_severity is not None else None,
+        demotion_reason=finding.demotion_reason.value if finding.demotion_reason is not None else None,
         evidence=[
             EvidenceORM(
                 summary=item.summary,
@@ -155,6 +158,8 @@ def _scanner_summary_to_json(summary: tuple[ScannerRunSummary, ...]) -> list[dic
             "skipped_reason": s.skipped_reason,
             "warnings": list(s.warnings),
             "port_specification": s.port_specification,
+            "rate_limit_description": s.rate_limit_description,
+            "stderr_excerpt": s.stderr_excerpt,
         }
         for s in summary
     ]
@@ -170,6 +175,8 @@ def _scanner_summary_from_json(entries: list[Any]) -> tuple[ScannerRunSummary, .
             skipped_reason=e.get("skipped_reason"),
             warnings=tuple(e.get("warnings", ())),
             port_specification=e.get("port_specification"),
+            rate_limit_description=e.get("rate_limit_description"),
+            stderr_excerpt=e.get("stderr_excerpt"),
         )
         for e in (entries or [])
     )
@@ -237,19 +244,26 @@ def report_to_orm(report: Report) -> ReportORM:
                 "cwe_ids": list(entry.cwe_ids),
                 "cvss_score": entry.cvss_score,
                 "cvss_vector": entry.cvss_vector,
+                "original_severity": entry.original_severity.name if entry.original_severity is not None else None,
+                "demotion_reason": entry.demotion_reason.value if entry.demotion_reason is not None else None,
             }
             for entry in report.entries
         ],
         severity_counts=[[severity.name, count] for severity, count in report.severity_counts],
         ai_enabled=report.ai_enabled,
         history=[
-            {"generated_at": h.generated_at.isoformat(), "executive_score": h.executive_score}
+            {
+                "generated_at": h.generated_at.isoformat(),
+                "executive_score": h.executive_score,
+                "score_version": h.score_version,
+            }
             for h in report.history
         ],
         authorized_by=report.authorized_by,
         scope=report.scope,
         scanner_summary=_scanner_summary_to_json(report.scanner_summary),
         assessment_status=report.assessment_status.value,
+        score_version=report.score_version,
     )
 
 
@@ -287,6 +301,8 @@ def finding_to_domain(orm: FindingORM) -> Finding:
         cwe_ids=_ids_from_column(orm.cwe_ids),
         cvss_score=orm.cvss_score,
         cvss_vector=orm.cvss_vector,
+        original_severity=Severity[orm.original_severity] if orm.original_severity is not None else None,
+        demotion_reason=SeverityDemotionReason(orm.demotion_reason) if orm.demotion_reason is not None else None,
     )
 
 
@@ -390,6 +406,10 @@ def _finding_summary_from_json(entry: dict[str, Any]) -> FindingSummary:
         cwe_ids=tuple(entry.get("cwe_ids", ())),
         cvss_score=entry.get("cvss_score"),
         cvss_vector=entry.get("cvss_vector"),
+        original_severity=(Severity[entry["original_severity"]] if entry.get("original_severity") else None),
+        demotion_reason=(
+            SeverityDemotionReason(entry["demotion_reason"]) if entry.get("demotion_reason") else None
+        ),
     )
 
 
@@ -406,6 +426,11 @@ def report_to_domain(orm: ReportORM) -> Report:
         HistoryPoint(
             generated_at=datetime.fromisoformat(h["generated_at"]),
             executive_score=h["executive_score"],
+            # Rows persisted before this field existed have no key here -
+            # they were, factually, scored under the only formula that
+            # existed then ("v1"), same backfill semantic as the
+            # reports.score_version column's own migration default.
+            score_version=h.get("score_version", "v1"),
         )
         for h in (orm.history or [])
     )
@@ -422,6 +447,7 @@ def report_to_domain(orm: ReportORM) -> Report:
         scope=orm.scope,
         scanner_summary=_scanner_summary_from_json(orm.scanner_summary),
         assessment_status=AssessmentStatus(orm.assessment_status),
+        score_version=orm.score_version,
     )
 
 

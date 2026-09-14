@@ -7,6 +7,8 @@ on the Module 2.4 container. The container is duck-typed (needs only
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from kingsec.application import ReportGeneratorPort
 from kingsec.infrastructure._container import ContainerProtocol
 from kingsec.infrastructure.logging import get_logger
@@ -21,6 +23,7 @@ def register_reporting(
     *,
     output_format: str = "pdf",
     brand_name: str = "KingSec",
+    cache_dir: Path | None = None,
 ) -> ReportGeneratorPort:
     """Register the report generator adapter as ``ReportGeneratorPort``.
 
@@ -29,12 +32,14 @@ def register_reporting(
             ``register_instance``). The Module 2.4 ``Container`` satisfies this.
         output_format: ``"pdf"`` (default) or ``"html"``.
         brand_name: Company branding placeholder for the report.
+        cache_dir: Phase 2B-c Priority 2 (5d) - directory for cached
+            rendered artifacts. ``None`` (the default) disables caching.
 
     Returns:
         The registered ``ReportGeneratorPort`` implementation.
     """
-    adapter = ReportGeneratorAdapter(output_format=output_format, brand_name=brand_name)
+    adapter = ReportGeneratorAdapter(output_format=output_format, brand_name=brand_name, cache_dir=cache_dir)
     register = container.register_instance
     register(ReportGeneratorPort, adapter)
-    _logger.info("reporting registered", format=output_format)
+    _logger.info("reporting registered", format=output_format, cached=cache_dir is not None)
     return adapter

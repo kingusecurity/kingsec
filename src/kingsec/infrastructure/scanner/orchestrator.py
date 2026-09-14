@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import cast
 
-from kingsec.application._support import safe_failure_message
+from kingsec.application._support import safe_failure_message, scanner_stderr_excerpt
 from kingsec.application.assessment_execution import AssessmentExecutionEngine
 from kingsec.application.errors import ScannerPluginError
 from kingsec.application.ports.scanner_executor import ScannerExecutor
@@ -155,6 +155,7 @@ class ScannerOrchestrator(ScannerPort, ScannerExecutor):
                         findings_count=len(result.findings),
                         warnings=result.warnings,
                         port_specification=result.port_specification,
+                        rate_limit_description=result.rate_limit_description,
                     )
             except Exception as exc:
                 # `exc` here is the (now-sanitized, per execute()'s own
@@ -175,10 +176,22 @@ class ScannerOrchestrator(ScannerPort, ScannerExecutor):
                     error=str(original),
                 )
                 if engine is not None and tid is not None:
+                    # Phase 2B-c Priority 4 (recurring-class instance nine):
+                    # the scanner's own stderr, already captured in the
+                    # real exception's context by every adapter's
+                    # ScannerExecutionError raise - read from `original`
+                    # (never the sanitized `exc`), so it survives past
+                    # safe_failure_message()'s deliberate stripping instead
+                    # of dead-ending here.
+                    stderr_excerpt = scanner_stderr_excerpt(original)
                     if is_timeout:
-                        engine.timeout_scanner(tid, plugin_id.value, safe_failure_message(exc))
+                        engine.timeout_scanner(
+                            tid, plugin_id.value, safe_failure_message(exc), stderr_excerpt=stderr_excerpt
+                        )
                     else:
-                        engine.fail_scanner(tid, plugin_id.value, safe_failure_message(exc))
+                        engine.fail_scanner(
+                            tid, plugin_id.value, safe_failure_message(exc), stderr_excerpt=stderr_excerpt
+                        )
 
         return tuple(results)
 

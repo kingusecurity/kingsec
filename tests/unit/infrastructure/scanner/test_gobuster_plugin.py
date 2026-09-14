@@ -180,6 +180,66 @@ class TestScan:
 
 
 # ===========================================================================
+# Phase 2B-c Priority 3: request-rate limiting
+# ===========================================================================
+
+
+class TestRateLimiting:
+    def test_default_settings_apply_the_conservative_delay(self) -> None:
+        runner = FakeRunner(CommandResult(0, _SAMPLE_OUTPUT, "", 0.1))
+        plugin = _make_plugin(runner=runner)
+        plugin.scan(_TARGET, PluginConfig())
+        args = runner.calls[0][0]
+        assert "--delay" in args
+        assert args[args.index("--delay") + 1] == "100ms"
+
+    def test_delay_ms_zero_disables_the_flag(self) -> None:
+        settings = GobusterSettings(binary_path="gobuster", wordlist="/wordlist.txt", delay_ms=0)
+        runner = FakeRunner(CommandResult(0, _SAMPLE_OUTPUT, "", 0.1))
+        plugin = GobusterPlugin(settings, runner=runner)
+        plugin.scan(_TARGET, PluginConfig())
+        args = runner.calls[0][0]
+        assert "--delay" not in args
+
+    def test_operator_configured_delay_in_scan_args_is_not_duplicated(self) -> None:
+        settings = GobusterSettings(
+            binary_path="gobuster",
+            wordlist="/wordlist.txt",
+            scan_args=("--delay", "10ms"),
+        )
+        runner = FakeRunner(CommandResult(0, _SAMPLE_OUTPUT, "", 0.1))
+        plugin = GobusterPlugin(settings, runner=runner)
+        plugin.scan(_TARGET, PluginConfig())
+        args = runner.calls[0][0]
+        assert args.count("--delay") == 1
+        assert args[args.index("--delay") + 1] == "10ms"
+
+    def test_scan_result_discloses_the_applied_delay(self) -> None:
+        runner = FakeRunner(CommandResult(0, _SAMPLE_OUTPUT, "", 0.1))
+        plugin = _make_plugin(runner=runner)
+        result = plugin.scan(_TARGET, PluginConfig())
+        assert result.rate_limit_description == "100ms delay per request (gobuster --delay)"
+
+    def test_scan_result_discloses_disabled_delay(self) -> None:
+        settings = GobusterSettings(binary_path="gobuster", wordlist="/wordlist.txt", delay_ms=0)
+        runner = FakeRunner(CommandResult(0, _SAMPLE_OUTPUT, "", 0.1))
+        plugin = GobusterPlugin(settings, runner=runner)
+        result = plugin.scan(_TARGET, PluginConfig())
+        assert result.rate_limit_description == "disabled (delay_ms=0)"
+
+    def test_scan_result_discloses_operator_configured_delay(self) -> None:
+        settings = GobusterSettings(
+            binary_path="gobuster",
+            wordlist="/wordlist.txt",
+            scan_args=("--delay", "10ms"),
+        )
+        runner = FakeRunner(CommandResult(0, _SAMPLE_OUTPUT, "", 0.1))
+        plugin = GobusterPlugin(settings, runner=runner)
+        result = plugin.scan(_TARGET, PluginConfig())
+        assert result.rate_limit_description == "operator-configured via scan_args (--delay)"
+
+
+# ===========================================================================
 # Provisioning
 # ===========================================================================
 

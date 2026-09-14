@@ -53,3 +53,21 @@ WORDLIST_MISSING_USER_MESSAGE = (
     "The scanner's configured wordlist could not be found. "
     "Check the scanner's configuration in the deployment environment."
 )
+
+# Phase 2B-c Priority 1a: a target that returns a non-404 status for a
+# guaranteed-nonexistent path is a catch-all/wildcard responder (common
+# for single-page apps, whose router serves the same 200 page for any
+# path). Fuzzing it word-by-word produces thousands of false "findings" -
+# see docs/E2E-EVIDENCE-PHASE2B.md Defect 3. gobuster already refuses to
+# proceed on this exact condition with an actionable message; this is
+# ffuf's equivalent, matching that same standard.
+WILDCARD_RESPONSE_USER_MESSAGE = (
+    "The target returned a non-404 response for a random, nonexistent path - "
+    "it appears to serve a catch-all response (common for single-page "
+    "applications) rather than a real 404 for missing paths. Fuzzing this "
+    "target would produce a flood of false-positive findings rather than "
+    "real results, so the scan was not run. If this target genuinely behaves "
+    "this way and should still be fuzzed, configure response filtering "
+    "(e.g. ffuf's -fc/-fs/-fw flags) via the scanner's scan_args to exclude "
+    "the wildcard response."
+)

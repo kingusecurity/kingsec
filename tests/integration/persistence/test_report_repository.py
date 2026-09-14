@@ -21,6 +21,7 @@ from kingsec.domain import (
     Finding,
     Report,
     Severity,
+    SeverityDemotionReason,
     Target,
     TargetType,
 )
@@ -204,6 +205,40 @@ class TestMapping:
         assert len(loaded.entries) == len(report.entries)
         assert loaded.entries[0].title == report.entries[0].title
 
+    def test_round_trip_preserves_severity_demotion_metadata(
+        self, repo: SQLAlchemyReportRepository, session: Session
+    ) -> None:
+        # Phase 2B-c Priority 1b: this is the Report/JSON-entries path (what
+        # the rendered PDF and API actually read) - complements the
+        # Finding/SQL-column round trip in test_assessment_repository.py.
+        a_id = AssessmentId.generate()
+        target = Target("example.com", TargetType.HOSTNAME)
+        assessment = Assessment(a_id, target)
+        assessment.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=UTC), scope="*"))
+        assessment.start()
+        assessment.record_finding(
+            Finding.create(
+                "HTTP 200 - /.env",
+                "generic catch-all response",
+                Severity.LOW,
+                original_severity=Severity.HIGH,
+                demotion_reason=SeverityDemotionReason.CONTENT_TYPE_MISMATCH,
+            )
+        )
+        assessment.complete()
+        SQLAlchemyAssessmentRepository(session).save(assessment)
+        session.flush()
+        report = Report.from_assessment(assessment)
+
+        repo.save(report)
+        session.flush()
+
+        loaded = repo.get(AssessmentId(report.assessment_id))
+        entry = loaded.entries[0]
+        assert entry.severity == Severity.LOW
+        assert entry.original_severity == Severity.HIGH
+        assert entry.demotion_reason == SeverityDemotionReason.CONTENT_TYPE_MISMATCH
+
     def test_round_trip_preserves_severity_counts(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
         report = make_report(session)
         repo.save(report)
@@ -262,6 +297,55 @@ class TestMapping:
 # ===========================================================================
 # Edge cases
 # ===========================================================================
+
+
+class TestScoreVersion:
+    """Phase 2C Step 2: a report is an immutable snapshot - one persisted
+    with score_version="v1" (the deprecated linear-deduction formula)
+    must keep reporting its v1 score forever, on both the detail path
+    (Report.executive_score) and the list-view projection
+    (SQLAlchemyReportRepository._compute_score), never be silently
+    rescored under v2 just because that's now the default formula."""
+
+    def test_new_report_defaults_to_v2(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
+        report = make_report(session)
+        assert report.score_version == "v2"
+        repo.save(report)
+        session.flush()
+
+        loaded = repo.get(AssessmentId(report.assessment_id))
+        assert loaded.score_version == "v2"
+
+    def test_v1_report_loaded_from_db_still_reports_v1_score(
+        self, repo: SQLAlchemyReportRepository, session: Session
+    ) -> None:
+        report = dataclasses.replace(make_report(session), score_version="v1")
+        repo.save(report)
+        session.flush()
+
+        loaded = repo.get(AssessmentId(report.assessment_id))
+        assert loaded.score_version == "v1"
+
+        from kingsec.domain.report import compute_executive_score, compute_executive_score_v1
+
+        assert loaded.executive_score == compute_executive_score_v1(loaded.severity_counts)
+        assert loaded.executive_score != compute_executive_score(loaded.severity_counts)
+
+    def test_list_view_score_agrees_with_v1_detail_score(
+        self, repo: SQLAlchemyReportRepository, session: Session
+    ) -> None:
+        # The historical bug this closes: the list-view projection had its
+        # own independent _compute_score() call site that always used
+        # whichever formula was current, disagreeing with the detail view
+        # for any v1-scored row.
+        report = dataclasses.replace(make_report(session), score_version="v1")
+        repo.save(report)
+        session.flush()
+
+        detail = repo.get(AssessmentId(report.assessment_id))
+        projections, _ = repo.list(is_admin=True)
+        listed = next(p for p in projections if p.assessment_id == report.assessment_id)
+        assert listed.executive_score == detail.executive_score
 
 
 class TestEdgeCases:
