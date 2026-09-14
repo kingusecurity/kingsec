@@ -114,27 +114,19 @@ class TestBusinessImpact:
         assert "AI" not in html
         assert "provider" not in html.lower()
 
-    def test_no_ai_provider_configured_contains_no_reference_to_it_at_all(self) -> None:
-        """Required test (Task 4 FIX 2): a report rendered with no AI
-        provider configured contains no reference to provider
-        availability, configuration, or AI at all - even though this
-        report DOES have a Critical finding that would benefit from a
-        business-impact explanation (build_report()'s default fixture),
-        making this the harder case than the no-findings one above.
-        "configuration" is checked within the Business Impact section
-        specifically, not the whole document - the unrelated Limitations
-        sentence about the SCANNED TARGET's configuration is a different,
-        legitimate use of the same English word."""
+    def test_no_ai_explanation_omits_the_business_impact_section_entirely(self) -> None:
+        """Phase 2C Step 2, FIX 3: real report evidence showed a Critical
+        finding's card rendering "No business-impact explanation is
+        available for this finding" - a section whose content is only its
+        own absence. Fixed: no AI provider configured (build_report()'s
+        default fixture has a CRITICAL finding but no explanation) must
+        omit the Business Impact section entirely, and reference neither
+        AI, a provider, nor an unavailable explanation anywhere."""
         html = render_report_html(build_report())  # ai_enabled=False by default
         assert "AI" not in html
         assert "provider" not in html.lower()
-        start = html.find('<section id="business-impact">')
-        end = html.find("</section>", start) + len("</section>")
-        business_impact_html = html[start:end]
-        assert "configur" not in business_impact_html.lower()
-        # Still honest that no explanation exists for this finding -
-        # just without saying why.
-        assert "No business-impact explanation is available for this finding" in business_impact_html
+        assert '<section id="business-impact">' not in html
+        assert "No business-impact explanation is available" not in html
 
     def test_ai_enabled_renders_explanation_text(self) -> None:
         report = build_report()
@@ -147,12 +139,35 @@ class TestBusinessImpact:
         assert "could expose customer data" in html
         assert "No business-impact explanation is available" not in html
 
-    def test_ai_enabled_but_call_failed_shows_per_finding_note_no_ai_mention(self) -> None:
+    def test_ai_enabled_but_call_failed_omits_the_section_no_ai_mention(self) -> None:
+        """A failed AI call (ai_enabled=True but every explanation stays
+        None) must behave identically to no provider configured at all -
+        FIX 3 omits the section by the finding's actual explanation
+        content, not by whether a provider was configured."""
         report = dataclasses.replace(build_report(), ai_enabled=True)  # entries keep ai_explanation=None
         html = render_report_html(report)
-        assert "No business-impact explanation is available for this finding" in html
+        assert '<section id="business-impact">' not in html
         assert "AI" not in html
         assert "provider" not in html.lower()
+
+    def test_some_findings_explained_others_not_only_explained_ones_render(self) -> None:
+        """Mixed case: when SOME Critical/High findings have a real
+        explanation and others don't, the ones without one render
+        nothing - not mentioned in this section at all - rather than an
+        empty-stub card."""
+        report = build_report()
+        critical = next(e for e in report.entries if e.severity is Severity.CRITICAL)
+        explained = dataclasses.replace(
+            critical, title="Explained Critical", ai_explanation="Business risk: could expose customer data."
+        )
+        unexplained = dataclasses.replace(critical, title="Unexplained Critical", ai_explanation=None)
+        report = dataclasses.replace(report, entries=(explained, unexplained), ai_enabled=True)
+        html = render_report_html(report)
+        start = html.find('<section id="business-impact">')
+        end = html.find("</section>", start) + len("</section>")
+        business_impact_html = html[start:end]
+        assert "Explained Critical" in business_impact_html
+        assert "Unexplained Critical" not in business_impact_html
 
     def test_no_critical_or_high_findings_skips_analysis(self) -> None:
         report = build_report(title="Missing headers")
@@ -166,11 +181,19 @@ class TestBusinessImpact:
 
 
 class TestRemediationSteps:
-    def test_renders_recommendation_text_and_effort(self) -> None:
+    def test_renders_recommendation_text(self) -> None:
         html = render_report_html(build_report())
         assert "Fix" in html and "use params" in html  # from the fixture's Recommendation
-        assert "Estimated fix effort" in html
-        assert "Large" in html  # the fixture's CRITICAL finding
+
+    def test_no_longer_renders_a_fabricated_effort_estimate(self) -> None:
+        # Phase 2C Step 2, FIX 2: a severity-based "estimated fix effort"
+        # (e.g. "Large" for a Critical finding, regardless of how trivial
+        # the actual fix is) was removed rather than replaced with a
+        # differently-shaped guess - no real effort-tracking data exists
+        # anywhere upstream to ground an estimate in.
+        html = render_report_html(build_report())
+        assert "Estimated fix effort" not in html
+        assert "estimated fix effort" not in html
 
     def test_finding_without_recommendation_gets_honest_note(self) -> None:
         # The fixture's second finding ("Missing headers", LOW) has no recommendation,
@@ -342,6 +365,32 @@ class TestUrgentActionFraming:
         html = render_report_html(report)
         assert "Critical finding(s) present" in html
         assert "High-severity finding(s) present" in html
+
+    def test_generic_action_required_callout_is_suppressed_when_urgent_framing_fires(self) -> None:
+        """Phase 2C Step 2, FIX 4: real report evidence showed the urgent
+        Critical framing immediately followed by the weaker generic
+        "Action required. Remediation is recommended..." callout, two
+        lines apart - the second dilutes the first. build_report()'s
+        default fixture has a Critical finding, so urgent framing fires
+        and the generic callout must not appear at all."""
+        html = render_report_html(build_report())
+        assert "Critical finding(s) present" in html
+        assert "Action required." not in html
+        assert "Remediation is recommended for the issues identified below" not in html
+
+    def test_generic_action_required_callout_still_renders_for_low_only_reports(self) -> None:
+        """FIX 4 must not suppress the generic callout unconditionally -
+        only when the urgent Critical/High framing actually fired. A
+        Low-only report (which still sets verdict.action_required) must
+        keep showing it, since there is no urgent framing to reinforce."""
+        report = build_report()
+        low_entries = tuple(dataclasses.replace(e, severity=Severity.LOW) for e in report.entries)
+        report = self._with_entries(report, low_entries)
+        html = render_report_html(report)
+        assert "Critical finding(s) present" not in html
+        assert "High-severity finding(s) present" not in html
+        assert "Action required." in html
+        assert "Remediation is recommended for the issues identified below" in html
 
 
 class TestNoSignalBandOverride:
@@ -732,12 +781,16 @@ class TestRiskOverTimeVersionDisclosure:
 
 
 class TestRiskPrioritization:
-    def test_lists_findings_worst_first_with_effort(self) -> None:
+    def test_lists_findings_worst_first(self) -> None:
         html = render_report_html(build_report())
         # The fixture's CRITICAL finding must appear before the LOW one in the list.
         section = html.split('id="risk-prioritization"')[1].split("</section>")[0]
         assert section.index("SQL Injection") < section.index("Missing headers")
-        assert "estimated fix effort: Large" in section
+
+    def test_no_longer_renders_a_fabricated_effort_estimate(self) -> None:
+        html = render_report_html(build_report())
+        section = html.split('id="risk-prioritization"')[1].split("</section>")[0]
+        assert "estimated fix effort" not in section.lower()
 
 
 class TestAffectedAssets:

@@ -682,11 +682,26 @@ def _executive_summary(report: Report) -> str:
             "explainable measure, not a formal risk-modeling output."
         )
 
+    urgent_note = _urgent_action_note(report)
+    # Phase 2C Step 2, FIX 4: real report evidence showed the Critical/High
+    # framing ("...immediate remediation required.") immediately followed,
+    # two lines later, by the weaker generic "Action required. Remediation
+    # is recommended for the issues identified below." - the second dilutes
+    # the first rather than reinforcing it. Suppressed whenever the urgent
+    # framing already fired: it already states action is required, more
+    # specifically and more strongly, so the generic callout adds nothing
+    # and only softens the message. Reports with no Critical/High finding
+    # (e.g. Medium/Low-only, which still set verdict.action_required) are
+    # unaffected - they never had urgent framing to begin with.
     action = (
-        '<p class="callout action-required"><strong>Action required.</strong> '
-        "Remediation is recommended for the issues identified below.</p>"
-        if verdict.action_required
-        else '<p class="callout">No immediate action is required.</p>'
+        ""
+        if urgent_note
+        else (
+            '<p class="callout action-required"><strong>Action required.</strong> '
+            "Remediation is recommended for the issues identified below.</p>"
+            if verdict.action_required
+            else '<p class="callout">No immediate action is required.</p>'
+        )
     )
     score_panel = (
         '<div class="score-panel">'
@@ -705,7 +720,7 @@ def _executive_summary(report: Report) -> str:
         f"{escape(report.generated_at.strftime('%Y-%m-%d'))}. {escape(verdict.headline)} "
         f"The assessment recorded <strong>{report.total_findings}</strong> finding(s) in total, "
         f"with a highest observed severity of <strong>{escape(highest)}</strong>.</p>"
-        f"{_urgent_action_note(report)}"
+        f"{urgent_note}"
         f"{score_panel}"
         f"{action}"
         "</section>"
@@ -755,9 +770,17 @@ def _business_impact(report: Report) -> str:
     got that sentence, directly contradicting the very next sentence
     ("no business-impact analysis is required"). Fixed: no top-level
     callout about explanation availability at all, ever. If no analysis
-    is required, the report says only that. If findings exist without a
-    real explanation, each card says so in plain terms with no mention
-    of AI, a provider, or configuration - see _business_impact_card().
+    is required, the report says only that.
+
+    Phase 2C Step 2, FIX 3: real report evidence showed a Critical
+    finding's card rendering "No business-impact explanation is available
+    for this finding." - a customer-facing section whose entire content is
+    an absence, the same defect class Task 4 FIX 2 above closed for the
+    top-level callout but had not yet closed per-finding. Fixed the same
+    way: a finding with no real explanation renders NOTHING here (not
+    mentioned in this section at all), and if none of the Critical/High
+    findings have a real explanation, the whole section is omitted -
+    never a card, or a section, whose content is only its own absence.
     """
     critical = [e for e in report.entries if e.severity in (Severity.CRITICAL, Severity.HIGH)]
     if not critical:
@@ -765,22 +788,22 @@ def _business_impact(report: Report) -> str:
             "<p>No Critical or High severity findings were identified, so no "
             "business-impact analysis is required for this assessment.</p>"
         )
-    else:
-        body = "".join(_business_impact_card(e) for e in critical)
-    return f'<section id="business-impact"><h2>Business Impact</h2>{body}</section>'
+        return f'<section id="business-impact"><h2>Business Impact</h2>{body}</section>'
+
+    cards = "".join(_business_impact_card(e) for e in critical if e.ai_explanation)
+    if not cards:
+        return ""
+    return f'<section id="business-impact"><h2>Business Impact</h2>{cards}</section>'
 
 
 def _business_impact_card(entry: FindingSummary) -> str:
-    # Task 4 FIX 2: no mention of AI, a provider, or configuration here -
-    # this is a customer deliverable, and which optional integration the
-    # assessor has or hasn't set up is not the customer's business. State
-    # the plain fact (no explanation is available for this finding) and
-    # nothing about why.
-    text = entry.ai_explanation or "No business-impact explanation is available for this finding."
+    # Only ever called for a finding that HAS a real ai_explanation - see
+    # _business_impact()'s own docstring for why findings without one are
+    # no longer rendered here at all.
     return (
         '<div class="finding-card">'
         f"<h3>{_badge(entry.severity)} {escape(entry.title)}</h3>"
-        f"<p>{escape(text)}</p>"
+        f"<p>{escape(entry.ai_explanation or '')}</p>"
         "</div>"
     )
 
@@ -954,17 +977,21 @@ def _visual_elements(report: Report) -> str:
 
 def _risk_prioritization(report: Report) -> str:
     """A ranked "fix this first" action list, reusing the already worst-first
-    entry ordering plus the severity-based effort heuristic — pure
-    presentation over data Units 2-3 already computed, no new domain logic.
+    entry ordering — pure presentation over data Units 2-3 already
+    computed, no new domain logic.
+
+    Phase 2C Step 2, FIX 2: previously appended a severity-based "estimated
+    fix effort" (e.g. "Large" for changing a default password) - visibly
+    wrong on real report evidence, since severity measures impact, not
+    engineering effort, and no real effort-tracking data exists anywhere
+    upstream to ground an estimate in. Removed rather than replaced with a
+    differently-guessed heuristic: a fabricated estimate on a customer
+    deliverable is worse than no estimate.
     """
     if not report.entries:
         return ""
     items = "".join(
-        "<li>"
-        f"{_badge(entry.severity)} <strong>{escape(entry.title)}</strong> "
-        f"— estimated fix effort: {escape(entry.estimated_effort)}"
-        "</li>"
-        for entry in report.entries
+        f"<li>{_badge(entry.severity)} <strong>{escape(entry.title)}</strong></li>" for entry in report.entries
     )
     return (
         '<section id="risk-prioritization">'
@@ -1203,8 +1230,6 @@ def _remediation_card(entry: FindingSummary) -> str:
     return (
         '<div class="finding-card">'
         f"<h3>{_badge(entry.severity)} {escape(entry.title)}</h3>"
-        f"<p>Estimated fix effort: <strong>{escape(entry.estimated_effort)}</strong> "
-        "<span class=\"subtitle\">(severity-based heuristic, not a measured estimate)</span></p>"
         f"<ul>{recs_html}</ul>"
         "</div>"
     )
