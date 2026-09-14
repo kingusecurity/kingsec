@@ -420,9 +420,51 @@ class TestGenericRemediation:
         assert "firewall" in rec.description.lower()
         assert rec.priority is Severity.LOW  # mirrors the finding's own severity
 
-    def test_unknown_finding_type_returns_none(self) -> None:
-        # Never fabricate guidance for finding types not in the curated table.
-        assert generic_remediation_for("Some exotic zero-day finding", Severity.HIGH) is None
+    def test_unknown_finding_type_below_high_returns_none(self) -> None:
+        # Never fabricate guidance for finding types not in the curated
+        # tables - below Critical/High, where FIX 1's unconditional
+        # guidance requirement does not apply, this still stays honest.
+        assert generic_remediation_for("Some exotic zero-day finding", Severity.MEDIUM) is None
+        assert generic_remediation_for("Some exotic zero-day finding", Severity.LOW) is None
+        assert generic_remediation_for("Some exotic zero-day finding", Severity.INFORMATIONAL) is None
+
+    def test_cwe_798_gets_hardcoded_credentials_guidance(self) -> None:
+        """Phase 2C Step 2, FIX 1: the exact real-data regression this fix
+        closes - a nuclei dvwa-default-login match (CWE-798) with no
+        scanner-supplied remediation must no longer render silence."""
+        rec = generic_remediation_for("DVWA Default Login", Severity.CRITICAL, cwe_ids=("CWE-798",))
+        assert rec is not None
+        assert "credential" in rec.description.lower()
+        assert rec.priority is Severity.CRITICAL
+
+    def test_cwe_lookup_is_case_insensitive(self) -> None:
+        # Real captured Nuclei output has shown lower-case "cwe-693" for the
+        # same classification a template's YAML declares as "CWE-693".
+        rec = generic_remediation_for("HTTP Missing Security Headers", Severity.INFORMATIONAL, cwe_ids=("cwe-693",))
+        assert rec is not None
+        assert "protection mechanism" in rec.description.lower()
+
+    def test_all_evidence_cwes_are_covered(self) -> None:
+        """FIX 1: 'Cover at minimum the CWEs actually observed in our
+        evidence (798, 200, 614, 1004, 693).'"""
+        for cwe in ("CWE-798", "CWE-200", "CWE-614", "CWE-1004", "CWE-693"):
+            assert generic_remediation_for("Some finding", Severity.MEDIUM, cwe_ids=(cwe,)) is not None
+
+    def test_unmatched_cwe_falls_through_to_severity_fallback_for_high(self) -> None:
+        rec = generic_remediation_for("Some exotic zero-day finding", Severity.HIGH, cwe_ids=("CWE-9999",))
+        assert rec is not None
+
+    def test_critical_or_high_never_returns_none_even_with_no_cwe(self) -> None:
+        # FIX 1's unconditional requirement: "Never render 'no guidance
+        # available' for a Critical or High finding" - even one with no
+        # CWE at all and no title-prefix match.
+        assert generic_remediation_for("Some exotic zero-day finding", Severity.CRITICAL) is not None
+        assert generic_remediation_for("Some exotic zero-day finding", Severity.HIGH) is not None
+
+    def test_severity_fallback_is_honest_not_a_fabricated_technical_fix(self) -> None:
+        rec = generic_remediation_for("Some exotic zero-day finding", Severity.CRITICAL)
+        assert rec is not None
+        assert "no specific automated remediation guidance is available" in rec.description.lower()
 
     def test_finding_summary_falls_back_when_no_real_recommendation(self, running) -> None:
         finding = make_finding(Severity.LOW, title="Open port 22/tcp")
@@ -449,21 +491,11 @@ class TestGenericRemediation:
         assert entry.effective_recommendations == ()
 
 
-class TestEstimatedEffort:
-    def test_critical_and_high_are_large(self, running) -> None:
-        _complete(running, [make_finding(Severity.CRITICAL), make_finding(Severity.HIGH)])
-        report = Report.from_assessment(running)
-        assert all(entry.estimated_effort == "Large" for entry in report.entries)
-
-    def test_medium_is_medium(self, running) -> None:
-        _complete(running, [make_finding(Severity.MEDIUM)])
-        report = Report.from_assessment(running)
-        assert report.entries[0].estimated_effort == "Medium"
-
-    def test_low_and_informational_are_small(self, running) -> None:
-        _complete(running, [make_finding(Severity.LOW), make_finding(Severity.INFORMATIONAL)])
-        report = Report.from_assessment(running)
-        assert all(entry.estimated_effort == "Small" for entry in report.entries)
+# Phase 2C Step 2, FIX 2: TestEstimatedEffort removed along with
+# FindingSummary.estimated_effort itself - a severity-based effort
+# heuristic (e.g. "Large" for changing a default password) is not
+# grounded in any real data and was visibly wrong on a real report;
+# removed rather than replaced with a differently-shaped guess.
 
 
 class TestAuthorizationMetadata:

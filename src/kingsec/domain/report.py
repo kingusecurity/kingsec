@@ -93,17 +93,15 @@ def _coverage_lead(failed: tuple[ScannerRunSummary, ...], total_attempted: int) 
         "see Scanner Coverage for details."
     )
 
-# A deliberately simple, deterministic sizing heuristic keyed off severity —
-# not an estimate of actual engineering hours, which no data source here can
-# support. Stated as a heuristic in the report so it's never mistaken for a
-# precise estimate (see FindingSummary.estimated_effort).
-_EFFORT_BY_SEVERITY: dict[Severity, str] = {
-    Severity.CRITICAL: "Large",
-    Severity.HIGH: "Large",
-    Severity.MEDIUM: "Medium",
-    Severity.LOW: "Small",
-    Severity.INFORMATIONAL: "Small",
-}
+# Phase 2C Step 2, FIX 2: a severity-based "estimated fix effort" heuristic
+# (_EFFORT_BY_SEVERITY, FindingSummary.estimated_effort) used to live here.
+# Removed - real report evidence showed it rendering "Large" for changing a
+# default password (a Critical-severity but trivial-to-fix finding), because
+# severity measures IMPACT, not engineering effort, and no real
+# effort-tracking data exists anywhere upstream to ground an estimate in
+# instead. A fabricated estimate on a customer deliverable is worse than no
+# estimate - do not reintroduce a differently-shaped guess (e.g. by finding
+# type or CWE) without a real data source behind it.
 
 # Generic, curated remediation guidance for finding TYPES the current scanner
 # integrations actually produce — used only as a fallback when no AI (or
@@ -124,9 +122,97 @@ _GENERIC_REMEDIATION_BY_TITLE_PREFIX: tuple[tuple[str, str, str], ...] = (
     ),
 )
 
+# Phase 2C Step 2, FIX 1: real DVWA report evidence showed the single
+# Critical finding (a nuclei dvwa-default-login match, CWE-798) rendering
+# "No specific remediation guidance is available for this finding" - the
+# most important finding in the report was the least actionable, because
+# nuclei templates routinely carry no info.remediation text and the title-
+# prefix table above only ever covered Nmap's "Open port " findings.
+#
+# Keyed by CWE id (normalized upper-case for lookup - Nuclei's own
+# classification.cwe-id has been observed both upper- and lower-case in
+# real captured output, e.g. "cwe-693" for http-missing-security-headers).
+# Covers, at minimum, every CWE actually observed in this project's E2E
+# evidence: CWE-798 (hard-coded credentials), CWE-200 (sensitive
+# information exposure), CWE-614 (cookie missing Secure), CWE-1004
+# (cookie missing HttpOnly), CWE-693 (protection mechanism failure - the
+# CWE nuclei's own http-missing-security-headers.yaml template declares).
+# Real, well-known, CWE-class guidance - same standard as the title-prefix
+# table above, not a fabrication.
+_GENERIC_REMEDIATION_BY_CWE: dict[str, tuple[str, str]] = {
+    "CWE-798": (
+        "Remove hard-coded or default credentials",
+        "Change any default or hard-coded credentials immediately, generate "
+        "unique credentials per deployment at install time, enforce a strong "
+        "password policy, and rotate any credentials that may have been exposed.",
+    ),
+    "CWE-200": (
+        "Restrict exposure of sensitive information",
+        "Review what this response or endpoint discloses and restrict it to "
+        "authorized users only. Remove sensitive data from responses, logs, and "
+        "error messages where it is not required, and apply access controls "
+        "where disclosure is needed for legitimate functionality.",
+    ),
+    "CWE-614": (
+        "Set the Secure attribute on sensitive cookies",
+        "Mark cookies that carry session or sensitive data with the Secure "
+        "attribute (and HttpOnly/SameSite as appropriate) so they are never "
+        "sent over an unencrypted connection, and serve the application "
+        "exclusively over HTTPS.",
+    ),
+    "CWE-1004": (
+        "Set the HttpOnly attribute on sensitive cookies",
+        "Mark cookies that carry session or sensitive data with the HttpOnly "
+        "attribute so they cannot be read or modified by client-side script, "
+        "mitigating session theft via cross-site scripting.",
+    ),
+    "CWE-693": (
+        "Configure the missing protection mechanism",
+        "Configure the specific missing HTTP security header(s) or protection "
+        "mechanism identified in this finding's description at the web server "
+        "or application layer, following current browser/platform security "
+        "best practices appropriate to this application's risk profile.",
+    ),
+}
 
-def generic_remediation_for(title: str, severity: Severity) -> Recommendation | None:
+# Phase 2C Step 2, FIX 1's unconditional requirement: "Never render 'no
+# guidance available' for a Critical or High finding" - stronger than "cover
+# more CWEs", since a Critical/High finding with no CWE at all, or a CWE not
+# yet in the table above, must still never render silence. This is
+# deliberately NOT a technical fix (it cannot honestly claim one for a
+# finding type it doesn't recognize) - it says so plainly and directs the
+# reader to get human judgment, which is a true and useful thing to say
+# about a serious finding this table doesn't yet cover.
+_SEVERITY_FALLBACK_REMEDIATION: dict[Severity, tuple[str, str]] = {
+    Severity.CRITICAL: (
+        "Investigate and remediate immediately",
+        "No specific automated remediation guidance is available for this "
+        "finding type. Given its Critical severity, treat it as urgent: engage "
+        "a security analyst to confirm exploitability and determine the "
+        "appropriate fix before deprioritizing this finding.",
+    ),
+    Severity.HIGH: (
+        "Investigate and remediate promptly",
+        "No specific automated remediation guidance is available for this "
+        "finding type. Given its High severity, have a security analyst assess "
+        "exploitability and determine the appropriate fix promptly.",
+    ),
+}
+
+
+def generic_remediation_for(
+    title: str, severity: Severity, cwe_ids: tuple[str, ...] = ()
+) -> Recommendation | None:
     """A generic recommendation for well-known finding types, or None.
+
+    Checked in order: (1) title-prefix match against a curated table of
+    finding TYPES this project's scanners actually produce, (2) CWE-class
+    match against a curated table of well-known CWE remediation, (3) for
+    Critical/High severity only, an honest "no specific guidance, get human
+    judgment" fallback - see _SEVERITY_FALLBACK_REMEDIATION's own docstring
+    for why that one is deliberately not a technical fix. Below Critical/
+    High, an unmatched finding type still returns None rather than
+    fabricating guidance.
 
     Priority mirrors the finding's own severity (the same convention used for
     AI-generated recommendations) rather than a fixed value.
@@ -134,6 +220,15 @@ def generic_remediation_for(title: str, severity: Severity) -> Recommendation | 
     for prefix, rec_title, rec_description in _GENERIC_REMEDIATION_BY_TITLE_PREFIX:
         if title.startswith(prefix):
             return Recommendation(title=rec_title, description=rec_description, priority=severity)
+    for cwe in cwe_ids:
+        cwe_match = _GENERIC_REMEDIATION_BY_CWE.get(cwe.upper())
+        if cwe_match:
+            rec_title, rec_description = cwe_match
+            return Recommendation(title=rec_title, description=rec_description, priority=severity)
+    severity_fallback = _SEVERITY_FALLBACK_REMEDIATION.get(severity)
+    if severity_fallback:
+        rec_title, rec_description = severity_fallback
+        return Recommendation(title=rec_title, description=rec_description, priority=severity)
     return None
 
 
@@ -348,22 +443,15 @@ class FindingSummary:
     @property
     def effective_recommendations(self) -> tuple[Recommendation, ...]:
         """Real (AI/analyst) recommendations if any exist, else a generic
-        fallback for well-known finding types (see ``generic_remediation_for``).
-        Never fabricates for finding types not in that curated table."""
+        fallback: by finding-type title, then by CWE class, then (Critical/
+        High only) an honest "get human judgment" note - see
+        ``generic_remediation_for``'s own docstring for the exact order.
+        Below Critical/High, never fabricates for finding types not in the
+        curated tables."""
         if self.recommendations:
             return self.recommendations
-        generic = generic_remediation_for(self.title, self.severity)
+        generic = generic_remediation_for(self.title, self.severity, self.cwe_ids)
         return (generic,) if generic else ()
-
-    @property
-    def estimated_effort(self) -> str:
-        """A deterministic severity-based sizing heuristic (Large/Medium/Small).
-
-        This is not a data-driven estimate — no real effort-tracking data
-        exists anywhere upstream — so it's a stated heuristic, not a specific
-        time/hours claim.
-        """
-        return _EFFORT_BY_SEVERITY[self.severity]
 
 
 @dataclass(frozen=True, slots=True)
