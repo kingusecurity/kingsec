@@ -299,6 +299,55 @@ class TestMapping:
 # ===========================================================================
 
 
+class TestScoreVersion:
+    """Phase 2C Step 2: a report is an immutable snapshot - one persisted
+    with score_version="v1" (the deprecated linear-deduction formula)
+    must keep reporting its v1 score forever, on both the detail path
+    (Report.executive_score) and the list-view projection
+    (SQLAlchemyReportRepository._compute_score), never be silently
+    rescored under v2 just because that's now the default formula."""
+
+    def test_new_report_defaults_to_v2(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
+        report = make_report(session)
+        assert report.score_version == "v2"
+        repo.save(report)
+        session.flush()
+
+        loaded = repo.get(AssessmentId(report.assessment_id))
+        assert loaded.score_version == "v2"
+
+    def test_v1_report_loaded_from_db_still_reports_v1_score(
+        self, repo: SQLAlchemyReportRepository, session: Session
+    ) -> None:
+        report = dataclasses.replace(make_report(session), score_version="v1")
+        repo.save(report)
+        session.flush()
+
+        loaded = repo.get(AssessmentId(report.assessment_id))
+        assert loaded.score_version == "v1"
+
+        from kingsec.domain.report import compute_executive_score, compute_executive_score_v1
+
+        assert loaded.executive_score == compute_executive_score_v1(loaded.severity_counts)
+        assert loaded.executive_score != compute_executive_score(loaded.severity_counts)
+
+    def test_list_view_score_agrees_with_v1_detail_score(
+        self, repo: SQLAlchemyReportRepository, session: Session
+    ) -> None:
+        # The historical bug this closes: the list-view projection had its
+        # own independent _compute_score() call site that always used
+        # whichever formula was current, disagreeing with the detail view
+        # for any v1-scored row.
+        report = dataclasses.replace(make_report(session), score_version="v1")
+        repo.save(report)
+        session.flush()
+
+        detail = repo.get(AssessmentId(report.assessment_id))
+        projections, _ = repo.list(is_admin=True)
+        listed = next(p for p in projections if p.assessment_id == report.assessment_id)
+        assert listed.executive_score == detail.executive_score
+
+
 class TestEdgeCases:
     def test_save_and_get_unicode(self, repo: SQLAlchemyReportRepository, session: Session) -> None:
         a_id = AssessmentId.generate()

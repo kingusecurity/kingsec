@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from kingsec.application import ReportNotFoundError, ReportRepository
 from kingsec.application.ports.repositories import ReportProjection
 from kingsec.domain import AssessmentId, Report, Severity
-from kingsec.domain.report import compute_executive_score
+from kingsec.domain.report import compute_executive_score, compute_executive_score_v1
 from kingsec.infrastructure.persistence.mappers import report_to_domain, report_to_orm
 from kingsec.infrastructure.persistence.models import AssessmentORM, ReportORM
 
@@ -122,7 +122,8 @@ class SQLAlchemyReportRepository(ReportRepository):
                     medium_count=sc.get("MEDIUM", 0),
                     low_count=sc.get("LOW", 0),
                     info_count=sc.get("INFORMATIONAL", 0),
-                    executive_score=self._compute_score(sc),
+                    executive_score=self._compute_score(sc, orm.score_version),
+                    score_version=orm.score_version,
                     format="pdf",
                     file_size=0,
                 )
@@ -148,9 +149,14 @@ class SQLAlchemyReportRepository(ReportRepository):
         return result
 
     @staticmethod
-    def _compute_score(severity_counts: dict[str, int]) -> float:
+    def _compute_score(severity_counts: dict[str, int], score_version: str) -> float:
         # Delegates to the domain's single source of truth for this formula
         # (kingsec.domain.report.compute_executive_score) so the report list/
         # detail API and the PDF executive summary can never disagree.
+        # Phase 2C Step 2: score_version-aware - a v1-scored row's list-view
+        # score must match its own persisted formula, not be silently
+        # recomputed under v2 just because that's the current default.
         counts = tuple((Severity[label], count) for label, count in severity_counts.items() if label in Severity.__members__)
+        if score_version == "v1":
+            return compute_executive_score_v1(counts)
         return compute_executive_score(counts)

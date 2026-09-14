@@ -210,6 +210,13 @@ class ReportORM(Base):
     assessment_status: Mapped[str] = mapped_column(
         String, nullable=False, default="completed"
     )
+    # Phase 2C Step 2: which executive_score formula this report was
+    # actually scored under ("v1" linear-deduction, deprecated, or "v2"
+    # multiplicative retention) - a report is an immutable snapshot, so
+    # this must never be inferred at read time. Existing rows are
+    # backfilled to "v1" by the migration that introduced this column;
+    # every new row from here on is "v2".
+    score_version: Mapped[str] = mapped_column(String, nullable=False, default="v2")
 
 
 class UserORM(Base):

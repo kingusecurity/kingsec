@@ -252,13 +252,18 @@ def report_to_orm(report: Report) -> ReportORM:
         severity_counts=[[severity.name, count] for severity, count in report.severity_counts],
         ai_enabled=report.ai_enabled,
         history=[
-            {"generated_at": h.generated_at.isoformat(), "executive_score": h.executive_score}
+            {
+                "generated_at": h.generated_at.isoformat(),
+                "executive_score": h.executive_score,
+                "score_version": h.score_version,
+            }
             for h in report.history
         ],
         authorized_by=report.authorized_by,
         scope=report.scope,
         scanner_summary=_scanner_summary_to_json(report.scanner_summary),
         assessment_status=report.assessment_status.value,
+        score_version=report.score_version,
     )
 
 
@@ -421,6 +426,11 @@ def report_to_domain(orm: ReportORM) -> Report:
         HistoryPoint(
             generated_at=datetime.fromisoformat(h["generated_at"]),
             executive_score=h["executive_score"],
+            # Rows persisted before this field existed have no key here -
+            # they were, factually, scored under the only formula that
+            # existed then ("v1"), same backfill semantic as the
+            # reports.score_version column's own migration default.
+            score_version=h.get("score_version", "v1"),
         )
         for h in (orm.history or [])
     )
@@ -437,6 +447,7 @@ def report_to_domain(orm: ReportORM) -> Report:
         scope=orm.scope,
         scanner_summary=_scanner_summary_from_json(orm.scanner_summary),
         assessment_status=AssessmentStatus(orm.assessment_status),
+        score_version=orm.score_version,
     )
 
 

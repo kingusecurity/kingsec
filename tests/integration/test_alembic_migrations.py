@@ -622,10 +622,32 @@ class TestMigrationAtomicity:
         # Phase 2A: head moved forward from da4b78614806 to 64e10236c8c1
         # (add_report_assessment_status_and_backfill_scanner_status), then
         # Phase 2B-c moved it forward again to 5db990f46ee0 (add severity
-        # demotion columns to findings) - this must track the real head,
-        # not remain pinned to whatever revision was head when this test
-        # was first written.
-        assert stamp == "5db990f46ee0"
+        # demotion columns to findings), then Phase 2C Step 2 moved it
+        # forward again to 9601803f77a8 (add score_version to reports) -
+        # this must track the real head, not remain pinned to whatever
+        # revision was head when this test was first written.
+        assert stamp == "9601803f77a8"
+
+
+class TestSingleHead:
+    """Phase 2C Step 2: while drafting 9601803f77a8, an earlier attempt
+    picked the placeholder-looking revision id "a1b2c3d4e5f6" - which
+    turned out to be a REAL, pre-existing revision id already used by
+    2026_07_22_025000__add_revoked_tokens.py. That collision silently
+    turned the revision graph into a cycle, only caught by actually
+    running `alembic upgrade` against a database. This is a real defect
+    class (not hypothetical) worth guarding against directly, rather than
+    relying on every future migration author to notice a subprocess error
+    on their first real run."""
+
+    def test_exactly_one_head(self) -> None:
+        result = _run_alembic("heads")
+        assert result.returncode == 0, result.stderr
+        head_lines = [line for line in result.stdout.splitlines() if line.strip()]
+        assert len(head_lines) == 1, (
+            f"expected exactly one alembic head, found {len(head_lines)}: {head_lines!r} - "
+            "a new migration's revision id most likely collides with an existing one"
+        )
 
 
 class TestMigrationMetadata:
