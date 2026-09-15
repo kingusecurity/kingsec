@@ -860,6 +860,7 @@ def _register_use_cases(app: Application) -> None:
             c.resolve(PasswordHasher),
             c.resolve(AuditPublisher),
             c.resolve(LicenseGate) if c.has(LicenseGate) else None,
+            settings.security.allow_self_registration,
         ),
     )
     container.register_factory(

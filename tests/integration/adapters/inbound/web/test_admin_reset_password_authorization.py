@@ -225,8 +225,10 @@ class TestAdminResetPasswordComplexity:
         self.client = TestClient(self.app)
 
     def _admin_token_and_target(self) -> tuple[str, str]:
-        # The very first registered user is auto-promoted to Admin.
+        # Phase 3: self-registration never grants Admin - promote directly
+        # in the stub repo, same pattern test_rbac.py itself uses.
         _register_user(self.client, username="admin1", email="admin1@example.com")
+        _promote_user_in_repo(self._ur, "admin1", "admin")
         admin_token = _login(self.client, username="admin1")
         _register_user(self.client, username="target1", email="target1@example.com", password="OriginalPass1")
         target_id = self._ur.find_by_username("target1").id

@@ -258,8 +258,10 @@ class TestIdentityAuthorizationAdmin:
         self.client = TestClient(self.app)
 
     def _admin_token(self) -> str:
-        # The very first registered user is auto-promoted to Admin.
+        # Phase 3: self-registration never grants Admin - promote directly
+        # in the stub repo, same pattern test_rbac.py itself uses.
         _register_user(self.client, username="admin1", email="admin1@example.com")
+        _promote_user_in_repo(self._ur, "admin1", "admin")
         return _login(self.client, username="admin1")
 
     def test_admin_can_create_update_activate_deactivate_and_delete_a_provider(self) -> None:
@@ -334,6 +336,7 @@ class TestIdentityAuthorizationReadRoutesAreAdminOnly:
 
     def _admin_headers(self) -> dict[str, str]:
         _register_user(self.client, username="admin1", email="admin1@example.com")
+        _promote_user_in_repo(self._ur, "admin1", "admin")
         token = _login(self.client, username="admin1")
         return {"Authorization": f"Bearer {token}"}
 

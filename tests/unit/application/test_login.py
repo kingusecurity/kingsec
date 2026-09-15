@@ -106,7 +106,7 @@ class StubUserRepository(UserRepository):
     def save(self, user: User) -> None:
         self.save_called = True
 
-    def save_new_user_claiming_bootstrap_admin(self, user: User) -> User:
+    def save_new_user(self, user: User) -> User:
         self.save_called = True
         return user
 

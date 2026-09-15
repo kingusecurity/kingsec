@@ -129,6 +129,14 @@ class SecuritySettings(BaseModel):
     # logged choice for the operator — never the accidental default state.
     require_authorization: bool = True
 
+    # Phase 3 (auth hardening): self-registration defaults to DISABLED.
+    # Enabled by default, the first unauthenticated caller to reach
+    # /auth/register on a network-reachable instance could win the
+    # first-user-becomes-admin race. RegisterUser no longer grants ADMIN
+    # via this path regardless of this flag (see save_new_user) - but an
+    # open signup flow is still a real product decision, not a safe default.
+    allow_self_registration: bool = False
+
 
 class JWTSettings(BaseModel):
     """JWT authentication configuration.

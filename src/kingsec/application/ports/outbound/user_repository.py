@@ -54,24 +54,24 @@ class UserRepository(ABC):
         """
 
     @abstractmethod
-    def save_new_user_claiming_bootstrap_admin(self, user: User) -> User:
-        """Insert a brand-new user, atomically claiming the one-time
-        first-user-becomes-admin bootstrap slot.
+    def save_new_user(self, user: User) -> User:
+        """Insert a brand-new user with ``user.role`` exactly as given.
 
-        KSEC-73-05: ``user.role`` is used as given UNLESS this call is the
-        one that inserts the very first row this table has ever had, in
-        which case the persisted role is ``Role.ADMIN`` regardless of
-        ``user.role`` - decided by a single atomic database operation
-        (not a separate "count users" read followed by a later insert),
-        so that under two concurrent registrations against an empty
-        table, at most one can ever win the bootstrap-admin claim.
+        Phase 3 (auth hardening): this used to be
+        ``save_new_user_claiming_bootstrap_admin`` and would atomically
+        override the role to ``Role.ADMIN`` for whichever call inserted
+        the very first row the table ever had (KSEC-73-05). That grant
+        logic is gone - an unauthenticated caller winning a race to be
+        first through the registration endpoint on a network-reachable
+        instance could permanently own the system. The initial admin is
+        now created ONLY by ``kingsec-bootstrap``
+        (``src/kingsec/_bootstrap.py``), never by this method.
 
         Only ever call this for a genuinely new user (this is not an
         upsert - use ``save`` for updates to an existing user).
 
         Returns:
-            The User exactly as persisted, with ``role`` reflecting
-            whichever outcome the atomic claim actually produced.
+            The User exactly as persisted.
         """
 
     @abstractmethod

@@ -225,7 +225,9 @@ class TestPlaybookAuthorizationAnalyst:
         self.client = TestClient(self.app)
 
     def _analyst_token(self) -> str:
-        _register_user(self.client, username="admin1", email="admin1@example.com")  # first user -> Admin
+        # Phase 3: self-registration never grants Admin - the old "register
+        # an admin1 first to consume the first-user slot" step is gone,
+        # promote analyst1 directly instead.
         _register_user(self.client, username="analyst1", email="analyst1@example.com")
         _promote_user_in_repo(self._ur, "analyst1", "analyst")
         return _login(self.client, username="analyst1")
