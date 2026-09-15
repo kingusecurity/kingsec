@@ -458,6 +458,170 @@ class TestNoSignalBandOverride:
         assert ">Strong</span>" not in html
 
 
+class TestScoreLineScannerDenominator:
+    """Phase 2C Step 2, FIX 4: real report evidence (GAP-1) showed (d)'s
+    no-signal override rendering "100.0 / 100" with NO scanner denominator
+    at all - identical in form to a genuinely clean, fully-covered result,
+    even though the underlying assessment had zero scanner coverage. Zero
+    findings from zero coverage and zero findings from full coverage are
+    completely different claims; the denominator must appear on every
+    score line, regardless of which band override fires."""
+
+    def test_no_signal_report_with_real_coverage_shows_the_denominator(self) -> None:
+        """The case (d) was actually built for: scanners that DID run
+        successfully and found nothing above Informational - the score
+        line must still say so explicitly, not just show a bare number."""
+        summary = (
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=0),
+            ScannerRunSummary(scanner_id="nuclei", name="Nuclei", status=ScannerRunState.SUCCEEDED, findings_count=0),
+        )
+        report = build_report(with_findings=False, scanner_summary=summary)
+        html = render_report_html(report)
+        assert "No Findings — Coverage Limited" in html
+        assert "Based on 2 of 2 scanner(s)." in html
+
+    def test_normal_strong_band_report_also_shows_the_denominator(self) -> None:
+        """Not just the no-signal override case - ANY score line with real
+        scanner_summary data must show the denominator."""
+        summary = (
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=6),
+        )
+        report = build_report(with_findings=False, scanner_summary=summary)
+        low_entries = tuple(
+            dataclasses.replace(e, severity=Severity.LOW) for e in (build_report().entries[:1])
+        )
+        report = dataclasses.replace(
+            report,
+            entries=low_entries,
+            severity_counts=((Severity.LOW, 1),),
+        )
+        html = render_report_html(report)
+        assert ">Strong</span>" in html
+        assert "Based on 1 of 1 scanner(s)." in html
+
+    def test_v1_score_line_also_shows_the_denominator(self) -> None:
+        summary = (
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=0),
+        )
+        report = dataclasses.replace(
+            build_report(with_findings=False, scanner_summary=summary), score_version="v1"
+        )
+        html = render_report_html(report)
+        assert "Based on 1 of 1 scanner(s)." in html
+
+    def test_no_scanner_summary_at_all_omits_the_denominator_not_a_bogus_zero_of_zero(self) -> None:
+        # A pre-feature fixture with no scanner_summary has nothing to
+        # report - "0 of 0 scanner(s)" would be noise, not honesty.
+        html = render_report_html(build_report(with_findings=False))
+        assert "Based on" not in html
+
+    def test_incomplete_coverage_still_uses_its_own_inline_denominator(self) -> None:
+        """The Partial Coverage branch already states its own denominator
+        inline ("based on N of M scanners") - this must not gain a second,
+        duplicate coverage_clause on top of it."""
+        from kingsec.domain.enums import AssessmentStatus
+
+        summary = (
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=1),
+            ScannerRunSummary(scanner_id="nuclei", name="Nuclei", status=ScannerRunState.FAILED),
+        )
+        report = dataclasses.replace(
+            build_report(scanner_summary=summary), assessment_status=AssessmentStatus.COMPLETED_WITH_GAPS
+        )
+        html = render_report_html(report)
+        # Scoped to the score-panel specifically: the verdict headline
+        # above it (Verdict.from_findings()'s own coverage-lead sentence,
+        # pre-existing and unrelated to this fix) legitimately also
+        # mentions "1 of 2 scanners ran" - only the score line's OWN
+        # denominator must not be duplicated.
+        score_panel = html.split('class="score-panel"')[1].split("</div></div>")[0]
+        assert score_panel.count("of 2 scanner") == 1
+
+
+class TestZeroFindingsActionCalloutIsHonest:
+    """Phase 2C Step 2, GAP-1 fix round FIX 5a: real report evidence showed
+    "Action required. Remediation is recommended for the issues identified
+    below." rendered with ZERO findings - a COMPLETED_WITH_GAPS assessment
+    where the coverage gap itself, not any specific finding, is why action
+    is required (Verdict.from_findings() forces action_required=True here
+    regardless of findings). The empty-content defect family again."""
+
+    def test_zero_findings_incomplete_coverage_does_not_claim_issues_below(self) -> None:
+        from kingsec.domain.enums import AssessmentStatus
+
+        summary = (
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=0),
+            ScannerRunSummary(scanner_id="nuclei", name="Nuclei", status=ScannerRunState.FAILED),
+        )
+        report = dataclasses.replace(
+            build_report(with_findings=False, scanner_summary=summary),
+            assessment_status=AssessmentStatus.COMPLETED_WITH_GAPS,
+        )
+        html = render_report_html(report)
+        assert "Action required." in html
+        assert "Remediation is recommended for the issues identified below" not in html
+        assert "Scanner coverage was incomplete for this assessment" in html
+
+    def test_findings_present_still_says_issues_identified_below(self) -> None:
+        """Unaffected control: when there ARE real findings driving action
+        (not a coverage gap), the original phrasing stays exactly as
+        before. Severity forced to LOW (not Critical/High) so the urgent-
+        action framing doesn't suppress this callout entirely."""
+        report = build_report()
+        low_entries = tuple(dataclasses.replace(e, severity=Severity.LOW) for e in report.entries)
+        report = dataclasses.replace(
+            report, entries=low_entries, severity_counts=((Severity.LOW, len(low_entries)),)
+        )
+        html = render_report_html(report)
+        assert "Remediation is recommended for the issues identified below" in html
+
+
+class TestStrongBandNarrativeActionAware:
+    """Phase 2C Step 2, GAP-1 fix round FIX 5b: same contradiction class
+    Phase 2A-b fixed for "generally sound standing" appearing next to
+    "Action required" (docs/STATUS.md) - GAP-3's real evidence showed
+    "This places the assessed environment in strong standing overall."
+    sitting three lines above "Action required" for a fully-COMPLETED
+    assessment with 6 real Low findings. Resolved on the narrative side,
+    matching Phase 2A-b's own precedent (not by suppressing the callout,
+    which carries a true "these findings still need fixing" signal)."""
+
+    def test_strong_band_with_real_findings_names_the_remediation_need(self) -> None:
+        """GAP-3's exact real shape: a fully-COMPLETED assessment scoring
+        >=90 (Strong) from real Low findings that genuinely warrant
+        remediation."""
+        report = build_report()
+        low_entries = tuple(dataclasses.replace(e, severity=Severity.LOW) for e in report.entries)
+        report = dataclasses.replace(
+            report, entries=low_entries, severity_counts=((Severity.LOW, len(low_entries)),)
+        )
+        html = render_report_html(report)
+        section = html.split('class="score-panel"')[1].split("</div></div>")[0]
+        assert ">Strong</span>" in section
+        assert "though the findings below still warrant remediation" in section
+        assert "Action required." in html
+
+    def test_score_narrative_unit_action_required_true(self) -> None:
+        from kingsec.infrastructure.reporting.templates import _score_narrative
+
+        text = _score_narrative(95.0, action_required=True)
+        assert "though the findings below still warrant remediation" in text
+
+    def test_score_narrative_unit_action_required_false_unchanged(self) -> None:
+        from kingsec.infrastructure.reporting.templates import _score_narrative
+
+        text = _score_narrative(95.0, action_required=False)
+        assert text == "This places the assessed environment in strong standing overall."
+
+    def test_lower_tiers_unaffected_by_action_required_param(self) -> None:
+        """Only the Strong tier (>=90) needed this - Good/Fair/Weak/Critical
+        already name "issues that warrant attention" unconditionally, so
+        they never contradicted an Action Required callout to begin with."""
+        from kingsec.infrastructure.reporting.templates import _score_narrative
+
+        assert _score_narrative(80.0, action_required=True) == _score_narrative(80.0, action_required=False)
+
+
 class TestLimitations:
     def test_present_and_honest_about_cve_gap(self) -> None:
         html = render_report_html(build_report())
@@ -547,8 +711,18 @@ class TestPortCoverageDisclosure:
         """A FAILED nmap must not be silently read as "used the default" -
         port_specification is None here too, but for a different reason
         (nmap never completed), and the two must not be conflated."""
+        # A companion SUCCEEDED scanner keeps this a real COMPLETED_WITH_GAPS
+        # shape (Phase 2C Step 2 GAP-1 fix: a report can never be built at
+        # all when EVERY scanner failed) - the assertion is about nmap
+        # specifically, not about the assessment's overall coverage.
+        other = ScannerRunSummary(scanner_id="nuclei", name="Nuclei", status=ScannerRunState.SUCCEEDED, findings_count=1)
         html = render_report_html(
-            build_report(scanner_summary=(self._nmap_summary(port_specification=None, status=ScannerRunState.FAILED),))
+            build_report(
+                scanner_summary=(
+                    self._nmap_summary(port_specification=None, status=ScannerRunState.FAILED),
+                    other,
+                )
+            )
         )
         assert "Nmap's port scan" not in html
 
@@ -629,7 +803,12 @@ class TestRateLimitDisclosure:
         assert "Gobuster Scanner" in section
 
     def test_failed_scanner_gets_no_rate_limit_claim(self) -> None:
+        # A companion SUCCEEDED scanner keeps this a real COMPLETED_WITH_GAPS
+        # shape (Phase 2C Step 2 GAP-1 fix: a report can never be built at
+        # all when EVERY scanner failed) - the assertion is about ffuf
+        # specifically, not about the assessment's overall coverage.
         summary = (
+            self._run("nmap", "Nmap", rate_limit_description=None),
             self._run(
                 "ffuf",
                 "ffuf Scanner",
@@ -855,6 +1034,10 @@ class TestScannerCoverage:
         from kingsec.domain.enums import ScannerRunState
 
         summary = (
+            # A companion SUCCEEDED scanner keeps this a real
+            # COMPLETED_WITH_GAPS shape (Phase 2C Step 2 GAP-1 fix: a report
+            # can never be built at all when EVERY scanner failed).
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=1),
             ScannerRunSummary(
                 scanner_id="trivy",
                 name="Trivy",
@@ -880,6 +1063,10 @@ class TestScannerCoverageStderrDisclosure:
         from kingsec.domain.enums import ScannerRunState
 
         summary = (
+            # A companion SUCCEEDED scanner keeps this a real
+            # COMPLETED_WITH_GAPS shape (Phase 2C Step 2 GAP-1 fix: a report
+            # can never be built at all when EVERY scanner failed).
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=1),
             ScannerRunSummary(
                 scanner_id="ffuf",
                 name="ffuf",
@@ -897,6 +1084,7 @@ class TestScannerCoverageStderrDisclosure:
         from kingsec.domain.enums import ScannerRunState
 
         summary = (
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=1),
             ScannerRunSummary(
                 scanner_id="trivy",
                 name="Trivy",
@@ -916,6 +1104,10 @@ class TestScannerCoverageStderrDisclosure:
         from kingsec.domain.enums import ScannerRunState
 
         summary = (
+            # A companion SUCCEEDED scanner keeps this a real
+            # COMPLETED_WITH_GAPS shape (Phase 2C Step 2 GAP-1 fix: a report
+            # can never be built at all when EVERY scanner failed).
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=1),
             ScannerRunSummary(
                 scanner_id="ffuf",
                 name="ffuf",

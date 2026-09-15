@@ -182,8 +182,32 @@ def _badge(severity: Severity) -> str:
     return f'<span class="badge {_sev_class(severity)}">{escape(severity.label)}</span>'
 
 
-def _score_narrative(score: float) -> str:
+def _score_narrative(score: float, *, action_required: bool = False) -> str:
+    """The plain-language sentence accompanying the score line.
+
+    Phase 2C Step 2, GAP-1 fix round FIX 5b: same contradiction class Phase
+    2A-b fixed for "generally sound standing" appearing next to "Action
+    required" (docs/STATUS.md - the fix there was to make the NARRATIVE
+    coverage-aware, not to suppress the callout, since the callout carried
+    real information). Only the Strong tier (>=90) reads as unconditionally
+    reassuring on its own - the Good/Fair/Weak/Critical tiers already name
+    "issues that warrant attention" in their own text, so they never
+    contradicted an Action Required callout to begin with. GAP-3's real
+    evidence: a fully-COMPLETED assessment scoring 91.3 (Strong) from 6 real
+    Low findings that genuinely warrant remediation - "strong standing
+    overall" sitting three lines above "Action required" read as two
+    disconnected, seemingly-contradictory claims about the same report.
+    Resolved on the narrative side (not by suppressing the callout, which
+    would hide a true "these findings still need fixing" signal): the
+    Strong-tier sentence now names that explicitly when real action is
+    required, exactly as the other four tiers already did.
+    """
     if score >= 90:
+        if action_required:
+            return (
+                "This places the assessed environment in strong standing overall, "
+                "though the findings below still warrant remediation."
+            )
         return "This places the assessed environment in strong standing overall."
     if score >= 75:
         return "This places the assessed environment in good standing, with room for improvement."
@@ -639,14 +663,25 @@ def _executive_summary(report: Report) -> str:
     score = report.executive_score
     incomplete = report.assessment_status is AssessmentStatus.COMPLETED_WITH_GAPS
 
+    # Phase 2C Step 2, FIX 4: the scanner denominator must appear on EVERY
+    # score line, regardless of which band override fires - zero findings
+    # from zero scanner coverage and zero findings from full coverage are
+    # completely different claims (the GAP-1 defect: (d)'s no-signal
+    # override rendered "100.0 / 100" with no denominator at all, identical
+    # in form to a genuinely clean, fully-covered result). Omitted only when
+    # there is no scanner_summary at all to report (pre-feature fixture) -
+    # the incomplete-coverage branch below already states its own
+    # denominator inline and needs no separate clause.
+    succeeded_count = sum(1 for s in report.scanner_summary if s.status.is_success)
+    total_count = len(report.scanner_summary)
+    coverage_clause = f" Based on {succeeded_count} of {total_count} scanner(s)." if total_count else ""
+
     if incomplete:
         # Phase 2A-b: a score derived from a fraction of the configured
         # scanners is not a posture measure - force the neutral band/color
         # and state the real denominator, never the reassuring narrative a
         # complete run would get.
         band_color, band_label = _PARTIAL_COVERAGE_COLOR, _PARTIAL_COVERAGE_LABEL
-        succeeded_count = sum(1 for s in report.scanner_summary if s.status.is_success)
-        total_count = len(report.scanner_summary)
         score_copy = (
             f"Overall Risk Score: <strong>{score:.1f} / 100</strong> — based on "
             f"{succeeded_count} of {total_count} scanners. Not a posture score. "
@@ -660,26 +695,34 @@ def _executive_summary(report: Report) -> str:
         # compute_executive_score_v1's own docstring).
         no_signal = _is_no_signal(report)
         band_color, band_label = (_NO_SIGNAL_COLOR, _NO_SIGNAL_LABEL) if no_signal else _score_band(score)
-        narrative = _NO_SIGNAL_NARRATIVE if no_signal else escape(_score_narrative(score))
+        narrative = (
+            _NO_SIGNAL_NARRATIVE
+            if no_signal
+            else escape(_score_narrative(score, action_required=verdict.action_required))
+        )
         score_copy = (
             f"Overall Risk Score: <strong>{score:.1f} / 100</strong>. "
             f"{narrative} "
             "This score deducts fixed points per finding by severity "
             "(Critical 25, High 10, Medium 5, Low 2) from a 100-point baseline — "
             "a simple, explainable measure, not a formal risk-modeling output. "
-            "(Historical scoring model.)"
+            f"(Historical scoring model.){coverage_clause}"
         )
     else:
         no_signal = _is_no_signal(report)
         band_color, band_label = (_NO_SIGNAL_COLOR, _NO_SIGNAL_LABEL) if no_signal else _score_band(score)
-        narrative = _NO_SIGNAL_NARRATIVE if no_signal else escape(_score_narrative(score))
+        narrative = (
+            _NO_SIGNAL_NARRATIVE
+            if no_signal
+            else escape(_score_narrative(score, action_required=verdict.action_required))
+        )
         score_copy = (
             f"Overall Risk Score: <strong>{score:.1f} / 100</strong>. "
             f"{narrative} "
             "This score applies a fixed retention percentage per finding by severity, "
             "multiplicatively, from a 100-point baseline — bounded and never fully "
             "exhausted, so remediating findings always raises it. A simple, "
-            "explainable measure, not a formal risk-modeling output."
+            f"explainable measure, not a formal risk-modeling output.{coverage_clause}"
         )
 
     urgent_note = _urgent_action_note(report)
@@ -693,12 +736,25 @@ def _executive_summary(report: Report) -> str:
     # and only softens the message. Reports with no Critical/High finding
     # (e.g. Medium/Low-only, which still set verdict.action_required) are
     # unaffected - they never had urgent framing to begin with.
+    # Phase 2C Step 2, GAP-1 fix round FIX 5a: a COMPLETED_WITH_GAPS
+    # assessment with zero findings still has verdict.action_required=True
+    # (Verdict.from_findings() forces this - the coverage gap itself is the
+    # required action, independent of what was found). Real report
+    # evidence showed this rendering "Action required. Remediation is
+    # recommended for the issues identified below." with nothing below -
+    # the empty-content defect family again. The reason action is required
+    # here is the coverage gap, not a finding, so the callout must say that.
     action = (
         ""
         if urgent_note
         else (
             '<p class="callout action-required"><strong>Action required.</strong> '
-            "Remediation is recommended for the issues identified below.</p>"
+            + (
+                "Remediation is recommended for the issues identified below.</p>"
+                if report.total_findings
+                else "Scanner coverage was incomplete for this assessment — see Scanner "
+                "Coverage below for what did not run.</p>"
+            )
             if verdict.action_required
             else '<p class="callout">No immediate action is required.</p>'
         )
