@@ -10,10 +10,8 @@ from .input_validation import (
     validate_plugin_id,
     validate_url_for_ssrf,
 )
-from .lockout import AccountLockoutService
 
 __all__ = [
-    "AccountLockoutService",
     "detect_sql_injection",
     "escape_html",
     "sanitize_filename",
