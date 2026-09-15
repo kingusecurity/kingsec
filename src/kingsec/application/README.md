@@ -9,12 +9,12 @@ domain layer and the standard library** — enforced by a static import test.
 ```python
 from kingsec.application import (
     # use cases
-    CreateAssessment, StartAssessment, GetAssessment, GenerateReport,
+    CreateAssessment, SubmitAssessment, GetAssessment, GenerateReport,
     # ports (ABCs implemented by infrastructure)
     AssessmentRepository, ReportRepository,
     ScannerPort, AIPort, ReportGeneratorPort,
     # DTOs
-    CreateAssessmentRequest, StartAssessmentRequest, GetAssessmentRequest,
+    CreateAssessmentRequest, SubmitAssessmentRequest, GetAssessmentRequest,
     GenerateReportRequest, AssessmentView, RenderedReport, ...,
     # errors
     ApplicationError, InputValidationError,
@@ -45,8 +45,11 @@ and a single `execute(request) -> response`:
 
 - **CreateAssessment** — builds a `Target`, creates the assessment, captures
   `Authorization` up front (trust-first), persists it (→ `AUTHORIZED`).
-- **StartAssessment** — enforces the authorization gate (`assessment.start()`),
-  scans, best-effort AI enrichment, records findings, completes.
+- **SubmitAssessment** — enforces the authorization gate (`assessment.start()`),
+  submits the scan to a `JobRunner` for background execution (async
+  counterpart of the old synchronous `StartAssessment`, removed as dead code
+  in Phase 2C Step 2 — zero real callers, and its unconditional
+  `assessment.complete()` bypassed Phase 2A's success-counting policy).
 - **GetAssessment** — loads and maps to an `AssessmentView` (no domain leak).
 - **GenerateReport** — builds the immutable `Report` snapshot (domain requires
   `COMPLETED`), persists it, renders a deliverable via `ReportGeneratorPort`.

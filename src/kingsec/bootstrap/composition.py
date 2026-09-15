@@ -111,7 +111,6 @@ from kingsec.application import (
     SecretProviderPort,
     ServiceAPI,
     SessionRepository,
-    StartAssessment,
     StoreSecret,
     SubmitAssessment,
     SubmitScheduledAssessment,
@@ -693,15 +692,14 @@ def _register_use_cases(app: Application) -> None:
     """Register use cases as DI factories.
 
     Each resolves its port dependencies from the container, so callers do
-    ``app.resolve(StartAssessment)`` and get a fully constructed interactor with
-    no manual wiring. The UseCaseServiceAPI facade is also registered here,
-    wiring the use cases into the ServiceAPI port.
+    ``app.resolve(SubmitAssessment)`` and get a fully constructed interactor
+    with no manual wiring. The UseCaseServiceAPI facade is also registered
+    here, wiring the use cases into the ServiceAPI port.
     """
     container = app.container
     settings = app.settings
     from kingsec.application.assessment_execution import AssessmentExecutionEngine
     from kingsec.application.assessment_profiles import ExecutionPlanner
-    from kingsec.application.ports.outbound.assessment_concurrency import AssessmentConcurrencyPort
 
     def _resolve_scanner_executor(c: Any) -> ScannerExecutor | None:
         """Return the resolved scanner if it also implements ScannerExecutor.
@@ -720,22 +718,6 @@ def _register_use_cases(app: Application) -> None:
             c.resolve(AssessmentRepository),
             c.resolve(EventPublisher),
             c.resolve(AuditPublisher),
-        ),
-    )
-    container.register_factory(
-        StartAssessment,
-        lambda c: StartAssessment(
-            c.resolve(AssessmentRepository),
-            c.resolve(ScannerPort),
-            c.resolve(AIPort),
-            c.resolve(EventPublisher),
-            c.resolve(AuditPublisher),
-            c.resolve(ExecutionPlanner),
-            # KSEC-87-02: same session_factory/table register_persistence()
-            # already wires AssessmentRepository against, so this is always
-            # registered whenever AssessmentRepository (resolved above) is.
-            concurrency=c.resolve(AssessmentConcurrencyPort),
-            max_concurrent=settings.performance.max_concurrent_assessments,
         ),
     )
     container.register_factory(
@@ -827,7 +809,6 @@ def _register_use_cases(app: Application) -> None:
         ServiceAPI,
         lambda c: UseCaseServiceAPI(
             c.resolve(CreateAssessment),
-            c.resolve(StartAssessment),
             c.resolve(SubmitAssessment),
             c.resolve(CancelAssessment),
             c.resolve(ListAssessments),

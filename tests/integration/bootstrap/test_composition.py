@@ -5,7 +5,8 @@ from __future__ import annotations
 import ast
 import io
 import pathlib
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from typing import Any
 
 import httpx
 import pytest
@@ -21,11 +22,12 @@ from kingsec.application import (
     GenerateReportRequest,
     GetAssessment,
     GetAssessmentRequest,
+    JobRunner,
     ReportGeneratorPort,
     ReportRepository,
     ScannerPort,
-    StartAssessment,
-    StartAssessmentRequest,
+    SubmitAssessment,
+    SubmitAssessmentRequest,
     UnitOfWorkFactory,
 )
 from kingsec.bootstrap import Application
@@ -77,6 +79,21 @@ class _StubScanner(ScannerPort):
         return {"stub": "Stub Scanner"}
 
 
+class _InlineJobRunner(JobRunner):
+    """Runs the submitted job synchronously, in-thread - keeps this
+    end-to-end test deterministic (no waiting on a real background thread),
+    same pattern as test_scanner_failure_policy.py's own inline runner."""
+
+    def submit(self, job_id: str, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
+        fn(*args, **kwargs)
+
+    def is_running(self, job_id: str) -> bool:
+        return False
+
+    def shutdown(self, wait: bool = True) -> None:
+        pass
+
+
 class TestStartup:
     def test_complete_application_startup(self, wired_app: Application) -> None:
         with wired_app as app:
@@ -104,7 +121,7 @@ class TestStartup:
     def test_use_cases_resolve_from_di(self, wired_app: Application) -> None:
         with wired_app as app:
             assert isinstance(app.resolve(CreateAssessment), CreateAssessment)
-            assert isinstance(app.resolve(StartAssessment), StartAssessment)
+            assert isinstance(app.resolve(SubmitAssessment), SubmitAssessment)
             assert isinstance(app.resolve(GetAssessment), GetAssessment)
             assert isinstance(app.resolve(GenerateReport), GenerateReport)
 
@@ -113,20 +130,25 @@ class TestDependencyGraph:
     @needs_weasyprint
     def test_full_flow_through_wired_graph(self, wired_app: Application) -> None:
         with wired_app as app:
-            # Override only the scanner (no nuclei binary available); everything
-            # else is the real wired adapter (real SQLite, real PDF renderer).
+            # Override the scanner (no nuclei binary available) and the job
+            # runner (keeps this test synchronous/deterministic instead of
+            # waiting on a real background thread); everything else is the
+            # real wired adapter (real SQLite, real PDF renderer).
             app.container.register_instance(ScannerPort, _StubScanner())
+            app.container.register_instance(JobRunner, _InlineJobRunner())
 
             created = app.resolve(CreateAssessment).execute(
                 CreateAssessmentRequest("10.0.0.5", "ip_address", "tester", "10.0.0.5")
             )
             # AI has no key configured -> enrichment fails safe (best-effort).
-            started = app.resolve(StartAssessment).execute(StartAssessmentRequest(created.assessment_id))
-            assert started.status == "completed"
-            assert started.findings_count == 1
+            started = app.resolve(SubmitAssessment).execute(
+                SubmitAssessmentRequest(created.assessment_id, is_admin=True)
+            )
+            assert started.status == "running"
 
             view = app.resolve(GetAssessment).execute(GetAssessmentRequest(created.assessment_id, is_admin=True))
             assert view.status == "completed"
+            assert len(view.findings) == 1
 
             report = app.resolve(GenerateReport).execute(GenerateReportRequest(created.assessment_id, is_admin=True))
             assert report.artifact_media_type == "application/pdf"

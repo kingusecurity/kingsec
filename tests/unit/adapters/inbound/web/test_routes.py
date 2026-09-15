@@ -31,8 +31,6 @@ from kingsec.application.dto import (
     ListAssessmentsRequest,
     ListAssessmentsResponse,
     SeverityCount,
-    StartAssessmentRequest,
-    StartAssessmentResponse,
     SubmitAssessmentRequest,
     SubmitAssessmentResponse,
 )
@@ -67,7 +65,6 @@ class StubServiceAPI(ServiceAPI):
 
     def __init__(self) -> None:
         self.create_called = False
-        self.start_called = False
         self.submit_called = False
         self.cancel_called = False
         self.list_called = False
@@ -81,15 +78,6 @@ class StubServiceAPI(ServiceAPI):
             assessment_id="asmt-test-001",
             status="authorized",
             target=f"{request.target_value} ({request.target_type})",
-        )
-
-    def start_assessment(self, request: StartAssessmentRequest) -> StartAssessmentResponse:
-        self.start_called = True
-        return StartAssessmentResponse(
-            assessment_id=request.assessment_id,
-            status="completed",
-            findings_count=3,
-            highest_severity="critical",
         )
 
     def submit_assessment(self, request: SubmitAssessmentRequest) -> SubmitAssessmentResponse:

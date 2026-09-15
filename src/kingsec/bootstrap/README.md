@@ -75,7 +75,7 @@ exception handlers). `create_wired_application()` in `composition.py` layers the
 from kingsec.bootstrap.composition import create_wired_application
 
 with create_wired_application() as app:          # start() on enter, stop() on exit
-    use_case = app.resolve(StartAssessment)       # fully constructed from DI
+    use_case = app.resolve(SubmitAssessment)      # fully constructed from DI
     use_case.execute(request)
 ```
 
@@ -89,7 +89,7 @@ It registers, in order:
 3. **Scanner** (`register_scanner`) — binds `ScannerPort` (Nuclei).
 4. **AI** (`register_ai`) — binds `AIPort`, adds the http-client `close` hook.
 5. **Reporting** (`register_reporting`) — binds `ReportGeneratorPort` (WeasyPrint).
-6. **Use cases** — `CreateAssessment`, `StartAssessment`, `GetAssessment`,
+6. **Use cases** — `CreateAssessment`, `SubmitAssessment`, `GetAssessment`,
    `GenerateReport` are registered as DI factories that resolve their ports from
    the container, so `app.resolve(UseCase)` needs no manual construction.
 

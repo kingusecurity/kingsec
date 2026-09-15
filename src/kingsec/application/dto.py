@@ -411,23 +411,6 @@ class AssessmentView:
 
 
 @dataclass(frozen=True)
-class StartAssessmentRequest:
-    """Request to begin an authorized assessment."""
-
-    assessment_id: str
-
-
-@dataclass(frozen=True)
-class StartAssessmentResponse:
-    """Response from starting an assessment."""
-
-    assessment_id: str
-    status: str
-    findings_count: int
-    highest_severity: str | None
-
-
-@dataclass(frozen=True)
 class SubmitAssessmentRequest:
     """Request to submit an assessment for background execution."""
 
