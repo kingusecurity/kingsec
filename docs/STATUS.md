@@ -537,24 +537,129 @@ per instruction — recorded as found. Whoever picks this up next should
 start by finding where the estimate is computed and check whether it is
 a hardcoded per-profile constant rather than derived from anything real.
 
-### Backlog — HOST SERVICES contamination, flagged prominently for Phase 2C
+### Backlog — asset-attribution defect (reframed from "HOST SERVICES contamination", GAP-1 fix round, logged, not fixed)
 
-Every run in Task 6's suite targets `127.0.0.1:<port>`, and nmap's
-host-sweep component scans the whole host, not just the target's own
-port — so **every run**, not only a bare quick-scan, surfaces this
-machine's own unrelated background services (RPC, SMB, VMware ports,
-RDP, WSDAPI, plus this host's own `vantriqsec-crm`/`vantriqsec-n8n`
-services — both confirmed pre-existing, off-limits, read-only, never
-touched) mixed into the target's own findings. Full detail in
-`docs/E2E-EVIDENCE-PHASE2B.md` §4 ("Host services vs. target findings").
-**Flagged prominently here, separately, for Phase 2C:** any
-severity/count aggregation across these runs — a dashboard, a trend
-chart, a cross-assessment rollup — must exclude these host-services
-ports uniformly, or it will double-count the same handful of unrelated
-services in every run's totals and silently inflate KingSec's own
-reported numbers. This is a real correctness risk for any future
-Phase 2C feature that aggregates across assessments, not just a report-
-rendering nicety.
+**Reframed.** This was originally logged as "HOST SERVICES contamination" —
+framed as if nmap scanning beyond the assessment's own port were the
+problem. It is not: nmap's host-sweep scans the whole host, not just the
+target's own port, and on a real engagement against e.g. `https://client.com/app`,
+that host's *other* ports genuinely belong to that client — the scanning
+itself is correct and valuable coverage, not noise to be filtered out.
+
+The real defect is **attribution**. Every finding nmap produces —
+whether it's the target's own port or another port on the same host — is
+currently attributed to `assessment.target` (the URL/hostname string),
+not to the host:port it was actually observed on. Confirmed directly
+against real evidence this round
+(`Downloads\KINGSEC-CLEAN-TARGET-REAL-SCAN-attempt.pdf`): a finding
+titled "Open port 3389/tcp" (RDP — a host-level service, nothing to do
+with the assessed application) rendered with **Affected Asset:
+`http://127.0.0.1:18090 (url)`** — the nginx container's own URL. A
+client reading "affected asset: your web app URL" next to a database or
+RDP port finding will not trust the report, regardless of how accurate
+the underlying port scan was.
+
+**The fix, when scoped:** every finding must be attributed to the asset
+it was actually observed on — host:port for nmap findings, the URL for
+web-layer scanners (ffuf, gobuster, ZAP, nuclei-on-http, etc.) — never to
+the assessment's target string as a blanket label. This:
+  - resolves the original "host services contamination" complaint as a
+    side effect (the host's other-port findings become honestly
+    attributed to the host, not falsely pinned to the target URL, so
+    they stop reading as contamination of the target's own findings);
+  - resolves the localhost-absurdity case (`127.0.0.1:<port>` picking up
+    this machine's own unrelated background services — RPC, SMB, VMware
+    ports, RDP, WSDAPI, plus this host's own `vantriqsec-crm`/
+    `vantriqsec-n8n` services, both confirmed pre-existing, off-limits,
+    read-only, never touched) as the same case of the general defect,
+    not a special one;
+  - is a **prerequisite for multi-host assessments** — any future feature
+    that assesses more than one host per assessment cannot honestly
+    report per-host findings until attribution is per-finding instead of
+    per-assessment.
+
+Full original detail in `docs/E2E-EVIDENCE-PHASE2B.md` §4 ("Host
+services vs. target findings") — still accurate as a description of the
+symptom, superseded by this entry as the diagnosis of the cause.
+
+**Not fixed.** This touches the finding model itself (adding a real
+observed-asset field, distinct from the assessment's target) — its own
+scoped piece of work, not attempted in this round. Any severity/count
+aggregation across runs — a dashboard, a trend chart, a cross-assessment
+rollup — remains at risk of double-counting the same unrelated services
+in every run's totals until this is fixed; that risk from the original
+entry still stands.
+
+### Status — the no-signal score override (`_is_no_signal`/`_NO_SIGNAL_COLOR`/`_NO_SIGNAL_LABEL`, `infrastructure/reporting/templates.py`): TESTED, NOT RENDERED
+
+Phase 2C Step 2's no-signal override — the band/label substitution applied
+when a report's `severity_counts` carries nothing above Informational
+(including the zero-findings case) — is unit tested and that coverage is
+trusted. It has **never been rendered from real scan data** on this
+machine, and cannot be, until the asset-attribution defect immediately
+above is fixed.
+
+Two honest attempts were made this engagement to produce a real,
+genuinely clean rendering as evidence:
+  1. GAP-1's own re-render (a real assessment with zero scanner coverage)
+     — correctly refused by `derive_assessment_status()` (a FAILED
+     assessment must never produce a scored report at all), so it never
+     reached the no-signal override in the first place.
+  2. A real Docker/nginx target stood up specifically to produce a
+     genuinely clean, fully-covered result
+     (`Downloads\KINGSEC-CLEAN-TARGET-REAL-SCAN-attempt.pdf`) — blocked
+     by the asset-attribution defect above: nmap's host-sweep findings
+     (this machine's own unrelated services, e.g. RDP on 3389) got
+     attributed to the target URL, so the result was never actually
+     clean/no-signal, regardless of the target's own findings.
+
+Both attempts were blocked by the same root cause, not by the override
+itself. No third attempt was made — per instruction, an honest "tested,
+not rendered, here is why" stands as the record for this item until
+asset attribution is fixed.
+
+### Backlog — `max_concurrent_assessments` silently does nothing (logged, not fixed, GAP-1 fix round)
+
+`settings.performance.max_concurrent_assessments`
+(`infrastructure/config/models.py:657`) has no live integration point
+anywhere in the running application right now. KSEC-87-02 already built
+the real enforcement mechanism honestly — `AssessmentConcurrencyPort`
+(`application/ports/outbound/assessment_concurrency.py`), an atomic
+`try_reserve_slot()`/`release_slot()` implementation
+(`infrastructure/persistence/repositories/assessment_concurrency.py`), a
+dedicated `assessment_concurrency_slots` table (migration
+`2026_09_03_000000__add_assessment_concurrency_slots.py`), and
+`TooManyConcurrentAssessmentsError` — but the only place that ever called
+`try_reserve_slot()` was the now-deleted `StartAssessment` use case's own
+DI wiring in `bootstrap/composition.py`. `submit_assessment.py` (the one
+real orchestrator every live submission path uses today) never called it
+at all, and `AssessmentConcurrencyPort` is not even DI-registered in
+`bootstrap/composition.py` anymore. Confirmed via a repo-wide grep for
+`try_reserve_slot(`: zero call sites outside the port definition, its own
+adapter implementation, and `tests/unit/infrastructure/test_assessment_concurrency.py`
+(which exercises the mechanism directly, not through any use case). The
+setting can be changed via `KINGSEC_PERFORMANCE__MAX_CONCURRENT_ASSESSMENTS`
+and nothing in the running application will ever read it.
+
+**Claim-audit flag for Phase 5:** `docs/ADMIN_GUIDE.md` currently tells
+admins this is a real, functioning control — twice: "Increase max
+concurrent assessments for larger teams" (Performance Tuning) and
+"Reduce max concurrent assessments in System Settings" (Troubleshooting
+→ Performance Issues During Assessments), the latter additionally implying
+a "System Settings" UI exists to change it. Neither claim is true today —
+the setting is fully inert. Not corrected in this round (out of scope);
+flagged here specifically because it's exactly the misrepresentation risk
+Phase 5 exists to catch (`docs/REMEDIATION-PLAN.md`'s Phase 5 "Truth
+pass").
+
+**Fix, when scoped:** either wire `try_reserve_slot()`/`release_slot()`
+into `SubmitAssessment.execute()` (claim before `job_runner.submit()`,
+release in the background job's terminal paths) so the setting does what
+`ADMIN_GUIDE.md` already claims, or remove the setting from `Settings`
+and correct `ADMIN_GUIDE.md` to stop describing a control that doesn't
+exist. Either resolution is acceptable; leaving it half-built (a real,
+tested enforcement mechanism sitting completely disconnected from the one
+production code path that would use it) is not.
 
 ### Backlog — scan-time AI enrichment has the same per-finding spam defect Priority 2 fixed elsewhere (logged, not fixed)
 
