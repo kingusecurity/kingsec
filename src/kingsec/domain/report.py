@@ -14,6 +14,7 @@ on work that isn't finished.
 
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -23,6 +24,13 @@ from .assessment import Assessment, ScannerRunSummary
 from .enums import AssessmentStatus, FindingStatus, Severity, SeverityDemotionReason
 from .errors import IllegalStateTransition
 from .evidence import Evidence, Recommendation
+
+# Stdlib logging only - permitted in domain per docs/FOUNDATION.md §8
+# ("domain imports only the standard library and shared"). Used solely to
+# record when a persisted assessment_status disagrees with what its own
+# scanner_summary implies (see from_assessment() below) - never for control
+# flow, and no infrastructure/adapter dependency is introduced.
+_logger = logging.getLogger(__name__)
 
 # Plain-language headlines keyed by the overall (highest actionable) severity.
 # Used only when scanner coverage was complete.
@@ -474,6 +482,37 @@ class HistoryPoint:
     score_version: str = "v2"
 
 
+def _derive_assessment_status(assessment: Assessment) -> AssessmentStatus:
+    """The real completion state, computed live from ``assessment.scanner_summary``
+    — the same ground truth ``submit_assessment.py``'s own orchestrator computes
+    from when it first decides an assessment's terminal status — never trusted
+    from ``assessment.status`` alone.
+
+    Phase 2C Step 2 GAP-1 fix: this is the ONE place ``Report.from_assessment()``
+    determines the status a report actually reflects; nothing downstream of it
+    re-derives or second-guesses this value. Zero successes with at least one
+    scheduled scanner means FAILED, regardless of what ``assessment.status``
+    says. Some-but-not-all successes means COMPLETED_WITH_GAPS. All succeeded
+    means COMPLETED.
+
+    Falls back to ``assessment.status`` only when there is no scanner_summary
+    at all to derive from (a pre-scanner-summary-feature assessment, or a test
+    fixture that never calls ``record_scanner_summary()``) — there is nothing
+    to derive in that case, so the persisted value is the only signal that
+    exists.
+    """
+    scanner_summary = assessment.scanner_summary
+    total_count = len(scanner_summary)
+    if total_count == 0:
+        return assessment.status
+    succeeded_count = sum(1 for s in scanner_summary if s.status.is_success)
+    if succeeded_count == 0:
+        return AssessmentStatus.FAILED
+    if succeeded_count < total_count:
+        return AssessmentStatus.COMPLETED_WITH_GAPS
+    return AssessmentStatus.COMPLETED
+
+
 @dataclass(frozen=True, slots=True)
 class Report:
     """An immutable, conclusions-first report for a completed assessment."""
@@ -530,17 +569,38 @@ class Report:
         would itself be the false-assurance problem this phase exists to
         close. The caller gets a specific, honest reason why, not a
         generic state-transition error.
+
+        Phase 2C Step 2 GAP-1 fix: that guarantee is checked against
+        ``_derive_assessment_status(assessment)`` — computed live from
+        ``assessment.scanner_summary`` — never against ``assessment.status``
+        directly. A persisted status CAN disagree with the scanner results
+        it's supposed to summarize (concretely: assessments created before
+        Phase 2A's status-determination logic existed and never backfilled;
+        in principle, any future write path that fails to keep them in
+        sync). When they disagree, the derived value wins and is what this
+        report actually carries as ``assessment_status`` — the disagreement
+        itself is logged with both values, never silently accepted.
         """
-        if assessment.status not in (AssessmentStatus.COMPLETED, AssessmentStatus.COMPLETED_WITH_GAPS):
-            if assessment.status is AssessmentStatus.FAILED:
+        derived_status = _derive_assessment_status(assessment)
+        if derived_status is not assessment.status:
+            _logger.warning(
+                "assessment %s status disagrees with its own scanner_summary "
+                "(persisted=%s, derived=%s) - using the derived value",
+                assessment.id,
+                assessment.status.value,
+                derived_status.value,
+            )
+
+        if derived_status not in (AssessmentStatus.COMPLETED, AssessmentStatus.COMPLETED_WITH_GAPS):
+            if derived_status is AssessmentStatus.FAILED:
                 raise IllegalStateTransition(
                     "no report can be generated: every scanner failed to complete for this "
                     "assessment, so no assessment data was collected",
-                    current=assessment.status,
+                    current=derived_status,
                 )
             raise IllegalStateTransition(
                 "a report can only be generated from a completed assessment",
-                current=assessment.status,
+                current=derived_status,
             )
 
         findings = assessment.findings
@@ -583,7 +643,7 @@ class Report:
             authorized_by=authorization.authorized_by if authorization else "",
             scope=authorization.scope if authorization else "",
             scanner_summary=assessment.scanner_summary,
-            assessment_status=assessment.status,
+            assessment_status=derived_status,
         )
 
     # --- convenience ---------------------------------------------------------
