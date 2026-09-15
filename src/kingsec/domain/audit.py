@@ -40,6 +40,11 @@ class AuditAction(StrEnum):
 
     # User management
     USER_REGISTERED = "user_registered"
+    # kingsec-bootstrap CLI (Phase 3) - distinct from USER_REGISTERED so an
+    # operator scanning audit logs for admin-creation events finds a
+    # self-describing entry, not a USER_REGISTERED row that needs
+    # filtering by role.
+    ADMIN_BOOTSTRAPPED = "admin_bootstrapped"
     ROLE_CHANGED = "role_changed"
     PASSWORD_CHANGED = "password_changed"  # nosec B105 — audit event type name, not a credential
     USER_DEACTIVATED = "user_deactivated"
