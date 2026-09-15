@@ -3,6 +3,15 @@
 All notable changes to this project are documented here.
 The format follows Keep a Changelog, and the project aims to follow Semantic Versioning.
 
+## [Unreleased]
+### Security
+- **Breaking default change:** self-registration (`POST /auth/register`) is now **disabled by default**. Previously, the first user ever registered was automatically granted Admin — on any network-reachable instance, whoever reached `/auth/register` first permanently owned the system. Self-registration no longer grants Admin under any circumstances, even when re-enabled; the initial administrator is now created only by `kingsec-bootstrap`.
+- **Upgrade impact:** if your deployment relied on open self-registration (e.g. letting analysts sign themselves up as Viewers), that endpoint now returns `403` immediately after upgrading. Set `KINGSEC_SECURITY__ALLOW_SELF_REGISTRATION=true` to restore the old signup availability — accounts created this way are always Viewer, never Admin, regardless of registration order. Deployments that already have an administrator (effectively every real deployment) see no other behavior change.
+- Added `AuditAction.ADMIN_BOOTSTRAPPED`: admin creation via `kingsec-bootstrap` is now audit-logged (previously the one deliberate admin-creation path had no audit trail at all) and distinguishable from a self-registered `USER_REGISTERED` entry.
+- `kingsec-bootstrap` now validates the supplied password against the same policy self-registration already enforced (previously unvalidated — the most privileged account in the system had a weaker bar than a Viewer).
+- `GET /health` now reports `bootstrap_required: bool`, so an operator (or monitoring) can tell a fresh, never-bootstrapped instance apart from a normal one without reading source or provoking `/auth/register`'s new 403.
+- Removed `AccountLockoutService` (`infrastructure/security/lockout.py`) — an in-memory, single-process progressive-lockout implementation that was fully built and tested but never wired into the live login path, which uses a separate, DB-backed mechanism with a fixed (non-escalating) lockout duration. See `docs/STATUS.md`'s Phase 3 section for the full account-lockout investigation.
+
 ## [2.0.0] - 2026-07-30
 ### Added
 - General Availability release, consolidating 33 phases of development into a production-ready product (see RELEASE_NOTES.md for the full feature list: Attack Surface Management, multi-scanner Vulnerability Management, AI Copilot, Playbooks, Continuous Monitoring, Threat Intelligence, Compliance Dashboard, Asset Inventory, SSO/IdP configuration, Plugin SDK, Distributed Workers, Backup/Restore, License management)

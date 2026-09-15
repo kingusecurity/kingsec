@@ -138,7 +138,7 @@ Per the plan's own rule ("Do not start a phase until the previous one's acceptan
 ## Backlog (logged, not fixed — flagged during Phase 1 setup)
 
 1. **BUG: a `KINGSEC_STORAGE__DATA_DIR` override that fails to resolve silently falls back to the default path instead of failing loudly.** Discovered the hard way during Phase 1 setup: an env-file `source` with an unquoted path containing spaces silently dropped the override, and `kingsec-migrate` ran against the real `~/.kingsec/kingsec.db` instead of the intended isolated directory. The settings layer should fail closed (raise, not silently substitute a default) when an explicitly-set value for a security/isolation-relevant path can't be applied — same philosophy as the existing secret-placeholder guardrail. Not fixed — out of scope for Phase 1.
-2. **Two account-lockout implementations exist; the one covered by tests (`AccountLockoutService`, fixed in Phase 0) is not the one the live login path actually uses** (`CheckAccountLockout` + a DB-backed `lockout_repo`, reading the `account_lockouts` table). Phase 0's fix changed no live behavior as a result. Whether the DB-backed mechanism has an analogous escalation-reset defect is unknown — not investigated. Move to Phase 3 scope (auth hardening).
+2. ~~Two account-lockout implementations exist...~~ **RESOLVED, Phase 3.** Confirmed the live login path uses `CheckAccountLockout` + `RecordFailedAuthentication`/`RecordSuccessfulAuthentication` (the DB-backed `LockoutRepository`/`account_lockouts` table family) — not `AccountLockoutService`. Definitive answer on the open question: the live path does **not** have an analogous escalation-reset defect, because it never implemented escalation in the first place — `AccountLockout` (`domain/rate_limit.py`) has no field to record a prior-lockout count, so `RecordFailedAuthentication` always applies the same fixed `lockout_duration_seconds`. `AccountLockoutService` deleted (in-memory, single-process, structurally incompatible with the DB-backed live design — see Phase 3 section below and the carried-over-conclusion pattern's fifth instance above). No second lockout implementation remains.
 3. **Phase 0 added only 1 regression test for 6 fixed defects.** Missing dedicated regression tests for: the `find_oldest_pending` tie-order fix (both `InMemoryJobService` and `PersistentJobService` variants), and the `AccountLockoutService.clear()` escalation-preservation fix (beyond the one pre-existing test it was verified against, `test_progressive_lockout_duration`, no *new* test was added asserting escalation survives a clear specifically). Should be added before this class of defect is considered closed out.
 4. **Unconfirmed: is the `rowid` tiebreaker in `SQLAlchemyJobRepository.list()` actually safe long-term?** It relies on SQLite's implicit `rowid` being monotonically increasing for this table. Not yet confirmed whether `scan_jobs` is declared with `AUTOINCREMENT` (which prevents rowid reuse after deletes) or is a plain rowid table (where SQLite *can* reuse a deleted row's rowid for a later insert, which would silently reintroduce the exact tie-order bug this was meant to fix, just under a different trigger condition). Needs verification before relying on this fix indefinitely.
 
@@ -192,6 +192,8 @@ Three separate times in this phase, a conclusion carried over from before a cont
 None of these were caught by pytest, ruff, or mypy — all three passed every automated gate. They were caught by manual review against independent sources (another document stating the same fact, or a human looking at the actual rendered PDF). The lesson, now codified in `CLAUDE.md`'s Verification honesty section: a conclusion carried over from before a context reset is unverified by default, regardless of how confidently it was stated, until it is re-checked against the current code in the current session.
 
 **A fourth instance recurred in Phase 2B Task 2:** a failing `tests/integration/test_alembic_migrations.py` line observed mid-session was reported as "confirmed pre-existing, unrelated" — stated as settled without being checked against a clean baseline. It was not pre-existing: verified via an isolated `git worktree` at the branch's own committed HEAD (738ce02) plus the working tree itself, both runs green, 13/13 passed, no reproduction anywhere. The individual explanation for why it appeared mid-session is not the useful part of this record (most likely a transient artifact of accumulated alembic-pollution files from an earlier full-suite run in the same session — see the pollution bug logged above — but that is a guess, not a finding); the pattern entry is: a FAILED line was characterized as pre-existing without verification, the same shape as items 1 and 2 above, not a new or different failure mode.
+
+**A fifth instance, a different mechanism but the same shape, closed in Phase 3:** Phase 0's Task B fix (`AccountLockoutService.clear()` preserving `lockout_count` across a clear, so a single successful login can't reset progressive-lockout escalation) was reported at the time as "net stronger security behaviour." That was true of the code fixed — and Phase 0 said so precisely, flagging in the same breath that the fix "changes no live authentication behaviour today" since `AccountLockoutService` was never wired into the real login path. The claim was accurate as written. What went wrong is what happened to it afterward: "we fixed the lockout escalation bug" sat in this file's record for six weeks, and by the time Phase 3 investigated it, that shorthand had drifted into something read as true of the product, when it was only ever true of a class the product does not execute. This is not a criticism of the Phase 0 fix itself, which was correct and is now proven, via Phase 3's own pinning test, to be architecturally inapplicable to the live path rather than merely unwired — `AccountLockoutService` was in-memory, single-process, structurally incompatible with the DB-backed live mechanism regardless of wiring. The lesson is the same as items 1-4: a precisely-scoped claim, true when written, is not self-maintaining — it needs to be re-stated at the point where a reader would reasonably generalize it, not just left to accumulate. `AccountLockoutService` is deleted as of Phase 3 (see that section below); the live path's real, current, fixed-duration behavior is now pinned by `test_live_lockout_duration_is_fixed_not_progressive`.
 
 ### What this phase fixed
 
@@ -708,3 +710,141 @@ every disclosure mechanism built in Phase 2C (and Task 4, and Phase
 2B-c) feeds into this same paragraph, so fixing its presentation is a
 prerequisite for any of those disclosures actually being read, not an
 independent nicety.
+
+---
+
+## Phase 3 — Auth hardening
+
+**Branch:** `fix/phase-3-auth-hardening` (based on `feat/phase-2c-scoring-v2`)
+**Status:** Implementation complete, gate pending. Scope: registration,
+first-admin bootstrap, the lockout duplication (see the carried-over-
+conclusion pattern's fifth instance, above, and the resolved Backlog
+item #2), related config and tests.
+
+### The defect
+
+Self-registration was enabled by default with no way to disable it, and
+`RegisterUser` atomically granted ADMIN to whichever caller's insert was
+first to observe an empty `users` table (KSEC-73-05). On any network-
+reachable instance, the first unauthenticated caller to reach
+`/auth/register` — the only one of the four public, unauthenticated
+routes with no rate limit — permanently owned the system. Full
+investigation: `POST /auth/register` had no auth dependency, no rate
+limit, and no gate of any kind; the shipped `docker-compose.yml` already
+sets `KINGSEC_SERVER__ALLOW_EXTERNAL_BIND=true` inside the container, so
+the only thing standing between a default deployment and exposure was
+the host-side port mapping (`127.0.0.1:8765:8765`) — a one-line operator
+edit away, not a rare, deliberate opt-in.
+
+### What changed
+
+- **Self-registration is OFF by default** (`SecuritySettings.
+  allow_self_registration = False`, `KINGSEC_SECURITY__ALLOW_SELF_
+  REGISTRATION` to override). `RegisterUser.execute()` refuses before any
+  other check, with a message naming exactly what to do: "run kingsec-
+  bootstrap" when no admin exists yet, or the env var name when one
+  already does and registration is just turned off.
+- **Self-registration can never grant ADMIN again, regardless of this
+  flag.** The atomic `CASE WHEN COUNT(*)=0 THEN 'ADMIN'` bootstrap-claim
+  SQL is gone. `UserRepository.save_new_user_claiming_bootstrap_admin`
+  is now `save_new_user` — a plain insert, role exactly as given, first
+  user or not. This is the part that actually closes the vulnerability;
+  the flag alone would only have moved the race to whenever an operator
+  re-enables registration.
+- **`kingsec-bootstrap` is now the ONLY way an initial admin gets
+  created.** Its existing guard (refuses if an admin already exists) is
+  **kept as-is, deliberately** — a stricter "refuses if any user exists"
+  guard was considered and explicitly rejected: this tool's stated
+  purpose is recovery after admin loss, and the stricter guard would
+  refuse in exactly that scenario if ordinary user accounts survive. The
+  weaker guard defends against what it needs to (a second admin behind
+  an existing admin's back); nothing in this phase's design depends on
+  it being stricter, since the grant-logic removal above is what closes
+  the actual race.
+- **The bootstrap password is now validated** — previously zero
+  validation on the path that creates the most powerful account in the
+  system, while self-registration had full validation. Reuses
+  `ChangePassword._validate_password`, the same canonical policy
+  `admin_users.py` already reuses for the identical reason.
+- **`GET /health` gains `bootstrap_required: bool`** (`count_by_role
+  (ADMIN) == 0`) — the one public, unauthenticated signal that an
+  operator must run `kingsec-bootstrap`, without needing to read source
+  or provoke `/auth/register`'s 403 just to find out.
+- **Both Q6 audit gaps closed.** New `AuditAction.ADMIN_BOOTSTRAPPED`,
+  distinct from `USER_REGISTERED` — an operator scanning for admin-
+  creation events now finds a self-describing entry instead of having to
+  filter by role. `kingsec-bootstrap` now records one (best-effort,
+  matching the existing `_publish_audit` pattern), closing the one
+  admin-creation path that previously had zero audit trail at all.
+
+### A real, pre-existing bug found while testing kingsec-bootstrap (not fixed, flagged here)
+
+`_bootstrap.py` had **zero test coverage before this phase.** Writing
+its first tests (which necessarily call it more than once, to test the
+admin-exists guard) surfaced a genuine, reproducible defect, confirmed
+via two independent, real `python -m kingsec._bootstrap` subprocess
+invocations — not a test-harness artifact: **running `kingsec-bootstrap`
+a second time against an already-bootstrapped instance prints the wrong
+error.** Instead of "an admin user already exists," it prints "ERROR:
+migrations not applied; run 'kingsec-migrate' first" — actively
+misleading advice, since migrations genuinely are applied. Root cause:
+`_migrations_applied()`'s `alembic check` subprocess reports several
+unrelated backup/scan-snapshot tables (`scan_snapshot`,
+`backup_verification`, `backup_schedule`, `backup_recovery_test`,
+`scan_restore`, `backup_recovery_plan`, `scan_backup`) as "removed" —
+i.e. present in the database but no longer defined in the live ORM
+metadata — but only on the **second** `alembic check` invocation in a
+process's lifetime, not the first. Not root-caused further (a deep,
+pre-existing `alembic`/model-registration interaction, unrelated to
+registration/bootstrap/lockout) and not fixed here — out of this
+phase's scope. `tests/integration/test_bootstrap_cli.py`'s admin-exists
+test isolates around it (patches `_migrations_applied` for the second
+call specifically, with a comment explaining why) rather than either
+hiding it or blocking on it. **Whoever picks this up:** this makes
+`kingsec-bootstrap` unsafe to run twice in a row today, which is an
+entirely ordinary thing for an operator to do (confirming a typo,
+re-running after an unclear result) — worth prioritizing.
+
+### Tests
+
+`tests/integration/test_bootstrap_cli.py` (new — first coverage this CLI
+has ever had): creates an admin and asserts a findable `ADMIN_BOOTSTRAPPED`
+audit entry distinct from `USER_REGISTERED`; refuses when an admin
+already exists; rejects a weak password before touching the database.
+`tests/unit/application/test_register_user.py`: registering with self-
+registration disabled grants nothing, with the two distinct messages
+(no admin yet vs. admin exists); every self-registered user is Viewer,
+first or not (replacing the old admin-grant assertions, which tested the
+exact vulnerability). `tests/unit/adapters/inbound/web/test_routes.py`:
+`/health`'s `bootstrap_required` in both states.
+`tests/unit/application/test_rate_limit_use_cases.py`:
+`test_live_lockout_duration_is_fixed_not_progressive`, pinning current
+behavior per the carried-over-conclusion pattern's fifth instance above
+— replace, don't delete, if escalation is ever implemented.
+
+### Backlog — progressive lockout escalation is not implemented on the live path (logged, not fixed, Phase 3, explicit decision)
+
+Overruling the phase's own Step 2 starting position: escalation needs a
+new persisted field, a migration, a tiering policy, and a decay rule —
+none of that is what makes first-user-becomes-admin a sales-conversation
+-ending finding, and a fixed 900-second lockout is a defensible,
+shippable control plenty of production systems ship as-is. Not
+implemented this phase. When it is scoped, it needs:
+  - **A persisted lockout-count/tier field** on `AccountLockout`
+    (`domain/rate_limit.py`) — the current three fields (`user_id`,
+    `locked_until`, `failed_attempts`) have nowhere to record how many
+    times an account has been locked before. Requires a schema migration
+    to `account_lockouts`.
+  - **A tiering policy** — `AccountLockoutService`'s deleted 60/120/300/600s
+    table is a reasonable starting point, not a requirement.
+  - **A decay rule** — when does the count itself reset? The deleted
+    class's answer (only on full eviction after a clean `lockout_window`,
+    never on a mere successful login) is the one documented design that
+    actually avoided the "attacker who occasionally succeeds resets their
+    own escalation" trap — worth preserving as a design note even though
+    the code itself is gone.
+  - It should be built directly against the live, DB-backed
+    `LockoutRepository`/`RecordFailedAuthentication` family — never a
+    revival of `AccountLockoutService`'s in-memory design, which is
+    structurally incompatible with a multi-process deployment (see the
+    carried-over-conclusion pattern's fifth instance, above).
