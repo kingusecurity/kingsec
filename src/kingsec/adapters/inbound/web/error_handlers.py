@@ -83,7 +83,7 @@ from kingsec.application.errors import (
 )
 from kingsec.application.use_cases.login import AuthenticationError
 from kingsec.application.use_cases.refresh_token import TokenRefreshError
-from kingsec.application.use_cases.register_user import RegistrationError
+from kingsec.application.use_cases.register_user import RegistrationDisabledError, RegistrationError
 from kingsec.application.use_cases.revoke_api_key import (
     ApiKeyNotFoundError,
     ApiKeyUnauthorizedError,
@@ -279,6 +279,14 @@ async def handle_registration_error(_request: Request, exc: RegistrationError) -
     return _error_response(409, ErrorCode.VALIDATION, str(exc))
 
 
+async def handle_registration_disabled(_request: Request, exc: RegistrationDisabledError) -> JSONResponse:
+    # Phase 3 (auth hardening): the message itself already names what the
+    # caller/operator should do (run kingsec-bootstrap, or set
+    # KINGSEC_SECURITY__ALLOW_SELF_REGISTRATION=true) - str(exc) is safe to
+    # return as-is, same as RegistrationError above.
+    return _error_response(403, ErrorCode.AUTHORIZATION, str(exc))
+
+
 async def handle_token_refresh_error(_request: Request, exc: TokenRefreshError) -> JSONResponse:
     return _error_response(401, ErrorCode.AUTHORIZATION, str(exc))
 
@@ -416,6 +424,7 @@ def register_error_handlers(app: object) -> None:
     app.exception_handler(AuthenticationError)(handle_authentication_error)
     app.exception_handler(MfaStepUpAuthenticationError)(handle_mfa_step_up_authentication_error)
     app.exception_handler(RegistrationError)(handle_registration_error)
+    app.exception_handler(RegistrationDisabledError)(handle_registration_disabled)
     app.exception_handler(TokenRefreshError)(handle_token_refresh_error)
     app.exception_handler(ApiKeyNotFoundError)(handle_api_key_not_found)
     app.exception_handler(ApiKeyUnauthorizedError)(handle_api_key_unauthorized)

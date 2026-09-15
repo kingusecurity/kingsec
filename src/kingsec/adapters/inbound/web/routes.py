@@ -69,8 +69,19 @@ def _is_admin(user: CurrentUser) -> bool:
     summary="Health check",
     description="Returns service health status. Exposes no internal details.",
 )
-async def health_check() -> schemas.HealthResponse:
-    return schemas.HealthResponse(status="ok")
+async def health_check(request: Request) -> schemas.HealthResponse:
+    # Phase 3 (auth hardening): the one public, unauthenticated signal
+    # that no administrator exists yet - never internal details, just a
+    # boolean an operator's monitoring (or the frontend) can act on
+    # without needing to read source or hit /auth/register just to
+    # provoke its 403.
+    from kingsec.application.ports import UserRepository
+    from kingsec.domain import Role
+
+    app: Application = request.app.state.kingsec_app
+    users: UserRepository = app.resolve(UserRepository)
+    bootstrap_required = users.count_by_role(Role.ADMIN) == 0
+    return schemas.HealthResponse(status="ok", bootstrap_required=bootstrap_required)
 
 
 # ── Auth ─────────────────────────────────────────────────────────────────────

@@ -120,6 +120,14 @@ class HealthResponse(BaseModel):
         default="ok",
         description="Health status.",
     )
+    bootstrap_required: bool = Field(
+        default=False,
+        description=(
+            "Phase 3 (auth hardening): true when no administrator exists yet. "
+            "The one public, unauthenticated signal that an operator must run "
+            "kingsec-bootstrap before this instance can be used."
+        ),
+    )
 
 
 class CreateAssessmentResponse(BaseModel):
