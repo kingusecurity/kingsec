@@ -482,18 +482,27 @@ class HistoryPoint:
     score_version: str = "v2"
 
 
-def _derive_assessment_status(assessment: Assessment) -> AssessmentStatus:
+def derive_assessment_status(assessment: Assessment) -> AssessmentStatus:
     """The real completion state, computed live from ``assessment.scanner_summary``
     — the same ground truth ``submit_assessment.py``'s own orchestrator computes
     from when it first decides an assessment's terminal status — never trusted
     from ``assessment.status`` alone.
 
-    Phase 2C Step 2 GAP-1 fix: this is the ONE place ``Report.from_assessment()``
-    determines the status a report actually reflects; nothing downstream of it
-    re-derives or second-guesses this value. Zero successes with at least one
-    scheduled scanner means FAILED, regardless of what ``assessment.status``
-    says. Some-but-not-all successes means COMPLETED_WITH_GAPS. All succeeded
-    means COMPLETED.
+    Phase 2C Step 2 GAP-1 fix: this is the ONE place that determines the
+    status a report actually reflects; nothing downstream of it re-derives
+    or second-guesses this value on its own. Zero successes with at least
+    one scheduled scanner means FAILED, regardless of what
+    ``assessment.status`` says. Some-but-not-all successes means
+    COMPLETED_WITH_GAPS. All succeeded means COMPLETED.
+
+    Public (not ``_``-prefixed): ``Report.from_assessment()`` below calls it
+    at generation time, and the report-download/metadata routes
+    (adapters/inbound/web/routes.py) call it again at READ time - a stored
+    report generated before this function existed can still be sitting in
+    the database with a stale ``assessment_status``, and serving it from
+    cache without re-checking would silently resurface the exact false
+    claim generation-time now refuses to produce. Both call sites must stay
+    on this one implementation, never grow their own copy.
 
     Falls back to ``assessment.status`` only when there is no scanner_summary
     at all to derive from (a pre-scanner-summary-feature assessment, or a test
@@ -571,7 +580,7 @@ class Report:
         generic state-transition error.
 
         Phase 2C Step 2 GAP-1 fix: that guarantee is checked against
-        ``_derive_assessment_status(assessment)`` — computed live from
+        ``derive_assessment_status(assessment)`` — computed live from
         ``assessment.scanner_summary`` — never against ``assessment.status``
         directly. A persisted status CAN disagree with the scanner results
         it's supposed to summarize (concretely: assessments created before
@@ -581,7 +590,7 @@ class Report:
         report actually carries as ``assessment_status`` — the disagreement
         itself is logged with both values, never silently accepted.
         """
-        derived_status = _derive_assessment_status(assessment)
+        derived_status = derive_assessment_status(assessment)
         if derived_status is not assessment.status:
             _logger.warning(
                 "assessment %s status disagrees with its own scanner_summary "
