@@ -14,8 +14,8 @@ from kingsec.application import (
     GetAssessment,
     GetAssessmentRequest,
     ScannerPort,
-    StartAssessment,
-    StartAssessmentRequest,
+    SubmitAssessment,
+    SubmitAssessmentRequest,
 )
 from kingsec.application.ports.outbound.ai_provider_config_repository import (
     AIProviderConfigRepository,
@@ -95,6 +95,19 @@ class _StubScanner(ScannerPort):
         return {"stub": "Stub Scanner"}
 
 
+class _InlineJobRunner:
+    """Runs the submitted job synchronously, in-thread - deterministic for tests."""
+
+    def submit(self, job_id, fn, *args, **kwargs) -> None:
+        fn()
+
+    def is_running(self, job_id) -> bool:
+        return False
+
+    def shutdown(self, wait: bool = True) -> None:
+        pass
+
+
 class TestRealServer:
     def test_happy_path_enriches(self, ai_server) -> None:
         base_url, _state = ai_server
@@ -129,8 +142,8 @@ class TestFullSlice:
             created = CreateAssessment(assessments).execute(
                 CreateAssessmentRequest("10.0.0.5", "ip_address", "tester", "10.0.0.5")
             )
-            StartAssessment(assessments, _StubScanner(), _adapter(base_url)).execute(
-                StartAssessmentRequest(created.assessment_id)
+            SubmitAssessment(assessments, _StubScanner(), _InlineJobRunner(), _adapter(base_url)).execute(
+                SubmitAssessmentRequest(created.assessment_id, is_admin=True)
             )
 
             view = GetAssessment(assessments).execute(GetAssessmentRequest(created.assessment_id, is_admin=True))
@@ -148,13 +161,13 @@ class TestFullSlice:
                 CreateAssessmentRequest("10.0.0.5", "ip_address", "tester", "10.0.0.5")
             )
             # Fail-safe: the scan still completes despite the AI being down.
-            started = StartAssessment(assessments, _StubScanner(), _adapter(base_url)).execute(
-                StartAssessmentRequest(created.assessment_id)
+            SubmitAssessment(assessments, _StubScanner(), _InlineJobRunner(), _adapter(base_url)).execute(
+                SubmitAssessmentRequest(created.assessment_id, is_admin=True)
             )
 
-            assert started.status == "completed"
-            assert started.findings_count == 1
             view = GetAssessment(assessments).execute(GetAssessmentRequest(created.assessment_id, is_admin=True))
+            assert view.status == "completed"
+            assert len(view.findings) == 1
             # Finding recorded unchanged — just without an AI recommendation.
             assert view.findings[0].recommendation_count == 0
         finally:

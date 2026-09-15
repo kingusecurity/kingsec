@@ -15,8 +15,8 @@ from kingsec.application import (
     GetAssessmentRequest,
     RenderedReport,
     ReportRepository,
-    StartAssessment,
-    StartAssessmentRequest,
+    SubmitAssessment,
+    SubmitAssessmentRequest,
 )
 from kingsec.application.ports import ReportGeneratorPort, ScannerPort
 from kingsec.bootstrap import Container
@@ -42,6 +42,19 @@ class _StubScanner(ScannerPort):
 class _StubReportGenerator(ReportGeneratorPort):
     def render(self, report: Report, *, format: str | None = None) -> RenderedReport:
         return RenderedReport(b"%PDF fake", "application/pdf", f"{report.assessment_id}.pdf")
+
+
+class _InlineJobRunner:
+    """Runs the submitted job synchronously, in-thread - deterministic for tests."""
+
+    def submit(self, job_id, fn, *args, **kwargs) -> None:
+        fn()
+
+    def is_running(self, job_id) -> bool:
+        return False
+
+    def shutdown(self, wait: bool = True) -> None:
+        pass
 
 
 class TestContainerWiring:
@@ -84,9 +97,9 @@ class TestEndToEndSlice:
         )
 
         # 2. Start (loads from DB, scans, records, completes, re-saves)
-        started = StartAssessment(assessments, _StubScanner()).execute(StartAssessmentRequest(created.assessment_id))
-        assert started.status == "completed"
-        assert started.findings_count == 1
+        SubmitAssessment(assessments, _StubScanner(), _InlineJobRunner()).execute(
+            SubmitAssessmentRequest(created.assessment_id, is_admin=True)
+        )
 
         # 3. Get (loads persisted state)
         view = GetAssessment(assessments).execute(GetAssessmentRequest(created.assessment_id, is_admin=True))

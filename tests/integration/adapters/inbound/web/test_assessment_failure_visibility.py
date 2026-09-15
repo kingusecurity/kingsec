@@ -30,8 +30,6 @@ from kingsec.application.dto import (
     GetAssessmentRequest,
     ListAssessmentsRequest,
     ListAssessmentsResponse,
-    StartAssessmentRequest,
-    StartAssessmentResponse,
     SubmitAssessmentRequest,
     SubmitAssessmentResponse,
 )
@@ -51,9 +49,6 @@ class _GetOnlyService(ServiceAPI):
         return self._get.execute(request)
 
     def create_assessment(self, request: CreateAssessmentRequest) -> CreateAssessmentResponse:
-        raise NotImplementedError
-
-    def start_assessment(self, request: StartAssessmentRequest) -> StartAssessmentResponse:
         raise NotImplementedError
 
     def submit_assessment(self, request: SubmitAssessmentRequest) -> SubmitAssessmentResponse:

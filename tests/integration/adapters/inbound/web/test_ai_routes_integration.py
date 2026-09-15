@@ -171,15 +171,29 @@ def _owned_assessment_repo() -> tuple[Any, str, str]:
     """A real (in-memory) AssessmentRepository holding one assessment owned
     by "alice", with one real finding - not a mock of the ownership check
     itself."""
-    from kingsec.application import StartAssessment, StartAssessmentRequest
+    from kingsec.application import SubmitAssessment, SubmitAssessmentRequest
     from kingsec.domain import Assessment, Authorization, Target, TargetType
     from tests.unit.application.conftest import InMemoryAssessmentRepository, StubScanner, make_findings
+
+    class _InlineJobRunner:
+        """Runs the submitted job synchronously, in-thread - deterministic for tests."""
+
+        def submit(self, job_id: str, fn: Any, *args: Any, **kwargs: Any) -> None:
+            fn()
+
+        def is_running(self, job_id: str) -> bool:
+            return False
+
+        def shutdown(self, wait: bool = True) -> None:
+            pass
 
     repo = InMemoryAssessmentRepository()
     assessment = Assessment.create(Target("10.0.0.5", TargetType.IP_ADDRESS))
     assessment.authorize(Authorization.grant("tester", scope="10.0.0.5"))
     repo.save(assessment)
-    StartAssessment(repo, StubScanner(make_findings())).execute(StartAssessmentRequest(str(assessment.id)))
+    SubmitAssessment(repo, StubScanner(make_findings()), _InlineJobRunner()).execute(
+        SubmitAssessmentRequest(str(assessment.id), is_admin=True)
+    )
     assessment.set_ownership("alice")
     repo.save(assessment)
     finding_id = str(assessment.findings[0].id)
