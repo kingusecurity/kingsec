@@ -66,6 +66,19 @@ class AuditAction(StrEnum):
     # Authorization failures
     AUTHORIZATION_FAILURE = "authorization_failure"
 
+    # Authorization grants (Phase 4: scope enforcement)
+    AUTHORIZATION_GRANT_CREATED = "authorization_grant_created"
+    AUTHORIZATION_GRANT_REVOKED = "authorization_grant_revoked"
+    # A CreateAssessment.execute() call was refused because no active
+    # grant covers the target at a ScannerSurfaceTier the profile's
+    # scanners would actually touch - see AuthorizationScopeError.
+    SCOPE_CHECK_REFUSED = "scope_check_refused"
+    # An admin used the scope-check override to proceed despite
+    # SCOPE_CHECK_REFUSED's own refusal - distinct from it so an audit
+    # query can find every override separately from every refusal, not
+    # just infer overrides from the absence of a matching refusal entry.
+    SCOPE_CHECK_OVERRIDDEN = "scope_check_overridden"
+
     # Schedule lifecycle
     SCHEDULE_CREATED = "schedule_created"
     SCHEDULE_UPDATED = "schedule_updated"

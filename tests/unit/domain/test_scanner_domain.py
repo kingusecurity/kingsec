@@ -19,6 +19,7 @@ from kingsec.domain import (
     ScannerPluginMetadata,
     ScannerRequirement,
     ScannerResult,
+    ScannerSurfaceTier,
     Severity,
 )
 
@@ -51,6 +52,7 @@ def _make_capability() -> ScannerCapability:
         requirement=ScannerRequirement.REACHABLE_HOST,
         scan_categories=frozenset({ScanCategory.VULNERABILITY}),
         output_format=OutputFormat.STRUCTURED_JSON,
+        surface_tier=ScannerSurfaceTier.HOST_PORT_ANY_PATH,
     )
 
 
@@ -260,6 +262,7 @@ class TestScannerCapability:
                 requirement="reachable_host",  # type: ignore[arg-type]
                 scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                 output_format=OutputFormat.RAW_TEXT,
+                surface_tier=ScannerSurfaceTier.HOST_PORT_ANY_PATH,
             )
 
     def test_rejects_empty_scan_categories(self) -> None:
@@ -268,6 +271,7 @@ class TestScannerCapability:
                 requirement=ScannerRequirement.HTTP_BASE_URL,
                 scan_categories=frozenset(),
                 output_format=OutputFormat.RAW_TEXT,
+                surface_tier=ScannerSurfaceTier.HOST_PORT_ANY_PATH,
             )
 
     def test_rejects_non_scan_category_in_set(self) -> None:
@@ -276,6 +280,7 @@ class TestScannerCapability:
                 requirement=ScannerRequirement.REACHABLE_HOST,
                 scan_categories=frozenset({"vulnerability"}),  # type: ignore[arg-type]
                 output_format=OutputFormat.RAW_TEXT,
+                surface_tier=ScannerSurfaceTier.HOST_PORT_ANY_PATH,
             )
 
     def test_rejects_non_frozenset_scan_categories(self) -> None:
@@ -284,6 +289,7 @@ class TestScannerCapability:
                 requirement=ScannerRequirement.REACHABLE_HOST,
                 scan_categories={ScanCategory.VULNERABILITY},  # type: ignore[arg-type]
                 output_format=OutputFormat.RAW_TEXT,
+                surface_tier=ScannerSurfaceTier.HOST_PORT_ANY_PATH,
             )
 
     def test_rejects_invalid_output_format(self) -> None:
@@ -292,6 +298,7 @@ class TestScannerCapability:
                 requirement=ScannerRequirement.REACHABLE_HOST,
                 scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                 output_format="raw_text",  # type: ignore[arg-type]
+                surface_tier=ScannerSurfaceTier.HOST_PORT_ANY_PATH,
             )
 
     def test_immutable(self) -> None:

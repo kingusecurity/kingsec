@@ -247,3 +247,18 @@ class AttackSurfaceId:
 
     def __str__(self) -> str:
         return self.value
+
+
+@dataclass(frozen=True, slots=True)
+class AuthorizationGrantId:
+    value: str
+
+    def __post_init__(self) -> None:
+        ensure_non_empty(self.value, "AuthorizationGrantId")
+
+    @classmethod
+    def generate(cls) -> AuthorizationGrantId:
+        return cls(f"agrt-{uuid.uuid4().hex}")
+
+    def __str__(self) -> str:
+        return self.value

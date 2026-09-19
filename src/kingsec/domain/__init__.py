@@ -22,6 +22,15 @@ from .asset import (
 from .audit import AuditAction, AuditEntry
 from .audit_event import AuditEvent, AuditEventId, AuditOutcome, AuditSeverity
 from .authorization import Authorization
+from .authorization_grant import (
+    AuthorizationGrant,
+    ScopeCheckOutcome,
+    ScopeCheckResult,
+    TargetSpecification,
+    TargetSpecificationType,
+    covers_target,
+    satisfies_tier,
+)
 from .backup import (
     BackupId,
     BackupMetadata,
@@ -96,6 +105,7 @@ from .scanner import (
     ScannerPluginMetadata,
     ScannerRequirement,
     ScannerResult,
+    ScannerSurfaceTier,
     provided_requirements,
 )
 from .schedule import (
@@ -158,6 +168,7 @@ __all__ = [
     "AuditOutcome",
     "AuditSeverity",
     "Authorization",
+    "AuthorizationGrant",
     "BackupId",
     "BackupMetadata",
     "BackupSnapshot",
@@ -232,9 +243,12 @@ __all__ = [
     "ScannerResult",
     "ScannerRunState",
     "ScannerRunSummary",
+    "ScannerSurfaceTier",
     "ScheduleId",
     "ScheduleStatus",
     "ScheduleType",
+    "ScopeCheckOutcome",
+    "ScopeCheckResult",
     "SecretId",
     "SecretMetadata",
     "SecretType",
@@ -249,6 +263,8 @@ __all__ = [
     "SystemMetrics",
     "Target",
     "TargetDecompositionError",
+    "TargetSpecification",
+    "TargetSpecificationType",
     "TargetType",
     "Team",
     "TeamId",
@@ -262,7 +278,9 @@ __all__ = [
     "UserNotFoundError",
     "Verdict",
     "WebhookEventType",
+    "covers_target",
     "decompose_url",
     "is_ipv6_literal",
     "provided_requirements",
+    "satisfies_tier",
 ]
