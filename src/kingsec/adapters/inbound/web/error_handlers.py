@@ -18,6 +18,7 @@ Boundary policy
     │ AssessmentConflictError         │ 409 Conflict                       │
     │ AssessmentExecutionNotReconcila │ 409 Conflict                       │
     │ TooManyConcurrentAssessmentsErr │ 429 Too Many Requests              │
+    │ AuthorizationScopeError         │ 403 Forbidden                      │
     │ IllegalStateTransition          │ 409 Conflict                       │
     │ InvariantViolation              │ 422 Unprocessable Entity           │
     │ DomainError (other)             │ 409 Conflict                       │
@@ -45,6 +46,7 @@ from kingsec.application.errors import (
     AssessmentExecutionNotReconcilableError,
     AssessmentNotFoundError,
     AssetNotFoundError,
+    AuthorizationScopeError,
     BackupNotFoundError,
     CopilotConversationNotFoundError,
     CveNotFoundError,
@@ -303,6 +305,10 @@ async def handle_license_required(_request: Request, exc: LicenseRequiredError) 
     return _error_response(403, ErrorCode.LICENSE_REQUIRED, str(exc))
 
 
+async def handle_authorization_scope_error(_request: Request, exc: AuthorizationScopeError) -> JSONResponse:
+    return _error_response(403, ErrorCode.AUTHORIZATION, str(exc))
+
+
 async def handle_domain_error(_request: Request, exc: DomainError) -> JSONResponse:
     return _error_response(
         409,
@@ -370,6 +376,7 @@ def register_error_handlers(app: object) -> None:
     app.exception_handler(AssessmentDataCorruptedError)(handle_assessment_data_corrupted)
     app.exception_handler(ReportNotFoundError)(handle_report_not_found)
     app.exception_handler(LicenseRequiredError)(handle_license_required)
+    app.exception_handler(AuthorizationScopeError)(handle_authorization_scope_error)
     app.exception_handler(ScheduleConflictError)(handle_schedule_conflict)
     app.exception_handler(OrganizationConflictError)(handle_organization_conflict)
     app.exception_handler(TeamConflictError)(handle_team_conflict)

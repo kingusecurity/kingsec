@@ -71,6 +71,10 @@ class CreateAssessmentBody(BaseModel):
         description="Assessment profile to plan this scan against. Omit to run every target-compatible scanner (the pre-profile default behavior).",
         examples=["quick-scan"],
     )
+    override_scope_check: bool = Field(
+        default=False,
+        description="Admin-only: proceed even if no active authorization grant covers this target's scan surface. Ignored unless the requester is an admin.",
+    )
 
 
 class StartAssessmentBody(BaseModel):

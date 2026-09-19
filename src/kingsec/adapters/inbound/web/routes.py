@@ -411,6 +411,8 @@ async def create_assessment(
         owner_id=current_user.user_id,
         requesting_username=current_user.username,
         profile_id=body.profile_id,
+        requesting_is_admin=_is_admin(current_user),
+        override_scope_check=body.override_scope_check,
     )
     result = service.create_assessment(request)
     return schemas.CreateAssessmentResponse(
