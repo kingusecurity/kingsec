@@ -50,6 +50,7 @@ class TestScannerPluginPort:
             ScannerPluginMetadata,
             ScannerRequirement,
             ScannerResult,
+            ScannerSurfaceTier,
             Target,
         )
 
@@ -70,6 +71,7 @@ class TestScannerPluginPort:
                         requirement=ScannerRequirement.REACHABLE_HOST,
                         scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                         output_format=OutputFormat.FINDINGS,
+                        surface_tier=ScannerSurfaceTier.HOST_PORT_PATH,
                     ),
                 )
 
@@ -130,6 +132,7 @@ class TestScannerPluginPort:
             ScannerPluginMetadata,
             ScannerRequirement,
             ScannerResult,
+            ScannerSurfaceTier,
             Target,
         )
 
@@ -150,6 +153,7 @@ class TestScannerPluginPort:
                         requirement=ScannerRequirement.REACHABLE_HOST,
                         scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                         output_format=OutputFormat.FINDINGS,
+                        surface_tier=ScannerSurfaceTier.HOST_PORT_PATH,
                     ),
                 )
 
@@ -173,6 +177,7 @@ class TestScannerPluginPort:
             ScannerPluginMetadata,
             ScannerRequirement,
             ScannerResult,
+            ScannerSurfaceTier,
             Target,
         )
 
@@ -193,6 +198,7 @@ class TestScannerPluginPort:
                         requirement=ScannerRequirement.REACHABLE_HOST,
                         scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                         output_format=OutputFormat.FINDINGS,
+                        surface_tier=ScannerSurfaceTier.HOST_PORT_PATH,
                     ),
                 )
 
