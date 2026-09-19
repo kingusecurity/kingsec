@@ -125,10 +125,6 @@ class SecuritySettings(BaseModel):
 
     model_config = _FROZEN
 
-    # The authorization gate defaults to ENABLED. Disabling it is a conscious,
-    # logged choice for the operator — never the accidental default state.
-    require_authorization: bool = True
-
     # Phase 3 (auth hardening): self-registration defaults to DISABLED.
     # Enabled by default, the first unauthenticated caller to reach
     # /auth/register on a network-reachable instance could win the

@@ -24,10 +24,9 @@ class TestDefaults:
         _clean_kingsec_env(monkeypatch)
         settings = load_settings()
 
-        # Security guardrails: loopback bind + authorization gate ON.
+        # Security guardrails: loopback bind on by default.
         assert settings.server.host == "127.0.0.1"
         assert settings.server.allow_external_bind is False
-        assert settings.security.require_authorization is True
 
         # App defaults.
         assert settings.app.environment is Environment.DEVELOPMENT
