@@ -283,6 +283,7 @@ class TestUnvettedExceptionStillCollapsesToGeneric:
             ScannerPluginMetadata,
             ScannerRequirement,
             ScannerResult,
+            ScannerSurfaceTier,
         )
         from kingsec.infrastructure.scanner.orchestrator import ScannerOrchestrator
         from kingsec.infrastructure.scanner.registry import InMemoryPluginRegistry
@@ -300,6 +301,7 @@ class TestUnvettedExceptionStillCollapsesToGeneric:
                         requirement=ScannerRequirement.REACHABLE_HOST,
                         scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                         output_format=OutputFormat.FINDINGS,
+                surface_tier=ScannerSurfaceTier.HOST_PORT_PATH,
                     ),
                 )
 

@@ -23,6 +23,7 @@ from kingsec.domain import (
     ScannerPluginMetadata,
     ScannerRequirement,
     ScannerResult,
+    ScannerSurfaceTier,
     Target,
 )
 from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE
@@ -75,6 +76,10 @@ class GobusterPlugin(ScannerPluginPort):
                 requirement=ScannerRequirement.HTTP_BASE_URL,
                 scan_categories=frozenset({ScanCategory.DISCOVERY}),
                 output_format=OutputFormat.RAW_TEXT,
+                # Phase 4: verified directly against
+                # gobuster.py:_build_args() - dir mode brute-forces paths
+                # under the given URL, same shape as ffuf. Host:port:path.
+                surface_tier=ScannerSurfaceTier.HOST_PORT_PATH,
             ),
         )
 

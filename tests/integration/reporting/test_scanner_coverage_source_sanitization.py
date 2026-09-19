@@ -26,6 +26,7 @@ from kingsec.domain import (
     ScannerPluginMetadata,
     ScannerRequirement,
     ScannerResult,
+    ScannerSurfaceTier,
     Target,
     TargetType,
 )
@@ -56,6 +57,7 @@ class _StubPlugin:
                 requirement=ScannerRequirement.REACHABLE_HOST,
                 scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                 output_format=OutputFormat.FINDINGS,
+                surface_tier=ScannerSurfaceTier.HOST_PORT_PATH,
             ),
         )
 

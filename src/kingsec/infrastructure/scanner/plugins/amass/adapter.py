@@ -34,6 +34,7 @@ from kingsec.domain import (
     ScannerPluginMetadata,
     ScannerRequirement,
     ScannerResult,
+    ScannerSurfaceTier,
     Target,
 )
 from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE
@@ -80,6 +81,17 @@ class AmassPlugin(ScannerPluginPort):
                 requirement=ScannerRequirement.REACHABLE_HOST,
                 scan_categories=frozenset({ScanCategory.DISCOVERY, ScanCategory.INFORMATION}),
                 output_format=OutputFormat.STRUCTURED_JSON,
+                # Phase 4: NOT WIRED TO ANY PROFILE (see module docstring) -
+                # this value has no live enforcement effect today. Assigned
+                # the widest available tier (HOST_ANY_PORT) rather than
+                # left undeclared: amass performs active DNS/certificate-
+                # transparency enumeration that can surface OTHER, related
+                # hosts beyond the one given - arguably broader than even
+                # nmap's single-host sweep, but HOST_ANY_PORT is the
+                # closest fit this enum expresses. Revisit when amass is
+                # ever wired to a real profile (Phase 4 roadmap item,
+                # registrable_domain target type).
+                surface_tier=ScannerSurfaceTier.HOST_ANY_PORT,
             ),
         )
 

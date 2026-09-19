@@ -24,6 +24,7 @@ from kingsec.domain import (
     ScannerPluginMetadata,
     ScannerRequirement,
     ScannerResult,
+    ScannerSurfaceTier,
     Target,
 )
 from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE
@@ -72,6 +73,12 @@ class ZapPlugin(ScannerPluginPort):
                 requirement=ScannerRequirement.HTTP_BASE_URL,
                 scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                 output_format=OutputFormat.STRUCTURED_JSON,
+                # Phase 4: verified directly against zap.py:_build_args() -
+                # "-quickurl target.value" only, no path-restricting flag.
+                # ZAP's quick-scan mode spiders from the given URL,
+                # following links to other paths on the same host:port.
+                # Host:port, any path.
+                surface_tier=ScannerSurfaceTier.HOST_PORT_ANY_PATH,
             ),
         )
 
