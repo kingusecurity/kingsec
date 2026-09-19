@@ -13,6 +13,7 @@ from kingsec.infrastructure.persistence._legacy_repositories import (
 
 from .assessment import SQLAlchemyAssessmentRepository
 from .asset import SQLAlchemyAssetRepository
+from .authorization_grant import SQLAlchemyAuthorizationGrantRepository
 from .job import SQLAlchemyJobRepository
 from .report import SQLAlchemyReportRepository
 from .scan import SQLAlchemyScanRepository
@@ -22,6 +23,7 @@ __all__ = [
     "LegacyReportRepository",
     "SQLAlchemyAssessmentRepository",
     "SQLAlchemyAssetRepository",
+    "SQLAlchemyAuthorizationGrantRepository",
     "SQLAlchemyJobRepository",
     "SQLAlchemyReportRepository",
     "SQLAlchemyScanRepository",

@@ -145,6 +145,7 @@ EXPECTED_TABLES = frozenset(
         "assets",
         "audit_entries",
         "audit_events",
+        "authorization_grants",
         "copilot_conversations",
         "cve_entries",
         "dead_letter_entries",
@@ -623,10 +624,15 @@ class TestMigrationAtomicity:
         # (add_report_assessment_status_and_backfill_scanner_status), then
         # Phase 2B-c moved it forward again to 5db990f46ee0 (add severity
         # demotion columns to findings), then Phase 2C Step 2 moved it
-        # forward again to 9601803f77a8 (add score_version to reports) -
-        # this must track the real head, not remain pinned to whatever
-        # revision was head when this test was first written.
-        assert stamp == "9601803f77a8"
+        # forward again to 9601803f77a8 (add score_version to reports),
+        # then Phase 4 moved it forward again to 289b5978e448 (add
+        # authorization_grants table and assessments.authorization_id -
+        # regenerated from the original 3b66008d3e1e after review dropped
+        # the unused historical_scope_note column and added the
+        # authorization_id audit-trail column instead) - this must track
+        # the real head, not remain pinned to whatever revision was head
+        # when this test was first written.
+        assert stamp == "289b5978e448"
 
 
 class TestSingleHead:

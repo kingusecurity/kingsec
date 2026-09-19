@@ -22,6 +22,7 @@ from kingsec.domain import (
     AssessmentId,
     AssessmentStatus,
     Authorization,
+    AuthorizationGrant,
     Evidence,
     Finding,
     FindingId,
@@ -39,6 +40,8 @@ from kingsec.domain import (
     SeverityDemotionReason,
     Target,
     TargetDecompositionError,
+    TargetSpecification,
+    TargetSpecificationType,
     TargetType,
     Verdict,
 )
@@ -77,6 +80,7 @@ from .models import (
     AlertModel,
     AssessmentORM,
     AssetModel,
+    AuthorizationGrantORM,
     CopilotConversationModel,
     CveEntryModel,
     DeadLetterEntryModel,
@@ -194,6 +198,7 @@ def assessment_to_orm(assessment: Assessment) -> AssessmentORM:
         authorized_by=authorization.authorized_by if authorization else None,
         authorized_at=authorization.authorized_at.isoformat() if authorization else None,
         authorization_scope=authorization.scope if authorization else None,
+        authorization_id=assessment.authorization_id,
         failure_reason=assessment.failure_reason,
         organization_id=assessment.organization_id,
         team_id=assessment.team_id,
@@ -331,6 +336,7 @@ def assessment_to_domain(orm: AssessmentORM) -> Assessment:
         profile_id=orm.profile_id,
         scanner_summary=_scanner_summary_from_json(orm.scanner_summary),
         schedule_occurrence_id=orm.schedule_occurrence_id,
+        authorization_id=orm.authorization_id,
         version=orm.version,
     )
     if orm.organization_id or orm.team_id or orm.owner_id:
@@ -340,6 +346,40 @@ def assessment_to_domain(orm: AssessmentORM) -> Assessment:
             team_id=orm.team_id,
         )
     return a
+
+
+def authorization_grant_to_orm(grant: AuthorizationGrant) -> AuthorizationGrantORM:
+    """Build an AuthorizationGrantORM from a domain AuthorizationGrant (Phase 4)."""
+    return AuthorizationGrantORM(
+        id=grant.id.value,
+        authorized_by=grant.authorized_by,
+        authorizing_organization=grant.authorizing_organization,
+        target_specification_type=grant.target_specification.type.name,
+        target_specification_value=grant.target_specification.value,
+        valid_from=grant.valid_from.isoformat(),
+        valid_until=grant.valid_until.isoformat(),
+        created_by=grant.created_by,
+        revoked_at=grant.revoked_at.isoformat() if grant.revoked_at else None,
+    )
+
+
+def authorization_grant_to_domain(orm: AuthorizationGrantORM) -> AuthorizationGrant:
+    """Rebuild a domain AuthorizationGrant from an AuthorizationGrantORM row (Phase 4)."""
+    from kingsec.domain.identifiers import AuthorizationGrantId
+
+    return AuthorizationGrant(
+        id=AuthorizationGrantId(orm.id),
+        authorized_by=orm.authorized_by,
+        authorizing_organization=orm.authorizing_organization,
+        target_specification=TargetSpecification(
+            type=TargetSpecificationType[orm.target_specification_type],
+            value=orm.target_specification_value,
+        ),
+        valid_from=datetime.fromisoformat(orm.valid_from),
+        valid_until=datetime.fromisoformat(orm.valid_until),
+        created_by=orm.created_by,
+        revoked_at=datetime.fromisoformat(orm.revoked_at) if orm.revoked_at else None,
+    )
 
 
 # Phase 2B Task 2 Condition 1: the exact set of failures that mean "this
