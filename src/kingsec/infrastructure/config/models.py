@@ -133,6 +133,19 @@ class SecuritySettings(BaseModel):
     # open signup flow is still a real product decision, not a safe default.
     allow_self_registration: bool = False
 
+    # Phase 4 (authorization scope enforcement): defaults to ENABLED,
+    # matching this file's trust-default convention (safe unless someone
+    # deliberately turns it off). Read directly by
+    # bootstrap/composition.py's adapter registration: when True, the real
+    # AuthorizationGrantRepository/ScannerPluginRegistry/ExecutionPlanner
+    # are wired into CreateAssessment; when False, CreateAssessment is
+    # constructed exactly as before this feature existed (all three
+    # optional deps left None), so an operator can roll back enforcement
+    # without a redeploy if something goes wrong. Unlike the deleted
+    # require_authorization, this flag has a real, tested effect on the
+    # composition root in both states.
+    enforce_authorization_scope: bool = True
+
 
 class JWTSettings(BaseModel):
     """JWT authentication configuration.

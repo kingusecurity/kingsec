@@ -27,6 +27,13 @@ class TestDefaults:
         # Security guardrails: loopback bind on by default.
         assert settings.server.host == "127.0.0.1"
         assert settings.server.allow_external_bind is False
+        assert settings.security.enforce_authorization_scope is True
+
+    def test_enforce_authorization_scope_can_be_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _clean_kingsec_env(monkeypatch)
+        monkeypatch.setenv("KINGSEC_SECURITY__ENFORCE_AUTHORIZATION_SCOPE", "false")
+        settings = load_settings()
+        assert settings.security.enforce_authorization_scope is False
 
         # App defaults.
         assert settings.app.environment is Environment.DEVELOPMENT
