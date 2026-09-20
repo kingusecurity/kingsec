@@ -700,6 +700,8 @@ def _register_use_cases(app: Application) -> None:
     settings = app.settings
     from kingsec.application.assessment_execution import AssessmentExecutionEngine
     from kingsec.application.assessment_profiles import ExecutionPlanner
+    from kingsec.application.ports import AuthorizationGrantRepository
+    from kingsec.application.ports.scanner_registry import ScannerPluginRegistry
 
     def _resolve_scanner_executor(c: Any) -> ScannerExecutor | None:
         """Return the resolved scanner if it also implements ScannerExecutor.
@@ -712,14 +714,54 @@ def _register_use_cases(app: Application) -> None:
         scanner = c.resolve(ScannerPort)
         return scanner if isinstance(scanner, ScannerExecutor) else None
 
-    container.register_factory(
-        CreateAssessment,
-        lambda c: CreateAssessment(
+    def _create_assessment_factory(c: Any) -> CreateAssessment:
+        """Phase 4: wire the real scope-enforcement dependencies only when
+        settings.security.enforce_authorization_scope is True (the
+        default). False reproduces the exact pre-Phase-4 construction
+        (all three optional deps left None) - an operator's real,
+        tested rollback lever if enforcement needs to be switched off
+        without a redeploy, never a phantom setting that reads as a gate
+        while wiring nothing."""
+        if settings.security.enforce_authorization_scope:
+            return CreateAssessment(
+                c.resolve(AssessmentRepository),
+                c.resolve(EventPublisher),
+                c.resolve(AuditPublisher),
+                grants=c.resolve(AuthorizationGrantRepository),
+                registry=c.resolve(ScannerPluginRegistry),
+                planner=c.resolve(ExecutionPlanner),
+            )
+        return CreateAssessment(
             c.resolve(AssessmentRepository),
             c.resolve(EventPublisher),
             c.resolve(AuditPublisher),
+        )
+
+    container.register_factory(CreateAssessment, _create_assessment_factory)
+
+    # Phase 4: registered unconditionally, regardless of
+    # enforce_authorization_scope - creating/revoking grants is a
+    # separate concern from whether CreateAssessment currently checks
+    # them, and an operator who has switched enforcement off may still
+    # need to manage grants ahead of switching it back on.
+    from kingsec.application.use_cases.create_authorization_grant import CreateAuthorizationGrant
+    from kingsec.application.use_cases.revoke_authorization_grant import RevokeAuthorizationGrant
+
+    container.register_factory(
+        CreateAuthorizationGrant,
+        lambda c: CreateAuthorizationGrant(
+            c.resolve(AuthorizationGrantRepository),
+            c.resolve(AuditPublisher),
         ),
     )
+    container.register_factory(
+        RevokeAuthorizationGrant,
+        lambda c: RevokeAuthorizationGrant(
+            c.resolve(AuthorizationGrantRepository),
+            c.resolve(AuditPublisher),
+        ),
+    )
+
     container.register_factory(
         SubmitAssessment,
         lambda c: SubmitAssessment(
