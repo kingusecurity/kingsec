@@ -77,6 +77,53 @@ class CreateAssessmentBody(BaseModel):
     )
 
 
+class CreateAuthorizationGrantBody(BaseModel):
+    """POST /api/v1/authorization-grants request body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    authorized_by: str = Field(
+        ...,
+        min_length=1,
+        max_length=256,
+        description="Who authorized this grant (person, ticket, or engagement reference).",
+        examples=["ciso@example.com"],
+    )
+    authorizing_organization: str = Field(
+        ...,
+        min_length=1,
+        max_length=256,
+        description="The organization this authorization was issued on behalf of.",
+        examples=["Example Corp"],
+    )
+    target_specification_type: str = Field(
+        ...,
+        description="ip_address, network, hostname, wildcard_hostname, or url_prefix.",
+        examples=["ip_address"],
+    )
+    target_specification_value: str = Field(
+        ...,
+        min_length=1,
+        max_length=2048,
+        description="The target value this grant covers, in the form its type expects.",
+        examples=["10.0.0.5"],
+    )
+    valid_from: str = Field(..., description="ISO-8601 timestamp the grant becomes active.")
+    valid_until: str = Field(..., description="ISO-8601 timestamp the grant expires.")
+
+
+class CreateAuthorizationGrantResponse(BaseModel):
+    """POST /api/v1/authorization-grants response body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    grant_id: str
+    target_specification_type: str
+    target_specification_value: str
+    valid_from: str
+    valid_until: str
+
+
 class StartAssessmentBody(BaseModel):
     """POST /api/v1/assessments/{id}/start request body (empty)."""
 

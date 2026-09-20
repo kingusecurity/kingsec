@@ -46,6 +46,7 @@ from kingsec.application.errors import (
     AssessmentExecutionNotReconcilableError,
     AssessmentNotFoundError,
     AssetNotFoundError,
+    AuthorizationGrantNotFoundError,
     AuthorizationScopeError,
     BackupNotFoundError,
     CopilotConversationNotFoundError,
@@ -387,6 +388,7 @@ def register_error_handlers(app: object) -> None:
     # Every other "resource not found" application error — same 404 contract,
     # previously unregistered and falling through to the generic 500 handler.
     for _not_found_cls in (
+        AuthorizationGrantNotFoundError,
         JobNotFoundError,
         NotificationNotFoundError,
         PluginNotFoundError,

@@ -23,6 +23,7 @@ from .asset_routes import router as v1_asset_router
 from .attack_surface_routes import router as v1_attack_surface_router
 from .audit import router as v1_audit_router
 from .audit_events import router as v1_audit_events_router
+from .authorization_grant_routes import router as v1_authorization_grant_router
 from .backup_routes import router as v1_backup_router
 from .compliance_routes import router as v1_compliance_router
 from .copilot_routes import router as v1_copilot_router
@@ -66,6 +67,7 @@ def register_versioned_routes(app: FastAPI) -> None:
     app.include_router(v1_sse_router)
     app.include_router(v1_audit_router)
     app.include_router(v1_audit_events_router)
+    app.include_router(v1_authorization_grant_router)
     app.include_router(v1_mfa_router)
     app.include_router(v1_schedule_router)
     app.include_router(v1_secret_router)
