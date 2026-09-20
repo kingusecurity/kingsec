@@ -40,6 +40,7 @@ from .models import (
 from .provisioning import register_persistence
 from .repositories import (
     LegacyAssessmentRepository,
+    LegacyAuthorizationGrantRepository,
     LegacyReportRepository,
     SQLAlchemyAssessmentRepository,
     SQLAlchemyAssetRepository,
@@ -63,6 +64,7 @@ __all__ = [
     "FindingORM",
     "JobModel",
     "LegacyAssessmentRepository",
+    "LegacyAuthorizationGrantRepository",
     "LegacyReportRepository",
     "RecommendationORM",
     "ReportModel",

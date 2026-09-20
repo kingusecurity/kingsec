@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from kingsec.infrastructure.persistence._legacy_repositories import (
     LegacyAssessmentRepository,
+    LegacyAuthorizationGrantRepository,
     LegacyReportRepository,
 )
 
@@ -20,6 +21,7 @@ from .scan import SQLAlchemyScanRepository
 
 __all__ = [
     "LegacyAssessmentRepository",
+    "LegacyAuthorizationGrantRepository",
     "LegacyReportRepository",
     "SQLAlchemyAssessmentRepository",
     "SQLAlchemyAssetRepository",
