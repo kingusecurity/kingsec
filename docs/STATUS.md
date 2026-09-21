@@ -850,3 +850,105 @@ implemented this phase. When it is scoped, it needs:
     revival of `AccountLockoutService`'s in-memory design, which is
     structurally incompatible with a multi-process deployment (see the
     carried-over-conclusion pattern's fifth instance, above).
+
+## Phase 4 — real-database incident: `~/.kingsec/kingsec.db` migrated unexpectedly
+
+**What happened.** While applying Phase 4's migration to the real
+`C:\kingsec-e2e\kingsec.db` (approved, backed up, applied correctly), a
+read-only check of the separate real developer database at
+`~/.kingsec/kingsec.db` (which no Phase 4 work was ever supposed to touch)
+found it had ALSO been migrated to head `289b5978e448` — `alembic_version`
+matched, and the new `authorization_grants` table existed there too,
+written at 11:25 AM that day, roughly 50 minutes before the intended
+migration ran. Content was minimal and untouched by data loss: exactly 1
+pre-existing assessment row (unchanged, `authorization_id` NULL),
+`authorization_grants` empty (0 rows) — a real schema change with no data
+impact.
+
+**The Phase 1 precedent** (Backlog item 1, above): an env-file `source`
+with an unquoted path containing spaces silently dropped a
+`KINGSEC_STORAGE__DATA_DIR` override during Phase 1 setup, and
+`kingsec-migrate` ran against this exact same real `~/.kingsec/kingsec.db`
+instead of the intended isolated directory. That incident was caught,
+backed up (`kingsec.db.bak-phase1`), and confirmed to have caused no data
+loss. This is the second time the same real database has been reached by
+a migration it was never meant to receive — different mechanism, same
+underlying shape: something resolved KingSec's real default data
+directory instead of an explicitly isolated one.
+
+**What was ruled out** (all confirmed directly, not inferred): every
+`alembic upgrade`/`revision` command run this session used an explicit
+`ALEMBIC_DATABASE_URL` pointing at either a scratch file or, for the real
+apply, explicitly `C:/kingsec-e2e/kingsec.db` — never the default. Every
+composition-root smoke test (`create_wired_application()`) explicitly set
+`KINGSEC_STORAGE__DATA_DIR` to a fresh `tempfile.mkdtemp()` path. No CLI or
+server process was run against default settings at any point.
+
+**Test-suite investigation, in two designs:**
+
+*First design (rejected after empirical proof it was wrong):* patched
+`StorageSettings.data_dir`'s `default_factory` directly, to raise the
+moment the value was even COMPUTED, regardless of whether anything
+subsequently used it. Run against the full suite: **451 failures across
+47 files** - all the same error, confirmed via grep with no other cause
+mixed in. Investigating why revealed the design flaw: pydantic eagerly
+evaluates every field's default whenever `Settings()`/`StorageSettings()`
+is constructed, including in tests built entirely from in-memory fakes
+that never touch a real database at all (representative case:
+`test_session_api.py`'s `app()` fixture, which needs `Settings()` only
+for unrelated JWT configuration). Confirmed empirically: constructing
+`StorageSettings()` against a controlled tmp `HOME` creates nothing on
+disk. **Computing a path string is not the hazard; opening or migrating a
+database there is** - all 451 were false positives, and would have
+required touching 47 files (3 of them this engagement's own Phase 4 test
+files) to silence a harmless computation. The lesson: a guard belongs at
+the point of the real side effect, not at every place a value merely
+passes through.
+
+*Second design (kept):* reading the actual code confirmed the real side
+effect - both `build_sqlite_url()`
+(`infrastructure/persistence/database.py`, the app-wiring path) and
+`_resolve_database_url()` (`alembic/env.py`, the migration path) call
+`data_dir.mkdir(parents=True, exist_ok=True)` on the settings-derived
+fallback. The relocated guard (`tests/conftest.py`,
+`_forbid_real_home_database`) patches `build_sqlite_url` directly: raises,
+naming the real path, if the settings-derived `data_dir` resolves to
+`Path.home() / ".kingsec"`, before the `mkdir` or URL construction
+happens. The explicit `url=` path into `create_database_engine()` (what
+nearly every test already uses) never calls `build_sqlite_url` and is
+untouched. `alembic/env.py` cannot safely be imported in-process to patch
+the same way (its module bottom unconditionally runs
+`run_migrations_online()`/`_offline()` on import, expecting Alembic's own
+script-runner context) - moot in practice, since every migration
+invocation in this codebase, including every test, goes through it
+exclusively via subprocess, never in-process. The subprocess path is
+guarded separately: `tests/integration/test_alembic_migrations.py`'s
+`_run_alembic()` helper had one call site
+(`TestSingleHead.test_exactly_one_head`, calling `_run_alembic("heads")`
+with no URL) that silently inherited ambient environment instead of an
+isolated one - `database_url` is now a required parameter, not
+optional-defaulting, closing that gap structurally rather than only at
+that one call site. Empirically ruled out as the actual mechanism before
+being fixed: `alembic heads` against a controlled tmp data dir creates no
+database file at all.
+
+Full suite with the relocated guard: **0 errors, 0 failures**, same 4357
+tests, 1 unrelated skip - confirms nothing in the suite opens a database
+at the real default location.
+
+**What could not be identified.** With the guard passing cleanly, the
+11:25 AM write did not originate from this test suite. Per instruction,
+this is recorded as **unidentified**, not attributed to a suspected
+cause. `~/.kingsec/kingsec.db` itself was left untouched throughout this
+investigation - still at head `289b5978e448` with its one pre-existing
+row and empty `authorization_grants` table, deliberately not downgraded
+or cleaned up, since doing so risks more than the harmless state it is
+already in.
+
+**Open, not closed:** Backlog item 1 (above) - "an override that fails to
+resolve silently falls back to the default instead of failing loudly" -
+remains unresolved at the production-code level. The guard built here is
+test-only. A permanent fix for programmatic/library-code migration
+invocation (never silently resolving an implicit target) was investigated
+and proposed, not yet implemented - see the corresponding session record
+for the proposal pending approval.
