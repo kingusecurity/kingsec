@@ -277,17 +277,6 @@ FRAMEWORK_DEFINITIONS[C.CWE] = (
     _control(C.CWE, "CWE-943", "Improper Neutralization of Special Elements in Data Query Logic", "Improper neutralization of special elements in data query logic", "Injection"),
 )
 
-FRAMEWORK_DEFINITIONS[C.CVE] = (
-    _control(C.CVE, "CVE-2025-1234", "Known vulnerability detection", "Match against known CVE entries for discovered software versions", "Vulnerability Management"),
-    _control(C.CVE, "CVE-2025-5678", "Critical remote code execution", "Detect critical RCE vulnerabilities in discovered services", "Vulnerability Management"),
-    _control(C.CVE, "CVE-2025-9012", "Privilege escalation vulnerability", "Detect privilege escalation CVEs in discovered components", "Vulnerability Management"),
-    _control(C.CVE, "CVE-2025-3456", "Information disclosure vulnerability", "Detect information disclosure CVEs", "Vulnerability Management"),
-    _control(C.CVE, "CVE-2025-7890", "Denial of service vulnerability", "Detect DoS CVEs in discovered services", "Vulnerability Management"),
-    _control(C.CVE, "CVE-2025-2345", "Cross-site scripting (XSS)", "Detect XSS CVEs in web applications", "Vulnerability Management"),
-    _control(C.CVE, "CVE-2025-6789", "SQL injection vulnerability", "Detect SQL injection CVEs", "Vulnerability Management"),
-    _control(C.CVE, "CVE-2025-4321", "Authentication bypass vulnerability", "Detect authentication bypass CVEs", "Vulnerability Management"),
-)
-
 FRAMEWORK_DEFINITIONS[C.MITRE_ATT_CK] = (
     _control(C.MITRE_ATT_CK, "T1078", "Valid Accounts", "Adversary may obtain and abuse credentials of existing accounts", "Initial Access"),
     _control(C.MITRE_ATT_CK, "T1190", "Exploit Public-Facing Application", "Adversary may exploit a vulnerability in a public-facing application", "Initial Access"),
