@@ -6,13 +6,18 @@ Local-first, AI-augmented **Attack Surface Management (ASM)** and **Vulnerabilit
 
 ## Why KingSec?
 
-- **Local-first & private.** Runs on your machine. Your data never leaves your infrastructure.
+- **Local-first & private.** Assessment data never leaves your machine unless you configure an integration; findings and reports are stored in a local SQLite database protected by filesystem permissions.
+- **Unauthenticated external assessment.** KingSec examines what's reachable without logging in — it has no mechanism to authenticate to your application, so anything behind a login screen is out of scope. See "What KingSec Assesses," below.
 - **Bring-your-own-AI-key.** AI credentials are user-supplied and stored encrypted at rest.
 - **Professional frontend.** Built-in React SPA with Dashboard, Assessments, Findings, Reports, Settings, and Administration pages.
-- **9 pluggable scanners.** Nmap, Nuclei, Nikto, FFUF, Gobuster, Trivy, Semgrep, Amass, OWASP ZAP. Auto-detected and orchestrated.
-- **Multi-format reports.** JSON, HTML, PDF, CSV, Markdown with executive scoring.
+- **6 pluggable scanners.** Nmap, Nuclei, Nikto, FFUF, Gobuster, OWASP ZAP — reachable through every assessment profile, auto-detected and orchestrated. (Trivy, Semgrep, and Amass are also registered scanner plugins in the codebase but aren't wired into any current profile.)
+- **Reports.** HTML and PDF, with executive scoring.
 - **Honest by design.** No fake progress, no fear-selling, no paywalled critical findings.
 - **Safe by default.** Authorization gate enabled by default. Server binds to 127.0.0.1.
+
+## What KingSec Assesses
+
+KingSec performs **unauthenticated** external security assessment: open ports and services, missing security headers, outdated software versions, and application-layer issues an unauthenticated visitor could find. It does not have a mechanism to log in to your application, so business-logic flaws, authorization bugs between user roles, and anything else reachable only once signed in are **not** examined by any assessment. A clean report means no unauthenticated issues were found — it says nothing about what sits behind your login screen.
 
 ## Quick Start
 
@@ -106,12 +111,17 @@ a profile — KingSec handles the rest.
 |---|---|---|---|---|
 | **Quick Host Scan** | Nmap | IP, Hostname | ~5 min | Fast port check on a single host |
 | **Network Assessment** | Nmap, Nuclei | Network, IP, Hostname | ~30 min | Network range vulnerability sweep |
-| **Web Application Scan** | Nmap, Gobuster, FFUF, Nuclei, ZAP | URL | ~60 min | Comprehensive web app assessment |
+| **Web Application Scan** | Gobuster, FFUF, Nuclei, ZAP | URL | ~60 min | Comprehensive web app assessment |
 | **API Assessment** | FFUF, Nuclei, ZAP | URL | ~45 min | REST/HTTP API security testing |
-| **Source Code Review** | Semgrep | Hostname, IP | ~15 min | Static analysis for security anti-patterns |
-| **Container Assessment** | Trivy | Hostname, IP | ~10 min | Container image CVE scanning |
-| **External Footprint** | Amass, Nmap | Hostname, IP | ~20 min | Attack surface discovery |
-| **Full Assessment** | All 9 scanners | IP, Hostname, URL | ~90 min | Maximum coverage |
+| **External Footprint** | Nmap | Hostname, IP | ~15 min | Attack surface discovery |
+| **Full Assessment** | Nmap, Nuclei, Gobuster, FFUF, ZAP, Nikto | IP, Hostname, URL | ~60 min | Maximum coverage across all 6 reachable scanners |
+
+> Nmap is also listed in the Web Application Scan profile but is always
+> skipped for URL targets today (nmap's registered capabilities don't
+> include `url`) — this is reported honestly as a coverage gap, not
+> silently dropped. Semgrep, Trivy, and Amass were removed from every
+> profile: KingSec's target model has no `repository`/`image`/`path`
+> target type for them to run against yet.
 
 ### How profiles work
 
@@ -151,8 +161,8 @@ and a `can_proceed` flag.
 
 | Target Type | Compatible Profiles |
 |---|---|
-| `ip_address` | Quick Scan, Network Scan, Code Review, Container, Footprint, Full |
-| `hostname` | Quick Scan, Network Scan, Code Review, Container, Footprint, Full |
+| `ip_address` | Quick Scan, Network Scan, External Footprint, Full |
+| `hostname` | Quick Scan, Network Scan, External Footprint, Full |
 | `url` | Web Scan, API Scan, Full |
 | `network` | Network Scan |
 
@@ -185,9 +195,13 @@ collapsible event log. Running assessments auto-refresh every 3 seconds.
 
 ## Scanner Environment
 
-KingSec supports 9 scanning engines. The **Scanner Discovery** system
-automatically detects which are installed, validates their executables and
-required assets, and reports readiness through the API and UI.
+KingSec has 9 scanner plugins registered in the codebase; 6 of them (Nmap,
+Nuclei, Nikto, FFUF, Gobuster, OWASP ZAP) are reachable through the
+assessment profiles above (Trivy, Semgrep, and Amass are registered but not
+currently wired into any profile — see "Available profiles," above). The
+**Scanner Discovery** system automatically detects which are installed,
+validates their executables and required assets, and reports readiness
+through the API and UI.
 
 ### Quick check
 

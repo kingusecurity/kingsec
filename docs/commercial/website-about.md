@@ -8,7 +8,9 @@ KingSec began as a response to a recurring problem: small and medium businesses 
 
 Most security tools are built for enterprises with dedicated security teams, six-figure budgets, and the legal resources to negotiate data processing agreements with dozens of SaaS vendors. SMBs are left with either expensive, enterprise-grade suites that overwhelm their operations or free tools that require significant manual effort to stitch together.
 
-KingSec was designed from the ground up to fill that gap — a platform that brings together the best open-source security scanners, augments them with optional AI analysis, and runs entirely on the user's own infrastructure. No data leaves your network unless you choose to enable AI enrichment with your own key. No license server phone-home. No feature gates on core scanning capability.
+KingSec was designed from the ground up to fill that gap — a platform that brings together capable open-source security scanners, augments them with optional AI analysis, and runs entirely on the user's own infrastructure. No data leaves your network unless you choose to enable AI enrichment with your own key. No license server phone-home. Core scanning capability is not paywalled by tier.
+
+KingSec performs **unauthenticated** external assessment — it examines what's reachable without logging in, and has no mechanism to authenticate to your application. Functionality behind a login is out of scope for every tier. See the FAQ for what this means in practice.
 
 ---
 
@@ -28,7 +30,7 @@ Make professional-grade vulnerability management accessible to every organizatio
 
 **Safe by default.** KingSec binds to localhost only. The default configuration minimizes attack surface. Authentication is required out of the box. Users must intentionally expose the service to a network.
 
-**Build with, not on, open source.** KingSec bundles nine established open-source scanners but does not fork or modify them. The platform orchestrates and correlates their output. The goal is to amplify the value of existing community tools, not replace or capture them.
+**Build with, not on, open source.** KingSec bundles six established open-source scanners — Nmap, Nuclei, Nikto, FFUF, Gobuster, and OWASP ZAP — but does not fork or modify them. The platform orchestrates and correlates their output. The goal is to amplify the value of existing community tools, not replace or capture them.
 
 ---
 

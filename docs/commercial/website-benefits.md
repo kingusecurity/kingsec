@@ -4,7 +4,7 @@
 
 ## For IT Administrators
 
-**Reduce tool sprawl.** Replace a half-dozen standalone security tools with a single platform. KingSec orchestrates nine scanners, normalizes output, and presents findings in one interface.
+**Reduce tool sprawl.** Replace a half-dozen standalone security tools with a single platform. KingSec orchestrates six scanners, normalizes output, and presents findings in one interface.
 
 **Stay in control.** KingSec runs on your infrastructure, binds to localhost, and sends no data to third parties. You decide if and when to enable AI enrichment.
 
@@ -18,13 +18,13 @@
 
 ## For Security Analysts
 
-**Work faster.** Eight pre-configured assessment profiles mean you start scanning in seconds, not after an hour of configuration. Custom assessments give you full control when you need it.
+**Work faster.** Six pre-configured assessment profiles mean you start scanning in seconds, not after an hour of configuration.
 
-**Stop context-switching.** All findings — from network scans, web application tests, container audits, and code reviews — appear in a unified findings database with consistent severity ratings.
+**Stop context-switching.** All findings — from network scans, web application tests, and API assessments — appear in a unified findings database with consistent severity ratings.
 
 **Leverage AI without compromise.** Connect your own AI key to get remediation guidance and natural-language explanations. The AI augments your analysis; it never replaces your judgment.
 
-**Generate reports instantly.** Export findings in JSON, HTML, PDF, CSV, or Markdown with one click. No manual copy-paste between tools.
+**Generate reports instantly.** Export findings as HTML or PDF with one click. No manual copy-paste between tools.
 
 **Key benefit:** Spend your time analyzing and fixing vulnerabilities — not stitching together output from ten different tools.
 
@@ -34,7 +34,7 @@
 
 **Multi-tenant by design.** RBAC with teams lets you scope assessments and reports per client. Each client's data remains isolated.
 
-**White-label ready.** The built-in React frontend can be customized. Reports support branding modifications.
+**Bring your own AI, keep your own name on it.** Findings and reports are yours to present as you choose — KingSec doesn't route your analysis through a third-party dashboard. (Report co-branding and a white-label UI are not available today; if that matters for how you resell, ask us about the roadmap.)
 
 **Predictable infrastructure cost.** Local-first deployment means you run KingSec on your own hardware. No per-asset or per-finding SaaS fees that scale unpredictably with client growth.
 
@@ -65,7 +65,7 @@
 | Tooling licenses | 5–10 standalone tools × $100–$5,000/yr each | Free (AI key optional) |
 | Staff time | Manual correlation across tool outputs | Unified dashboard + automated reporting |
 | Training | Learn 5–10 different tool interfaces | One platform, consistent UX |
-| Compliance reporting | Manual aggregation per framework | One-click multi-format export |
+| Compliance reporting | Manual aggregation per framework | One-click HTML/PDF export |
 | Data privacy risk | Scan data uploaded to multiple SaaS platforms | Data stays local |
 
 ---

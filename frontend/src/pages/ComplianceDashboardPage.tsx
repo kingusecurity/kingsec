@@ -60,7 +60,7 @@ export function ComplianceDashboardPage() {
     <PageContainer>
       <PageHeader
         title="Compliance Dashboard"
-        description="Map findings to security frameworks and track compliance coverage"
+        description="Match findings to framework controls by keyword and track coverage — a labeling aid, not a certified compliance assessment"
       />
 
       {isError ? (

@@ -141,8 +141,10 @@ Per the plan's own rule ("Do not start a phase until the previous one's acceptan
 2. ~~Two account-lockout implementations exist...~~ **RESOLVED, Phase 3.** Confirmed the live login path uses `CheckAccountLockout` + `RecordFailedAuthentication`/`RecordSuccessfulAuthentication` (the DB-backed `LockoutRepository`/`account_lockouts` table family) — not `AccountLockoutService`. Definitive answer on the open question: the live path does **not** have an analogous escalation-reset defect, because it never implemented escalation in the first place — `AccountLockout` (`domain/rate_limit.py`) has no field to record a prior-lockout count, so `RecordFailedAuthentication` always applies the same fixed `lockout_duration_seconds`. `AccountLockoutService` deleted (in-memory, single-process, structurally incompatible with the DB-backed live design — see Phase 3 section below and the carried-over-conclusion pattern's fifth instance above). No second lockout implementation remains.
 3. **Phase 0 added only 1 regression test for 6 fixed defects.** Missing dedicated regression tests for: the `find_oldest_pending` tie-order fix (both `InMemoryJobService` and `PersistentJobService` variants), and the `AccountLockoutService.clear()` escalation-preservation fix (beyond the one pre-existing test it was verified against, `test_progressive_lockout_duration`, no *new* test was added asserting escalation survives a clear specifically). Should be added before this class of defect is considered closed out.
 4. **Unconfirmed: is the `rowid` tiebreaker in `SQLAlchemyJobRepository.list()` actually safe long-term?** It relies on SQLite's implicit `rowid` being monotonically increasing for this table. Not yet confirmed whether `scan_jobs` is declared with `AUTOINCREMENT` (which prevents rowid reuse after deletes) or is a plain rowid table (where SQLite *can* reuse a deleted row's rowid for a later insert, which would silently reintroduce the exact tie-order bug this was meant to fix, just under a different trigger condition). Needs verification before relying on this fix indefinitely.
-5. **BUG (found during Phase 5's claim audit): `AssessmentConcurrencyPort.try_reserve_slot()` is built but never called.** KSEC-87-02's own docstring says this port exists specifically because `max_concurrent_assessments` "existed as configuration but was never enforced anywhere." The atomic, TOCTOU-safe mechanism it built to fix that is itself unwired — grepped every call site of `try_reserve_slot(` across the whole codebase; it appears only in comments/docstrings in three files, never an actual call, and `AssessmentConcurrencyPort` is registered in the DI container but never resolved into `CreateAssessment`/`SubmitAssessment`/any use case. `max_concurrent_assessments` is not enforced anywhere in the running application today — the exact defect KSEC-87-02 was supposed to close. Not fixed — out of scope for Phase 5 (docs-only). Full detail: `docs/CLAIM-AUDIT.md` item 7.
-6. **BUG (found during Phase 5's claim audit): a placeholder CVE id in the real compliance mapping table.** `application/compliance/mapper.py`'s keyword-to-control map has two entries mapping the `{"unpatched","outdated"}` and `{"cve","known","vulnerability"}` keyword sets to `ComplianceFramework.CVE` with the literal control id `"CVE-2025-1234"` - a placeholder, not a real CVE. Any finding whose title/description matches those keywords would cite a fabricated CVE number as a real mapped control in a compliance report. Not fixed - out of scope for Phase 5 (docs-only). Full detail: `docs/CLAIM-AUDIT.md` item 4.
+5. **BUG (found during Phase 5's claim audit): `AssessmentConcurrencyPort.try_reserve_slot()` is built but never called.** KSEC-87-02's own docstring says this port exists specifically because `max_concurrent_assessments` "existed as configuration but was never enforced anywhere." The atomic, TOCTOU-safe mechanism it built to fix that is itself unwired — grepped every call site of `try_reserve_slot(` across the whole codebase; it appears only in comments/docstrings in three files, never an actual call, and `AssessmentConcurrencyPort` is registered in the DI container but never resolved into `CreateAssessment`/`SubmitAssessment`/any use case. `max_concurrent_assessments` is not enforced anywhere in the running application today — the exact defect KSEC-87-02 was supposed to close. **Same pattern as Phase 0's `AccountLockoutService.clear()` fix** (see the carried-over-conclusion pattern's fifth instance, above): a correct fix, applied to code that does not run, then documented (KSEC-87-02's own docstring, `ADMIN_GUIDE.md`) as though it landed in production. The lesson from Phase 0 — a precisely-scoped "fixed" claim is not self-maintaining and needs re-stating at the point a reader would generalize it — applies again here. Not fixed — out of scope for Phase 5 (docs-only). Full detail: `docs/CLAIM-AUDIT.md` item 7.
+6. **SECURITY FINDING (found during Phase 5's claim audit while checking the "local-first" encryption-boundary claim): `MfaSecretORM.secret_key` (the TOTP shared secret) is stored fully plaintext — not encrypted, not hashed.** Ranked above the docs-shaped findings in this list because it is a live security defect, not a documentation gap: anyone with filesystem/backup access to the database can read every user's MFA secret directly and generate valid codes, defeating the second factor entirely. `api_key_encrypted` (AI provider config) is the only encrypted column in the schema — this is the same one-encrypted-column finding from `docs/CLAIM-AUDIT.md` item 2, called out here on its own because it's a security defect, not a marketing-copy overstatement. Not fixed — out of scope for Phase 5 (docs-only); needs its own phase (encrypt at rest, likely via the same mechanism already used for `api_key_encrypted`, plus a migration for existing secrets).
+7. **BUG (found during Phase 5's claim audit): 4 of `LicenseGate`'s 10 documented methods have zero call sites outside `gate.py` itself** (`can_use_advanced_reports`, `can_use_custom_roles`, `can_use_custom_branding`, `can_create_multiple_orgs`). Declared as centralized tier-gating enforcement, but a quarter of it enforces nothing — the license tier has no actual effect on whether a caller can use these four capabilities. Same family as items 5 and 6 above and the unenforced settings theme below: a mechanism that exists, is documented, and does nothing. Not fixed — out of scope for Phase 5 (docs-only). Full detail: `docs/CLAIM-AUDIT.md`.
+8. ~~**BUG (found during Phase 5's claim audit): a placeholder CVE id in the real compliance mapping table.**~~ **FIXED, Phase 5 (exception to the docs-only scope, per explicit instruction).** `application/compliance/mapper.py`'s `_KEYWORD_CONTROL_MAP` had 4 entries (not 2 as first reported) mapping to `ComplianceFramework.CVE` with literal fabricated control ids — `CVE-2025-1234` (used twice, by the `{"unpatched","outdated"}` and `{"cve","known","vulnerability"}` keyword sets), `CVE-2025-5678` (`{"command","injection","rce"}`), and `CVE-2025-9012` (`{"privilege","escalation"}`). A further sweep of `framework_definitions.py` found `FRAMEWORK_DEFINITIONS[ComplianceFramework.CVE]` — an 8-entry block, all following the identical fabricated sequential-digit pattern (`1234/5678/9012/3456/7890/2345/6789/4321`), 4 of which weren't even reachable via the keyword map. **Fix: removed, not replaced.** A CVE names one specific vulnerability instance assigned by a CNA — it cannot legitimately represent a generic keyword category the way every other framework's control ids correctly do in this same table (OWASP/CIS/NIST/CWE/PCI/ISO/MITRE — spot-checked against known-real identifiers, e.g. `CWE-89`/`CWE-79`/`CWE-798`, `T1046`/`T1190`/`T1068`/`T1566`, all genuine). No real CVE id is a correct substitute for a category, so there is nothing to replace the fabricated ones with; the codebase's own real NVD client (`adapters/outbound/threat_intelligence/nvd_provider.py`, genuine NIST API integration, currently unwired — same disconnected-threat-intel shape already logged elsewhere in this file) is the only legitimate path to real CVE data, and it works by specific software/version lookup, not keyword category — architecturally incompatible with a static table regardless. Swept the rest of `_KEYWORD_CONTROL_MAP` and `FRAMEWORK_DEFINITIONS` for other fabricated-looking ids: **none found** — every other framework's control ids check out as real, published identifiers. Regression coverage added: `tests/unit/application/compliance/test_compliance.py::TestComplianceMapperNoFabricatedIds` (3 tests — no CVE-framework entries in the keyword map, no CVE controls in `FRAMEWORK_DEFINITIONS`, and a general placeholder-digit-run sweep across every entry in both tables) — confirmed all three fail against the pre-fix code and pass post-fix. `ruff check`/`mypy` clean on all touched files. Full detail: `docs/CLAIM-AUDIT.md` item 4.
 
 ---
 
@@ -966,3 +968,135 @@ whenever this changes: **any in-process migration entry point added in
 the future must take an explicit `database_url` with no ambient
 fallback to `KINGSEC_STORAGE__DATA_DIR`/the real default - this is a
 requirement on that future code, not a TODO to write it now.**
+
+## Phase 5 — Truth pass (docs/phase-5-truth-pass)
+
+**Task A (`docs/CLAIM-AUDIT.md`):** complete. Every claim in README.md,
+docs/INSTALL.md, docs/LICENSING.md, docs/ADMIN_GUIDE.md, the commercial
+docs, and frontend user-facing copy audited against the real code - 12
+FALSE, ~8 UNSUPPORTED, 2 code defects logged (this section, items 5 and
+8 - item 8 fixed as an explicit exception, see below).
+
+**Exception to docs-only scope (approved): the placeholder CVE ids were
+fixed this phase, not just logged.** See item 8, above, for the full
+before/after - the sweep found 4 fabricated entries in
+`_KEYWORD_CONTROL_MAP` (not the 2 originally spotted) plus a further 8 in
+`FRAMEWORK_DEFINITIONS[CVE]`, all removed, with 3 new regression tests
+and a clean sweep of every other framework's control ids (all real,
+spot-checked).
+
+**Task B (the rewrite):** complete for every FALSE and UNSUPPORTED claim
+identified in Task A. In priority order:
+
+1. `docs/commercial/*` (9 files: website-pricing, website-about,
+   website-faq, website-benefits, product-messaging, website-features,
+   website-home, plus a clean sweep of the remaining commercial docs) -
+   scanner/profile counts corrected to the real 6/6, report formats
+   corrected to HTML/PDF, the Trivy/Semgrep/Amass and "Branded PDF"/
+   white-label sold-but-nonexistent claims removed or reframed as not
+   currently available at any tier, and a dedicated "What KingSec
+   Assesses" / unauthenticated-scope section added to the pricing page,
+   about page, FAQ, and home page - not a buried caveat.
+2. `docs/ADMIN_GUIDE.md` - the entire fabricated "Admin > System
+   Settings" UI section replaced with the real configuration mechanism
+   (environment variables / JSON config file), including an explicit
+   callout that `max_concurrent_assessments` is read but not enforced.
+   Also fixed: the bulk-user-actions claim (no such UI exists - removed),
+   the welcome-email claim (no code path sends one - removed), the
+   session-invalidation timing (was "within 60 seconds," corrected to
+   "immediately" after confirming `DeactivateUser.execute()` calls
+   `RevokeAllSessions` synchronously and `is_revoked()` is checked on
+   every request), the `kingsec db check` self-contradiction, the wrong
+   `KINGSEC_JWT_SECRET` env var name (now `KINGSEC_JWT__SECRET_KEY`
+   everywhere), the auto-migration-on-startup claim (corrected to match
+   the real, tested `validate_schema_version()` behavior), and the
+   automated-backup navigation path (was pointed at the fictional System
+   Settings page; corrected to the real Admin > Backups > Schedules UI,
+   confirmed to exist in `BackupCenterPage.tsx`).
+3. Frontend copy - one flagged item (`ComplianceDashboardPage.tsx`'s
+   header description overselling the keyword-matching compliance
+   mapper as if it were a certified assessment) corrected; a sweep for
+   the same false scanner/profile/format numbers elsewhere in the
+   frontend found nothing else to fix.
+4. `README.md`, `docs/INSTALL.md`, `docs/LICENSING.md` - README's
+   scanner count, assessment-profile table (deleted the two profiles
+   that no longer exist, "Source Code Review" and "Container
+   Assessment," and corrected every remaining profile's scanner list
+   and duration against the real `assessment_profiles.py` definitions),
+   and report-format claims corrected; a "What KingSec Assesses" section
+   added. INSTALL.md's own "9 scanners, none mandatory" line was already
+   accurate in context - no change needed. LICENSING.md: added the
+   4-of-10-methods-unenforced caveat to Feature Gates, and a new finding
+   from this pass - `LICENSE_RENEWED` and `EDITION_CHANGED` are declared
+   audit action types that no code path ever emits (`renew()` always
+   raises before any audit call; there is no separate edition-change
+   event) - documented as declared-but-dead rather than left implying
+   both fire in normal use.
+
+**UNSUPPORTED claims verified this phase** (not just downgraded to vaguer
+wording, per instruction - each below was checked against real code):
+- Session-invalidation timing: verified immediate (see ADMIN_GUIDE fix
+  above), not "60 seconds" as previously stated.
+- Welcome email on user creation: verified FALSE - no code path exists
+  anywhere (`RegisterUser` has none; no admin-facing `CreateUser` email
+  trigger exists; `EmailNotificationPort`/`NotificationPort.send_email`
+  is wired only to playbook `SEND_EMAIL` actions). Claim removed.
+- AI-enrichment payload contents: verified the real payload
+  (`application/ai/explain_finding.py`) sends title, severity,
+  **description**, and evidence snippets, all redacted - the FAQ's "only
+  finding title, severity, and evidence snippets" omitted description;
+  corrected everywhere this claim appears.
+- "White-label UI": verified FALSE - zero white-label capability
+  anywhere in the frontend; removed from every commercial doc.
+- LICENSING.md's per-request validation claim: verified ACCURATE for
+  the 6 of 10 `LicenseGate` methods that have real call sites (each
+  does a fresh, uncached repository lookup) - paired with the
+  4-of-10-unenforced caveat above so the claim isn't read as covering
+  all ten.
+- Custom assessment profiles / ad-hoc individual-scanner selection
+  (website-features.md): verified FALSE - `ExecutionPlanner` has no
+  public method to add or override a profile; the only alternative to
+  choosing a profile is `profile_id=None`, which runs every
+  target-compatible scanner, not a hand-picked subset. Corrected to
+  describe this real "profile-free assessment" behavior instead.
+- Custom scanner plugin integration (Enterprise tier): verified real -
+  `ScannerPluginRegistry.register()` is a genuine, working extension
+  point - but reframed everywhere as a code-level integration done
+  through services, not a self-serve UI toggle, since no such UI exists.
+
+**Backlog additions from this phase, ranked (security finding first,
+then the "same pattern" code-but-unwired findings, then the docs-audit
+findings):**
+
+7. **SECURITY FINDING, still open:** `MfaSecretORM.secret_key` plaintext
+   - see item 6, above. Not fixed this phase (docs-only, except the CVE
+   exception).
+8. **BUG, still open:** `AssessmentConcurrencyPort.try_reserve_slot()`
+   built but never called - see item 5, above.
+9. **BUG, still open:** `LicenseGate`'s 4 unenforced methods - see item
+   7, above.
+10. **BUG, newly found this phase, logged not fixed:**
+    `AuditAction.LICENSE_RENEWED` and `AuditAction.EDITION_CHANGED`
+    (`domain/audit.py`) are declared but never `.record()`'d anywhere in
+    the codebase - `LicenseActivationService.renew()` always raises
+    `ValueError` before any audit call could happen (renewal by field
+    mutation is explicitly unsupported), and no code path emits a
+    separate edition-change event; `activate()` always records
+    `LICENSE_ACTIVATED` instead, even for what a user would call a
+    renewal or an edition change. Same family as items 5, 6 (above the
+    security finding), 7, and 9 - a declared mechanism with no live
+    path. `docs/LICENSING.md` corrected to state this plainly rather
+    than implying both events fire in normal use.
+
+### ACCEPTANCE (Phase 5, Tasks A and B)
+
+- [x] `docs/CLAIM-AUDIT.md` with a verdict for every claim found
+- [x] No FALSE claim remains in customer-facing copy (README, INSTALL,
+      LICENSING, ADMIN_GUIDE, all `docs/commercial/*`, frontend copy)
+- [x] No UNSUPPORTED claim remains unresolved - each was verified or
+      removed this phase, not softened into vaguer wording
+- [x] The one approved docs-only exception (placeholder CVE ids) fixed,
+      tested, and reported back as a deviation, not silently expanded
+- [ ] Task C (licensing/SBOM/CI gate) - not started
+- [ ] Full gate + commit by module boundary + push for the whole phase -
+      pending until Task C is done

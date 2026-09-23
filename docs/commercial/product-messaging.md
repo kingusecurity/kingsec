@@ -4,7 +4,7 @@
 
 ## 30-Second Elevator Pitch
 
-"KingSec is a local-first, AI-augmented vulnerability management platform for small and medium businesses. It orchestrates nine industry-standard security scanners — Nmap, Nuclei, Nikto, and others — under a single web interface that runs entirely on your own infrastructure. Your data never leaves your network unless you choose to enable AI analysis with your own API key. Eight pre-configured assessment profiles let you start scanning in under a minute. Reports export in JSON, HTML, PDF, CSV, or Markdown. It's free to use, and it's built for organizations that want professional-grade security tooling without sending their data to a third party."
+"KingSec is a local-first, AI-augmented vulnerability management platform for small and medium businesses. It orchestrates six industry-standard security scanners — Nmap, Nuclei, Nikto, FFUF, Gobuster, and OWASP ZAP — under a single web interface that runs entirely on your own infrastructure. It performs unauthenticated external assessment: it examines what's reachable without logging in, and has no mechanism to test what's behind your application's login screen. Your data never leaves your network unless you choose to enable AI analysis with your own API key. Six pre-configured assessment profiles let you start scanning in under a minute. Reports export as HTML or PDF. It's free to use, and it's built for organizations that want professional-grade security tooling without sending their data to a third party."
 
 ---
 
@@ -25,10 +25,10 @@
 "Once complete, findings appear in the Findings tab. Each finding has a title, severity, affected asset, and timestamp. I can filter by scanner, severity, or target. Let's open one."
 
 **Slide 5 — AI Enrichment (1:10–1:30)**
-"With AI enrichment enabled — using my own API key — I can click 'Analyze with AI' to get remediation guidance. This shows natural-language steps for addressing the finding, along with context about why it matters. No AI provider sees raw scan data — only the finding metadata."
+"With AI enrichment enabled — using my own API key — I can click 'Analyze with AI' to get remediation guidance. This shows natural-language steps for addressing the finding, along with context about why it matters. No AI provider sees raw scan data — only the finding's title, severity, description, and evidence snippets, redacted before sending."
 
 **Slide 6 — Reports (1:30–1:45)**
-"Back in Reports, I can generate an executive summary or a detailed technical report. Choose from JSON, HTML, PDF, CSV, or Markdown. One click downloads."
+"Back in Reports, I can generate an executive summary or a detailed technical report as HTML or PDF. One click downloads."
 
 **Slide 7 — Wrap-up (1:45–2:00)**
 "That's the core workflow. Scans run on your hardware, data stays local, AI is optional and BYO-key. Setup takes one Docker command. Deploy it today at no cost."
@@ -49,32 +49,32 @@
 
 ### Slide 3 — The Solution
 - KingSec: unified platform, local-first architecture
-- Nine scanners under one interface
+- Six scanners under one interface, unauthenticated external assessment
 - Optional AI enrichment, BYO-key
 
 ### Slide 4 — Key Design Principles
 - Local-first & private — data never leaves your infrastructure by default
+- Unauthenticated by scope — examines what's reachable without a login; not a substitute for testing behind authentication
 - BYO-AI-key — you choose the provider
 - Honest by design — no dark patterns or data harvesting
 - Safe by default — binds to localhost, auth required
 
 ### Slide 5 — Scanner Framework
-- Plugin architecture: Nmap, Nuclei, Nikto, FFUF, Gobuster, Trivy, Semgrep, Amass, OWASP ZAP
+- Six scanners reachable through every assessment profile: Nmap, Nuclei, Nikto, FFUF, Gobuster, OWASP ZAP
+- Plugin architecture — Trivy, Semgrep, and Amass are also registered in the codebase but not yet wired into any profile
 - Normalized output, deduplication, correlation
-- Add or remove scanners without touching core
 
 ### Slide 6 — Assessment Profiles
-- 8 pre-configured profiles (30 sec–90 min)
-- Quick Host Scan, Network Assessment, Web App, API, Code Review, Container, External Footprint, Full Assessment
-- Custom assessments also supported
+- 6 pre-configured profiles (5 min–90 min)
+- Quick Host Scan, Network Assessment, Web App, API, External Footprint, Full Assessment
 
 ### Slide 7 — AI Enrichment
 - Connect OpenAI, Anthropic, or compatible API
 - Remediation guidance, severity explanation, context-aware analysis
-- Toggleable per assessment; only metadata sent to provider
+- Toggleable per assessment; title, severity, description, and evidence snippets sent to the provider, redacted before sending
 
 ### Slide 8 — Reporting & Export
-- JSON, HTML, PDF, CSV, Markdown
+- HTML, PDF
 - On-demand or scheduled
 - Executive summaries + technical appendices
 
@@ -90,9 +90,9 @@
 - SQLite persistence, no external DB needed
 
 ### Slide 11 — Pricing
-- Free tier: all scanners, all profiles, up to 3 users
+- Free tier: all 6 scanners, all 6 profiles, up to 3 users
 - Professional: RBAC, teams, unlimited schedules — $49/mo placeholder
-- Enterprise: custom plugins, white-label, SLA
+- Enterprise: custom scanner plugin integration, dedicated SLA
 
 ### Slide 12 — Call to Action
 - Download: `docker pull kingusecurity/kingsec`
@@ -108,14 +108,15 @@
 
 **Tagline:** Your Infrastructure. Your Data. Your AI.
 
-**One-line summary:** A privacy-first vulnerability management platform that runs on your hardware, orchestrates nine scanners, and optionally augments findings with your own AI provider.
+**One-line summary:** A privacy-first, unauthenticated external vulnerability management platform that runs on your hardware, orchestrates six scanners, and optionally augments findings with your own AI provider.
 
 **Key differentiators:**
 - Local-first: all data stays on your infrastructure
+- Unauthenticated external assessment: examines what's reachable without a login (not a substitute for testing behind authentication)
 - BYO-AI-key: no vendor lock-in on AI provider
-- Nine bundled scanners: Nmap, Nuclei, Nikto, FFUF, Gobuster, Trivy, Semgrep, Amass, OWASP ZAP
-- 8 pre-configured assessment profiles: 5 min to 90 min
-- Multi-format reports: JSON, HTML, PDF, CSV, Markdown
+- Six bundled scanners: Nmap, Nuclei, Nikto, FFUF, Gobuster, OWASP ZAP
+- 6 pre-configured assessment profiles: 5 min to 90 min
+- Reports: HTML, PDF
 - Auth: JWT, RBAC, MFA/TOTP
 
 **Who it's for:**
@@ -130,7 +131,7 @@ docker run -p 127.0.0.1:8765:8765 kingusecurity/kingsec
 ```
 Then open `http://127.0.0.1:8765`.
 
-**Pricing:** Free (fully functional, up to 3 users). Professional ($49/mo) adds RBAC, teams, unlimited schedules. Enterprise (custom) adds custom plugins, white-label, SLA.
+**Pricing:** Free (fully functional, up to 3 users). Professional ($49/mo) adds RBAC, teams, unlimited schedules. Enterprise (custom) adds custom scanner plugin integration and a dedicated SLA.
 
 **Contact:** kingusecurity@gmail.com | https://github.com/kingusecurity/kingsec
 
@@ -142,13 +143,13 @@ Then open `http://127.0.0.1:8765`.
 Small and medium businesses need vulnerability management capabilities but cannot justify the cost, complexity, or data privacy risk of enterprise solutions or SaaS-based scanners. Existing approaches either expose sensitive network data to third parties or require significant manual effort to correlate output from multiple free tools.
 
 **Solution**
-KingSec is a local-first, AI-augmented attack surface management platform that runs entirely on the organization's own infrastructure. It orchestrates nine open-source security scanners under a single web interface, normalizes findings, and presents a unified view of vulnerability posture. AI enrichment is optional, bring-your-own-key, and privacy-preserving.
+KingSec is a local-first, AI-augmented attack surface management platform that runs entirely on the organization's own infrastructure. It orchestrates six open-source security scanners under a single web interface, normalizes findings, and presents a unified view of unauthenticated attack surface. AI enrichment is optional, bring-your-own-key, and privacy-preserving. KingSec assesses what's reachable without logging in; it does not test functionality behind an application's authentication.
 
 **Key advantages**
 
 - **Data sovereignty.** All scanning, processing, and storage occurs on-premises. No data is transmitted to external services unless AI enrichment is explicitly enabled with a user-provided API key.
 - **Cost efficiency.** Core functionality is free. The only variable cost is optional AI API usage, billed directly by the chosen provider. No per-asset, per-finding, or per-seat licensing.
-- **Operational simplicity.** One Docker command deploys the full platform. Eight pre-configured assessment profiles cover common workflows. Reports export in five formats with a single click.
+- **Operational simplicity.** One Docker command deploys the full platform. Six pre-configured assessment profiles cover common workflows. Reports export as HTML or PDF with a single click.
 - **Scalable security.** RBAC, team management, and audit logging support organizations from solo practitioners to multi-team environments. Scheduled assessments and automated reporting reduce manual overhead.
 
 **Business impact**
@@ -181,8 +182,8 @@ KingSec uses a monolithic server architecture with a plugin-based scanner framew
 │            Python Backend (FastAPI)          │
 │  ┌─────────┐ ┌──────────┐ ┌──────────────┐ │
 │  │ Auth    │ │Assessment│ │ Report Engine │ │
-│  │ (JWT,   │ │ Engine   │ │ (JSON/HTML/   │ │
-│  │  MFA)   │ │          │ │  PDF/CSV/MD)  │ │
+│  │ (JWT,   │ │ Engine   │ │  (HTML/PDF)   │ │
+│  │  MFA)   │ │          │ │               │ │
 │  └─────────┘ └────┬─────┘ └──────────────┘ │
 │                   │                          │
 │  ┌────────────────▼──────────────────────┐  │
@@ -190,12 +191,9 @@ KingSec uses a monolithic server architecture with a plugin-based scanner framew
 │  │  ┌─────┐ ┌──────┐ ┌─────┐ ┌──────┐  │  │
 │  │  │Nmap │ │Nuclei│ │Nikto│ │ FFUF │  │  │
 │  │  └─────┘ └──────┘ └─────┘ └──────┘  │  │
-│  │  ┌──────┐ ┌──────┐ ┌───────┐        │  │
-│  │  │Gobust│ │Trivy │ │Semgrep│        │  │
-│  │  └──────┘ └──────┘ └───────┘        │  │
-│  │  ┌─────┐ ┌────────┐                 │  │
-│  │  │Amass│ │ZAP     │                 │  │
-│  │  └─────┘ └────────┘                 │  │
+│  │  ┌──────┐ ┌────────┐                 │  │
+│  │  │Gobust│ │ZAP     │                 │  │
+│  │  └──────┘ └────────┘                 │  │
 │  └─────────────────────────────────────┘  │
 │                   │                          │
 │  ┌────────────────▼──────────────────────┐  │
@@ -209,6 +207,8 @@ KingSec uses a monolithic server architecture with a plugin-based scanner framew
 │  └───────────────────────────────────────┘  │
 └─────────────────────────────────────────────┘
 ```
+
+The six scanners above are the ones reachable through every assessment profile today. Trivy, Semgrep, and Amass are also present in the codebase as registered plugins, using the same plugin interface, but are not currently wired into any assessment profile.
 
 ### Technology Stack
 
@@ -244,8 +244,8 @@ KingSec uses a monolithic server architecture with a plugin-based scanner framew
 3. Orchestrator executes each configured scanner as a subprocess
 4. Scanner output is parsed and normalized into a common finding schema
 5. Findings are deduplicated and stored in SQLite
-6. Optional: user requests AI enrichment — finding metadata is sent to the configured AI provider
-7. User generates reports from findings in any of five output formats
+6. Optional: user requests AI enrichment — finding title, severity, description, and evidence snippets are redacted, then sent to the configured AI provider
+7. User generates reports from findings as HTML or PDF
 
 ### Security Properties
 
@@ -254,7 +254,7 @@ KingSec uses a monolithic server architecture with a plugin-based scanner framew
 - No telemetry, analytics, or crash reporting
 - JWT tokens with configurable expiration
 - Passwords hashed with bcrypt
-- TOTP secrets stored encrypted at rest
+- AI provider API keys are encrypted at rest; other stored data (including findings, reports, and TOTP secrets) relies on filesystem permissions rather than field-level encryption
 - No license server communication
 
 ---

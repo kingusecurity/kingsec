@@ -21,7 +21,6 @@ GitHub: https://github.com/kingusecurity/kingsec
    - Role: Select ADMIN, ANALYST, or VIEWER
 
 5. Click "Create"
-6. The new user receives a welcome email (if SMTP is configured) with login instructions
 
 ### Deactivating a User
 
@@ -29,7 +28,7 @@ GitHub: https://github.com/kingusecurity/kingsec
 2. Find the user in the list
 3. Click the "Deactivate" button
 4. Confirm the action
-5. Deactivated users cannot log in. Active sessions are invalidated within 60 seconds.
+5. Deactivated users cannot log in — deactivation immediately revokes all of the user's active sessions and tokens; any request made with a previously-issued token is rejected right away.
 6. To reactivate, click "Activate" on the same user record
 
 ### Assigning Roles
@@ -47,9 +46,8 @@ GitHub: https://github.com/kingusecurity/kingsec
 
 ### Bulk User Operations
 
-- Use the checkbox column to select multiple users
-- Bulk actions: Activate, Deactivate, Change Role
-- For large deployments, use the API for user provisioning automation
+- The Admin > Users page manages one user at a time today — there is no multi-select/bulk-action UI yet.
+- For large deployments, use the API for user provisioning automation.
 
 ---
 
@@ -160,39 +158,33 @@ GitHub: https://github.com/kingusecurity/kingsec
 
 ---
 
-## System Settings and Configuration
+## System Configuration
 
-### Accessing System Settings
+**There is no "Admin > System Settings" page.** Configuration is done
+through environment variables (or the equivalent JSON config file) at
+deploy time, not through a settings UI — the sections below name the
+real variables in place of the settings-page paths this guide previously
+described.
 
-Navigate to Admin > System Settings. The following configuration categories are available.
+### Server and session
 
-### General Settings
+- `KINGSEC_SERVER__HOST` / `KINGSEC_SERVER__PORT`: bind address and port
+- `KINGSEC_JWT__SECRET_KEY`: JWT signing secret (see Secret and Key Rotation, below)
+- Token expiry is configured via the JWT settings group, not a "Session Timeout" UI field
 
-- Instance Name: Displayed in the browser title and email notifications
-- Default Assessment Profile: Pre-selected profile when creating new assessments
-- Session Timeout: JWT token expiry in minutes (default: 60)
-- Max Concurrent Assessments: Limit parallel scans (default: 3)
+### Scanner configuration
 
-### Scanner Settings
+- Per-scanner timeout, retry count, and binary path overrides are configured per scanner (e.g. `KINGSEC_NMAP__TIMEOUT_SECONDS`) — see the scanner-specific environment variables in `docs/INSTALL.md`
+- **Max Concurrent Assessments** (`KINGSEC_PERFORMANCE__MAX_CONCURRENT_ASSESSMENTS`): this setting exists and is read, but is **not currently enforced** — setting it does not yet limit how many assessments run in parallel. Tracked as an open defect; see `docs/STATUS.md`.
 
-- Scanner Timeout: Maximum runtime per scanner (default: 1800 seconds)
-- Scanner Retry Count: Number of retries on failure (default: 2)
-- Custom Scanner Paths: Override scanner binary locations
-- Scanner Resource Limits: CPU and memory limits for scanner containers
+### Notifications
 
-### Notification Settings
+- SMTP and webhook delivery are configured through Settings > Notifications in the web UI (a real, existing page) — not a separate "System Settings" section.
 
-- SMTP Server: Hostname, port, username, password, and TLS settings
-- From Address: Sender email for notifications
-- Slack Webhook URL: Incoming webhook for Slack notifications
-- Webhook Endpoints: Custom HTTP endpoints for event forwarding
+### Database and backups
 
-### Database Settings
-
-- Backup Schedule: Cron expression for automated backups
-- Backup Retention: Number of backup files to retain (default: 30)
-- Log Level: DEBUG, INFO, WARNING, ERROR (default: INFO)
-- Audit Log Retention Days: How long to keep audit records (default: 365)
+- Backup scheduling is configured through Admin > Backups (the "Schedules" tab), a real page — see Backup and Restore, below.
+- Log level and other operational settings are set via environment variables at deploy time, not through the web UI.
 
 ---
 
@@ -200,8 +192,8 @@ Navigate to Admin > System Settings. The following configuration categories are 
 
 ### Automated Backup Configuration
 
-1. Navigate to Admin > System Settings > Database
-2. Enable "Automated Backups"
+1. Navigate to Admin > Backups > Schedules
+2. Click "Create Schedule"
 3. Set the schedule using cron syntax:
 
    - Daily at midnight: 0 0 * * *
@@ -534,7 +526,7 @@ complete.
 - Offline scanners: Restart the scanner or check for stuck processes
 - Not Installed: Install the scanner and restart KingSec
 - High error count: Review scanner logs from the detail page
-- Path issues: Set custom scanner paths in System Settings > Scanner Settings
+- Path issues: Override the scanner's binary path via its environment variable (e.g. `KINGSEC_NMAP__BINARY_PATH`) and restart
 
 ### Health Check Notifications
 
@@ -552,7 +544,7 @@ Configure alerts for scanner health changes:
 
 - [ ] Deploy behind a reverse proxy (Nginx, Caddy, or HAProxy)
 - [ ] Configure TLS/SSL certificate (Let's Encrypt or commercial CA)
-- [ ] Set strong KINGSEC_SECRET_KEY and KINGSEC_JWT_SECRET environment variables
+- [ ] Set strong KINGSEC_SECRET_KEY and KINGSEC_JWT__SECRET_KEY environment variables
 - [ ] Enable MFA for all ADMIN accounts
 - [ ] Configure SMTP for email notifications
 - [ ] Set up automated database backups
@@ -612,9 +604,9 @@ Configure alerts for scanner health changes:
 
 - Enforce MFA for all ADMIN accounts
 - Set JWT expiry to 15-30 minutes for production environments
-- Use long, random secrets for KINGSEC_SECRET_KEY and KINGSEC_JWT_SECRET
+- Use long, random secrets for KINGSEC_SECRET_KEY and KINGSEC_JWT__SECRET_KEY
 - Rotate secrets every 90 days
-- Configure account lockout after 5 failed login attempts (Admin > System Settings)
+- Configure account lockout after repeated failed login attempts (`KINGSEC_SECURITY__*` environment variables — see `docs/INSTALL.md`)
 
 ### Data Protection
 
@@ -656,7 +648,7 @@ Configure alerts for scanner health changes:
 1. Check scanner health in Settings > Scanner Health
 2. Verify the scanner binary is installed: which <scanner-name>
 3. Check scanner logs from the failure details
-4. Increase scanner timeout in System Settings > Scanner Settings
+4. Increase the relevant scanner's timeout environment variable (e.g. `KINGSEC_NMAP__TIMEOUT_SECONDS`) and restart
 5. Test the scanner manually on the command line
 6. Restart KingSec after scanner reinstallation
 
@@ -664,13 +656,13 @@ Configure alerts for scanner health changes:
 
 1. Check disk space: df -h /opt/kingsec/data
 2. Verify file permissions: ls -la /opt/kingsec/data/kingsec.db
-3. Run integrity check: docker exec kingsec kingsec db check
+3. There is no `kingsec db check` subcommand — KingSec ships only the `kingsec`, `kingsec-migrate`, and `kingsec-bootstrap` entry points (see Backup and Restore, above). Check the migration error log directly, or verify the backup artifact via Admin > Backups > "Restore" (decrypt/decompress/checksum-verify only — see the restore limitation noted above).
 4. Restore from the most recent backup
 5. Contact support with the migration error log
 
 ### Performance Issues During Assessments
 
-1. Reduce max concurrent assessments in System Settings
+1. `KINGSEC_PERFORMANCE__MAX_CONCURRENT_ASSESSMENTS` is not currently enforced (see System Configuration, above) — reducing it will not limit parallel scans today; reduce scan volume manually instead
 2. Reduce scanner timeout values
 3. Allocate more CPU and RAM to the Docker container
 4. Run resource-intensive scans (Full Assessment) during off-hours
@@ -679,7 +671,7 @@ Configure alerts for scanner health changes:
 
 ### Email Notifications Not Working
 
-1. Verify SMTP settings in Admin > System Settings
+1. Verify SMTP settings in Settings > Notifications
 2. Test SMTP connectivity from the KingSec host: nc -vz <smtp-host> 587
 3. Check for TLS/SSL requirements from your email provider
 4. Review KingSec logs for SMTP errors: docker logs kingsec
@@ -700,5 +692,5 @@ Configure alerts for scanner health changes:
 3. Stop the current container: docker stop kingsec
 4. Remove the container: docker rm kingsec
 5. Start with the new image using the same volume mounts
-6. Database migrations run automatically on startup
+6. KingSec validates the schema version at startup but does **not** apply migrations automatically — run `kingsec-migrate` before starting the new image if the schema has changed
 7. Verify the upgrade: curl http://127.0.0.1:8765/api/version
