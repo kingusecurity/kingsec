@@ -141,6 +141,8 @@ Per the plan's own rule ("Do not start a phase until the previous one's acceptan
 2. ~~Two account-lockout implementations exist...~~ **RESOLVED, Phase 3.** Confirmed the live login path uses `CheckAccountLockout` + `RecordFailedAuthentication`/`RecordSuccessfulAuthentication` (the DB-backed `LockoutRepository`/`account_lockouts` table family) — not `AccountLockoutService`. Definitive answer on the open question: the live path does **not** have an analogous escalation-reset defect, because it never implemented escalation in the first place — `AccountLockout` (`domain/rate_limit.py`) has no field to record a prior-lockout count, so `RecordFailedAuthentication` always applies the same fixed `lockout_duration_seconds`. `AccountLockoutService` deleted (in-memory, single-process, structurally incompatible with the DB-backed live design — see Phase 3 section below and the carried-over-conclusion pattern's fifth instance above). No second lockout implementation remains.
 3. **Phase 0 added only 1 regression test for 6 fixed defects.** Missing dedicated regression tests for: the `find_oldest_pending` tie-order fix (both `InMemoryJobService` and `PersistentJobService` variants), and the `AccountLockoutService.clear()` escalation-preservation fix (beyond the one pre-existing test it was verified against, `test_progressive_lockout_duration`, no *new* test was added asserting escalation survives a clear specifically). Should be added before this class of defect is considered closed out.
 4. **Unconfirmed: is the `rowid` tiebreaker in `SQLAlchemyJobRepository.list()` actually safe long-term?** It relies on SQLite's implicit `rowid` being monotonically increasing for this table. Not yet confirmed whether `scan_jobs` is declared with `AUTOINCREMENT` (which prevents rowid reuse after deletes) or is a plain rowid table (where SQLite *can* reuse a deleted row's rowid for a later insert, which would silently reintroduce the exact tie-order bug this was meant to fix, just under a different trigger condition). Needs verification before relying on this fix indefinitely.
+5. **BUG (found during Phase 5's claim audit): `AssessmentConcurrencyPort.try_reserve_slot()` is built but never called.** KSEC-87-02's own docstring says this port exists specifically because `max_concurrent_assessments` "existed as configuration but was never enforced anywhere." The atomic, TOCTOU-safe mechanism it built to fix that is itself unwired — grepped every call site of `try_reserve_slot(` across the whole codebase; it appears only in comments/docstrings in three files, never an actual call, and `AssessmentConcurrencyPort` is registered in the DI container but never resolved into `CreateAssessment`/`SubmitAssessment`/any use case. `max_concurrent_assessments` is not enforced anywhere in the running application today — the exact defect KSEC-87-02 was supposed to close. Not fixed — out of scope for Phase 5 (docs-only). Full detail: `docs/CLAIM-AUDIT.md` item 7.
+6. **BUG (found during Phase 5's claim audit): a placeholder CVE id in the real compliance mapping table.** `application/compliance/mapper.py`'s keyword-to-control map has two entries mapping the `{"unpatched","outdated"}` and `{"cve","known","vulnerability"}` keyword sets to `ComplianceFramework.CVE` with the literal control id `"CVE-2025-1234"` - a placeholder, not a real CVE. Any finding whose title/description matches those keywords would cite a fabricated CVE number as a real mapped control in a compliance report. Not fixed - out of scope for Phase 5 (docs-only). Full detail: `docs/CLAIM-AUDIT.md` item 4.
 
 ---
 
@@ -948,7 +950,19 @@ already in.
 **Open, not closed:** Backlog item 1 (above) - "an override that fails to
 resolve silently falls back to the default instead of failing loudly" -
 remains unresolved at the production-code level. The guard built here is
-test-only. A permanent fix for programmatic/library-code migration
-invocation (never silently resolving an implicit target) was investigated
-and proposed, not yet implemented - see the corresponding session record
-for the proposal pending approval.
+test-only.
+
+**Design constraint (Part 2, rejected as a fix - logged as a rule instead):**
+investigating a permanent production-code fix for programmatic migration
+invocation found no in-process migration entry point exists anywhere in
+this codebase - every invocation, including `kingsec-migrate` itself,
+goes through subprocess. Building one anyway (e.g. an
+`apply_migrations_to(database_url)` function) would have been a function
+with zero callers, added to prevent something nobody does - the same
+half-built shape as `historical_scope_note`, the fifteen inert settings,
+and the unenforced license gates: infrastructure for a hazard with no
+reachable path. Not shipped. Recorded instead as a constraint for
+whenever this changes: **any in-process migration entry point added in
+the future must take an explicit `database_url` with no ambient
+fallback to `KINGSEC_STORAGE__DATA_DIR`/the real default - this is a
+requirement on that future code, not a TODO to write it now.**
