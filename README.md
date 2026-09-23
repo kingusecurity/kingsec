@@ -97,7 +97,7 @@ See [docs/INSTALL.md](docs/INSTALL.md) for complete instructions including Windo
 - **API:** http://127.0.0.1:8765/api/v1
 - **Swagger UI:** http://127.0.0.1:8765/docs
 - **Frontend (dev server, run separately — see above):** http://localhost:5173
-- **Health check:** http://127.0.0.1:8765/api/v1/health
+- **Health check:** http://127.0.0.1:8765/api/v1/healthz/live
 
 ## Assessment Profiles
 

@@ -20,9 +20,10 @@ and the React frontend.
 - **The real surface is larger than what ships.** The frontend's full
   dependency tree, including devDependencies, is **439 packages** — the
   production subset above (64) is the honest "what actually ships"
-  number; 439 is reported here so the difference isn't hidden. The
-  gap is almost entirely build tooling (Vite, TypeScript, Vitest,
-  Playwright, oxlint, and their own transitive trees).
+  number. The gap (375 packages) is dev/build tooling (Vite, TypeScript,
+  Vitest, Playwright, oxlint, and their own transitive trees) — scanned
+  once and inventoried, not gated, with the full breakdown and scope
+  reasoning in "npm dev-only tree — inventoried, not gated," below.
 - Both scans are the direct source for `sbom.cdx.json` (repo root) — the
   same 51 + 64 = **115 components**, not a separately-curated list that
   could drift from the SBOM.
@@ -37,8 +38,8 @@ below, before assuming a blanket "all clear."
 
 | Package | Ecosystem | License | Where it comes from | Assessment |
 |---|---|---|---|---|
-| `pyphen` 0.18.1 | pypi | GPLv2+ **OR** LGPLv2+ **OR** MPL-1.1 (recipient's choice) | Transitive dependency of `weasyprint` (PDF report rendering — hyphenation) | **Multi-licensed, not GPL-only.** `pyphen` offers three license options; a recipient may elect to use it under **LGPLv2+** or **MPL-1.1** instead of GPL. Both of those options are compatible with inclusion in a proprietary product without triggering copyleft obligations on KingSec's own code (LGPL's copyleft applies only to `pyphen` itself, not to code that merely links/imports it; MPL-1.1's copyleft applies only to modified MPL-covered files). **No blocking issue, provided the LGPLv2+ or MPL-1.1 option is the one relied upon** — do not represent `pyphen`'s inclusion as being under GPL terms. |
-| `certifi` 2026.7.22 | pypi | MPL-2.0 | Direct transitive dependency (`httpx` → `certifi`, CA bundle) | **Weak copyleft, low risk.** MPL-2.0's copyleft is file-level: it only requires source disclosure for files that are themselves modified. KingSec does not modify `certifi`. No obligation triggered by using it as-is. |
+| `pyphen` 0.18.1 | pypi | GPLv2+ **OR** LGPLv2+ **OR** MPL-1.1 (recipient's choice) | Transitive dependency of `weasyprint` (PDF report rendering — hyphenation) | **Multi-licensed, not GPL-only.** `pyphen` offers three license options; a recipient may elect to use it under **LGPLv2+** or **MPL-1.1** instead of GPL. Both of those options are compatible with inclusion in a proprietary product without triggering copyleft obligations on KingSec's own code (LGPL's copyleft applies only to `pyphen` itself, not to code that merely links/imports it; MPL-1.1's copyleft applies only to modified MPL-covered files). **No blocking issue, provided the LGPLv2+ or MPL-1.1 option is the one relied upon** — see the recorded election below; do not represent `pyphen`'s inclusion as being under GPL terms. |
+| `certifi` 2026.7.22 | pypi | MPL-2.0 | Direct transitive dependency (`httpx` → `certifi`, CA bundle) | **Weak copyleft, low risk.** MPL-2.0's copyleft is file-level: it only requires source disclosure for files that are themselves modified. KingSec does not modify `certifi`. No obligation triggered by using it as-is. Single-licensed (not multi-licensed) — no election needed. |
 
 **Everything else (49 of 51 Python packages, all 64 npm packages) is
 permissive** (MIT, BSD-2/3-Clause, Apache-2.0, ISC, 0BSD, PSF-2.0,
@@ -48,6 +49,36 @@ web fonts) — no copyleft obligations at all.
 **This is the report the CI license gate's allowlist is written against —
 see below.** `pyphen` and `certifi` are both allowed explicitly, with the
 reasoning above, not silently permitted by an overly broad rule.
+
+### License elections — the decision, not just the option
+
+A multi-licensed package's declared terms ("GPLv2+ OR LGPLv2+ OR MPL-1.1")
+describe what a recipient is *permitted* to choose — they don't, by
+themselves, establish which option was actually relied upon. Without a
+recorded election, a future dispute starts from the least favorable
+reading (the assumption that the strictest option, GPL, was the one in
+effect by default). Swept both ecosystems for every package whose
+declared license contains an "OR" (a genuine choice of terms, as opposed
+to "AND," which means both apply simultaneously and isn't an election
+at all — `greenlet`'s "MIT AND PSF-2.0" and `victory-vendor`'s "MIT AND
+ISC" are AND, not elections). Three packages, all in the Python
+production tree; none in the npm production tree.
+
+**VantriqSec elects the following, effective 2026-09-23:**
+
+| Package | Declared options | Election | Reasoning |
+|---|---|---|---|
+| `pyphen` 0.18.1 | GPLv2+ / LGPLv2+ / MPL-1.1 | **MPL-1.1** | Weak copyleft, file-level only, no obligation triggered by unmodified use — the least restrictive of the three options that also avoids any ambiguity about whether merely importing `pyphen` could be read as triggering LGPL's linking-based copyleft. |
+| `cryptography` 50.0.1 | Apache-2.0 / BSD-3-Clause | **Apache-2.0** | Apache-2.0's express patent grant is the more protective choice for a commercial product handling cryptographic code specifically; BSD-3-Clause carries no equivalent patent clause. |
+| `structlog` 26.1.0 | MIT / Apache-2.0 | **Apache-2.0** | Same patent-grant reasoning as `cryptography`, and consistency — electing the same option across both dual-licensed permissive packages avoids two different justifications for what is functionally the same choice. |
+
+This election record is what "VantriqSec relies on the LGPLv2+/MPL-1.1
+option for `pyphen`" (stated informally elsewhere in this document)
+actually means in a form a future dispute can point to: a specific
+choice, a specific date, for a specific package version. If any of
+these three packages is upgraded to a version whose declared license
+set changes, re-confirm the election still applies to the new terms —
+don't assume it carries forward silently.
 
 ---
 
@@ -186,6 +217,62 @@ names are given in full (e.g. `@hookform/resolvers`, not `resolvers`).
 
 No GPL, LGPL, or AGPL packages in the frontend's production dependency
 tree.
+
+---
+
+## npm dev-only tree — inventoried, not gated
+
+**Scope decision, stated explicitly:** devDependencies never ship — they
+build, lint, test, and audit the product, but none of their code reaches
+a customer's machine. Gating them in CI would be wrong: it would fail
+the build over a license that carries zero redistribution risk. So the
+CI license gate (below) checks the **64-package production tree only**,
+exactly as the rest of this document does.
+
+But "doesn't ship" is not the same as "unknown." The full tree, including
+devDependencies, was scanned once this phase (`cyclonedx-npm` with no
+`--omit dev` flag) specifically so a future surprise is a known quantity,
+not a discovery. **375 dev-only packages** (439 full tree − 64 production).
+License distribution:
+
+| License | Count |
+|---|---|
+| MIT | 279 |
+| ISC | 35 |
+| Apache-2.0 | 17 |
+| BlueOak-1.0.0 | 10 |
+| MPL-2.0 | 12 |
+| BSD-2-Clause | 5 |
+| BSD-3-Clause | 5 |
+| CC0-1.0 | 3 |
+| CC-BY-4.0 | 1 |
+| CC-BY-3.0 | 1 |
+| MIT-0 | 2 |
+| MIT; MIT (duplicate-tag formatting artifact, effectively MIT) | 2 |
+| Python-2.0 | 1 |
+| (MIT OR WTFPL) | 1 |
+| (BSD-2-Clause OR MIT OR Apache-2.0) | 1 |
+
+**No GPL/LGPL/AGPL anywhere in the dev-only tree either** — confirmed by
+pattern-matching every license string, not just eyeballing the summary
+above.
+
+Three entries worth naming individually, since they're the ones that
+don't fit the "obviously permissive" pattern at a glance:
+- `argparse@2.0.1` — tagged `Python-2.0` (this is the npm port of
+  Python's argparse; the tag is a quirk of how its metadata declares
+  itself, not a sign anything unusual is happening).
+- `expand-template@2.0.3` — `(MIT OR WTFPL)`, a transitive dependency of
+  `prebuild-install` (native-module tooling). WTFPL is public-domain-
+  equivalent; MIT is the more conventionally-recognized option. No
+  election recorded here (unlike the production-tree table above) since
+  this package never ships — the "election matters" reasoning applies
+  to what's redistributed, not to build tooling.
+- `rc@1.2.8` — `(BSD-2-Clause OR MIT OR Apache-2.0)`, all three
+  permissive, no action needed for the same reason.
+
+No further action taken on the dev-only tree beyond this inventory,
+per the scope decision above.
 
 ---
 

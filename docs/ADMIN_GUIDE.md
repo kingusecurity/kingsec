@@ -693,4 +693,4 @@ Configure alerts for scanner health changes:
 4. Remove the container: docker rm kingsec
 5. Start with the new image using the same volume mounts
 6. KingSec validates the schema version at startup but does **not** apply migrations automatically — run `kingsec-migrate` before starting the new image if the schema has changed
-7. Verify the upgrade: curl http://127.0.0.1:8765/api/version
+7. Verify the upgrade: curl http://127.0.0.1:8765/api/v1/healthz/live

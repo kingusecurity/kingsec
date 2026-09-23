@@ -1088,15 +1088,77 @@ findings):**
     path. `docs/LICENSING.md` corrected to state this plainly rather
     than implying both events fire in normal use.
 
-### ACCEPTANCE (Phase 5, Tasks A and B)
+**Task C (licensing) - complete.** `docs/THIRD_PARTY_LICENSES.md` (51
+Python runtime + 64 npm production packages, both the direct source for
+`sbom.cdx.json`), one merged CycloneDX 1.6 SBOM (115 components,
+schema-validated), and a CI `licenses` job covering both ecosystems -
+tested in both directions (passes against the real trees, fails when a
+disallowed license is deliberately introduced). Copyleft found and
+flagged: `pyphen` (GPLv2+/LGPLv2+/MPL-1.1, multi-licensed) and `certifi`
+(MPL-2.0, weak/file-level) - neither blocking, both documented with
+reasoning. `docs/LICENSING-RISK.md` needed no changes - already at spec.
+
+**Two additions requested after the round, both applied:**
+
+1. **License elections recorded, not just the multi-license option.**
+   Swept both production trees for every package whose declared license
+   contains an "OR" (a genuine choice, as opposed to "AND," which means
+   both terms apply and isn't an election). Three found, all Python,
+   none npm: `pyphen` (GPLv2+/LGPLv2+/MPL-1.1 - elects **MPL-1.1**),
+   `cryptography` (Apache-2.0/BSD-3-Clause - elects **Apache-2.0**, for
+   the patent grant), `structlog` (MIT/Apache-2.0 - elects
+   **Apache-2.0**, same reasoning). Recorded in
+   `docs/THIRD_PARTY_LICENSES.md` as a dated election ("VantriqSec
+   elects... effective 2026-09-23"), not merely "this option is
+   available" - the distinction matters because an unrecorded election
+   lets a future dispute start from the strictest reading.
+
+2. **npm dev-only tree scanned once and inventoried, not gated.** 375
+   dev-only packages (439 full tree - 64 production). License
+   distribution recorded in full in `docs/THIRD_PARTY_LICENSES.md`;
+   **no GPL/LGPL/AGPL found there either.** Three non-obvious entries
+   named individually (`argparse`'s `Python-2.0` tag, and two
+   multi-licensed-but-fully-permissive transitive deps of native-module
+   tooling). Scope decision stated explicitly: dev tooling never ships,
+   so gating it in CI would fail builds over licenses that carry zero
+   redistribution risk - the CI gate still checks production-only (64
+   packages), but the surface is now a known quantity, not a blind spot.
+
+**Itemized disposition of all 9 UNSUPPORTED claims (the original
+summary said "~8"; the precise count is 9, counting the license-
+validation row's 4 bundled sub-claims as one) - see
+`docs/CLAIM-AUDIT.md`'s updated Summary-for-Task-B section for full
+evidence per row. Five were verified ACCURATE (the "honest by design"
+values claims, the 4 license-validation sub-claims, the 5-endpoint
+license API table, the key-rotation two-pass/abort mechanics, and the
+"Free tier has no timeout" claim); four were verified FALSE/OVERSTATED
+and already corrected in Task B (the "60 seconds" session timing, the
+welcome-email trigger, the AI-payload contents, and "white-label UI").
+None were softened into vaguer wording instead of being verified or
+removed.**
+
+**Found and fixed in the same pass, not originally flagged:** re-testing
+the ADMIN_GUIDE's `curl http://127.0.0.1:8765/api/version` claim (which
+Task A had already marked "likely FALSE, not independently re-tested")
+confirmed it - no `/api/version` route exists anywhere; the real,
+no-auth check is `/api/v1/healthz/live`. Checking it surfaced that
+**README.md's own "Health check" quick-link had the identical defect**
+(`/api/v1/health`, also nonexistent) - missed during Task B's original
+pass since it wasn't on the flagged list. Both fixed to the real route.
+
+### ACCEPTANCE (Phase 5 - Tasks A, B, and C, plus the post-round additions)
 
 - [x] `docs/CLAIM-AUDIT.md` with a verdict for every claim found
 - [x] No FALSE claim remains in customer-facing copy (README, INSTALL,
       LICENSING, ADMIN_GUIDE, all `docs/commercial/*`, frontend copy)
-- [x] No UNSUPPORTED claim remains unresolved - each was verified or
-      removed this phase, not softened into vaguer wording
+- [x] No UNSUPPORTED claim remains unresolved - all 9 itemized above,
+      each verified or removed, none softened into vaguer wording
 - [x] The one approved docs-only exception (placeholder CVE ids) fixed,
       tested, and reported back as a deviation, not silently expanded
-- [ ] Task C (licensing/SBOM/CI gate) - not started
-- [ ] Full gate + commit by module boundary + push for the whole phase -
-      pending until Task C is done
+- [x] `docs/THIRD_PARTY_LICENSES.md` + SBOM committed, both ecosystems,
+      license elections recorded, dev tree inventoried
+- [x] CI license gate added and TESTED (both ecosystems, both directions)
+- [x] Full gate green (ruff/mypy/import-linter/pytest, npm
+      lint/tsc/vitest); 3 commits by module boundary, pushed
+
+**Phase 5 is closed.**

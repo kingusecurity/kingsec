@@ -373,7 +373,7 @@ closed item.
 | "AI credentials are user-supplied and stored encrypted at rest" | L10 | TESTED — `api_key_encrypted`, Fernet, confirmed (item 2) | ACCURATE | — |
 | "9 pluggable scanners... Auto-detected and orchestrated" | L12 | See item 3 — 9 registered, 6 reachable | OVERSTATED | See item 3 |
 | "Multi-format reports. JSON, HTML, PDF, CSV, Markdown" | L13 | TESTED — `reporting/adapter.py` implements only `"pdf"` and `"html"` | FALSE (JSON/CSV/Markdown) | "Reports: PDF and HTML, with executive scoring." |
-| "Honest by design. No fake progress, no fear-selling..." | L14 | Not independently tested this round | UNSUPPORTED (not independently verified this round) | — |
+| "Honest by design. No fake progress, no fear-selling..." | L14 | **RESOLVED.** "No fake progress": TESTED — the real execution-phase/per-scanner progress API (`/execution/status`, `/execution/events`, `/execution/progress`) is genuinely backed by live scanner state, not a synthetic timer (confirmed this engagement's earlier phases). "No paywalled critical findings": TESTED — grepped every call site of `LicenseGate` across the codebase; none touch `report_generator.py`, finding severity, or any report-rendering path — the gate is wired only into integrations/scheduling/API-keys/org-limits, never findings. "No fear-selling" is a tone/values claim, not independently code-verifiable either way. | ACCURATE (the two testable sub-claims); the tone claim is not code-verifiable | — |
 | "Safe by default. Authorization gate enabled by default." | L15 | Note: `require_authorization` (the literal setting this sentence likely refers to) was **deleted this engagement** for being a phantom setting that enforced nothing; the real authorization gate is `Assessment`'s own state-machine invariant (AUTHORIZED required before RUNNING), which is real and structural. Server binding to 127.0.0.1 by default: confirmed (`ServerSettings.host` default, `_guard_wildcard_bind` validator). | ACCURATE for the state-machine gate and the bind default; imprecise if read as referring to the deleted setting | "The authorization gate (a required Authorization record before a scan can run) is structural, not configurable off. Server binds to 127.0.0.1 by default." |
 | Profile table incl. "Source Code Review \| Semgrep", "Container Assessment \| Trivy" | L105–114 | See item 3 — these profiles don't exist | FALSE | Remove both rows; see item 3's corrected profile list |
 | "KingSec supports 9 scanning engines" | L186 | See item 3 | OVERSTATED | See item 3 |
@@ -398,10 +398,10 @@ audit" appears repeatedly, honestly scoped). Spot-checked items:
 | Claim | Where | What the code does | Verdict | Corrected wording |
 |---|---|---|---|---|
 | Three editions: Community/Professional/Enterprise | L3 | Confirmed `Edition`/license model exists | ACCURATE | — |
-| "Licenses are validated on every request to feature-gated endpoints" + 4 sub-claims (signature, 30-day grace, clock-rollback protection, revoked→Community) | L60–65 | Not re-verified line-by-line this round; `LicenseGate` service exists and is real | UNSUPPORTED (not independently verified this round) | — |
+| "Licenses are validated on every request to feature-gated endpoints" + 4 sub-claims (signature, 30-day grace, clock-rollback protection, revoked→Community) | L60–65 | **RESOLVED, TESTED.** Read `LicenseValidatorImpl` in full: `verify_signature()` is a real Ed25519 check against the stored signature (not a recompute-and-compare); `check_expiration()` hardcodes `GRACE_DAYS = 30`, matching the claim exactly; `detect_clock_rollback()` is real (`now < last_updated - 1 hour`); `LicenseGate._check()`/`_limit()` both fall back to `EDITION_FEATURES[LicenseEdition.COMMUNITY]` whenever `lic is None` or `not lic.is_active` — revoked/inactive → Community, confirmed. "Every request": each `_check()` call does a fresh, uncached `self._repo.find_active()` — no caching to go stale. | ACCURATE, all 4 sub-claims | — |
 | LicenseGate's 10 named methods (`can_use_integrations`, `can_use_scheduling`, `can_use_api_keys`, `can_use_advanced_reports`, `can_use_sso`, `can_use_enterprise_audit`, `can_use_custom_roles`, `can_use_custom_branding`, `can_use_team_collaboration`, `can_create_multiple_orgs`) all enforce their gate | L69–80 | **TESTED** — grepped every method's call sites outside `gate.py` itself. `can_use_advanced_reports`, `can_use_custom_roles`, `can_use_custom_branding`, `can_create_multiple_orgs`: **zero call sites.** The other 6 have 1–4 call sites each. | **FALSE for 4 of 10** (Advanced Reporting, Custom Roles, Custom Branding, multi-org limits are declared but not enforced anywhere) | State plainly which of the 10 are enforced today (6) vs. declared-but-not-wired (4); do not claim "Custom branding" or "Custom roles and permissions" as an Enterprise feature until wired |
 | "No scattered edition checks exist outside this service" | L82 | TESTED — true in the sense that no *duplicate* ad-hoc checks were found; but 4 of the service's own gates are called from nowhere, so the claim of centralized enforcement overstates actual enforcement coverage | OVERSTATED | — |
-| 5-endpoint license API table | L86–92 | Not re-verified this round | UNSUPPORTED (not independently verified this round) | — |
+| 5-endpoint license API table | L86–92 | **RESOLVED, TESTED.** `adapters/inbound/web/license_routes.py`: `GET /license`, `GET /license/features`, `GET /license/status`, `POST /license/activate`, `POST /license/deactivate` — all 5 confirmed present, exact paths and methods match. | ACCURATE | — |
 | 6 license audit actions recorded | L98–103 | Consistent with `AuditAction` enum members found elsewhere this engagement; not individually re-traced to call sites this round | INFERRED, ACCURATE | — |
 
 ### docs/ADMIN_GUIDE.md
@@ -415,15 +415,15 @@ findings below (see item 7 for the System Settings mega-finding).
 | Admin > System Settings UI (all 4 categories, 16 settings) | L165–195 | **TESTED** — no such page/section exists anywhere in `frontend/src/pages/` or `frontend/src/components/features/settings/` | **FALSE** | Remove the entire section; see item 7 |
 | "Max Concurrent Assessments... default: 3" via System Settings UI | L174 | **TESTED** — real default is 5 (`PerformanceSettings.max_concurrent_assessments = 5`), no UI exists, and the enforcement mechanism itself is unwired (item 7) | **FALSE** (UI, default value, and enforcement all wrong) | See item 7 |
 | "Scanner Resource Limits: CPU and memory limits for scanner containers" | L181 | No such mechanism found anywhere in scanner provisioning/execution code | **FALSE** | Remove |
-| "Active sessions are invalidated within 60 seconds" (deactivation) | L32, L449–450 | Not independently timed/tested this round | UNSUPPORTED (not independently verified this round) | Verify the actual mechanism (polling interval? token check on next request?) before restating a specific number |
-| "Receives a welcome email (if SMTP is configured)" on user creation | L11–24 | No matching trigger found in `AdministrationPage.tsx` or grepped user-creation use case this round | UNSUPPORTED (not independently verified this round) | Verify SMTP-triggered welcome email exists in the use case layer, not just the UI, before Task B |
+| "Active sessions are invalidated within 60 seconds" (deactivation) | L32, L449–450 | **RESOLVED, TESTED, and FIXED in Task B.** `DeactivateUser.execute()` calls `RevokeAllSessions` synchronously (KSEC-75-02), which calls `TokenService.revoke_token()` for every session; `is_revoked()` is checked on every request in `jwt_service.py`. There is no delay at all — the "60 seconds" figure was simply wrong, not approximately right. | Was UNSUPPORTED → verified FALSE (the number) → **corrected to "immediately"** in Task B | Applied: "deactivation immediately revokes all of the user's active sessions and tokens" |
+| "Receives a welcome email (if SMTP is configured)" on user creation | L11–24 | **RESOLVED, TESTED, and FIXED in Task B.** Grepped the full use-case layer, not just the UI: `RegisterUser` has no email-sending code; no admin-facing `CreateUser` use case exists with an email trigger; `EmailNotificationPort`/`NotificationPort.send_email` is wired only to playbook `SEND_EMAIL` actions, unrelated to user creation. | Was UNSUPPORTED → verified FALSE → **removed** in Task B | Applied: line deleted |
 | Bulk actions (checkbox select, Activate/Deactivate/Change Role) | L48–52 | **TESTED** — zero matches for "checkbox"/"Bulk" in `AdministrationPage.tsx` | **FALSE** | Remove |
 | "There is currently no CLI equivalent [to db backup/restore/check]" | L223–225 | Consistent with the 3-entry-point finding above (INSTALL.md) | ACCURATE | — |
 | `docker exec kingsec kingsec db check` | L667 | **Directly contradicts the same document's own L223–225.** No `db check` subcommand exists on any of the 3 real entry points. | **FALSE**, and an internal self-contradiction | Remove; use the documented Backup feature's own verification path instead |
-| `curl http://127.0.0.1:8765/api/version` | L704 | Every other endpoint in this same document uses the `/api/v1/` prefix; INSTALL.md confirms no bare `/api/health` exists either | Likely **FALSE** (wrong path) — not independently re-tested this round | Use `/api/v1/health` consistently; verify whether a version endpoint exists at all |
+| `curl http://127.0.0.1:8765/api/version` | L704 | **RESOLVED, TESTED, and FIXED this round.** Read `health_routes.py` in full: no `/api/version` route exists anywhere. The real, no-auth-required check is `/api/v1/healthz/live` (or `/healthz/ready`); the admin-gated deep check is `/api/v1/healthz/health`. **README.md's own "Health check" quick-link had the identical defect** (`/api/v1/health`, also nonexistent) — found and fixed in the same pass, not caught during Task B's original rewrite. | **FALSE**, confirmed (not just "likely") | Applied: both docs now use `/api/v1/healthz/live` |
 | "Database migrations run automatically on startup" (Docker upgrade) | L698–704 | **Contradicts README.md's own explicit claim** ("Startup validation... raises RuntimeError [if not migrated]" — i.e. the app checks, it does not auto-migrate) and this engagement's own extensively-tested `validate_schema_version()` behavior (Phase 4 work, this session) | **FALSE** | "Migrations do not run automatically — run `kingsec-migrate` (or the Docker equivalent) before starting an upgraded version." |
 | RBAC permissions matrix (13 rows × 3 roles) | L60–74 | Broadly consistent with `Role`/`Permission` enums found this engagement, not re-verified cell-by-cell this round | INFERRED, largely ACCURATE | — |
-| JWT/Fernet key rotation mechanics (two-pass re-encrypt, abort on failure) | L294–369 | Not re-verified this round; internally detailed and plausible given `EncryptionServicePort` design seen elsewhere | UNSUPPORTED (not independently verified this round) | — |
+| JWT/Fernet key rotation mechanics (two-pass re-encrypt, abort on failure) | L294–369 | **RESOLVED, TESTED.** Read `RotateSecrets.execute()` in full: pass 1 decrypts every stored secret into a local dict (nothing written yet); pass 2 only then re-encrypts and writes back. If any secret fails to decrypt in pass 1, the exception propagates before pass 2 starts — a clean, safe abort with zero mutation, exactly as claimed. | ACCURATE | — |
 | Env var name `KINGSEC_JWT_SECRET` (single underscore) | L555 | Every other reference in this engagement uses `KINGSEC_JWT__SECRET_KEY` (double underscore, nested-settings convention) | **FALSE** (wrong variable name) | Fix to `KINGSEC_JWT__SECRET_KEY` |
 | Scanner Health dashboard fields, status semantics | L511–530 | Consistent with `kingsec doctor`'s real, tested probe-based design (INSTALL.md, this engagement) | INFERRED, ACCURATE | — |
 
@@ -435,11 +435,11 @@ findings below (see item 7 for the System Settings mega-finding).
 | "No license server phone-home" | about L11 | ACCURATE | Item 9 — no network code in telemetry module; not separately checked for a license-check network call this round, but LICENSING.md describes purely local signature validation |
 | "No feature gates on core scanning capability" | about L11 | OVERSTATED | Core *scanning* itself is ungated, true — but see item 3, only 6 of the marketed 9 scanners are reachable regardless of tier |
 | "Local-first & private... never transmits by default" | about L23 | ACCURATE (with item 2's caveat) | Item 2 |
-| "The Free tier is genuinely free... no feature timeout" | about L27 | UNSUPPORTED (not independently verified this round) | — |
+| "The Free tier is genuinely free... no feature timeout" | about L27 | **RESOLVED, TESTED.** `LicenseValidatorImpl._legacy_status()`: "Community is tolerated indefinitely (there's nothing to protect there)" — no expiry, no grace period, no timeout logic applies to Community edition anywhere in `LicenseValidatorImpl`. No license key is required to run at Community tier. | ACCURATE (the technical claim; "genuinely free" as a business/billing policy statement is outside what code can prove either way) | — |
 | "Safe by default... Authentication required out of the box" | about L29 | ACCURATE | JWT auth confirmed structurally required this engagement |
 | "Bundles nine established open-source scanners" | about L31 | OVERSTATED | Item 3 — 9 registered, 6 reachable |
 | "Orchestrates nine security scanners" | faq L7 | OVERSTATED | Item 3 |
-| "Only finding title, severity, and evidence snippets sent to AI provider" | faq L43 | UNSUPPORTED (not independently verified this round) | Worth a direct check of the AI enrichment payload-builder before Task B |
+| "Only finding title, severity, and evidence snippets sent to AI provider" | faq L43 | **RESOLVED, TESTED, and FIXED in Task B.** Read `application/ai/explain_finding.py`'s `explain()` in full: the real payload sends title, severity, **description** (2000 chars, redacted), and evidence (2000 chars, redacted) — the claim omitted description. | Was UNSUPPORTED → verified OVERSTATED (omitted description) → **corrected** in Task B | Applied: "title, severity, description, and evidence snippets — redacted before sending" |
 | "MFA via TOTP is supported across all tiers" | faq L55 | INFERRED, ACCURATE | MFA infra confirmed present this engagement; not tier-gate-checked this round |
 | "JSON, HTML, PDF, CSV, and Markdown" report formats | faq L61 | **FALSE** | Item 9 — only PDF/HTML exist |
 | "Eight pre-configured profiles" | faq L67 | **FALSE** | Item 3 — six exist |
@@ -447,7 +447,7 @@ findings below (see item 7 for the System Settings mega-finding).
 | Pricing table: "Scanners — All 9 included"; per-tier checkmark for Trivy/Semgrep/Amass | pricing L13, L31–39 | **FALSE** | Item 3 — these three are not reachable by any user at any tier today |
 | "Assessment profiles — 8 profiles" | pricing L14 | **FALSE** | Item 3 — six exist |
 | "Branded PDF" / "Branded reporting" — Enterprise checkmark | pricing L16, L52 | **FALSE** | Item 9 — not configurable at any tier |
-| "White-label UI" — Enterprise checkmark | pricing L53 | UNSUPPORTED (not independently verified this round) | Worth a direct check before Task B |
+| "White-label UI" — Enterprise checkmark | pricing L53 | **RESOLVED, TESTED, and FIXED in Task B.** Grepped the entire frontend for white-label/whitelabel/custom-theme/custom-logo mechanisms: zero matches. No such capability exists anywhere in the codebase, at any tier. | Was UNSUPPORTED → verified FALSE → **removed** in Task B | Applied: checkmark removed from the pricing table |
 | "No license key or online activation needed; activates on first run, no internet required" | pricing L78 | INFERRED, ACCURATE | Consistent with Community-tier-by-default finding in LICENSING.md |
 
 ### Frontend user-facing copy
@@ -489,22 +489,51 @@ criteria):**
 12. LICENSING.md: 4 of 10 `LicenseGate` methods (Advanced Reports, Custom
     Roles, Custom Branding, multi-org limits) are declared but unenforced
 
-**UNSUPPORTED claims needing a verification pass before Task B can mark
-them ACCURATE (not blocking discovery, but blocking ship per acceptance
-criteria — "no FALSE or UNSUPPORTED claim remains"):** the "60 seconds"
-session-invalidation timing, the welcome-email trigger, AI-enrichment
-payload contents, "white-label UI," LICENSING.md's per-request validation
-sub-claims, and several ADMIN_GUIDE operational-procedure claims listed
-above — each needs either a direct code check or an explicit downgrade to
-non-specific wording.
+**UPDATE (Task B, itemized disposition of all 9 UNSUPPORTED rows —
+the original summary said "~8"; the precise count, counting the
+license-validation row's 4 bundled sub-claims as one row, is 9):**
+
+| # | Claim | Disposition |
+|---|---|---|
+| 1 | "Honest by design. No fake progress, no fear-selling..." (README) | Verified ACCURATE (the two testable sub-claims); tone claim not code-verifiable |
+| 2 | License validation + 4 sub-claims (LICENSING.md) | Verified ACCURATE, all 4 sub-claims |
+| 3 | 5-endpoint license API table (LICENSING.md) | Verified ACCURATE |
+| 4 | "60 seconds" session invalidation (ADMIN_GUIDE) | Verified FALSE (the number) → corrected to "immediately" |
+| 5 | Welcome email on user creation (ADMIN_GUIDE) | Verified FALSE → removed |
+| 6 | JWT/Fernet key rotation mechanics (ADMIN_GUIDE) | Verified ACCURATE |
+| 7 | "Free tier genuinely free... no feature timeout" (about) | Verified ACCURATE (technical claim); billing-policy framing not code-verifiable |
+| 8 | AI-enrichment payload contents (faq) | Verified OVERSTATED (omitted description) → corrected |
+| 9 | "White-label UI" Enterprise checkmark (pricing) | Verified FALSE → removed |
+
+Zero were softened into vaguer wording instead of being verified or
+removed, per the explicit instruction not to do that. Every "verified
+ACCURATE" row above has its evidence recorded inline in this document's
+Part 2 tables (the entries above were each rewritten in place, not left
+as a bare verdict change).
+
+**Found and fixed in the same pass, not originally flagged:** the
+`curl http://127.0.0.1:8765/api/version` claim (ADMIN_GUIDE) was
+downgraded from "Likely FALSE... not independently re-tested" to
+confirmed FALSE — no such route exists. Checking it surfaced that
+**README.md's own "Health check" quick-link had the identical defect**
+(`/api/v1/health`, also nonexistent) — not caught during Task B's
+original rewrite pass. Both now point at the real route,
+`/api/v1/healthz/live`.
 
 **Two real code defects found and logged (not fixed — this phase is
 docs-only):**
-- `mapper.py`'s placeholder `"CVE-2025-1234"` control ID (item 4)
 - `AssessmentConcurrencyPort.try_reserve_slot()` built (KSEC-87-02) but
   never called — `max_concurrent_assessments` is unenforced today,
   the exact defect KSEC-87-02 was supposed to close (item 7)
+- `LicenseGate`'s 4-of-10 unenforced methods (item 12, above)
+- `AuditAction.LICENSE_RENEWED`/`EDITION_CHANGED` declared but never
+  emitted by any code path (found during Task B's LICENSING.md pass)
+
+**The CVE placeholder finding (item 4) is no longer in this category —
+it was fixed, not just logged, as an approved exception to the
+docs-only scope. See `docs/STATUS.md`'s Phase 5 section for the fix.**
 
 **One MFA-adjacent finding surfaced incidentally:** `MfaSecretORM.secret_key`
-is stored plaintext (not encrypted, not hashed) — worth its own follow-up,
-out of scope for this docs-only phase.
+is stored plaintext (not encrypted, not hashed) — ranked as a security
+finding above the cosmetic items in `docs/STATUS.md`'s backlog, worth
+its own follow-up phase, out of scope for this docs-only phase.
