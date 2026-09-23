@@ -159,7 +159,7 @@ def create_wired_application(
     log_stream: Any | None = None,
     ensure_directories: bool = True,
     report_format: str = "pdf",
-    brand_name: str = "KingSec",
+    brand_name: str | None = None,
     validate_migrations: bool = True,
 ) -> Application:
     """Compose a fully wired, production-ready application.
@@ -174,7 +174,13 @@ def create_wired_application(
         log_stream: Optional stream for logs (defaults to stdout).
         ensure_directories: Whether ``start()`` should create the data directory.
         report_format: Report deliverable format, ``"pdf"`` (default) or ``"html"``.
-        brand_name: Company-branding placeholder used in reports.
+        brand_name: Company-branding placeholder used in reports. ``None``
+            (the default) resolves from ``settings.reporting.brand_name``
+            (Phase 6 Task 6) - an explicit value here still overrides,
+            for tests/scripts that want one regardless of configuration.
+            Deliberately not gated by LicenseGate: 4 of 10 of its
+            documented methods already have zero call sites (see
+            docs/STATUS.md's backlog) and this does not become a fifth.
         validate_migrations: Whether to verify the Alembic schema version at
             startup. Pass ``False`` in tests that create a fresh database via
             ``create_schema()`` instead of ``alembic upgrade head``.
@@ -187,10 +193,11 @@ def create_wired_application(
         log_stream=log_stream,
         ensure_directories=ensure_directories,
     )
+    resolved_brand_name = brand_name if brand_name is not None else app.settings.reporting.brand_name
     _register_adapters(
         app,
         report_format=report_format,
-        brand_name=brand_name,
+        brand_name=resolved_brand_name,
         validate_migrations=validate_migrations,
     )
     _register_use_cases(app)

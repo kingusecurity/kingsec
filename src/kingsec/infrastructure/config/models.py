@@ -686,6 +686,23 @@ class PerformanceSettings(BaseModel):
     health_check_interval: float = Field(default=60.0, ge=10.0, description="Health check interval in seconds")
 
 
+class ReportingSettings(BaseModel):
+    """Report generation and branding configuration.
+
+    Phase 6 Task 6: brand_name was already wired end-to-end through the
+    real rendering pipeline (cover page, header, footer all use it
+    correctly) - the ONLY gap was that nothing fed a configured value
+    into that already-working plumbing, which is why "Branded PDF" was
+    removed from the pricing page as FALSE in Phase 5. This field closes
+    that gap; deliberately NOT gated by LicenseGate - see
+    bootstrap/composition.py's own comment on why.
+    """
+
+    _FROZEN = ConfigDict(frozen=True, extra="forbid")
+
+    brand_name: str = Field(default="KingSec", description="Company/product name shown in generated reports")
+
+
 class IntegrationSettings(BaseModel):
     """Enterprise integration configuration.
 
