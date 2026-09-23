@@ -627,3 +627,36 @@ class TestImmutability:
         report = Report.from_assessment(running)
         with pytest.raises(dataclasses.FrozenInstanceError):
             report.target = "changed"  # type: ignore[misc]
+
+
+class TestProfileId:
+    """Phase 6 Task 5: Assessment.profile_id was always real and set at
+    creation time - from_assessment() simply never copied it onto Report
+    before. Tests the actual copy-through end to end (a real Assessment
+    built with a real profile_id, not a dataclasses.replace() shortcut
+    that would only prove the field exists, not that it's populated
+    correctly)."""
+
+    def test_profile_id_copied_from_a_real_assessment(self) -> None:
+        from datetime import UTC, datetime
+
+        from kingsec.domain import Assessment, Authorization, Target, TargetType
+
+        assessment = Assessment.create(Target("10.0.0.5", TargetType.IP_ADDRESS), profile_id="web-scan")
+        assessment.authorize(Authorization("tester", datetime.now(UTC), scope="10.0.0.5"))
+        assessment.start()
+        assessment.complete()
+        report = Report.from_assessment(assessment)
+        assert report.profile_id == "web-scan"
+
+    def test_no_profile_selected_stays_none(self) -> None:
+        from datetime import UTC, datetime
+
+        from kingsec.domain import Assessment, Authorization, Target, TargetType
+
+        assessment = Assessment.create(Target("10.0.0.5", TargetType.IP_ADDRESS))  # profile_id defaults to None
+        assessment.authorize(Authorization("tester", datetime.now(UTC), scope="10.0.0.5"))
+        assessment.start()
+        assessment.complete()
+        report = Report.from_assessment(assessment)
+        assert report.profile_id is None

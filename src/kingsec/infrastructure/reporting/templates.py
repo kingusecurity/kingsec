@@ -694,6 +694,83 @@ def _scope_at_a_glance(report: Report) -> str:
     )
 
 
+# Phase 6 Task 5: real, well-known, one-line descriptions of what each
+# wired scanner does - same standard as domain/report.py's
+# _GENERIC_REMEDIATION_BY_CWE table ("real CWE-class guidance, not a
+# fabrication"): factual and widely documented, not guessed. Keyed by
+# ScannerRunSummary.scanner_id, the same id every other coverage-related
+# function in this module already reads.
+_SCANNER_DESCRIPTIONS: dict[str, str] = {
+    "nmap": "Discovers open network ports and running services.",
+    "nuclei": "Tests for known vulnerability patterns using community-maintained templates.",
+    "nikto": "Checks web servers for common misconfigurations and known issues.",
+    "ffuf": "Discovers hidden files, directories, and parameters via automated guessing.",
+    "gobuster": "Discovers hidden files, directories, and parameters via automated guessing.",
+    "zap": "Actively and passively tests the web application for common vulnerability classes.",
+}
+
+# Phase 6 Task 5: display names for the real, current assessment profiles
+# (application/assessment_profiles.py's _DEFAULT_PROFILES) - kept here
+# rather than importing ExecutionPlanner, since this module's own design
+# stays pure-stdlib/no-DI (see the module docstring); a profile id not in
+# this table (a future profile, or stale data from a deleted one) falls
+# back to showing the raw id honestly rather than guessing a name.
+_PROFILE_DISPLAY_NAMES: dict[str, str] = {
+    "quick-scan": "Quick Host Scan",
+    "network-scan": "Network Assessment",
+    "web-scan": "Web Application Scan",
+    "api-scan": "API Assessment",
+    "external-footprint": "External Footprint Mapping",
+    "full-assessment": "Full Assessment",
+}
+
+
+def _methodology(report: Report) -> str:
+    """Phase 6 Task 5: one place a reviewer can check "how did you
+    determine this" - which scanners ran and what each does in plain
+    language, what was and wasn't covered (reusing the SAME derivation
+    functions Scope at a Glance and Limitations already call, never a
+    second independently-worded copy that could drift), and what the
+    operator configured. Placed early (right after Scope at a Glance) -
+    the reviewer persona's methodology question arrives as soon as they've
+    read the verdict, not on page 20.
+
+    Scanner Coverage (a few sections later) stays the detailed per-scanner
+    outcome/reason breakdown - this section is the plain-language
+    "what is each of these tools and what did they look at" companion to
+    it, not a replacement.
+    """
+    parts: list[str] = []
+
+    if report.profile_id is not None:
+        profile_name = _PROFILE_DISPLAY_NAMES.get(report.profile_id, report.profile_id)
+        parts.append(f"<p>This assessment used the <strong>{escape(profile_name)}</strong> profile.</p>")
+    else:
+        parts.append("<p>This assessment did not use a pre-configured profile.</p>")
+
+    if report.scanner_summary:
+        seen: set[str] = set()
+        items: list[str] = []
+        for s in report.scanner_summary:
+            if s.scanner_id in seen:
+                continue
+            seen.add(s.scanner_id)
+            description = _SCANNER_DESCRIPTIONS.get(s.scanner_id, "")
+            ran = "ran" if s.status.is_success else "did not complete"
+            items.append(f"<li><strong>{escape(s.name)}</strong> — {escape(description)} ({ran} for this assessment)</li>")
+        parts.append(f"<p>Scanners configured for this assessment:</p><ul>{''.join(items)}</ul>")
+
+    coverage_notes = "".join(
+        f"<li>{n.strip()}</li>"
+        for n in (_authentication_scope_note(report), _port_coverage_note(report), _rate_limit_note(report))
+        if n.strip()
+    )
+    if coverage_notes:
+        parts.append(f"<p>What was and was not covered:</p><ul>{coverage_notes}</ul>")
+
+    return f'<section id="methodology"><h2>Methodology</h2>{"".join(parts)}</section>'
+
+
 def _limitations(report: Report) -> str:
     """Limitations & Methodology Notes: every disclosure this report makes,
     grouped by theme and individually subheaded (Phase 6 Task 1 restructure).
@@ -846,16 +923,26 @@ def _executive_summary(report: Report) -> str:
         )
 
     urgent_note = _urgent_action_note(report)
-    # Phase 2C Step 2, FIX 4: real report evidence showed the Critical/High
-    # framing ("...immediate remediation required.") immediately followed,
-    # two lines later, by the weaker generic "Action required. Remediation
-    # is recommended for the issues identified below." - the second dilutes
-    # the first rather than reinforcing it. Suppressed whenever the urgent
-    # framing already fired: it already states action is required, more
-    # specifically and more strongly, so the generic callout adds nothing
-    # and only softens the message. Reports with no Critical/High finding
-    # (e.g. Medium/Low-only, which still set verdict.action_required) are
-    # unaffected - they never had urgent framing to begin with.
+    # Phase 6 Task 4: three plain-language things, in this exact order,
+    # before the score panel - what was looked at, what was found, what to
+    # do first. The gauge comes after all three, never before.
+    #
+    # Phase 2C Step 2, FIX 4's suppression rule is LOAD-BEARING here, not a
+    # stylistic choice: real report evidence showed the Critical/High
+    # framing ("...immediate remediation required.") immediately followed
+    # by the weaker generic "Action required. Remediation is recommended
+    # for the issues identified below." - the second dilutes the first
+    # rather than reinforcing it. This "what to do first" sentence is
+    # therefore SUPPRESSED whenever urgent_note will also render: urgent
+    # framing already states action is required, more specifically and
+    # more strongly, and rendering both would reproduce the exact dilution
+    # defect this rule exists to prevent - moving this sentence earlier in
+    # the page does not relax that requirement, it just changes where the
+    # two would collide if the suppression were ever removed. Reports with
+    # no Critical/High finding (e.g. Medium/Low-only, which still set
+    # verdict.action_required) are unaffected - they never had urgent
+    # framing to begin with, so this sentence is the only "what to do
+    # first" they get.
     # Phase 2C Step 2, GAP-1 fix round FIX 5a: a COMPLETED_WITH_GAPS
     # assessment with zero findings still has verdict.action_required=True
     # (Verdict.from_findings() forces this - the coverage gap itself is the
@@ -892,13 +979,18 @@ def _executive_summary(report: Report) -> str:
     return (
         '<section id="executive-summary">'
         "<h2>Executive Summary</h2>"
+        # Sentence 1 (what was looked at) + Sentence 2 (what was found) -
+        # unchanged content from before Task 4, already exactly this shape.
         f"<p>A security assessment of <strong>{escape(report.target)}</strong> was completed on "
         f"{escape(report.generated_at.strftime('%Y-%m-%d'))}. {escape(verdict.headline)} "
         f"The assessment recorded <strong>{report.total_findings}</strong> finding(s) in total, "
         f"with a highest observed severity of <strong>{escape(highest)}</strong>.</p>"
+        # Sentence 3 (what to do first) - relocated from after the score
+        # panel to here, before it; never rendered twice (see the
+        # suppression comment above).
+        f"{action}"
         f"{urgent_note}"
         f"{score_panel}"
-        f"{action}"
         "</section>"
     )
 
@@ -1611,6 +1703,7 @@ def render_report_html(report: Report, *, brand_name: str = "KingSec") -> str:
         "<main>"
         f"{_executive_summary(report)}"
         f"{_scope_at_a_glance(report)}"
+        f"{_methodology(report)}"
         f"{_business_impact(report)}"
         f"{_risk_prioritization(report, groups=groups)}"
         f"{_assessment_information(report)}"

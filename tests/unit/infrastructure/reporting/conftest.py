@@ -30,9 +30,10 @@ def build_report(
     title: str = "SQL Injection",
     with_findings: bool = True,
     scanner_summary: tuple[ScannerRunSummary, ...] = (),
+    profile_id: str | None = None,
 ) -> Report:
     """Build a Report snapshot from a completed assessment."""
-    assessment = Assessment.create(Target("10.0.0.5", TargetType.IP_ADDRESS))
+    assessment = Assessment.create(Target("10.0.0.5", TargetType.IP_ADDRESS), profile_id=profile_id)
     assessment.authorize(Authorization("tester", _FIXED, scope="10.0.0.5"))
     assessment.start()
     if with_findings:

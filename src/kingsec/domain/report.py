@@ -567,6 +567,14 @@ class Report:
     # persisted rows are backfilled to "v1" by the Alembic migration that
     # introduced this field.
     score_version: str = "v2"
+    # Phase 6 Task 5: which assessment profile was configured, if any -
+    # carried straight from Assessment.profile_id (a real, pre-existing
+    # property that from_assessment() simply never copied over before).
+    # The Methodology section needs this to state what the operator
+    # actually configured; None means no profile was selected (an
+    # unscoped/ad-hoc assessment), not "not recorded" - Assessment itself
+    # already distinguishes those two states via the same None value.
+    profile_id: str | None = None
 
     @classmethod
     def from_assessment(cls, assessment: Assessment, *, generated_at: datetime | None = None) -> Report:
@@ -653,6 +661,7 @@ class Report:
             scope=authorization.scope if authorization else "",
             scanner_summary=assessment.scanner_summary,
             assessment_status=derived_status,
+            profile_id=assessment.profile_id,
         )
 
     # --- convenience ---------------------------------------------------------

@@ -14,6 +14,7 @@ from tests.unit.infrastructure.reporting.conftest import build_report
 _SECTIONS = (
     "Executive Summary",
     "Scope at a Glance",
+    "Methodology",
     "Assessment Information",
     "Scanner Coverage",
     "Risk Summary",
@@ -463,6 +464,50 @@ class TestUrgentActionFraming:
         assert "Remediation is recommended for the issues identified below" in html
 
 
+class TestExecutiveSummaryThreeSentenceOrder:
+    """Phase 6 Task 4: what was looked at, what was found, what to do
+    first - all three before the score panel; the gauge comes last, never
+    interleaved with plain-language content."""
+
+    def test_action_callout_now_precedes_the_score_panel(self) -> None:
+        """Low-only report: no urgent framing fires, so the generic
+        'Action required' callout is the 'what to do first' sentence -
+        it must appear BEFORE 'Overall Risk Score', not after (the
+        pre-Task-4 position)."""
+        report = build_report()
+        from collections import Counter
+
+        low_entries = tuple(dataclasses.replace(e, severity=Severity.LOW) for e in report.entries)
+        counts = Counter(e.severity for e in low_entries)
+        severity_counts = tuple(sorted(counts.items(), key=lambda kv: kv[0], reverse=True))
+        report = dataclasses.replace(report, entries=low_entries, severity_counts=severity_counts)
+        html = render_report_html(report)
+        section = html.split('id="executive-summary"')[1].split("</section>")[0]
+        assert section.index("Action required.") < section.index("Overall Risk Score")
+
+    def test_urgent_note_still_precedes_the_score_panel(self) -> None:
+        """Critical/High report: urgent_note is the 'what to do first'
+        content, and it must still appear before the gauge - Task 4 must
+        not have disturbed the position Phase 2C Step 1 built it to
+        have."""
+        html = render_report_html(build_report())  # default fixture has a CRITICAL finding
+        section = html.split('id="executive-summary"')[1].split("</section>")[0]
+        assert section.index("Critical finding(s) present") < section.index("Overall Risk Score")
+
+    def test_action_callout_never_renders_twice(self) -> None:
+        """The late, post-gauge position must be gone entirely - not just
+        moved and left duplicated."""
+        report = build_report()
+        from collections import Counter
+
+        low_entries = tuple(dataclasses.replace(e, severity=Severity.LOW) for e in report.entries)
+        counts = Counter(e.severity for e in low_entries)
+        severity_counts = tuple(sorted(counts.items(), key=lambda kv: kv[0], reverse=True))
+        report = dataclasses.replace(report, entries=low_entries, severity_counts=severity_counts)
+        html = render_report_html(report)
+        assert html.count("Action required.") == 1
+
+
 class TestNoSignalBandOverride:
     """Phase 2C Step 2, (d) (approved threshold): zero findings above
     Informational severity always scores 100.0 under both formulas and
@@ -745,6 +790,64 @@ class TestScopeAtAGlance:
         html = render_report_html(build_report(scanner_summary=summary))
         section = html.split('id="scope-at-a-glance"')[1].split("</section>")[0]
         assert "Scanner coverage: 1 of 2 scanner(s) completed" in section
+
+
+class TestMethodology:
+    """Phase 6 Task 5: one place a reviewer can check how findings were
+    determined - which scanners ran and what each does, what was and
+    wasn't covered, and what the operator configured."""
+
+    def test_section_present_and_positioned_after_scope_at_a_glance(self) -> None:
+        html = render_report_html(build_report())
+        assert 'id="methodology"' in html
+        assert html.index('id="scope-at-a-glance"') < html.index('id="methodology"')
+
+    def test_known_profile_id_resolves_to_its_display_name(self) -> None:
+        html = render_report_html(build_report(profile_id="web-scan"))
+        section = html.split('id="methodology"')[1].split("</section>")[0]
+        assert "Web Application Scan" in section
+
+    def test_unknown_profile_id_falls_back_to_the_raw_id(self) -> None:
+        """A future or deleted profile must never be silently hidden or
+        guessed at - show the real id rather than nothing."""
+        html = render_report_html(build_report(profile_id="some-future-profile"))
+        section = html.split('id="methodology"')[1].split("</section>")[0]
+        assert "some-future-profile" in section
+
+    def test_no_profile_states_that_plainly(self) -> None:
+        html = render_report_html(build_report())  # profile_id defaults to None
+        section = html.split('id="methodology"')[1].split("</section>")[0]
+        assert "did not use a pre-configured profile" in section
+
+    def test_scanner_descriptions_appear_in_plain_language(self) -> None:
+        summary = (
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=1),
+            ScannerRunSummary(scanner_id="nuclei", name="Nuclei", status=ScannerRunState.FAILED),
+        )
+        html = render_report_html(build_report(scanner_summary=summary))
+        section = html.split('id="methodology"')[1].split("</section>")[0]
+        assert "Discovers open network ports and running services" in section
+        assert "Tests for known vulnerability patterns" in section
+
+    def test_coverage_facts_reuse_the_same_functions_as_scope_at_a_glance(self) -> None:
+        """These must never be a second, independently-worded copy that
+        could drift from Scope at a Glance / Limitations - assert the
+        SAME derived fact (the real recorded port spec) appears in both
+        sections for the same report."""
+        summary = (
+            ScannerRunSummary(
+                scanner_id="nmap",
+                name="Nmap",
+                status=ScannerRunState.SUCCEEDED,
+                findings_count=1,
+                port_specification="top 1000 ports",
+            ),
+        )
+        html = render_report_html(build_report(scanner_summary=summary))
+        methodology_section = html.split('id="methodology"')[1].split("</section>")[0]
+        limitations_section = html.split('id="limitations"')[1].split("</section>")[0]
+        assert "top 1000 ports" in methodology_section
+        assert "top 1000 ports" in limitations_section
 
 
 class TestLimitations:
