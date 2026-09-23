@@ -1162,3 +1162,157 @@ pass since it wasn't on the flagged list. Both fixed to the real route.
       lint/tsc/vitest); 3 commits by module boundary, pushed
 
 **Phase 5 is closed.**
+
+---
+
+## Phase 6 — Report design
+
+**Branch:** `feat/phase-6-report-design`
+**Scope IN:** report structure, content organisation, Limitations section,
+executive summary, methodology section, report branding.
+**Scope OUT:** the scoring formula, severity assignment, asset attribution
+(backlog - flagged where it shows in the rendered report), any scanner
+behaviour.
+
+### Step 1 — investigation and proposal (no code)
+
+Regenerated a real baseline PDF from the real, stored 45-finding DVWA
+assessment in `C:\kingsec-e2e` (`asmt-38836463c82547718bad11cdba957cdb`),
+via a read-only session against the real repository and `Report.from_assessment()`
+- not a synthetic fixture. Full proposal for all 7 tasks:
+`docs/audits/PHASE-6-REPORT-DESIGN-PROPOSAL.txt`. Approved for Tasks 1, 2,
+4, 5, 6, 7; Task 3 held pending two empirical questions (below).
+
+### Step 2 — Tasks 1 and 2 implemented
+
+**Task 1:** new "Scope at a Glance" section (authentication scope, port
+coverage, scanner coverage - compact, front-loaded) added right after the
+Executive Summary. The full Limitations section restructured from one
+unbroken paragraph into two subheaded groups ("What This Assessment Did
+Not Cover" / "Confidence and Methodology") - all eight disclosures
+survive verbatim (the brief named seven; severity demotion is a real,
+conditional eighth one found while reading `_limitations()` in full).
+Port coverage and authentication scope share a single source of truth
+between their compact and full renderings.
+
+**Task 2:** Technical Findings and Remediation Steps merged into one
+"Finding Details" section. Risk Prioritization and the Findings table
+became genuine indices linking to each finding's full card via a stable
+`id="finding-{finding_id}"` anchor, instead of two more full
+re-renderings.
+
+**A measurement-mechanism correction, recorded precisely because the
+first explanation was wrong:**
+
+The first report of this round's page-count result (30 -> 30, no net
+change against a predicted 27-29) attributed the missing reduction to
+`.finding-card { page-break-inside: avoid; }` forcing whitespace as
+cards grew. **That explanation does not hold - it was checked
+empirically and disproved.** Page density across pages 5-28: baseline
+24.0 non-empty lines/page, regenerated 25.0 non-empty lines/page, zero
+pages under 15 lines in either version. Equally full; no whitespace
+effect.
+
+The real accounting, from the actual section page-spans:
+
+```
+baseline:  Technical Findings 6-22 (17pp) + Remediation Steps 23-28 (6pp) = 23pp
+new:       Finding Details 6-27 (22pp)                                    = 22pp
+total non-empty lines: 765 -> 782 (the new report has MORE content, not less)
+```
+
+Merging saved exactly **one page**. Task 1's new Scope-at-a-Glance
+section plus the two-group Limitations restructure's subheading overhead
+spent that one page back. Net zero.
+
+**The mechanism is relocation, not deletion.** Task 2 moved remediation
+text from its own section into each finding's existing card - the text
+still has to live somewhere, so total content did not shrink; only the
+per-finding duplicate header (title + severity badge, rendered twice
+before, once now) was genuinely removed. That is why the saving was one
+page, not several, and it is a content-accounting fact, not a CSS
+side-effect. Recorded here so the wrong (CSS-whitespace) explanation
+does not stand as the record of what happened.
+
+**This reframes Task 3 with stronger reasoning than originally proposed:**
+grouping *deletes* content where merging only *moved* it. Ten open-port
+findings collapsing into one removes nine complete cards - nine titles,
+nine facts tables, nine evidence blocks, and nine verbatim copies of the
+same remediation paragraph - not a relocation, a real reduction.
+
+### Step 1 questions, answered empirically before Task 3 started
+
+**Question 1 - does Phase 2B-c's FIX 5 (nuclei per-matcher grouping)
+collapse the 10 "HTTP Missing Security Headers" findings in current
+behaviour?** Reconstructed 10 raw JSONL records sharing the exact
+`(template-id, matched-at)` observed in this baseline's real persisted
+evidence and ran the real `parse_nuclei_jsonl()` against them directly
+(not read, executed): returned exactly 1 Finding with 10 evidence
+entries. FIX 5 works. The stored baseline's 10 separate rows are
+historical - `git log` shows FIX 5 committed 2026-09-14 21:47:26; this
+assessment was created 2026-09-13T16:18:18, one day earlier. No code
+defect. The second Task 3 grouping candidate (headers) is dropped; the
+real figure is 10 of 45 (port findings only), not 20 of 45.
+
+**Question 2 - does `FindingSummary`/`Finding` carry a scanner id,
+template id, or check type to group on instead of a title string?**
+Read both classes in full: neither does, genuinely, not just unused.
+Found a better anchor than a fresh string match: `nmap.py` already has a
+private `_OPEN_PORT_TITLE` regex, and `nmap_parser.py:119` is the literal
+source generating the "Open port N/proto" title. Task 3 groups on the
+existing regex; the required title-format-change test is wired to the
+real `nmap_parser.py` construction path, not a hardcoded copy of the
+pattern.
+
+### The 4x file size (135KB -> 562KB, page count unchanged): status
+
+Confirmed the size grew (real, reproducible measurement); the
+explanation offered for it - internal anchor-link/named-destination
+structure changing how WeasyPrint lays out PDF objects - is **INFERRED,
+not TESTED**. It was reasoned from the html-string-length delta (+5.6%)
+being far smaller than the byte-size delta (+315%), not confirmed by
+inspecting the PDF's actual internal object structure. Not blocking
+(562KB is a normal attachment size); re-checked after Task 3, below.
+
+### Task 3 implemented - port findings grouped, 10 of 45
+
+`OPEN_PORT_TITLE_PATTERN` made public in `nmap.py` (was `_OPEN_PORT_TITLE`,
+already used internally for dedup) - `templates.py` groups on this real
+regex, never an independently-maintained string copy. Grouping key:
+severity + status + effective remediation, ALL must match - a non-port
+finding is always a singleton; two port findings differing in any of
+those three are never merged. Applied consistently across Risk
+Prioritization, the Findings table, and Finding Details (a group is one
+line/one row/one card in all three, never listed individually in one
+view and grouped in another). Presentation-only: `report.total_findings`
+and `severity_counts` are computed before grouping ever runs and stay
+exactly 45/1/0/5/11/28, unaffected - verified by a real test
+(`test_grouping_never_changes_total_findings_or_severity_counts`) rather
+than just asserted in a docstring. The real port data split into two
+groups (7 LOW-severity ports, 3 INFORMATIONAL-severity ports) rather than
+one 10-port group, because severity is part of the grouping key and the
+real data genuinely has both.
+
+**Measured, using the new metric (not page count):**
+
+```
+                          before Task 3   after Task 3
+Page count:                    30              25
+Total non-empty lines:       1,313           1,106
+Remediation marker count:       10               2   (2 groups: LOW ports + INFORMATIONAL ports)
+Finding Details span:        6-27 (22pp)     6-23 (18pp)
+Findings-region lines:          835             653
+```
+
+This is the real reduction the "relocation, not deletion" framing
+predicted: Task 3 removed 9 duplicate titles, 9 facts tables, and 8 of
+10 remediation paragraphs (10 became 2, not 1, because of the severity
+split above) - genuine deletions, not a relocation like Task 2's merge.
+
+**File size, re-checked as instructed:** 135KB (pre-Task 1/2) -> 562KB
+(Task 1+2) -> 506KB (Task 3) - it did NOT grow another 4x; it went down
+somewhat. Consistent with (not proof of) the anchor-structure theory:
+Task 3 removes 9 anchor targets and correspondingly fewer links in Risk
+Prioritization/the Findings table. Still INFERRED, not TESTED - the
+PDF's internal object structure has not been directly inspected either
+time.

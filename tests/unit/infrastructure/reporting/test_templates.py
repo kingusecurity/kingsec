@@ -1097,6 +1097,149 @@ class TestRiskPrioritization:
         assert "estimated fix effort" not in section.lower()
 
 
+class TestOpenPortGrouping:
+    """Phase 6 Task 3: open-port findings sharing severity, status, and
+    effective remediation collapse into one group, presentation-only, and
+    consistently across all three finding-related views."""
+
+    @staticmethod
+    def _port_finding(report, index: int, title: str, *, severity=None):
+        """Clone an existing entry into a fresh, real open-port finding -
+        same discipline as the file's other tests that build FindingSummary
+        variants via dataclasses.replace() rather than hand-rolling one."""
+        template = report.entries[1]  # the fixture's LOW "Missing headers" entry
+        return dataclasses.replace(
+            template,
+            finding_id=f"port-{index}",
+            title=title,
+            description="",
+            severity=severity if severity is not None else template.severity,
+            recommendations=(),
+        )
+
+    def _report_with_ports(self, titles: list[str], *, severity=Severity.LOW):
+        report = build_report()
+        ports = [self._port_finding(report, i, t, severity=severity) for i, t in enumerate(titles)]
+        entries = (*report.entries, *ports)
+        from collections import Counter
+
+        counts = Counter(e.severity for e in entries)
+        severity_counts = tuple(sorted(counts.items(), key=lambda kv: kv[0], reverse=True))
+        return dataclasses.replace(report, entries=entries, severity_counts=severity_counts)
+
+    def test_multiple_open_port_findings_collapse_into_one_card(self) -> None:
+        report = self._report_with_ports(["Open port 22/tcp", "Open port 80/tcp", "Open port 3389/tcp"])
+        html = render_report_html(report)
+        section = html.split('id="finding-details"')[1].split("</section>")[0]
+        # SQL Injection + Missing headers (both non-port, still singleton) + the one port group.
+        assert section.count('class="finding-card"') == 3
+        assert "3 network services exposed" in section
+
+    def test_group_preserves_each_ports_own_evidence(self) -> None:
+        report = self._report_with_ports(["Open port 22/tcp", "Open port 80/tcp"])
+        html = render_report_html(report)
+        section = html.split('id="finding-details"')[1].split("</section>")[0]
+        assert "22/tcp" in section
+        assert "80/tcp" in section
+
+    def test_remediation_appears_once_per_group_not_per_member(self) -> None:
+        report = self._report_with_ports(
+            ["Open port 22/tcp", "Open port 80/tcp", "Open port 443/tcp", "Open port 3389/tcp"]
+        )
+        html = render_report_html(report)
+        assert html.count("Review whether this open port/service is required") == 1
+
+    def test_differing_severity_prevents_merging(self) -> None:
+        report = build_report()
+        low_port = self._port_finding(report, 0, "Open port 22/tcp", severity=Severity.LOW)
+        info_port = self._port_finding(report, 1, "Open port 80/tcp", severity=Severity.INFORMATIONAL)
+        entries = (*report.entries, low_port, info_port)
+        from collections import Counter
+
+        counts = Counter(e.severity for e in entries)
+        severity_counts = tuple(sorted(counts.items(), key=lambda kv: kv[0], reverse=True))
+        report = dataclasses.replace(report, entries=entries, severity_counts=severity_counts)
+        html = render_report_html(report)
+        section = html.split('id="finding-details"')[1].split("</section>")[0]
+        # SQL Injection + Missing headers + 2 DISTINCT port singletons - never merged.
+        assert section.count('class="finding-card"') == 4
+        assert "network services exposed" not in section
+
+    def test_non_port_findings_are_never_grouped(self) -> None:
+        """The default fixture's two findings (neither matches the
+        open-port title pattern) must render exactly as before Task 3 -
+        two singleton cards, no group title anywhere."""
+        html = render_report_html(build_report())
+        section = html.split('id="finding-details"')[1].split("</section>")[0]
+        assert section.count('class="finding-card"') == 2
+        assert "network services exposed" not in section
+
+    def test_grouped_consistently_across_all_three_views(self) -> None:
+        """Risk Prioritization, the Findings table, and Finding Details
+        must all show the SAME single group, not three ports in one view
+        and one group in another."""
+        report = self._report_with_ports(["Open port 22/tcp", "Open port 80/tcp", "Open port 443/tcp"])
+        html = render_report_html(report)
+
+        risk_section = html.split('id="risk-prioritization"')[1].split("</section>")[0]
+        findings_section = html.split('<section id="findings">')[1].split("</section>")[0]
+        details_section = html.split('id="finding-details"')[1].split("</section>")[0]
+
+        assert risk_section.count("3 network services exposed") == 1
+        assert findings_section.count("3 network services exposed") == 1
+        assert details_section.count("3 network services exposed") == 1
+        # None of the three individual port titles appear as their own
+        # separate row/card/list-item anywhere - only inside the group.
+        for port_title in ("Open port 22/tcp", "Open port 80/tcp", "Open port 443/tcp"):
+            assert port_title not in risk_section
+            assert port_title not in findings_section
+
+    def test_grouping_never_changes_total_findings_or_severity_counts(self) -> None:
+        """The scoring-safety guarantee: report.total_findings and
+        severity_counts are computed from the real, ungrouped entries
+        before rendering ever begins - grouping the RENDERED page must
+        never be visible in those numbers."""
+        report = self._report_with_ports(["Open port 22/tcp", "Open port 80/tcp", "Open port 443/tcp"])
+        assert report.total_findings == 5  # 2 fixture findings + 3 real port findings
+        assert sum(count for _, count in report.severity_counts) == 5
+        html = render_report_html(report)
+        # The Findings table and Risk Summary must still reflect the real,
+        # ungrouped counts - the executive summary's own finding count is
+        # the clearest read of this.
+        assert f"<strong>{report.total_findings}</strong> finding(s) in total" in html
+
+    def test_title_format_is_wired_to_the_real_nmap_parser_construction(self) -> None:
+        """THE required test (Task 3, point 2): grouping must not depend
+        on an independently-maintained copy of "Open port N/proto" - it
+        must break the moment nmap_parser.py's own construction changes.
+        Calls the REAL parse_nmap_xml() against a minimal, valid nmap XML
+        fragment (not a hand-built Finding) and asserts the resulting
+        title matches OPEN_PORT_TITLE_PATTERN - the same pattern
+        _group_open_port_findings groups on. If nmap_parser.py's title
+        f-string ever changes shape, this test fails here, not silently
+        inside the grouping logic."""
+        from kingsec.infrastructure.scanner.nmap import OPEN_PORT_TITLE_PATTERN
+        from kingsec.infrastructure.scanner.nmap_parser import parse_nmap_xml
+
+        xml = (
+            "<nmaprun>"
+            "<host>"
+            '<status state="up"/>'
+            '<address addr="10.0.0.5"/>'
+            "<ports>"
+            '<port portid="22" protocol="tcp"><state state="open"/></port>'
+            "</ports>"
+            "</host>"
+            "</nmaprun>"
+        )
+        findings = parse_nmap_xml(xml)
+        assert len(findings) == 1
+        match = OPEN_PORT_TITLE_PATTERN.match(findings[0].title)
+        assert match is not None, f"nmap_parser.py's real title {findings[0].title!r} no longer matches the grouping pattern"
+        assert match.group(1) == "22"
+        assert match.group(2) == "tcp"
+
+
 class TestAffectedAssets:
     def test_renders_target_and_finding_count(self) -> None:
         report = build_report()

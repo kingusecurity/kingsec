@@ -26,8 +26,9 @@ import re
 from html import escape
 
 from kingsec.domain import HistoryPoint, Report, ScannerRunSummary, Severity
-from kingsec.domain.enums import AssessmentStatus, ScannerRunState, SeverityDemotionReason
+from kingsec.domain.enums import AssessmentStatus, FindingStatus, ScannerRunState, SeverityDemotionReason
 from kingsec.domain.report import FindingSummary, failed_scanners_in
+from kingsec.infrastructure.scanner.nmap import OPEN_PORT_TITLE_PATTERN
 
 # Phase 2A: reports are now generated from either a COMPLETED or a
 # COMPLETED_WITH_GAPS assessment (domain-enforced in Report.from_assessment),
@@ -1150,7 +1151,50 @@ def _visual_elements(report: Report) -> str:
     )
 
 
-def _risk_prioritization(report: Report) -> str:
+def _group_open_port_findings(
+    entries: tuple[FindingSummary, ...],
+) -> tuple[tuple[FindingSummary, ...], ...]:
+    """Phase 6 Task 3: collapse open-port findings sharing the same
+    severity, status, and remediation into one group - PRESENTATION ONLY,
+    applied after every domain-layer computation (severity_counts,
+    executive_score, verdict) has already read the real, ungrouped
+    report.entries. Grouping never touches those - report.total_findings,
+    severity_counts, and executive_score are unaffected by anything this
+    function does.
+
+    Groups on OPEN_PORT_TITLE_PATTERN - nmap.py's own real source of an
+    open-port Finding's title (nmap_parser.py's f"Open port
+    {portid}/{protocol}" construction), never an independently-maintained
+    string copy that could silently drift from what nmap actually emits.
+    A non-matching entry always becomes its own singleton group and is
+    never merged with anything. A matching entry only merges with another
+    matching entry that shares the EXACT SAME severity, status, and
+    effective remediation - two open-port findings that happen to differ
+    in any of those are never silently blended into one card.
+
+    Order preserved: report.entries is already worst-first; a group's
+    position is anchored by its first member's position.
+    """
+    groups: list[list[FindingSummary]] = []
+    group_by_key: dict[tuple[Severity, FindingStatus, tuple[tuple[str, str], ...]], list[FindingSummary]] = {}
+    for entry in entries:
+        match = OPEN_PORT_TITLE_PATTERN.match(entry.title)
+        if match is None:
+            groups.append([entry])
+            continue
+        rec_key = tuple((r.title, r.description) for r in entry.effective_recommendations)
+        key = (entry.severity, entry.status, rec_key)
+        existing = group_by_key.get(key)
+        if existing is not None:
+            existing.append(entry)
+        else:
+            new_group = [entry]
+            group_by_key[key] = new_group
+            groups.append(new_group)
+    return tuple(tuple(g) for g in groups)
+
+
+def _risk_prioritization(report: Report, *, groups: tuple[tuple[FindingSummary, ...], ...]) -> str:
     """A ranked "fix this first" action list, reusing the already worst-first
     entry ordering — pure presentation over data Units 2-3 already
     computed, no new domain logic.
@@ -1167,11 +1211,14 @@ def _risk_prioritization(report: Report) -> str:
         return ""
     # Phase 6 Task 2: links straight to the finding's full card in Finding
     # Details, so this stays a genuine index rather than a fourth full
-    # rendering of the same content.
+    # rendering of the same content. Phase 6 Task 3: iterates over GROUPS
+    # (a group of open-port findings collapses to one line here too) -
+    # grouped consistently across all three surviving views, never listed
+    # individually here while the detail page shows one card.
     items = "".join(
-        f'<li>{_badge(entry.severity)} '
-        f'<a href="#{_finding_anchor_id(entry)}"><strong>{escape(entry.title)}</strong></a></li>'
-        for entry in report.entries
+        f'<li>{_badge(group[0].severity)} '
+        f'<a href="#{_finding_group_anchor_id(group)}"><strong>{escape(_finding_group_title(group))}</strong></a></li>'
+        for group in groups
     )
     return (
         '<section id="risk-prioritization">'
@@ -1296,26 +1343,32 @@ def _risk_summary(report: Report) -> str:
     )
 
 
-def _findings(report: Report) -> str:
+def _findings(report: Report, *, groups: tuple[tuple[FindingSummary, ...], ...]) -> str:
     if not report.entries:
         return '<section id="findings"><h2>Findings</h2><p>No findings were recorded for this assessment.</p></section>'
+    # Phase 6 Task 3: one row per GROUP, not per entry - a group's status
+    # and effective_recommendations are guaranteed uniform across its
+    # members by _group_open_port_findings' own grouping key, so reading
+    # them off the first member is exact, not an approximation. Evidence
+    # count is summed across the whole group - nothing is dropped, only
+    # displayed once per group instead of once per member.
     rows = "".join(
         "<tr>"
-        f"<td>{_badge(entry.severity)}</td>"
+        f"<td>{_badge(group[0].severity)}</td>"
         # Phase 6 Task 2: links to the finding's full card in Finding
         # Details, so this stays a compact index, not a second full render.
-        f'<td><a href="#{_finding_anchor_id(entry)}">{escape(entry.title)}</a></td>'
-        f"<td>{escape(entry.status.value)}</td>"
-        f"<td>{entry.evidence_count}</td>"
+        f'<td><a href="#{_finding_group_anchor_id(group)}">{escape(_finding_group_title(group))}</a></td>'
+        f"<td>{escape(group[0].status.value)}</td>"
+        f"<td>{sum(e.evidence_count for e in group)}</td>"
         # Phase 2A-b: the raw entry.recommendation_count (len(recommendations))
         # undercounts against what the reader actually sees in Finding
         # Details, which renders effective_recommendations (real ones, or
         # the generic fallback for well-known finding types) - use the
         # same effective count here so the table never contradicts the
         # section below it.
-        f"<td>{len(entry.effective_recommendations)}</td>"
+        f"<td>{len(group[0].effective_recommendations)}</td>"
         "</tr>"
-        for entry in report.entries
+        for group in groups
     )
     return (
         '<section id="findings">'
@@ -1337,7 +1390,25 @@ def _finding_anchor_id(entry: FindingSummary) -> str:
     return f"finding-{escape(entry.finding_id)}"
 
 
-def _finding_details(report: Report, *, target: str) -> str:
+def _finding_group_anchor_id(group: tuple[FindingSummary, ...]) -> str:
+    """A group's anchor is its first member's - Phase 6 Task 3, same
+    single-source-of-truth discipline as _finding_anchor_id above."""
+    return _finding_anchor_id(group[0])
+
+
+def _finding_group_title(group: tuple[FindingSummary, ...]) -> str:
+    """Phase 6 Task 3: a singleton group renders its real title, unchanged
+    from before grouping existed; a real group (len > 1) renders a
+    generated summary title - never a fabricated specific claim, just an
+    honest count of what the group actually contains."""
+    if len(group) == 1:
+        return group[0].title
+    return f"{len(group)} network services exposed"
+
+
+def _finding_details(
+    report: Report, *, target: str, groups: tuple[tuple[FindingSummary, ...], ...]
+) -> str:
     """Phase 6 Task 2: the ONE place each finding's full content lives -
     technical write-up (facts, description, evidence) AND remediation
     guidance together in one card. Previously two separate sections
@@ -1348,6 +1419,12 @@ def _finding_details(report: Report, *, target: str) -> str:
     Prioritization and the Findings table both link here instead of
     re-rendering the same content a third and fourth time.
 
+    Phase 6 Task 3: a singleton group renders exactly as before (one
+    finding, one card, via _finding_detail_card); a real group (multiple
+    open-port findings sharing severity/status/remediation) renders via
+    _finding_group_card instead - one card for the whole group, with every
+    member's own port and evidence still individually visible inside it.
+
     CVE and CVSS are rendered as an explicit "Not available" rather than
     omitted, because the current scanning pipeline does not correlate a
     finding to a specific CVE or CVSS vector — this is honest about a real
@@ -1355,7 +1432,12 @@ def _finding_details(report: Report, *, target: str) -> str:
     """
     if not report.entries:
         return ""
-    cards = "".join(_finding_detail_card(entry, target=target) for entry in report.entries)
+    cards = "".join(
+        _finding_detail_card(group[0], target=target)
+        if len(group) == 1
+        else _finding_group_card(group, target=target)
+        for group in groups
+    )
     return f'<section id="finding-details"><h2>Finding Details</h2>{cards}</section>'
 
 
@@ -1407,6 +1489,54 @@ def _finding_detail_card(entry: FindingSummary, *, target: str) -> str:
         f"<table>{facts}</table>"
         f"<p>{escape(description)}</p>"
         f"<h4>Evidence</h4>{evidence_html}"
+        f"<h4>Remediation</h4><ul>{recs_html}</ul>"
+        "</div>"
+    )
+
+
+def _finding_group_card(group: tuple[FindingSummary, ...], *, target: str) -> str:
+    """Phase 6 Task 3: one card for a group of open-port findings sharing
+    severity/status/remediation, instead of N separate cards each carrying
+    an identical remediation paragraph. Nothing is summarized away: every
+    member's own port/protocol and its own evidence stay individually
+    visible in the table below, not merged or dropped. Remediation is
+    real, not fabricated - group_by_key already guarantees every member
+    shares the exact same effective_recommendations, so rendering the
+    first member's is not an approximation.
+    """
+    first = group[0]
+    facts = "".join(
+        f"<tr><th>{escape(k)}</th><td>{escape(v)}</td></tr>"
+        for k, v in (
+            ("Affected Asset", target),
+            ("Services Grouped", str(len(group))),
+        )
+    )
+    port_rows = []
+    for entry in group:
+        match = OPEN_PORT_TITLE_PATTERN.match(entry.title)
+        port_label = f"{match.group(1)}/{match.group(2)}" if match else entry.title
+        evidence_summary = (
+            "; ".join(escape(e.summary) for e in entry.evidence)
+            if entry.evidence
+            else "No evidence recorded"
+        )
+        port_rows.append(f"<tr><td>{escape(port_label)}</td><td>{evidence_summary}</td></tr>")
+    ports_table = (
+        "<table><thead><tr><th>Port</th><th>Evidence</th></tr></thead>"
+        f"<tbody>{''.join(port_rows)}</tbody></table>"
+    )
+    effective = first.effective_recommendations
+    recs_html = (
+        "".join(f"<li><strong>{escape(r.title)}</strong> — {escape(r.description)}</li>" for r in effective)
+        if effective
+        else "<li>No specific remediation guidance is available for this finding.</li>"
+    )
+    return (
+        f'<div class="finding-card" id="{_finding_group_anchor_id(group)}">'
+        f"<h3>{_badge(first.severity)} {escape(_finding_group_title(group))}</h3>"
+        f"<table>{facts}</table>"
+        f"<h4>Exposed Services</h4>{ports_table}"
         f"<h4>Remediation</h4><ul>{recs_html}</ul>"
         "</div>"
     )
@@ -1464,6 +1594,13 @@ def render_report_html(report: Report, *, brand_name: str = "KingSec") -> str:
         '<div class="subtitle">Security Assessment Report</div></div>'
         "</div></header>"
     )
+    # Phase 6 Task 3: computed ONCE, after every domain-layer number
+    # (severity_counts, executive_score, verdict) has already been derived
+    # from the real report.entries - passed into every section that needs
+    # to render per-finding, so Risk Prioritization, Findings, and Finding
+    # Details always agree on what's grouped and never disagree with each
+    # other (or with the unaffected scoring numbers) about it.
+    groups = _group_open_port_findings(report.entries)
     return (
         "<!DOCTYPE html>"
         '<html lang="en"><head><meta charset="utf-8">'
@@ -1475,12 +1612,12 @@ def render_report_html(report: Report, *, brand_name: str = "KingSec") -> str:
         f"{_executive_summary(report)}"
         f"{_scope_at_a_glance(report)}"
         f"{_business_impact(report)}"
-        f"{_risk_prioritization(report)}"
+        f"{_risk_prioritization(report, groups=groups)}"
         f"{_assessment_information(report)}"
         f"{_scanner_summary(report)}"
         f"{_risk_summary(report)}"
-        f"{_findings(report)}"
-        f"{_finding_details(report, target=report.target)}"
+        f"{_findings(report, groups=groups)}"
+        f"{_finding_details(report, target=report.target, groups=groups)}"
         f"{_visual_elements(report)}"
         f"{_affected_assets(report)}"
         f"{_limitations(report)}"
