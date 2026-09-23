@@ -13,12 +13,12 @@ from tests.unit.infrastructure.reporting.conftest import build_report
 
 _SECTIONS = (
     "Executive Summary",
+    "Scope at a Glance",
     "Assessment Information",
     "Scanner Coverage",
     "Risk Summary",
     "Findings",
-    "Technical Findings",
-    "Remediation Steps",
+    "Finding Details",
     "Visual Elements",
     "Risk Prioritization",
     "Affected Assets Summary",
@@ -180,7 +180,16 @@ class TestBusinessImpact:
         assert "No Critical or High severity findings" in html
 
 
-class TestRemediationSteps:
+class TestFindingDetails:
+    """Phase 6 Task 2: Technical Findings and Remediation Steps were merged
+    into one section (Finding Details) - a finding's evidence and its fix
+    now live in the same card instead of two separately-paginated ones. All
+    the individual content assertions below are unchanged from before the
+    merge (same underlying functions, same text); what changed is that they
+    now all come from a single `id="finding-details"` section instead of
+    two.
+    """
+
     def test_renders_recommendation_text(self) -> None:
         html = render_report_html(build_report())
         assert "Fix" in html and "use params" in html  # from the fixture's Recommendation
@@ -215,8 +224,6 @@ class TestRemediationSteps:
         assert "Review whether this open port/service is required" in html
         assert "No specific remediation guidance is available" not in html
 
-
-class TestTechnicalFindings:
     def test_renders_description_and_evidence(self) -> None:
         html = render_report_html(build_report())
         assert "injectable parameter" in html  # finding description
@@ -226,6 +233,69 @@ class TestTechnicalFindings:
     def test_finding_without_evidence_gets_honest_note(self) -> None:
         html = render_report_html(build_report())
         assert "No evidence was recorded for this finding" in html
+
+    def test_evidence_and_remediation_for_the_same_finding_share_one_card(self) -> None:
+        """The actual point of the Task 2 merge: a finding's evidence and
+        its remediation must be readable without leaving its card - assert
+        both appear inside the SAME finding-card div, not merely somewhere
+        on the page."""
+        report = build_report()
+        critical = next(e for e in report.entries if e.severity is Severity.CRITICAL)
+        html = render_report_html(report)
+        card_start = html.index(f'id="finding-{critical.finding_id}"')
+        card_end = html.index("</div>", html.index("<h4>Remediation</h4>", card_start))
+        card_html = html[card_start:card_end]
+        assert "<h4>Evidence</h4>" in card_html
+        assert "<h4>Remediation</h4>" in card_html
+
+    def test_old_separate_sections_no_longer_exist(self) -> None:
+        """Regression guard: the two old, separately-rendered sections must
+        both be gone, not merely renamed - their removal is the actual
+        page-count reduction Task 2 exists to produce."""
+        html = render_report_html(build_report())
+        assert 'id="technical-findings"' not in html
+        assert 'id="remediation-steps"' not in html
+        assert "<h2>Technical Findings</h2>" not in html
+        assert "<h2>Remediation Steps</h2>" not in html
+
+
+class TestFindingAnchorLinks:
+    """Phase 6 Task 2: Risk Prioritization and the Findings table are now
+    compact indices that link to each finding's full card in Finding
+    Details, instead of each independently re-rendering the finding."""
+
+    def test_every_finding_has_a_stable_anchor_id(self) -> None:
+        report = build_report()
+        html = render_report_html(report)
+        for entry in report.entries:
+            assert f'id="finding-{entry.finding_id}"' in html
+
+    def test_risk_prioritization_links_to_the_real_anchor(self) -> None:
+        report = build_report()
+        html = render_report_html(report)
+        section = html.split('id="risk-prioritization"')[1].split("</section>")[0]
+        for entry in report.entries:
+            assert f'href="#finding-{entry.finding_id}"' in section
+
+    def test_findings_table_links_to_the_real_anchor(self) -> None:
+        report = build_report()
+        html = render_report_html(report)
+        section = html.split('<section id="findings">')[1].split("</section>")[0]
+        for entry in report.entries:
+            assert f'href="#finding-{entry.finding_id}"' in section
+
+    def test_every_link_target_actually_exists_in_the_document(self) -> None:
+        """The real safety net: every #finding-<id> href in the whole
+        document must resolve to a real id="finding-<id>" somewhere in the
+        same document - a broken internal link is worse than none."""
+        import re
+
+        report = build_report()
+        html = render_report_html(report)
+        hrefs = set(re.findall(r'href="#(finding-[^"]+)"', html))
+        ids = set(re.findall(r'id="(finding-[^"]+)"', html))
+        assert hrefs, "expected at least one finding anchor link"
+        assert hrefs <= ids
 
 
 class TestCoverPage:
@@ -620,6 +690,61 @@ class TestStrongBandNarrativeActionAware:
         from kingsec.infrastructure.reporting.templates import _score_narrative
 
         assert _score_narrative(80.0, action_required=True) == _score_narrative(80.0, action_required=False)
+
+
+class TestScopeAtAGlance:
+    """Phase 6 Task 1: a compact preview of the scope-limiting disclosures
+    (authentication scope, port coverage, scanner coverage), placed right
+    after the Executive Summary so a reader who stops after page 2 still
+    knows what was not examined. An addition, not a replacement - the full
+    versions of all three must still render, unchanged, in Limitations &
+    Methodology Notes."""
+
+    def test_section_present_and_positioned_after_executive_summary(self) -> None:
+        html = render_report_html(build_report())
+        assert 'id="scope-at-a-glance"' in html
+        assert html.index('id="executive-summary"') < html.index('id="scope-at-a-glance"')
+
+    def test_contains_the_authentication_scope_short_sentence(self) -> None:
+        html = render_report_html(build_report())
+        section = html.split('id="scope-at-a-glance"')[1].split("</section>")[0]
+        assert "unauthenticated assessment" in section
+
+    def test_full_authentication_sentence_still_renders_unchanged_in_limitations(self) -> None:
+        """Every disclosure must survive - the compact preview is an
+        addition, never a substitute for the full version."""
+        html = render_report_html(build_report())
+        limitations = html.split('id="limitations"')[1].split("</section>")[0]
+        assert "unauthenticated external assessment" in limitations
+        assert "reachable only after authentication was not tested" in limitations
+
+    def test_contains_port_coverage_when_nmap_recorded_a_spec(self) -> None:
+        summary = (
+            ScannerRunSummary(
+                scanner_id="nmap",
+                name="Nmap",
+                status=ScannerRunState.SUCCEEDED,
+                findings_count=1,
+                port_specification="top 1000 ports",
+            ),
+        )
+        html = render_report_html(build_report(scanner_summary=summary))
+        section = html.split('id="scope-at-a-glance"')[1].split("</section>")[0]
+        assert "Port coverage: top 1000 ports." in section
+
+    def test_omits_port_coverage_line_when_nmap_did_not_run(self) -> None:
+        html = render_report_html(build_report(scanner_summary=()))
+        section = html.split('id="scope-at-a-glance"')[1].split("</section>")[0]
+        assert "Port coverage" not in section
+
+    def test_contains_scanner_coverage_summary(self) -> None:
+        summary = (
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=1),
+            ScannerRunSummary(scanner_id="nuclei", name="Nuclei", status=ScannerRunState.FAILED),
+        )
+        html = render_report_html(build_report(scanner_summary=summary))
+        section = html.split('id="scope-at-a-glance"')[1].split("</section>")[0]
+        assert "Scanner coverage: 1 of 2 scanner(s) completed" in section
 
 
 class TestLimitations:
