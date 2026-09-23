@@ -1316,3 +1316,69 @@ Task 3 removes 9 anchor targets and correspondingly fewer links in Risk
 Prioritization/the Findings table. Still INFERRED, not TESTED - the
 PDF's internal object structure has not been directly inspected either
 time.
+
+### Tasks 4, 5, 6 implemented (all approved as proposed in Step 1)
+
+**Task 4 (executive summary):** now states what was looked at, what was
+found, and what to do first, all before the score panel. The former
+late, post-gauge "Action required" callout moved to before
+urgent_note/the gauge and never renders twice. urgent_note's own
+position is unchanged - still immediately after the opening content,
+still above the score panel. The FIX-4 suppression rule (never show
+both the generic callout and urgent framing together) is now commented
+as load-bearing: relocating the callout earlier doesn't relax the
+requirement, it just changes where the two would collide if the
+suppression were ever removed.
+
+**Task 5 (methodology section):** new "Methodology" section right after
+Scope at a Glance - which profile was used, which scanners ran with a
+one-line plain-language description of each, and what was/wasn't
+covered (reusing the SAME derivation functions Scope at a Glance and
+Limitations already call). Required `Report.profile_id`, copied from
+`Assessment.profile_id` - a real, pre-existing property `from_assessment()`
+simply never read before. Tested end to end against a real
+`Assessment.create(profile_id=...)`, not just via `dataclasses.replace()`.
+The real baseline assessment's own profile_id turned out to be a genuine
+`"web-scan"` - confirmed when regenerating the final PDF, not assumed.
+
+**Task 6 (report branding):** new `ReportingSettings.brand_name`
+(default `"KingSec"`, env var `KINGSEC_REPORTING__BRAND_NAME`), wired
+through `create_wired_application()`'s existing `brand_name` parameter -
+`None` now resolves from Settings instead of a hardcoded literal; an
+explicit value still overrides. No `LicenseGate` check anywhere in this
+path, per instruction. Tested end to end through the REAL composition
+root (`create_wired_application()`, real DI container, real
+`ReportGeneratorPort`, real rendered output) - the same methodology as
+Phase 4's `enforce_authorization_scope` test, not a unit test on the
+settings object alone. Three cases covered: configured value reaches
+the render, unconfigured falls back to the real default, and an
+explicit `create_wired_application(brand_name=...)` argument still wins
+over the env var.
+
+### Final measurement - all of Tasks 1-6 against the same 45-finding baseline
+
+```
+                          original baseline   Tasks 1-6 applied
+Page count:                     30                   26
+Total non-empty lines:        1,338                1,138
+Remediation marker count:        10                    2
+Finding Details span:      (Technical 6-22+Remediation   6-24 (19pp)
+                             23-28 = 23pp combined)
+```
+
+A real, honest net reduction - 4 pages, 200 non-empty lines, 8 fewer
+duplicate remediation paragraphs - while ADDING two new sections (Scope
+at a Glance, Methodology) that did not exist in the baseline at all.
+The domain-layer numbers that must never move did not: 45 findings,
+severity_counts, and executive_score are identical to the original
+baseline in every regenerated version this phase produced.
+
+Full gate (ruff, mypy, import-linter, full pytest suite) green after
+every task. 5 commits on `feat/phase-6-report-design`, not yet pushed.
+
+**Final regenerated PDF:**
+`C:\kingsec-e2e\phase6-baseline\phase6-final-tasks1-6-45findings.pdf`
+(510,567 bytes, 26 pages) - the same assessment
+(`asmt-38836463c82547718bad11cdba957cdb`) the Step 1 baseline used,
+generated read-only against `C:\kingsec-e2e\kingsec.db` (mtime
+unchanged, confirmed).
