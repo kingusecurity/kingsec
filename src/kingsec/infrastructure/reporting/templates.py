@@ -1495,7 +1495,7 @@ def _finding_group_title(group: tuple[FindingSummary, ...]) -> str:
     honest count of what the group actually contains."""
     if len(group) == 1:
         return group[0].title
-    return f"{len(group)} network services exposed"
+    return f"{len(group)} network services exposed ({group[0].severity.label})"
 
 
 def _finding_details(

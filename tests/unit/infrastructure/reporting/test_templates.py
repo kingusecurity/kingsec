@@ -1238,6 +1238,31 @@ class TestOpenPortGrouping:
         assert section.count('class="finding-card"') == 3
         assert "3 network services exposed" in section
 
+    def test_group_title_names_severity_when_multiple_groups_exist(self) -> None:
+        """Two 'N network services exposed' groups at different severities
+        must not read as identical titles side by side - the title names
+        the severity so a reader can tell them apart without opening both
+        cards (Phase 6 closeout - small, cheap fix)."""
+        report = build_report()
+        low_ports = [
+            self._port_finding(report, i, t, severity=Severity.LOW)
+            for i, t in enumerate(["Open port 22/tcp", "Open port 80/tcp"])
+        ]
+        info_ports = [
+            self._port_finding(report, i, t, severity=Severity.INFORMATIONAL)
+            for i, t in enumerate(["Open port 445/tcp", "Open port 3389/tcp"], start=2)
+        ]
+        entries = (*report.entries, *low_ports, *info_ports)
+        from collections import Counter
+
+        counts = Counter(e.severity for e in entries)
+        severity_counts = tuple(sorted(counts.items(), key=lambda kv: kv[0], reverse=True))
+        report = dataclasses.replace(report, entries=entries, severity_counts=severity_counts)
+        html = render_report_html(report)
+        section = html.split('id="finding-details"')[1].split("</section>")[0]
+        assert "2 network services exposed (Low)" in section
+        assert "2 network services exposed (Informational)" in section
+
     def test_group_preserves_each_ports_own_evidence(self) -> None:
         report = self._report_with_ports(["Open port 22/tcp", "Open port 80/tcp"])
         html = render_report_html(report)

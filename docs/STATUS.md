@@ -137,6 +137,52 @@ Per the plan's own rule ("Do not start a phase until the previous one's acceptan
 
 ## Backlog (logged, not fixed — flagged during Phase 1 setup)
 
+### TOP PRIORITY (promoted, Phase 6 — ranked above the numbered list below)
+
+The Phase 6 report redesign didn't create these two defects, but it did
+what the old wall-of-findings layout couldn't: put each one on a clean
+page as a single titled claim, where it's immediately visible instead of
+buried as one line among dozens. Both are ranked above every item in the
+numbered list below.
+
+1. **Asset-attribution defect.** Full detail already on file — see
+   "Backlog — asset-attribution defect (reframed from 'HOST SERVICES
+   contamination', GAP-1 fix round, logged, not fixed)" further down this
+   section; not restated here. **New evidence from the Phase 6 redesign
+   confirms the original finding, sharper than before:** the grouped
+   open-port card renders `AFFECTED ASSET: http://127.0.0.1:18080 (url)`
+   above a table of seven ports including 3389 (RDP) — nginx's own URL
+   presented as the asset for an RDP port finding. In the old
+   one-line-among-many layout this read as an odd detail; as a titled
+   card on its own page, grouped and clean, it is the first thing a
+   reviewer will question.
+
+2. **Port severity heuristic (new, found via the Phase 6 redesign).**
+   Grouping open-port findings by `(severity, status, remediation)`
+   (Task 3, `_group_open_port_findings()` in
+   `infrastructure/reporting/templates.py`) surfaced a heuristic that was
+   always there but never visible as a single claim: the real baseline
+   assessment's 10 open-port findings split into "7 network services
+   exposed" (Low) and "3 network services exposed" (Informational) — and
+   the Informational group contains port 445 (SMB). Asserting, in a
+   titled card, that three exposed network services are merely
+   informational — with SMB among them — will not survive professional
+   review. As one line among 28 findings this went unnoticed; grouped and
+   titled, it reads as a claim the report is making. **Not fixed** — the
+   heuristic that assigns severity to open-port findings by
+   port/protocol needs its own review; not investigated further here,
+   per instruction to log rather than fix this round.
+
+**Why these two are scoped together, not as two independent items:** a
+port finding is about a *host* (which asset was it observed on) and its
+severity is about the *service* (how much should a reviewer care) — both
+questions get asked about the exact same finding, at the exact same
+moment, by the exact same reviewer looking at the exact same card. Fixing
+attribution without revisiting the severity heuristic (or vice versa)
+leaves the other half of the same reviewer's objection standing.
+
+---
+
 1. **BUG: a `KINGSEC_STORAGE__DATA_DIR` override that fails to resolve silently falls back to the default path instead of failing loudly.** Discovered the hard way during Phase 1 setup: an env-file `source` with an unquoted path containing spaces silently dropped the override, and `kingsec-migrate` ran against the real `~/.kingsec/kingsec.db` instead of the intended isolated directory. The settings layer should fail closed (raise, not silently substitute a default) when an explicitly-set value for a security/isolation-relevant path can't be applied — same philosophy as the existing secret-placeholder guardrail. Not fixed — out of scope for Phase 1.
 2. ~~Two account-lockout implementations exist...~~ **RESOLVED, Phase 3.** Confirmed the live login path uses `CheckAccountLockout` + `RecordFailedAuthentication`/`RecordSuccessfulAuthentication` (the DB-backed `LockoutRepository`/`account_lockouts` table family) — not `AccountLockoutService`. Definitive answer on the open question: the live path does **not** have an analogous escalation-reset defect, because it never implemented escalation in the first place — `AccountLockout` (`domain/rate_limit.py`) has no field to record a prior-lockout count, so `RecordFailedAuthentication` always applies the same fixed `lockout_duration_seconds`. `AccountLockoutService` deleted (in-memory, single-process, structurally incompatible with the DB-backed live design — see Phase 3 section below and the carried-over-conclusion pattern's fifth instance above). No second lockout implementation remains.
 3. **Phase 0 added only 1 regression test for 6 fixed defects.** Missing dedicated regression tests for: the `find_oldest_pending` tie-order fix (both `InMemoryJobService` and `PersistentJobService` variants), and the `AccountLockoutService.clear()` escalation-preservation fix (beyond the one pre-existing test it was verified against, `test_progressive_lockout_duration`, no *new* test was added asserting escalation survives a clear specifically). Should be added before this class of defect is considered closed out.
