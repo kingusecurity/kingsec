@@ -149,7 +149,42 @@ allow never diverge.
 
 ---
 
-## 5. Scope Boundary — unauthenticated, external assessment only
+## 5. What This Authorization Does Not Cover
+
+Signing this document, and the checkboxes in Section 4, authorize scanning
+only the exact target named in Section 2, at the surface extent selected
+in Section 4. They do **not** authorize:
+
+- **Any other host.** If the target is a device on a live network (a home
+  Wi-Fi network, a corporate LAN, a virtual machine bridged onto either),
+  this authorization does not extend to the router, any other device on
+  that network, or any host merely *reachable from* the named target.
+  Each additional host requires its own Section 2 target specification
+  and its own signed authorization — proximity on the same network is
+  not authorization.
+- **Denial-of-service, resource-exhaustion, or availability-impacting
+  testing** of any kind, against the named target or any other system.
+- **Physical access, social engineering, or testing against personnel.**
+- **Retention or disclosure of any data or credentials** incidentally
+  encountered beyond what is necessary to report a finding.
+- **Scanning outside the Section 3 validity window**, or after the grant
+  recording this authorization has been revoked.
+- **A full-host scan**, unless the second checkbox in Section 4 is
+  selected *and* Section 2 names a host-level target — the first
+  checkbox alone does not imply the second.
+
+**Why this exists:** `AuthorizationGrant.covers_target()` and
+`satisfies_tier()` (`src/kingsec/domain/authorization_grant.py`) compare a
+scan target against the *literal* value entered in Section 2 — never a
+subnet, never a DNS resolution, never "anything nearby." The product has
+no concept of authorization-by-network-adjacency; this section exists so
+the paper document is equally explicit about it, especially where the
+named target is a virtual machine bridged onto a real network alongside
+devices the signer may not own or control.
+
+---
+
+## 6. Scope Boundary — unauthenticated, external assessment only
 
 KingSec performs **unauthenticated** external assessment. It examines
 what's reachable without logging in — open ports and services, missing
@@ -177,7 +212,7 @@ could drift apart.
 
 ---
 
-## 6. What KingSec Will Actually Do
+## 7. What KingSec Will Actually Do
 
 This assessment may run some or all of the following six scanners,
 depending on the assessment profile selected and which are compatible
@@ -203,7 +238,7 @@ what the report itself discloses after the fact.
 
 ---
 
-## 7. Rate Limiting
+## 8. Rate Limiting
 
 Scanning tools in this assessment operate under request-rate limits by
 default, not at full unthrottled speed:
@@ -242,7 +277,7 @@ and what the report discloses after the fact are the same claim.
 
 ---
 
-## 8. Not a Penetration Test
+## 9. Not a Penetration Test
 
 The client acknowledges that this assessment is **automated
 vulnerability scanning**, not a manual penetration test. It does not
@@ -256,14 +291,31 @@ not proof of the absence of risk in that category.
 
 ---
 
-## 9. Signatures
+## 10. Signatures
+
+By signing below, the client confirms they have read and understood
+Sections 1–9 above, and specifically the surface-tier checkboxes in
+Section 4 and the exclusions in Section 5.
 
 | | |
 |---|---|
 | Client signature | ______________________ |
 | Client name (printed) | ______________________ |
 | Date | ______________________ |
-| VantriqSec representative | ______________________ |
+
+**VantriqSec countersignature.** By countersigning below, the VantriqSec
+representative confirms the scope, target, validity window, and
+surface-tier authorization above have been reviewed, match what will be
+entered into KingSec as the `AuthorizationGrant` (see the closing note
+below), and that the assessment will be conducted strictly within these
+terms — no scan surface beyond what Section 4 checked, no target beyond
+what Section 2 named.
+
+| | |
+|---|---|
+| VantriqSec representative (signature) | ______________________ |
+| VantriqSec representative (printed name) | ______________________ |
+| Title / role | ______________________ |
 | Date | ______________________ |
 
 Upon execution, the fields in Sections 1–3 above should be entered into
