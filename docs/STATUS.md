@@ -1512,16 +1512,59 @@ as drift. Logged here, alongside this engagement's other
 built-then-not-properly-wired instances, as its own backlog item, not
 fixed this phase:
 
-   **BUG: `ensure_backup_tables()` creates 7 real tables via raw SQL
-   outside Alembic, so `alembic check`'s autogenerate diff always reports
-   them as "removed" on any database that has ever been bootstrapped or
-   served.** Candidate fix (not implemented, needs its own phase): either
-   add these 7 tables to `models.py`/`Base.metadata` and replace
-   `ensure_backup_tables()`'s raw SQL with a proper Alembic migration
-   that created them historically, or exclude them from Alembic's
-   autogenerate comparison explicitly (`include_object`) if folding them
-   into the ORM model turns out not to be straightforward. Either way,
-   `alembic check` must stop seeing a live feature's own tables as drift.
+   **BUG: a shipped feature's schema is created by a raw-SQL side-channel
+   with no Alembic history, no version, and no upgrade path.**
+   `ensure_backup_tables()` creates 7 real tables via `CREATE TABLE IF
+   NOT EXISTS` outside Alembic entirely - not just "untracked by
+   autogenerate" but **genuinely unmanaged**: no migration ever created
+   them, so there is no revision to point at, no recorded history of
+   what their schema has ever been, and no supported path to alter them
+   (a hand-edited `CREATE TABLE` string is the only thing that has ever
+   defined this schema). `alembic check`'s "removed table" misreport
+   (the proximate cause of the FIX 1 bug) is a symptom of this, not the
+   disease itself.
+
+   Two candidate fixes, not equal, named in full so the second is never
+   mistaken for a real fix:
+   - **Proper fix (this is the one that closes the loop):** add the 7
+     tables to `models.py`/`Base.metadata`, write a real Alembic
+     migration that creates them (reusing `_BACKUP_TABLES`'
+     `infrastructure/backup/schema.py` column definitions as the
+     source of truth for the migration's `op.create_table()` calls),
+     and retire `ensure_backup_tables()` entirely. This gives the
+     backup feature's schema an actual version, an actual upgrade
+     path, and stops it depending on a side-channel nothing else in
+     this codebase uses.
+   - **Lesser fix:** exclude the 7 tables from Alembic's autogenerate
+     comparison (`include_object` in `env.py`). This only papers over
+     `alembic check`'s false positive - FIX 1 already does this more
+     correctly by not depending on the autogenerate diff at all. The
+     schema itself stays exactly as unmanaged as it is today: still no
+     migration history, still no upgrade path, still one hand-edited
+     SQL string as its only definition. Not recommended as the actual
+     resolution to this item - named here only so it isn't proposed
+     later as if it were equivalent to the proper fix.
+
+   **Scope check (one grep, as requested): backup is the only such
+   side-channel.** Searched the whole `src/` tree for `CREATE TABLE`,
+   `ensure_*_table(s)`/`ensure_*_schema`, and `metadata.create_all(` /
+   `create_all(`: the only raw-SQL table-creation function anywhere in
+   the codebase is `ensure_backup_tables()` itself; the only other
+   `create_all(` call site is `infrastructure/persistence/database.py`'s
+   already-known, already-deprecated `create_schema()` (test/quick-start
+   only, gated behind `validate_migrations=False`, not a hidden
+   production path). Scope is exactly these 7 tables, not larger.
+
+   **Possible prerequisite, flagged not resolved:** this is a
+   data-recovery feature whose own schema has no version, no migration
+   history, and no supported upgrade path - the irony of an
+   un-versioned backup system is worth stating plainly. Whether this
+   makes the proper fix a prerequisite for the backup feature being
+   safe to sell is a product/risk call this phase does not make - flagged
+   for whoever scopes that future phase to decide, not decided here.
+
+   Not fixed this phase - needs its own phase, candidate fix selected
+   above.
 
 **FIX 1 — bootstrap's migration check now asks only "is the chain at
 head".** `_migrations_applied()` replaced by `_migration_chain_status()`
@@ -1545,6 +1588,23 @@ anymore (previously required one, see the test's prior history); a
 never-migrated database is still correctly refused, with the real
 current/head revisions named in the message. 8/8 relevant tests pass
 post-fix.
+
+**Verified against the real `C:\kingsec-e2e`, not just the test suite:**
+
+```
+$env:KINGSEC_STORAGE__DATA_DIR = "C:\kingsec-e2e"
+uv run kingsec-bootstrap --username admin --password "<fresh password>"
+
+Using database directory: C:\kingsec-e2e
+...
+ERROR: an admin user already exists
+```
+
+No "migrations not applied" - the real failure this whole phase started
+from. `ERROR: an admin user already exists` is the correct outcome (an
+admin was already created on this instance earlier in this engagement);
+FIX 1 reaches that correct guard now instead of being blocked before it.
+FIX 2's notice line is the first thing printed, exactly as designed.
 
 **FIX 2 — all three entrypoints announce the resolved database path.**
 `announce_data_dir()` (`src/kingsec/_data_dir_notice.py`), wired into
