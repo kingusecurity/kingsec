@@ -183,7 +183,7 @@ leaves the other half of the same reviewer's objection standing.
 
 ---
 
-1. **BUG: a `KINGSEC_STORAGE__DATA_DIR` override that fails to resolve silently falls back to the default path instead of failing loudly.** Discovered the hard way during Phase 1 setup: an env-file `source` with an unquoted path containing spaces silently dropped the override, and `kingsec-migrate` ran against the real `~/.kingsec/kingsec.db` instead of the intended isolated directory. The settings layer should fail closed (raise, not silently substitute a default) when an explicitly-set value for a security/isolation-relevant path can't be applied — same philosophy as the existing secret-placeholder guardrail. Not fixed — out of scope for Phase 1.
+1. ~~**BUG: a `KINGSEC_STORAGE__DATA_DIR` override that fails to resolve silently falls back to the default path instead of failing loudly.**~~ **RESOLVED (visibility), Phase 8.** `kingsec-migrate`, `kingsec-bootstrap`, and the server now all announce the resolved data directory on stderr before acting (`announce_data_dir()`, `src/kingsec/_data_dir_notice.py`) — loudly, with an explicit `NOTICE:` line, whenever the env var is unset and the default is in play. An operator no longer has to run `load_settings()` out-of-band to learn which database a command touched, which is what this very backlog item, and the Phase 4 incident below, both required to even diagnose. Scope note: this closes the *visibility* gap, not the original ask (fail closed / raise instead of silently defaulting) — the default itself is unchanged, per explicit instruction not to change it, only to announce it.
 2. ~~Two account-lockout implementations exist...~~ **RESOLVED, Phase 3.** Confirmed the live login path uses `CheckAccountLockout` + `RecordFailedAuthentication`/`RecordSuccessfulAuthentication` (the DB-backed `LockoutRepository`/`account_lockouts` table family) — not `AccountLockoutService`. Definitive answer on the open question: the live path does **not** have an analogous escalation-reset defect, because it never implemented escalation in the first place — `AccountLockout` (`domain/rate_limit.py`) has no field to record a prior-lockout count, so `RecordFailedAuthentication` always applies the same fixed `lockout_duration_seconds`. `AccountLockoutService` deleted (in-memory, single-process, structurally incompatible with the DB-backed live design — see Phase 3 section below and the carried-over-conclusion pattern's fifth instance above). No second lockout implementation remains.
 3. **Phase 0 added only 1 regression test for 6 fixed defects.** Missing dedicated regression tests for: the `find_oldest_pending` tie-order fix (both `InMemoryJobService` and `PersistentJobService` variants), and the `AccountLockoutService.clear()` escalation-preservation fix (beyond the one pre-existing test it was verified against, `test_progressive_lockout_duration`, no *new* test was added asserting escalation survives a clear specifically). Should be added before this class of defect is considered closed out.
 4. **Unconfirmed: is the `rowid` tiebreaker in `SQLAlchemyJobRepository.list()` actually safe long-term?** It relies on SQLite's implicit `rowid` being monotonically increasing for this table. Not yet confirmed whether `scan_jobs` is declared with `AUTOINCREMENT` (which prevents rowid reuse after deletes) or is a plain rowid table (where SQLite *can* reuse a deleted row's rowid for a later insert, which would silently reintroduce the exact tie-order bug this was meant to fix, just under a different trigger condition). Needs verification before relying on this fix indefinitely.
@@ -995,10 +995,23 @@ row and empty `authorization_grants` table, deliberately not downgraded
 or cleaned up, since doing so risks more than the harmless state it is
 already in.
 
-**Open, not closed:** Backlog item 1 (above) - "an override that fails to
-resolve silently falls back to the default instead of failing loudly" -
-remains unresolved at the production-code level. The guard built here is
-test-only.
+**Open, not closed (at the time):** Backlog item 1 (above) - "an override
+that fails to resolve silently falls back to the default instead of
+failing loudly" - remained unresolved at the production-code level here;
+the guard built in this phase was test-only. **Visibility resolved,
+Phase 8** (see "Phase 8 — onboarding/bootstrap fix" below): the
+*mechanism* behind this incident is no longer a mystery either. Phase 8's
+investigation of a different, real bootstrap defect independently found
+that `create_wired_application()` touches the database the moment it
+runs - and that a silent fallback to `~/.kingsec` when
+`KINGSEC_STORAGE__DATA_DIR` isn't visible to a given process is fully
+sufficient, by itself, to explain an unattributed write like the 11:25 AM
+one here: no malicious or stray code path is required, only an unset env
+var in that one invocation. Phase 8 did not re-investigate this specific
+11:25 AM write - it closes the general mechanism going forward
+(`announce_data_dir()` now makes every such fallback loud), not this
+one incident's exact provenance, which remains as recorded above:
+unidentified, not reattributed.
 
 **Design constraint (Part 2, rejected as a fix - logged as a rule instead):**
 investigating a permanent production-code fix for programmatic migration
@@ -1428,3 +1441,123 @@ every task. 5 commits on `feat/phase-6-report-design`, not yet pushed.
 (`asmt-38836463c82547718bad11cdba957cdb`) the Step 1 baseline used,
 generated read-only against `C:\kingsec-e2e\kingsec.db` (mtime
 unchanged, confirmed).
+
+## Phase 8 — Onboarding/bootstrap migration-check fix
+
+**Trigger.** `kingsec-bootstrap` refused to create an admin against
+`C:\kingsec-e2e` with "migrations not applied", even though
+`alembic -c alembic.ini current` independently showed the chain at head
+(`289b5978e448`). Reported as the top-priority defect - first-run
+onboarding - above asset attribution.
+
+**Step 1 investigation, four questions answered with direct
+reproduction (not inferred):**
+
+1. `_bootstrap.py`'s `_migrations_applied()` shelled out to `alembic
+   check`, which runs BOTH a chain-head comparison AND an autogenerate
+   schema diff against `models.py`. Reproduced directly against
+   `C:\kingsec-e2e`: the diff - not the chain - failed, over 7 tables
+   present in the live schema but absent from `models.py`. stdout/stderr
+   were sent to `DEVNULL`, so the real reason never reached the operator.
+2. `kingsec-migrate` just runs `alembic upgrade head` and passes the
+   exit code through - no bug in isolation. The reported "2 INFO lines,
+   exit 0, DB not at head" symptom is fully explained by a confirmed,
+   real, already-migrated leftover database at `~/.kingsec` (last
+   written 2026-09-20): if the env var isn't visible to one particular
+   invocation, the silent default produces an identical-looking no-op
+   success against the wrong database.
+3. Three separate implementations of "is this migrated" exist -
+   bootstrap's strict `alembic check`, migrate's no-check `upgrade head`,
+   and the server's own much weaker `validate_schema_version()` (only
+   "does `alembic_version` have any row"). Path resolution is unified
+   (all three read `KINGSEC_STORAGE__DATA_DIR` via the same
+   `load_settings()`); migration-state *checking* was not.
+4. The web UI's `bootstrap_required` fallback (`GET /health`) works -
+   confirmed structurally. It never calls alembic at all; it queries
+   `users` directly, and the server starts fine because its own check
+   (#3, weakest of the three) only requires `alembic_version` to have a
+   row.
+
+**Correction to the original framing, made before any fix was written
+and accepted:** a fresh install was first believed to be unaffected -
+`kingsec-migrate` then `kingsec-bootstrap` against two brand-new scratch
+databases both succeeded cleanly. **That belief did not survive FIX 1's
+own test-writing and was corrected again, immediately, before it shipped
+anywhere:** reproducing the orphan-table case for FIX 1's test suite
+found that the first clean reproduction had only checked `alembic check`
+*before* `kingsec-bootstrap` ever ran. Checking *after* shows the real
+behaviour - **this reproduces on the very first bootstrap/server run
+against ANY database, fresh or not.**
+
+**The 7 "orphaned" tables are not orphaned, dead, or removed-without-a-
+migration - they are live, and this project's own earlier Downloads
+report calling them that was wrong, corrected here before it was acted
+on.** `backup_schedule`, `backup_verification`, `scan_snapshot`,
+`backup_recovery_plan`, `scan_restore`, `scan_backup`,
+`backup_recovery_test` are created by
+`infrastructure/backup/schema.py::ensure_backup_tables()`, called
+unconditionally from `_register_backup_services()`
+(`bootstrap/composition.py:1952`) every time `create_wired_application()`
+wires up - i.e. every bootstrap run and every server start - via raw
+`CREATE TABLE IF NOT EXISTS` SQL, entirely outside Alembic's
+`models.py`/autogenerate tracking. `backup_routes.py` wires a real API
+on top of them (`versioning.py:27`, `v1_backup_router`) - a live,
+reachable feature (`BackupService`, `BackupRepositoryPort`,
+`BackupStoragePort`, `BackupEncryptionPort`, `BackupCompressionPort`),
+not scaffolding. **No DROP migration will be written for these tables -
+that would delete a working feature's schema.** The real defect is the
+inverse of what was first assumed: a live feature's tables were never
+brought into Alembic, so Alembic's own tooling permanently misreads them
+as drift. Logged here, alongside this engagement's other
+built-then-not-properly-wired instances, as its own backlog item, not
+fixed this phase:
+
+   **BUG: `ensure_backup_tables()` creates 7 real tables via raw SQL
+   outside Alembic, so `alembic check`'s autogenerate diff always reports
+   them as "removed" on any database that has ever been bootstrapped or
+   served.** Candidate fix (not implemented, needs its own phase): either
+   add these 7 tables to `models.py`/`Base.metadata` and replace
+   `ensure_backup_tables()`'s raw SQL with a proper Alembic migration
+   that created them historically, or exclude them from Alembic's
+   autogenerate comparison explicitly (`include_object`) if folding them
+   into the ORM model turns out not to be straightforward. Either way,
+   `alembic check` must stop seeing a live feature's own tables as drift.
+
+**FIX 1 — bootstrap's migration check now asks only "is the chain at
+head".** `_migrations_applied()` replaced by `_migration_chain_status()`
+(`src/kingsec/_bootstrap.py`), built on Alembic's own
+`ScriptDirectory`/`MigrationContext` - the same objects `alembic current`
+itself uses - compared against an engine from the same
+`create_database_engine()` the server uses. No autogenerate diff, no
+fourth bespoke "is it migrated" implementation. When genuinely behind
+head, the error now names the real current/head revisions instead of a
+message indistinguishable from the orphan-table false positive.
+
+Tests (`tests/integration/test_bootstrap_cli.py`,
+`TestBootstrapMigrationCheck`): a migrated database with the real
+`ensure_backup_tables()` drift applied now bootstraps successfully
+(fails against the pre-fix code - confirmed by temporarily reverting
+just `_bootstrap.py` via `git stash` and re-running: 3 of 5 tests fail
+with the exact pre-fix symptom, 2 unaffected); two real `_bootstrap_admin()`
+invocations in a row now correctly reach "admin user already exists" on
+the second call, with no monkeypatch needed to isolate that guard
+anymore (previously required one, see the test's prior history); a
+never-migrated database is still correctly refused, with the real
+current/head revisions named in the message. 8/8 relevant tests pass
+post-fix.
+
+**FIX 2 — all three entrypoints announce the resolved database path.**
+`announce_data_dir()` (`src/kingsec/_data_dir_notice.py`), wired into
+`kingsec-migrate`, `kingsec-bootstrap`, and the server
+(`__main__.py`), prints the resolved data directory to stderr before any
+database action, with an explicit `NOTICE:` line when
+`KINGSEC_STORAGE__DATA_DIR` is unset and the default is in play. The
+default location itself is unchanged, per instruction - only its use is
+now visible. Closes TOP PRIORITY backlog item 1, above, at the
+visibility level. Tests: `tests/unit/test_data_dir_notice.py` (3 tests,
+all against an explicit `tmp_path`, never the real default).
+
+**FIX 3 — investigated, not applied.** See the backup-tables finding
+above: the original premise (7 dead tables, safe to drop) is false. No
+migration was written. Reported for review before any further FIX 3
+work, per instruction.
