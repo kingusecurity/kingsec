@@ -33,6 +33,7 @@ import sys
 import uvicorn
 
 from kingsec import __version__
+from kingsec._data_dir_notice import announce_data_dir
 from kingsec.adapters.inbound.web.app import create_fastapi_app
 from kingsec.bootstrap.composition import create_wired_application
 from kingsec.bootstrap.web import register_middleware
@@ -94,6 +95,7 @@ def main() -> None:
         os.environ["KINGSEC_SERVER__PORT"] = str(args.port)
 
     kingsec_app = create_wired_application()
+    announce_data_dir(kingsec_app.settings)
 
     with kingsec_app:
         fastapi_app = create_fastapi_app(kingsec_app, register_middleware=register_middleware)
@@ -103,6 +105,7 @@ def main() -> None:
             "server starting",
             host=kingsec_app.settings.server.host,
             port=kingsec_app.settings.server.port,
+            data_dir=str(kingsec_app.settings.storage.data_dir),
         )
 
         uvicorn.run(

@@ -25,6 +25,13 @@ def run_migrations() -> int:
     parser.add_argument("--version", action="version", version=f"kingsec-migrate {__version__}")
     parser.parse_args()
 
+    # The data-dir notice is printed by the subprocess itself (env.py's
+    # _resolve_database_url(), which already resolves settings there) and
+    # inherited onto this process's own stderr - not resolved again here.
+    # kingsec._migrate is imported by an inbound adapter
+    # (deployment_routes.py), so it must not import kingsec.infrastructure
+    # itself (hexagonal layering contract) - env.py is a separate
+    # subprocess, outside that import graph entirely.
     config_path: str | Path = str(importlib.resources.files("kingsec.alembic").joinpath("alembic.ini"))
     alembic_dir = Path(config_path).parent
     return subprocess.call(  # nosec B603 — fixed argv from sys.executable, no shell=True, no user-controlled args
