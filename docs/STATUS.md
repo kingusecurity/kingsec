@@ -1735,3 +1735,28 @@ No scanner binaries exist in this environment (nmap, nuclei, nikto, ffuf, gobust
 **Verification:** `tests/unit/infrastructure/persistence/test_mappers.py` 10/10 pass; `tests/integration/test_alembic_migrations.py` 13/13 pass (including single-head); ruff + mypy clean on touched files.
 
 **Live verification (2026-10-04, same day):** reinstalled the committed wheel into the walkthrough venv, applied `kingsec-migrate` (DB now at head `7545229e5084`, `reports.profile_id` column present), restarted the server, re-authenticated, regenerated the report for assessment `asmt-0d80561cd197449ab2a8a72f3ec25d07` (the port-80 quick-scan), and downloaded it via the download endpoint. The downloaded HTML now reads "This assessment used the **Quick Host Scan** profile." — the exact path that was broken before. The two earlier fixes remain intact in the same downloaded report ("Affected Asset" row, "Rated Low: identified service…" rationale). Bug closed end-to-end, not just in unit tests.
+
+## Bug-hunt pass — 2026-10-04 (evening)
+
+kingu: nmap licensing + lawyer are his; asked for remaining bugs checked and fixed.
+
+**Test-suite sweep:**
+- Full unit suite re-run after clearing a full /tmp (512MB tmpfs was 100% full of my own pytest/apt leftovers — that, not code, was killing ~20 tests). Remaining failures are all environment, confirmed pre-existing pattern: scanner binaries not installed (amass/ffuf/gobuster/nikto/nuclei/semgrep/trivy/zap), `python` (not `python3`) missing from PATH for fake-binary availability tests, and sandbox DNS/network behavior (2 tests).
+- Full integration suite: only 2 failures, both the same `python`-not-on-PATH environment cause in failure-mode message tests. Migration suite 13/13 green.
+
+**Fixed:**
+1. Frontend now surfaces `affected_asset` (was API-only): `FindingResponse` type gained optional `affected_asset`; `FindingsTable` has an "Affected Asset" column (em dash when the scanner reported none); `FindingDetailCard` prefers `affected_asset` over the assessment target (it previously mislabeled every finding with the assessment-level target — the same mislabeling the backend fix addressed). Frontend vitest tests extended; note: frontend `node_modules` not installed (no package installs without approval), so these were verified by careful review, not by running vitest/tsc.
+2. `GET /api/v1/reports/{id}` metadata now includes `profile_id` (assessment endpoint already had it; report detail didn't). Live-verified: returns `"quick-scan"`.
+
+**Live-verified on the walkthrough server:** findings API returns `affected_asset: 127.0.0.1` on the port-80 finding; report metadata returns `profile_id: quick-scan`; downloaded report names the profile.
+
+**Audited, no bug found:** report artifact cache (keyed on `generated_at` — regeneration can't serve stale bytes); grant coverage dry-run and `CreateAssessment` share the same `effective_scan_surface()`/`find_covering()` functions (can't disagree).
+
+## Frontend verification — 2026-10-04 (night)
+
+kingu approved `npm ci`. Full frontend verification of the affected_asset UI change:
+- `npx vitest run`: **63 files, 295 tests, all pass** (includes the 3 new affected_asset tests).
+- `npx tsc -b`: clean (one type error in my own new test fixed — untyped array spread under `noUncheckedIndexedAccess`; fixed with an explicit `FindingResponse` fixture).
+- `npx oxlint`: 0 warnings, 0 errors on touched files.
+
+Frontend findings UI change is now verified, not just reviewed.

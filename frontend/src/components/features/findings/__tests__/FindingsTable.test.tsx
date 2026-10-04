@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/react'
 import { FindingsTable } from '../FindingsTable'
+import type { FindingResponse } from '@/types/api'
 
-const sampleFindings = [
+const sampleFindings: FindingResponse[] = [
   { finding_id: '1', title: 'Open SSH', severity: 'critical', status: 'open', evidence_count: 2, recommendation_count: 1 },
   { finding_id: '2', title: 'Weak Password', severity: 'high', status: 'confirmed', evidence_count: 1, recommendation_count: 3 },
 ]
@@ -26,5 +27,25 @@ describe('FindingsTable', () => {
     render(<FindingsTable findings={sampleFindings} />)
     expect(screen.getByText('2')).toBeInTheDocument()
     expect(screen.getByText('3')).toBeInTheDocument()
+  })
+
+  it('renders the affected asset when the API provides one', () => {
+    const withAsset: FindingResponse = {
+      finding_id: '1',
+      title: 'Open SSH',
+      severity: 'critical',
+      status: 'open',
+      evidence_count: 2,
+      recommendation_count: 1,
+      affected_asset: '192.168.1.5',
+    }
+    render(<FindingsTable findings={[withAsset]} />)
+    expect(screen.getByText('Affected Asset')).toBeInTheDocument()
+    expect(screen.getByText('192.168.1.5')).toBeInTheDocument()
+  })
+
+  it('shows an em dash when no per-finding asset was reported', () => {
+    render(<FindingsTable findings={sampleFindings} />)
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0)
   })
 })

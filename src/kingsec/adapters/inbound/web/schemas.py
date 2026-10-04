@@ -555,6 +555,10 @@ class ReportListEntryResponse(BaseModel):
 class ReportDetailResponse(ReportListEntryResponse):
     """Extended report metadata for detail view."""
 
+    # Which assessment profile the assessment ran under (None = not
+    # recorded, e.g. reports persisted before reports.profile_id existed).
+    profile_id: str | None = None
+
 
 class ListReportsResponse(BaseModel):
     """GET /api/v1/reports response body."""

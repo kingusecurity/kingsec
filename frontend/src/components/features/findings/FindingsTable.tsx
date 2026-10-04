@@ -28,6 +28,7 @@ export function FindingsTable({ findings, loading }: FindingsTableProps) {
         <thead>
           <tr className="border-b border-border bg-surface-tertiary">
             <th className="px-5 py-3 text-left font-medium text-text-secondary">Title</th>
+            <th className="px-5 py-3 text-left font-medium text-text-secondary">Affected Asset</th>
             <th className="px-5 py-3 text-left font-medium text-text-secondary">Severity</th>
             <th className="px-5 py-3 text-left font-medium text-text-secondary">Status</th>
             <th className="px-5 py-3 text-right font-medium text-text-secondary">Evidence</th>
@@ -38,6 +39,7 @@ export function FindingsTable({ findings, loading }: FindingsTableProps) {
           {findings.map((f) => (
             <tr key={f.finding_id} className="border-b border-border transition-colors hover:bg-surface-tertiary/50">
               <td className="px-5 py-3 font-medium text-text-primary">{f.title}</td>
+              <td className="px-5 py-3 font-mono text-xs text-text-secondary">{f.affected_asset ?? '—'}</td>
               <td className="px-5 py-3">
                 <AssessmentSeverityBadge severity={f.severity} />
               </td>

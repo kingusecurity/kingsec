@@ -1151,6 +1151,7 @@ async def get_report(
         executive_score=report.executive_score,
         format="pdf",
         file_size=0,
+        profile_id=report.profile_id,
     )
 
 

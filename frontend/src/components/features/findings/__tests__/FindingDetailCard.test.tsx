@@ -29,6 +29,16 @@ describe('FindingDetailCard', () => {
     expect(screen.getByText('Asset: 10.0.0.5')).toBeInTheDocument()
   })
 
+  it('prefers affected_asset over the assessment target', () => {
+    render(
+      <FindingDetailCard
+        finding={{ ...finding, target: '10.0.0.0/24', affected_asset: '10.0.0.9' }}
+      />,
+    )
+    expect(screen.getByText('Asset: 10.0.0.9')).toBeInTheDocument()
+    expect(screen.queryByText('Asset: 10.0.0.0/24')).not.toBeInTheDocument()
+  })
+
   it('shows loading skeleton when loading', () => {
     const { container } = render(<FindingDetailCard finding={finding} loading />)
     expect(container.querySelector('.animate-pulse')).toBeInTheDocument()

@@ -102,6 +102,12 @@ export interface FindingResponse {
   status: string
   evidence_count: number
   recommendation_count: number
+  // Concrete host/asset the scanner observed the finding on. Present on
+  // API responses since the affected_asset backend fix; optional so older
+  // fixtures and cached responses still typecheck. Null/absent means the
+  // scanner reported no per-host asset - callers fall back to the
+  // assessment target, same as the report does.
+  affected_asset?: string | null
 }
 
 export interface ScannerSummaryResponse {
