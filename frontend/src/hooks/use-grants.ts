@@ -25,3 +25,9 @@ export function useRevokeGrant() {
     onSuccess: () => qc.invalidateQueries({ queryKey: GRANTS_KEY }),
   })
 }
+
+export function useCheckGrantCoverage() {
+  return useMutation({
+    mutationFn: grantsApi.checkGrantCoverage,
+  })
+}

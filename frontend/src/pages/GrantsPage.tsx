@@ -8,10 +8,11 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
 import { Alert } from '@/components/ui/Alert'
+import { SurfaceTierNotice } from '@/components/shared/SurfaceTierNotice'
 import { useAuthStore } from '@/store/auth'
 import { useGrants, useCreateGrant, useRevokeGrant } from '@/hooks/use-grants'
 import type { AuthorizationGrant, CreateAuthorizationGrantBody, TargetSpecificationType } from '@/api/grants'
-import { ShieldCheck, Globe } from 'lucide-react'
+import { ShieldCheck } from 'lucide-react'
 
 interface TargetTypeInfo {
   label: string
@@ -199,15 +200,7 @@ export function GrantsPage() {
             <p className="text-xs text-text-muted">{selectedTypeInfo.description}</p>
           </div>
 
-          {form.target_specification_type === 'url_prefix' && (
-            <Alert variant="warning" title="This does not authorize a host scan" icon={<Globe className="h-5 w-5" />}>
-              A URL grant authorizes scanning <strong>the web application at that URL only</strong> - it does{' '}
-              <strong>not</strong> authorize a full port/host scan of the server it runs on. A web-scan against this
-              URL will succeed; a host-level scan (for example, a port sweep across the whole machine) will still be
-              refused until you also create a separate <strong>IP Address</strong> or <strong>Hostname</strong> grant
-              for the underlying host.
-            </Alert>
-          )}
+          {form.target_specification_type === 'url_prefix' && <SurfaceTierNotice />}
 
           <Input
             label="Target Value *"

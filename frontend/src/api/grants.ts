@@ -53,3 +53,26 @@ export async function createGrant(data: CreateAuthorizationGrantBody): Promise<C
 export async function revokeGrant(id: string): Promise<void> {
   return apiRequest(`/authorization-grants/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
+
+export interface GrantCoverageTierResult {
+  tier: string
+  covered: boolean
+  grant_id: string | null
+}
+
+export interface CheckGrantCoverageResponse {
+  enforced: boolean
+  target_type: string
+  target_value: string
+  profile_id: string
+  required_tiers: GrantCoverageTierResult[]
+  fully_covered: boolean
+}
+
+export async function checkGrantCoverage(params: {
+  target_type: string
+  target_value: string
+  profile_id: string
+}): Promise<CheckGrantCoverageResponse> {
+  return apiRequest('/authorization-grants/check', { params })
+}

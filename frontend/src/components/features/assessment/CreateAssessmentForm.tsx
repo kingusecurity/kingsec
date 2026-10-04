@@ -15,7 +15,10 @@ import { Badge } from '@/components/ui/Badge'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { cn } from '@/lib/utils'
 import { useProfiles, usePlan } from '@/hooks/use-profiles'
+import { useCheckGrantCoverage } from '@/hooks/use-grants'
+import { GrantCoverageNotice } from './GrantCoverageNotice'
 import type { AssessmentProfile, ExecutionPlan } from '@/api/profiles'
+import type { CheckGrantCoverageResponse } from '@/api/grants'
 
 const steps = ['Target', 'Profile', 'Authorization', 'Review'] as const
 
@@ -177,6 +180,8 @@ export function CreateAssessmentForm({ onSubmit, isPending, error }: CreateAsses
   const planMutation = usePlan()
   const [currentPlan, setCurrentPlan] = useState<ExecutionPlan | null>(null)
   const [planRequested, setPlanRequested] = useState(false)
+  const checkCoverageMutation = useCheckGrantCoverage()
+  const [coverage, setCoverage] = useState<CheckGrantCoverageResponse | null>(null)
 
   const form = useForm<CreateAssessmentFormData>({
     resolver: zodResolver(createSchema),
@@ -192,12 +197,24 @@ export function CreateAssessmentForm({ onSubmit, isPending, error }: CreateAsses
   const { register, handleSubmit, trigger, watch, setValue, formState: { errors } } = form
   const values = watch()
 
-  // Auto-generate plan when profile is selected and target is set
+  // Auto-generate plan, and separately check grant coverage, as soon as
+  // profile is selected and target is set - the same trigger condition,
+  // so the operator sees both "will this run" and "is this authorized"
+  // together, well before the Authorization/Review steps, let alone
+  // submission.
   useEffect(() => {
     if (values.profile_id && values.target_value && values.target_type && planRequested) {
       planMutation.mutate(
         { profileId: values.profile_id, body: { target: values.target_value, target_type: values.target_type } },
         { onSuccess: (data) => setCurrentPlan(data) },
+      )
+      checkCoverageMutation.mutate(
+        {
+          target_type: values.target_type,
+          target_value: values.target_value,
+          profile_id: values.profile_id,
+        },
+        { onSuccess: (data) => setCoverage(data) },
       )
     }
   }, [values.profile_id, values.target_value, values.target_type, planRequested])
@@ -301,9 +318,16 @@ export function CreateAssessmentForm({ onSubmit, isPending, error }: CreateAsses
                         setValue('profile_id', profile.id, { shouldValidate: true })
                         setPlanRequested(false)
                         setCurrentPlan(null)
+                        setCoverage(null)
                       }}
                     />
                   ))}
+                </div>
+              )}
+
+              {values.profile_id && coverage && (
+                <div className="border-t border-border pt-4 mt-2">
+                  <GrantCoverageNotice result={coverage} />
                 </div>
               )}
 
@@ -379,6 +403,8 @@ export function CreateAssessmentForm({ onSubmit, isPending, error }: CreateAsses
                 <Row label="Authorized By" value={values.authorized_by} />
                 <Row label="Scope" value={values.scope} />
               </div>
+
+              {coverage && <GrantCoverageNotice result={coverage} />}
 
               {currentPlan && (
                 <div className="rounded-lg bg-surface-tertiary/50 p-4">
