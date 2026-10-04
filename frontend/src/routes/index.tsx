@@ -17,6 +17,7 @@ const FindingsPage = lazy(() => import('@/pages/FindingsPage').then(m => ({ defa
 const ReportsPage = lazy(() => import('@/pages/ReportsPage').then(m => ({ default: m.ReportsPage })))
 const AdministrationPage = lazy(() => import('@/pages/AdministrationPage').then(m => ({ default: m.AdministrationPage })))
 const SchedulesPage = lazy(() => import('@/pages/SchedulesPage').then(m => ({ default: m.SchedulesPage })))
+const GrantsPage = lazy(() => import('@/pages/GrantsPage').then(m => ({ default: m.GrantsPage })))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage').then(m => ({ default: m.SettingsPage })))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })))
 const UnauthorizedPage = lazy(() => import('@/pages/UnauthorizedPage').then(m => ({ default: m.UnauthorizedPage })))
@@ -145,6 +146,10 @@ export const router = createBrowserRouter([
       {
         path: 'schedules',
         element: <Suspense fallback={<PageLoader />}><SchedulesPage /></Suspense>,
+      },
+      {
+        path: 'grants',
+        element: <RoleGuard roles={['analyst', 'admin']}><Suspense fallback={<PageLoader />}><GrantsPage /></Suspense></RoleGuard>,
       },
       {
         path: 'audit',
