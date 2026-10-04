@@ -638,10 +638,11 @@ class TestMigrationAtomicity:
         # authorization_grants table and assessments.authorization_id -
         # regenerated from the original 3b66008d3e1e after review dropped
         # the unused historical_scope_note column and added the
-        # authorization_id audit-trail column instead) - this must track
-        # the real head, not remain pinned to whatever revision was head
-        # when this test was first written.
-        assert stamp == "289b5978e448"
+        # authorization_id audit-trail column instead), then the
+        # affected_asset fix moved it to 92f560c6414b (add affected_asset
+        # to findings) - this must track the real head, not remain pinned
+        # to whatever revision was head when this test was first written.
+        assert stamp == "92f560c6414b"
 
 
 class TestSingleHead:

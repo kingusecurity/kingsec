@@ -353,6 +353,9 @@ class FindingView:
     status: str
     evidence_count: int
     recommendation_count: int
+    # The concrete host the scanner observed the finding on; None when the
+    # scanner reported no per-host asset (callers fall back to the target).
+    affected_asset: str | None = None
 
     @classmethod
     def from_domain(cls, finding: Finding) -> FindingView:
@@ -364,6 +367,7 @@ class FindingView:
             status=finding.status.value,
             evidence_count=len(finding.evidence),
             recommendation_count=len(finding.recommendations),
+            affected_asset=finding.affected_asset,
         )
 
 

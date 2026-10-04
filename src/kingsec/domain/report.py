@@ -120,6 +120,54 @@ def _coverage_lead(failed: tuple[ScannerRunSummary, ...], total_attempted: int) 
 # fallback rather than a guessed recommendation. Extend this table as more
 # finding-producing scanners are added (nuclei, nikto, etc.).
 _GENERIC_REMEDIATION_BY_TITLE_PREFIX: tuple[tuple[str, str, str], ...] = (
+    # Specific entries first: title-prefix matching takes the FIRST match,
+    # so these must precede the generic "Open port " catch-all below. Each
+    # covers a port whose exposure the nmap severity model rates High -
+    # an SME reading the report gets concrete steps, not just "review it".
+    (
+        "Open port 23/",
+        "Disable Telnet; use SSH instead",
+        "Telnet transmits credentials and all session data in plaintext - "
+        "anyone on the path can capture logins. Disable the Telnet service "
+        "entirely and use SSH (key-based authentication) for remote shell "
+        "access. If Telnet is required by legacy equipment, isolate it to a "
+        "management VLAN unreachable from untrusted networks.",
+    ),
+    (
+        "Open port 445/",
+        "Restrict SMB exposure; disable SMBv1",
+        "SMB exposed beyond the local network has been the primary vector "
+        "for wormable ransomware (EternalBlue). Block ports 445 and 139 at "
+        "the perimeter firewall, disable SMBv1 on all hosts, and restrict "
+        "SMB to authenticated internal clients only. Confirm file shares do "
+        "not grant anonymous or guest access.",
+    ),
+    (
+        "Open port 3389/",
+        "Restrict RDP to VPN/jump host; enforce MFA",
+        "Exposed RDP is routinely brute-forced and has a history of "
+        "wormable remote-code-execution flaws (BlueKeep). Do not expose RDP "
+        "directly: require VPN or a jump host, enforce Network Level "
+        "Authentication plus multi-factor authentication, lock out repeated "
+        "failed logins, and keep the host patched.",
+    ),
+    (
+        "Open port 5900/",
+        "Do not expose VNC directly; tunnel or remove it",
+        "VNC has a long history of weak or absent authentication. Do not "
+        "expose it to untrusted networks: tunnel VNC over SSH or require "
+        "VPN access, enforce a strong unique password (VNC passwords are "
+        "traditionally truncated to 8 characters), or remove the service "
+        "where it is not needed.",
+    ),
+    (
+        "Open port 21/",
+        "Replace FTP with SFTP or FTPS",
+        "FTP transmits usernames, passwords, and file contents in "
+        "plaintext. Migrate to SFTP (SSH File Transfer Protocol) or FTP "
+        "over TLS, disable anonymous FTP access, and block port 21 at the "
+        "firewall once migration is complete.",
+    ),
     (
         "Open port ",
         "Review whether this open port/service is required",
@@ -410,9 +458,13 @@ class FindingSummary:
     that produced the underlying Finding genuinely correlates to that data
     (Nuclei's template classification, Trivy's vulnerability database) - they
     are empty/None otherwise (e.g. Nmap's raw port/service findings, which
-    carry no CVE data at all), never fabricated or guessed. A specific
-    affected-asset reference is still not modeled: the current pipeline has
-    no per-asset record to point to, only the assessment's single target.
+    carry no CVE data at all), never fabricated or guessed.
+
+    ``affected_asset`` is the specific host the scanner observed the finding
+    on (e.g. the IP nmap probed), carried straight from the source Finding.
+    None means the scanner reported no per-host asset - the report falls
+    back to the assessment's target for display, and never fabricates a
+    more specific asset than the data supports.
     """
 
     finding_id: str
@@ -439,6 +491,10 @@ class FindingSummary:
     # changing the answer.
     original_severity: Severity | None = None
     demotion_reason: SeverityDemotionReason | None = None
+    # The specific host/asset the scanner observed this finding on. None
+    # means "not reported by the scanner" - renderers fall back to the
+    # assessment's target rather than fabricating a precise asset.
+    affected_asset: str | None = None
 
     @property
     def evidence_count(self) -> int:
@@ -639,6 +695,7 @@ class Report:
                 cvss_vector=f.cvss_vector,
                 original_severity=f.original_severity,
                 demotion_reason=f.demotion_reason,
+                affected_asset=f.affected_asset,
             )
             for f in ordered
         )

@@ -2,7 +2,7 @@
 
 Local-first, AI-augmented **Attack Surface Management (ASM)** and **Vulnerability Management (VM)** for small and mid-sized businesses.
 
-> **Status:** v2.0.0 — General Availability. Production-ready with full security hardening, plugin sandboxing, SSRF protection, account lockout, and comprehensive audit trail.
+> **Status:** v2.0.0 — assessment engine complete: 6 wired scanners, honest coverage reporting, authorization-gated scans, PDF/HTML reports with executive scoring.
 
 ## Why KingSec?
 

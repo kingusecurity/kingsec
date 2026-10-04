@@ -57,6 +57,7 @@ class Finding:
         cvss_vector: str | None = None,
         original_severity: Severity | None = None,
         demotion_reason: SeverityDemotionReason | None = None,
+        affected_asset: str | None = None,
     ) -> None:
         if not isinstance(finding_id, FindingId):
             raise InvariantViolation("finding_id must be a FindingId")
@@ -69,6 +70,8 @@ class Finding:
             raise InvariantViolation(
                 "original_severity and demotion_reason must be set together, or not at all"
             )
+        if affected_asset is not None and not affected_asset.strip():
+            raise InvariantViolation("affected_asset must be a non-empty string when provided")
 
         moment = discovered_at or datetime.now(UTC)
         ensure_timezone_aware(moment, "discovered_at")
@@ -87,6 +90,7 @@ class Finding:
         self._cvss_vector = cvss_vector
         self._original_severity = original_severity
         self._demotion_reason = demotion_reason
+        self._affected_asset = affected_asset.strip() if affected_asset is not None else None
 
     # --- factory -------------------------------------------------------------
     @classmethod
@@ -102,6 +106,7 @@ class Finding:
         cvss_vector: str | None = None,
         original_severity: Severity | None = None,
         demotion_reason: SeverityDemotionReason | None = None,
+        affected_asset: str | None = None,
     ) -> Finding:
         """Create a new OPEN finding with a freshly generated id.
 
@@ -129,6 +134,7 @@ class Finding:
             cvss_vector=cvss_vector,
             original_severity=original_severity,
             demotion_reason=demotion_reason,
+            affected_asset=affected_asset,
         )
 
     @classmethod
@@ -149,6 +155,7 @@ class Finding:
         cvss_vector: str | None = None,
         original_severity: Severity | None = None,
         demotion_reason: SeverityDemotionReason | None = None,
+        affected_asset: str | None = None,
     ) -> Finding:
         """Rebuild a Finding from stored state (persistence boundary).
 
@@ -176,6 +183,7 @@ class Finding:
         f._cvss_vector = cvss_vector
         f._original_severity = original_severity
         f._demotion_reason = demotion_reason
+        f._affected_asset = affected_asset.strip() if affected_asset is not None else None
         return f
 
     # --- read-only accessors -------------------------------------------------
@@ -243,6 +251,14 @@ class Finding:
         """Why ``severity`` is lower than ``original_severity`` - structured,
         not prose (Phase 2B-c Priority 1b). ``None`` means never demoted."""
         return self._demotion_reason
+
+    @property
+    def affected_asset(self) -> str | None:
+        """The specific host/asset this finding was observed on, as reported
+        by the scanner that produced it (e.g. the IP nmap actually probed).
+        ``None`` means the scanner reported no per-host asset - callers
+        should fall back to the assessment's target, never fabricate one."""
+        return self._affected_asset
 
     @property
     def was_demoted(self) -> bool:

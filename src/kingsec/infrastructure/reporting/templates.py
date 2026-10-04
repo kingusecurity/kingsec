@@ -1549,10 +1549,14 @@ def _format_cvss(entry: FindingSummary) -> str:
 
 
 def _finding_detail_card(entry: FindingSummary, *, target: str) -> str:
+    # "Affected Asset" names the specific host the scanner observed the
+    # finding on when it reported one; otherwise it falls back to the
+    # assessment's target - never a fabricated precision.
+    affected_asset = entry.affected_asset or target
     facts = "".join(
         f"<tr><th>{escape(k)}</th><td>{escape(v)}</td></tr>"
         for k, v in (
-            ("Affected Asset", target),
+            ("Affected Asset", affected_asset),
             ("CVE", _format_cve(entry)),
             ("CVSS Score / Vector", _format_cvss(entry)),
         )
@@ -1597,10 +1601,16 @@ def _finding_group_card(group: tuple[FindingSummary, ...], *, target: str) -> st
     first member's is not an approximation.
     """
     first = group[0]
+    # A group shares severity/status/remediation, but not necessarily the
+    # host: name the concrete asset only when every member that reports
+    # one agrees on it, otherwise fall back to the assessment target
+    # rather than attributing the group to a single host it may span.
+    distinct_assets = {e.affected_asset for e in group if e.affected_asset}
+    group_asset = next(iter(distinct_assets)) if len(distinct_assets) == 1 else target
     facts = "".join(
         f"<tr><th>{escape(k)}</th><td>{escape(v)}</td></tr>"
         for k, v in (
-            ("Affected Asset", target),
+            ("Affected Asset", group_asset),
             ("Services Grouped", str(len(group))),
         )
     )

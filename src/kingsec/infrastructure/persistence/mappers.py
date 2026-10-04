@@ -133,6 +133,7 @@ def finding_to_orm(finding: Finding) -> FindingORM:
         cvss_vector=finding.cvss_vector,
         original_severity=finding.original_severity.name if finding.original_severity is not None else None,
         demotion_reason=finding.demotion_reason.value if finding.demotion_reason is not None else None,
+        affected_asset=finding.affected_asset,
         evidence=[
             EvidenceORM(
                 summary=item.summary,
@@ -251,6 +252,7 @@ def report_to_orm(report: Report) -> ReportORM:
                 "cvss_vector": entry.cvss_vector,
                 "original_severity": entry.original_severity.name if entry.original_severity is not None else None,
                 "demotion_reason": entry.demotion_reason.value if entry.demotion_reason is not None else None,
+                "affected_asset": entry.affected_asset,
             }
             for entry in report.entries
         ],
@@ -308,6 +310,7 @@ def finding_to_domain(orm: FindingORM) -> Finding:
         cvss_vector=orm.cvss_vector,
         original_severity=Severity[orm.original_severity] if orm.original_severity is not None else None,
         demotion_reason=SeverityDemotionReason(orm.demotion_reason) if orm.demotion_reason is not None else None,
+        affected_asset=orm.affected_asset,
     )
 
 
@@ -450,6 +453,7 @@ def _finding_summary_from_json(entry: dict[str, Any]) -> FindingSummary:
         demotion_reason=(
             SeverityDemotionReason(entry["demotion_reason"]) if entry.get("demotion_reason") else None
         ),
+        affected_asset=entry.get("affected_asset"),
     )
 
 

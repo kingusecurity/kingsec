@@ -216,13 +216,27 @@ class TestFindingDetails:
         # previously always showed "No specific remediation guidance is
         # available" since they never have an AI-generated recommendation in
         # this environment — real, curated generic guidance should show instead.
+        # Port 8080 has no port-specific entry, so it exercises the generic one.
+        report = build_report()
+        renamed = tuple(
+            dataclasses.replace(e, title="Open port 8080/tcp", recommendations=()) for e in report.entries
+        )
+        report = dataclasses.replace(report, entries=renamed)
+        html = render_report_html(report)
+        assert "Review whether this open port/service is required" in html
+        assert "No specific remediation guidance is available" not in html
+
+    def test_notorious_port_finding_gets_specific_guidance(self) -> None:
+        # Ports with a dedicated remediation entry (e.g. SMB on 445) get
+        # the specific guidance, not the generic open-port text - and still
+        # never the "no guidance available" note.
         report = build_report()
         renamed = tuple(
             dataclasses.replace(e, title="Open port 445/tcp", recommendations=()) for e in report.entries
         )
         report = dataclasses.replace(report, entries=renamed)
         html = render_report_html(report)
-        assert "Review whether this open port/service is required" in html
+        assert "Restrict SMB exposure; disable SMBv1" in html
         assert "No specific remediation guidance is available" not in html
 
     def test_renders_description_and_evidence(self) -> None:
@@ -1231,12 +1245,31 @@ class TestOpenPortGrouping:
         return dataclasses.replace(report, entries=entries, severity_counts=severity_counts)
 
     def test_multiple_open_port_findings_collapse_into_one_card(self) -> None:
-        report = self._report_with_ports(["Open port 22/tcp", "Open port 80/tcp", "Open port 3389/tcp"])
+        # All three share the generic open-port remediation, so they group.
+        # (Port 3389 would NOT join this group: it matches the RDP-specific
+        # remediation entry, and findings with different guidance must never
+        # collapse into one card showing a single remediation.)
+        report = self._report_with_ports(["Open port 22/tcp", "Open port 80/tcp", "Open port 443/tcp"])
         html = render_report_html(report)
         section = html.split('id="finding-details"')[1].split("</section>")[0]
         # SQL Injection + Missing headers (both non-port, still singleton) + the one port group.
         assert section.count('class="finding-card"') == 3
         assert "3 network services exposed" in section
+
+    def test_port_with_specific_remediation_does_not_merge_into_generic_group(self) -> None:
+        # 3389 matches the RDP-specific remediation entry while 80 gets the
+        # generic one: same severity, but different guidance means two
+        # separate cards, not one group card showing the wrong remediation
+        # for a member.
+        report = self._report_with_ports(["Open port 80/tcp", "Open port 3389/tcp"])
+        html = render_report_html(report)
+        section = html.split('id="finding-details"')[1].split("</section>")[0]
+        # 4 cards: SQL Injection + Missing headers (non-port singletons) +
+        # 2 unmerged port singletons (no group card when remediations differ).
+        assert section.count('class="finding-card"') == 4
+        assert "network services exposed" not in section
+        assert "Restrict RDP to VPN/jump host; enforce MFA" in section
+        assert "Review whether this open port/service is required" in section
 
     def test_group_title_names_severity_when_multiple_groups_exist(self) -> None:
         """Two 'N network services exposed' groups at different severities
@@ -1248,9 +1281,14 @@ class TestOpenPortGrouping:
             self._port_finding(report, i, t, severity=Severity.LOW)
             for i, t in enumerate(["Open port 22/tcp", "Open port 80/tcp"])
         ]
+        # 8080/8443: generic remediation (no port-specific entry), so the
+        # pair still groups at INFORMATIONAL. (445/3389 would not: they
+        # match the SMB/RDP-specific remediation entries and split into
+        # their own groups — see
+        # test_port_with_specific_remediation_does_not_merge_into_generic_group.)
         info_ports = [
             self._port_finding(report, i, t, severity=Severity.INFORMATIONAL)
-            for i, t in enumerate(["Open port 445/tcp", "Open port 3389/tcp"], start=2)
+            for i, t in enumerate(["Open port 8080/tcp", "Open port 8443/tcp"], start=2)
         ]
         entries = (*report.entries, *low_ports, *info_ports)
         from collections import Counter
@@ -1645,3 +1683,29 @@ class TestSeverityDemotionDisclosure:
         assert report.entries[0].title in html
         section = html.split('id="limitations"')[1].split("</section>")[0]
         assert "still listed above with their evidence intact" in section
+
+
+class TestAffectedAssetRendering:
+    """The finding card's 'Affected Asset' names the host the scanner
+    observed the finding on when the finding carries one; otherwise it
+    honestly falls back to the assessment's target."""
+
+    def _report_with_asset(self, affected_asset: str | None = None):
+        report = build_report()
+        entries = tuple(dataclasses.replace(e, affected_asset=affected_asset) for e in report.entries)
+        return dataclasses.replace(report, entries=entries)
+
+    def test_card_shows_per_finding_asset(self) -> None:
+        html = render_report_html(self._report_with_asset("10.0.0.9"))
+        assert ">Affected Asset</th><td>10.0.0.9</td>" in html
+
+    def test_card_falls_back_to_target_when_no_asset(self) -> None:
+        # build_report() targets 10.0.0.5 and its findings carry no asset -
+        # the card falls back to the assessment target, never an empty cell.
+        html = render_report_html(build_report())
+        assert ">Affected Asset</th><td>10.0.0.5 (ip_address)</td>" in html
+
+    def test_asset_is_html_escaped(self) -> None:
+        html = render_report_html(self._report_with_asset("<script>alert(1)</script>"))
+        assert "<script>" not in html
+        assert "&lt;script&gt;" in html

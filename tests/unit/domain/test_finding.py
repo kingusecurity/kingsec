@@ -135,3 +135,33 @@ class TestStatusTransitions:
         with pytest.raises(IllegalStateTransition) as excinfo:
             finding.confirm()
         assert excinfo.value.current is FindingStatus.FALSE_POSITIVE
+
+
+class TestAffectedAsset:
+    """The concrete host a scanner observed the finding on - optional,
+    never fabricated."""
+
+    def test_create_accepts_affected_asset(self) -> None:
+        finding = make_finding(affected_asset="10.0.0.9")
+        assert finding.affected_asset == "10.0.0.9"
+
+    def test_create_defaults_to_none(self) -> None:
+        assert make_finding().affected_asset is None
+
+    def test_create_rejects_blank_affected_asset(self) -> None:
+        with pytest.raises(InvariantViolation):
+            make_finding(affected_asset="   ")
+
+    def test_reconstitute_carries_affected_asset(self) -> None:
+        from kingsec.domain import FindingId
+
+        finding = Finding.reconstitute(
+            finding_id=FindingId.generate(),
+            title="Open port 3389/tcp",
+            description="Port 3389/tcp is open",
+            severity=Severity.HIGH,
+            status=FindingStatus.OPEN,
+            discovered_at=datetime.now(UTC),
+            affected_asset="10.0.0.9",
+        )
+        assert finding.affected_asset == "10.0.0.9"

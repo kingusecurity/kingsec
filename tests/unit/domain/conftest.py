@@ -8,6 +8,7 @@ of repeating multi-step setup.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 
@@ -48,5 +49,5 @@ def running(draft: Assessment, authorization: Authorization) -> Assessment:
     return draft
 
 
-def make_finding(severity: Severity = Severity.HIGH, title: str = "SQL Injection") -> Finding:
-    return Finding.create(title, "Parameter is injectable.", severity)
+def make_finding(severity: Severity = Severity.HIGH, title: str = "SQL Injection", **kwargs: Any) -> Finding:
+    return Finding.create(title, "Parameter is injectable.", severity, **kwargs)

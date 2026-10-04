@@ -84,13 +84,27 @@ class AIClient:
         # restated explicitly here and at every .send() call below: an
         # unvalidated redirect target would bypass the pinning this class
         # exists to enforce (KSEC-85-01's redirect-safety requirement).
-        self._client = httpx.Client(
-            timeout=httpx.Timeout(timeout),
-            limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
-            verify=verify_ssl,
-            transport=transport,
-            follow_redirects=False,
-        )
+        #
+        # Proxy config comes from the process environment (httpx's
+        # trust_env default). A malformed proxy entry (e.g. a bare IPv6
+        # address in no_proxy, which httpx cannot parse as a URL pattern)
+        # must never prevent the application from starting: fall back to
+        # ignoring ambient proxy config rather than crashing.
+        client_kwargs: dict[str, Any] = {
+            "timeout": httpx.Timeout(timeout),
+            "limits": httpx.Limits(max_connections=10, max_keepalive_connections=5),
+            "verify": verify_ssl,
+            "transport": transport,
+            "follow_redirects": False,
+        }
+        try:
+            self._client = httpx.Client(**client_kwargs)
+        except httpx.InvalidURL:
+            _logger.warning(
+                "proxy_env_unparseable",
+                detail="ignoring ambient proxy configuration (trust_env=False)",
+            )
+            self._client = httpx.Client(**client_kwargs, trust_env=False)
 
     def _build_pinned_request(
         self, url: str, headers: dict[str, str], payload: dict[str, Any], *, allow_private: bool | None

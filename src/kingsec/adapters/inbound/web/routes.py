@@ -505,6 +505,7 @@ async def get_assessment(
                 status=f.status,
                 evidence_count=f.evidence_count,
                 recommendation_count=f.recommendation_count,
+                affected_asset=f.affected_asset,
             )
             for f in result.findings
         ],

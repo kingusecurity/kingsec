@@ -232,6 +232,7 @@ class FindingResponse(BaseModel):
     status: str
     evidence_count: int
     recommendation_count: int
+    affected_asset: str | None = None
 
 
 class ScannerSummaryResponse(BaseModel):

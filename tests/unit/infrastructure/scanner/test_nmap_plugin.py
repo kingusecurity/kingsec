@@ -153,7 +153,9 @@ class TestScan:
         assert isinstance(result, ScannerResult)
         assert result.scanner_id == ScannerId("nmap")
         assert len(result.findings) == 1
-        assert result.findings[0].severity is Severity.LOW
+        # Port 22/ssh rates Medium under the port-severity model (service
+        # risk class), not Low-for-having-a-banner as the old heuristic did.
+        assert result.findings[0].severity is Severity.MEDIUM
 
     def test_adapter_exceptions_propagated(self) -> None:
         runner = FakeRunner(CommandResult(1, "", "error", 0.1))

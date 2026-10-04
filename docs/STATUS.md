@@ -1621,3 +1621,101 @@ all against an explicit `tmp_path`, never the real default).
 above: the original premise (7 dead tables, safe to drop) is false. No
 migration was written. Reported for review before any further FIX 3
 work, per instruction.
+## Report-quality fixes — asset attribution + port severity (2026-10-04)
+
+**Scope:** the last two code items blocking sellability from the handover briefing: (1) a port finding on a scanned host is mislabelled with the wrong affected asset, (2) the port severity heuristic rates services crudely (exposed RDP as Low). Not committed — working tree only.
+
+**Status:** IMPLEMENTED and gate-green on all affected areas. Developed against the pre-Phase-3 tree, then rebased onto `origin/main` (PR #4, phase-8-operator-usability) when it landed mid-session; conflicts resolved (see below). Cold walkthrough not started (blocked: no scanner binaries in this environment; installing any requires explicit approval per CLAUDE.md).
+
+### Rebase notes (2026-10-04, after `git pull`)
+
+- Upstream Phase 6 had *promoted* (not fixed) these two defects to the backlog top — this work is still the first actual fix. No duplication.
+- Upstream renamed `templates._technical_finding_card()` → `_finding_detail_card()` (Phase 6 report redesign) and added `_finding_group_card()` for grouped open-port findings (Phase 6 Task 3). The per-finding asset logic now lives in `_finding_detail_card`; the group card names the concrete asset only when every member reporting one agrees, else falls back to the target.
+- Upstream Phase 4 added migration `289b5978e448` (authorization grants) on top of `9601803f77a8` — my migration `92f560c6414b` was re-chained onto `289b5978e448` to keep a single head.
+- Upstream Phase 5 (truth-pass) rewrote the README's customer-facing copy itself, including the "6 pluggable scanners" correction — my README change is now just the status-line fix ("General Availability. Production-ready" → factual status line), which the truth-pass had missed.
+- Upstream pushed the report-redesign, operator-usability, and grants-UI work described in the handover briefing — the earlier "not in this repo" concern is resolved; the grants page and `/authorization-grants/check` dry-run endpoint now exist.
+
+### Fix 1 — per-finding affected asset
+
+Root cause, confirmed in code: the finding-detail card rendered `("Affected Asset", target)` — the assessment-level target string — for every finding. The nmap parser knew the concrete host (`addr` per `<host>` element) but dropped it, embedding it only in evidence prose. `Finding`/`FindingSummary` had no affected-asset field at all (`domain/report.py`'s docstring admitted it: "A specific affected-asset reference is still not modeled").
+
+Changes (all TESTED):
+- `domain/finding.py`: `__init__`/`create()`/`reconstitute()` accept keyword-only `affected_asset: str | None = None`; blank strings rejected via `InvariantViolation`; new `affected_asset` property.
+- `infrastructure/persistence/models.py`: `FindingORM.affected_asset`, nullable String.
+- New Alembic migration `2026_10_04_000000__add_finding_affected_asset.py` (revision `92f560c6414b`, down_revision `289b5978e448` after the rebase): ADD COLUMN, nullable, deliberately NO backfill — the historical per-host value is unknowable, and backfilling the assessment target would make "unknown" indistinguishable from "confirmed". Full text in the migration file's docstring; applied only to throwaway test databases, never to a real one.
+- `infrastructure/persistence/mappers.py`: carried through `finding_to_orm`, `finding_to_domain`, `report_to_orm` (JSON entries), and `_finding_summary_from_json` (via `.get()` — old persisted reports without the key load fine).
+- `domain/report.py`: `FindingSummary.affected_asset`; `Report.from_assessment` passes it through; docstring updated.
+- `infrastructure/reporting/templates.py`: `_finding_detail_card` renders `entry.affected_asset or target` — per-finding asset when the scanner reported one, honest assessment-target fallback otherwise, never fabricated. `_finding_group_card` (Phase 6) shows the concrete asset only when all members reporting one agree.
+- `infrastructure/scanner/nmap_parser.py`: port findings and NSE-script findings now set `affected_asset=addr` (the concrete host nmap probed).
+- API: `application/dto.py::FindingView`, `adapters/inbound/web/schemas.py::FindingResponse`, and the `routes.py` construction site all carry `affected_asset` (default None — existing construction sites unaffected).
+
+### Fix 2 — open-port severity model
+
+Root cause, confirmed in code (`nmap_parser.py`): `INFORMATIONAL` default, `LOW` if nmap fingerprinted a product/version. RDP/3389 → Low, SMB/445 → Low/Informational.
+
+Replaced with a documented risk-class model, `_classify_port_severity(portid, service_name) -> (Severity, rationale)`:
+- HIGH: remote-admin / file-sharing / data-store protocols with documented wormable-RCE or mass-abuse history when exposed (ports 21, 23, 135, 137-139, 445, 1433, 1521, 3306, 3389, 5432, 5900-5909, 6379, 9200, 11211, 27017; service names ftp, telnet, msrpc, netbios-*, microsoft-ds, smb, ms-wbt-server/rdp, vnc, mssql, oracle/tns, mysql, postgresql, redis, mongodb, elasticsearch, memcached, couchdb).
+- MEDIUM: routinely brute-forced/enumerated services (ports 22, 25, 53, 110, 143, 161, 389, 636, 993, 995; ssh, smtp, domain, pop3, imap, snmp, ldap).
+- LOW: any other identified service (http/https and the rest).
+- INFORMATIONAL: unidentified service — nothing to rate beyond "something is listening".
+
+Classification is by port number OR detected service name, so RDP on a non-standard port still rates High when nmap identifies it, and 3389 still rates High when nmap cannot confirm the service. The rationale string is appended to the finding description so the rating is explainable on the report itself.
+
+Remediation: five port-specific entries added to `_GENERIC_REMEDIATION_BY_TITLE_PREFIX` (23/Telnet → disable/use SSH; 445/SMB → block at perimeter, disable SMBv1; 3389/RDP → VPN/jump host + MFA; 5900/VNC → don't expose directly; 21/FTP → move to SFTP/FTPS), ordered before the generic "Open port " catch-all (first-prefix-match wins).
+
+Score impact (INFERRED, not yet observed against a live scan): severities feed the v2 multiplicative model, so a host with exposed RDP/SMB now scores materially lower than before — the intended honest outcome. The v2 retention constants remain provisional/uncalibrated per their own comments; no change made there.
+
+### README claim fix
+
+The README's status line still claimed "v2.0.0 — General Availability. Production-ready". Upstream's Phase 5 truth-pass had already corrected the scanner count and added the unauthenticated-scope boundary, but missed this line — replaced with a factual status line. (The truth-pass's audited bullets were kept verbatim; an earlier draft of this fix had rewritten them and was dropped in favor of the audit.)
+
+### Verification (all TESTED, re-run after the rebase — see below)
+
+- New tests: `TestPortSeverityModel` (8) + `TestAffectedAsset` (3) in `test_nmap_parser.py`; `TestAffectedAsset` (4) in `test_finding.py`; `TestFindingAffectedAssetMapping` (3) in `test_mappers.py`; `TestAffectedAssetRendering` (3) in `test_templates.py`.
+- Updated for deliberate behavior changes: `test_port_with_version_is_low` → `test_ssh_port_with_version_is_medium`; `test_port_without_version_is_informational` → `test_identified_unremarkable_service_is_low`; `test_open_port_finding_gets_generic_guidance_not_the_honest_note` now uses port 8080 for the generic case, plus new `test_notorious_port_finding_gets_specific_guidance` for 445; `test_nmap_plugin.py::TestScan::test_delegates_to_adapter` LOW → MEDIUM.
+- Migration-chain test's pinned head assertion updated to `92f560c6414b` (the test's own comment mandates tracking the real head): `tests/integration/test_alembic_migrations.py` 13 passed.
+- Targeted suites (domain, mappers, templates, nmap parser/plugin, routes, application): 1061+ passed.
+- `ruff check` clean and `mypy` clean on all touched source files.
+- Full suite: 44 FAILED + 148 ERROR, of which all but ONE are reproduced identically on a pristine HEAD worktree (missing scanner binaries, httpx-version fixture breakage, DNS/network-dependent tests — all environmental, pre-existing). The single delta was `test_delegates_to_adapter`, caused by the intended severity change and already updated. Verified via `comm` on the sorted FAILED lists from both runs.
+
+### Environment note
+
+No scanner binaries exist in this environment (nmap, nuclei, nikto, ffuf, gobuster, zap, trivy, semgrep, amass all MISSING). A throwaway venv was created at `~/workspace/venvs/kingsec` (outside the repo — no repo pollution) with the package installed `--no-deps` plus the runtime deps needed for the affected layers; weasyprint/uvicorn omitted (not needed for these layers).
+
+### What's next
+
+1. Cold walkthrough — BLOCKED on explicit approval to install scanner binaries (nmap minimum); walkthrough target would be loopback in this VM. The grants UI and `/authorization-grants/check` dry-run endpoint from the handover briefing now exist upstream (Phase 8), so the walkthrough can proceed once binaries are approved.
+2. Frontend findings table does not yet display `affected_asset` (the API now exposes it) — logged as a follow-up; the report (the customer deliverable) is fixed.
+3. nmap licensing reply and commercial lawyer remain non-engineering items.
+
+## Cold walkthrough — loopback, 2026-10-04 (COMPLETED)
+
+**Method:** followed `docs/INSTALL.md` only. Fresh venv, `pip install .`, isolated data dir `/tmp/kingsec-walkthrough-data` via `KINGSEC_STORAGE__DATA_DIR` (resolved path confirmed in server log; `~/.kingsec` never touched — an empty `~/.kingsec/scanner-output` left by an earlier test run was found and removed). Secrets generated per docs. `kingsec-migrate` applied the full chain including the uncommitted `92f560c6414b` (copied into the installed wheel's versions dir to simulate the committed release — see packaging note below). `kingsec-bootstrap` created the admin. Server bound to 127.0.0.1:8765, health `{"status":"ok","bootstrap_required":false}`.
+
+**Authorization:** grant `agrt-2ca42a542ae6450aac1f246d7f356110` created for 127.0.0.1 (ip_address), 24h; `/authorization-grants/check` dry-run returned `fully_covered: true` before scanning.
+
+**Scans (quick-scan profile, nmap 7.94):**
+- Scan 1 (default SYN args): 0 findings — the sandbox blocks raw sockets (`sendto: Operation not permitted`), so SYN packets never left. Not a KingSec defect; environment restriction.
+- Scan 2/3 (port 80 open, still SYN): 0 findings for the same reason.
+- Scan 4 (`KINGSEC_NMAP__SCAN_ARGS='["-sT","-sV","-n"]'` — TCP connect scan): **1 finding**: `Low | Open port 80/tcp | affected_asset: 127.0.0.1`.
+
+**End-to-end validation of the 2026-10-04 fixes (LIVE, not just unit tests):**
+- Asset attribution: the finding card renders "Affected Asset: 127.0.0.1" — the concrete probed host, carried from nmap's `<host>` addr through the parser, domain, ORM, and template.
+- Severity model: port 80/http rated Low with the rationale inline — "Rated Low: identified service with no such exposure history…" — exactly the designed behavior.
+- Report: HTML (16KB) and PDF (47KB, valid `%PDF-1.7` header) both generate; the 0-finding report honestly states "No security issues identified" with coverage/limitations disclosures intact.
+
+**Environment issues found during the walkthrough (all environmental, none are KingSec code defects):**
+1. `apt-get update` stalled on the azure mirror — installed nmap 7.94 + 7 dependency .debs directly instead.
+2. `kingsec-bootstrap`/`kingsec` crash on startup when the sandbox's `no_proxy` contains bare IPv6 addresses (`::1` etc.) — httpx's proxy-pattern parser raises `InvalidURL: Invalid port: ':1]'`. Workaround: unset proxy env vars for KingSec processes. Worth a robustness note: a malformed `no_proxy` entry should not prevent startup.
+3. Untracked migration files are NOT included in `pip install .` wheels (build backend only packages tracked files) — the walkthrough DB needed the migration copied in manually. Expected behavior, but confirms migrations must be committed to ship.
+4. `KINGSEC_NMAP__SCAN_ARGS` JSON-with-spaces breaks `source`d env files (bash word-splitting) — used spaceless JSON.
+
+**Assessment:** the product installs from docs, gates scans behind grants, runs nmap, and produces professional, honest HTML/PDF reports. Both report-quality fixes verified live. Sellability blockers from the code side are clear.
+
+## Robustness fix — malformed proxy env no longer crashes startup (2026-10-04)
+
+**Found during the cold walkthrough:** `kingsec-bootstrap` and `kingsec` both crashed at startup in this sandbox with `httpx.InvalidURL: Invalid port: ':1]'`. Root cause: `AIClient.__init__` builds `httpx.Client()` with the default `trust_env=True`, so httpx parses the process's proxy env vars; this sandbox's `no_proxy` contains bare IPv6 addresses (`::1`, `fd8b:…::1`), which httpx cannot parse as URL patterns. The exception escaped during application composition (`register_ai`), killing the whole process before it served anything.
+
+**Fix:** `infrastructure/ai/client.py` now catches `httpx.InvalidURL` at client construction and falls back to `trust_env=False` (ignoring ambient proxy config) with a `proxy_env_unparseable` warning log. Well-formed proxy environments keep the previous behavior (verified by test). Rationale for fallback-over-crash: a malformed `no_proxy` entry is an operator-environment quirk, never a reason to refuse startup; and silently misrouting AI API calls (which carry provider API keys) through a half-parsed proxy config would be worse than bypassing it.
+
+**Tests:** `TestMalformedProxyEnv` (2 tests) in `tests/unit/infrastructure/ai/test_client.py` — one reproduces the crash condition (no mock transport, matching the production path; a mock transport bypasses httpx's proxy setup and would not reproduce), one asserts well-formed envs keep `trust_env=True`. Full `tests/unit/infrastructure/ai/` suite: 88 passed. Ruff + mypy clean.

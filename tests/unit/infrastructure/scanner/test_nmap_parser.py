@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from kingsec.domain import Severity
-from kingsec.infrastructure.scanner.nmap_parser import parse_nmap_xml
+from kingsec.infrastructure.scanner.nmap_parser import _classify_port_severity, parse_nmap_xml
 
 # ---------------------------------------------------------------------------
 # Fixtures: sample XML outputs
@@ -177,15 +177,19 @@ class TestParseNmapXml:
         assert "Open port 22/tcp" in titles
         assert "Open port 80/tcp" in titles
 
-    def test_port_with_version_is_low(self) -> None:
+    def test_ssh_port_with_version_is_medium(self) -> None:
+        # Port 22/ssh is a medium-risk service class under the port-severity
+        # model (routinely brute-forced) - not "Low because nmap found a
+        # product banner", which was the old heuristic.
         findings = parse_nmap_xml(_SINGLE_HOST_XML)
         port22 = next(f for f in findings if "22" in f.title)
-        assert port22.severity is Severity.LOW
+        assert port22.severity is Severity.MEDIUM
 
-    def test_port_without_version_is_informational(self) -> None:
+    def test_identified_unremarkable_service_is_low(self) -> None:
+        # Port 8080/http-proxy: identified, no risk-class history -> Low.
         findings = parse_nmap_xml(_NO_VERSION_XML)
         assert len(findings) == 1
-        assert findings[0].severity is Severity.INFORMATIONAL
+        assert findings[0].severity is Severity.LOW
 
     def test_closed_port_not_reported(self) -> None:
         findings = parse_nmap_xml(_CLOSED_PORT_XML)
@@ -300,3 +304,107 @@ class TestRemediationLookupStaysInSyncWithGeneratedTitles:
             "longer matches domain/report.py's _GENERIC_REMEDIATION_BY_TITLE_PREFIX "
             "table - update the table's prefix to match, or vice versa."
         )
+
+
+_RISK_CLASS_XML = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<nmaprun scanner="nmap" args="nmap -sV -oX - 10.0.0.9">
+  <host>
+    <status state="up" reason="echo-reply"/>
+    <address addr="10.0.0.9" addrtype="ipv4"/>
+    <ports>
+      <port protocol="tcp" portid="3389">
+        <state state="open" reason="syn-ack"/>
+        <service name="ms-wbt-server"/>
+      </port>
+      <port protocol="tcp" portid="445">
+        <state state="open" reason="syn-ack"/>
+        <service name="microsoft-ds"/>
+      </port>
+      <port protocol="tcp" portid="9999">
+        <state state="open" reason="syn-ack"/>
+        <service name=""/>
+      </port>
+    </ports>
+  </host>
+</nmaprun>
+"""
+
+
+class TestPortSeverityModel:
+    """The open-port severity model rates the service's risk class, not
+    whether nmap fingerprinted a banner."""
+
+    def test_rdp_by_port_is_high(self) -> None:
+        severity, _ = _classify_port_severity("3389", "")
+        assert severity is Severity.HIGH
+
+    def test_rdp_by_service_name_on_odd_port_is_high(self) -> None:
+        # Service-name match catches RDP moved off its well-known port.
+        severity, _ = _classify_port_severity("8080", "ms-wbt-server")
+        assert severity is Severity.HIGH
+
+    def test_smb_telnet_vnc_databases_are_high(self) -> None:
+        for port in ("23", "135", "139", "445", "1433", "3306", "5432", "5900", "6379", "9200", "27017"):
+            severity, _ = _classify_port_severity(port, "")
+            assert severity is Severity.HIGH, f"port {port} should be HIGH"
+
+    def test_ssh_dns_snmp_are_medium(self) -> None:
+        for port in ("22", "25", "53", "161", "389"):
+            severity, _ = _classify_port_severity(port, "")
+            assert severity is Severity.MEDIUM, f"port {port} should be MEDIUM"
+
+    def test_identified_ordinary_service_is_low(self) -> None:
+        for port, service in (("80", "http"), ("443", "https"), ("8080", "http-proxy")):
+            severity, _ = _classify_port_severity(port, service)
+            assert severity is Severity.LOW, f"port {port}/{service} should be LOW"
+
+    def test_unidentified_service_is_informational(self) -> None:
+        severity, _ = _classify_port_severity("9999", "")
+        assert severity is Severity.INFORMATIONAL
+
+    def test_non_numeric_portid_does_not_crash(self) -> None:
+        severity, _ = _classify_port_severity("?", "http")
+        assert severity is Severity.LOW
+        severity, _ = _classify_port_severity("?", "")
+        assert severity is Severity.INFORMATIONAL
+
+    def test_rationale_is_recorded_in_description(self) -> None:
+        findings = parse_nmap_xml(_RISK_CLASS_XML)
+        rdp = next(f for f in findings if "3389" in f.title)
+        assert rdp.severity is Severity.HIGH
+        assert "Rated High" in rdp.description
+        unknown = next(f for f in findings if "9999" in f.title)
+        assert unknown.severity is Severity.INFORMATIONAL
+        assert "Rated Informational" in unknown.description
+
+
+class TestAffectedAsset:
+    """Port findings carry the concrete host nmap probed, not the
+    assessment-level target string."""
+
+    def test_port_finding_carries_scanned_host(self) -> None:
+        findings = parse_nmap_xml(_RISK_CLASS_XML)
+        assert len(findings) == 3
+        for finding in findings:
+            assert finding.affected_asset == "10.0.0.9"
+
+    def test_script_finding_carries_scanned_host(self) -> None:
+        findings = parse_nmap_xml(_SCRIPT_OUTPUT_XML)
+        script_findings = [f for f in findings if f.title.startswith("Nmap script:")]
+        assert script_findings, "fixture should produce script findings"
+        for finding in script_findings:
+            assert finding.affected_asset == "10.0.0.5"
+
+    def test_specific_remediation_entries_match_generated_titles(self) -> None:
+        from kingsec.domain.report import generic_remediation_for
+
+        findings = parse_nmap_xml(_RISK_CLASS_XML)
+        rdp = next(f for f in findings if "3389" in f.title)
+        rec = generic_remediation_for(rdp.title, rdp.severity)
+        assert rec is not None
+        assert "RDP" in rec.title or "RDP" in rec.description
+        smb = next(f for f in findings if "445" in f.title)
+        rec = generic_remediation_for(smb.title, smb.severity)
+        assert rec is not None
+        assert "SMB" in rec.title or "SMB" in rec.description

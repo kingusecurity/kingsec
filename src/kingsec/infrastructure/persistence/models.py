@@ -143,6 +143,12 @@ class FindingORM(Base):
     # SeverityDemotionReason.value (same convention as `status` above).
     original_severity: Mapped[str | None] = mapped_column(String, nullable=True)
     demotion_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    # The specific host/asset the scanner observed this finding on (e.g. the
+    # IP nmap probed). NULL when the scanner reported no per-host asset -
+    # readers fall back to the assessment's target. Added 2026-10-04: every
+    # pre-existing row is NULL, which the report renders as the honest
+    # "assessment target" fallback, never a fabricated asset.
+    affected_asset: Mapped[str | None] = mapped_column(String, nullable=True)
 
     assessment: Mapped[AssessmentORM] = relationship(back_populates="findings")
     evidence: Mapped[list["EvidenceORM"]] = relationship(

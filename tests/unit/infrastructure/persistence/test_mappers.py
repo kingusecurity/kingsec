@@ -73,3 +73,50 @@ class TestReportMapping:
         assert restored.count_for(Severity.LOW) == 1
         # Entries stay ordered worst-first after the JSON round-trip.
         assert restored.entries[0].severity is Severity.CRITICAL
+
+
+class TestFindingAffectedAssetMapping:
+    """affected_asset survives the ORM round-trip; absence stays absent."""
+
+    def test_round_trip_preserves_affected_asset(self) -> None:
+        from kingsec.domain import Finding
+        from kingsec.infrastructure.persistence.mappers import finding_to_domain, finding_to_orm
+
+        finding = Finding.create(
+            "Open port 3389/tcp",
+            "Port 3389/tcp is open",
+            Severity.HIGH,
+            affected_asset="10.0.0.9",
+        )
+        restored = finding_to_domain(finding_to_orm(finding))
+        assert restored.affected_asset == "10.0.0.9"
+
+    def test_round_trip_preserves_absent_affected_asset(self) -> None:
+        from kingsec.domain import Finding
+        from kingsec.infrastructure.persistence.mappers import finding_to_domain, finding_to_orm
+
+        finding = Finding.create("Missing headers", "no CSP", Severity.LOW)
+        restored = finding_to_domain(finding_to_orm(finding))
+        assert restored.affected_asset is None
+
+    def test_report_json_round_trip_preserves_affected_asset(self) -> None:
+        from kingsec.domain import Assessment, Authorization, Finding, Target, TargetType
+        from kingsec.infrastructure.persistence.mappers import report_to_domain, report_to_orm
+        from tests.unit.infrastructure.persistence.conftest import utc
+
+        assessment = Assessment.create(Target("10.0.0.5", TargetType.IP_ADDRESS))
+        assessment.authorize(Authorization("tester", utc(), scope="10.0.0.5"))
+        assessment.start()
+        assessment.record_finding(
+            Finding.create(
+                "Open port 3389/tcp",
+                "Port 3389/tcp is open",
+                Severity.HIGH,
+                affected_asset="10.0.0.9",
+            )
+        )
+        assessment.complete()
+
+        report = Report.from_assessment(assessment)
+        restored = report_to_domain(report_to_orm(report))
+        assert restored.entries[0].affected_asset == "10.0.0.9"

@@ -105,3 +105,39 @@ class TestErrorTranslation:
         except httpx.HTTPError:  # pragma: no cover
             pytest.fail("httpx exception leaked out of infrastructure")
         client.close()
+
+
+class TestMalformedProxyEnv:
+    """A malformed proxy env entry must not prevent AIClient construction.
+
+    httpx parses no_proxy entries as URL patterns at Client construction;
+    a bare IPv6 address (e.g. "::1", as some sandboxes put in no_proxy)
+    raises httpx.InvalidURL. The client must fall back to trust_env=False
+    and log, not crash the application at startup.
+    """
+
+    _PROXY_VARS = (
+        "http_proxy", "https_proxy", "all_proxy", "no_proxy",
+        "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
+    )
+
+    def _clear_proxy_env(self, monkeypatch) -> None:
+        for var in self._PROXY_VARS:
+            monkeypatch.delenv(var, raising=False)
+
+    def test_malformed_no_proxy_falls_back_to_no_trust_env(self, monkeypatch) -> None:
+        self._clear_proxy_env(monkeypatch)
+        monkeypatch.setenv("no_proxy", "localhost,127.0.0.1,::1,[::1]")
+        # No transport: the production path, where httpx builds its default
+        # proxy-aware transport and parses no_proxy (a mock transport would
+        # bypass proxy setup entirely and never reproduce the crash).
+        client = AIClient(timeout=5, retry_count=0, retry_delay=0)
+        assert client._client.trust_env is False
+        client.close()
+
+    def test_well_formed_proxy_env_keeps_trust_env(self, monkeypatch) -> None:
+        self._clear_proxy_env(monkeypatch)
+        monkeypatch.setenv("no_proxy", "localhost,127.0.0.1")
+        client = AIClient(timeout=5, retry_count=0, retry_delay=0)
+        assert client._client.trust_env is True
+        client.close()
