@@ -26,6 +26,7 @@ import uuid
 from pathlib import Path
 
 from kingsec import __version__
+from kingsec._cli_messages import migrations_not_applied_message
 from kingsec._data_dir_notice import announce_data_dir
 from kingsec.application import PasswordHasher
 from kingsec.application.ports import AuditPublisher, UserRepository
@@ -93,10 +94,7 @@ def _bootstrap_admin(username: str, password: str, email: str = "") -> int:
 
     at_head, detail = _migration_chain_status(settings)
     if not at_head:
-        print(
-            f"ERROR: migrations not applied ({detail}); run 'kingsec-migrate' first",
-            file=sys.stderr,
-        )
+        print(f"ERROR: {migrations_not_applied_message(detail)}", file=sys.stderr)
         return 1
 
     # Phase 3: the account this CLI creates is the most powerful one in

@@ -17,6 +17,7 @@ from __future__ import annotations
 from .audit_repository import SqlAlchemyAuditRepository
 from .base import Base
 from .database import (
+    SchemaNotMigratedError,
     build_sqlite_url,
     create_database_engine,
     create_schema,
@@ -76,6 +77,7 @@ __all__ = [
     "SQLAlchemyScanRepository",
     "SQLAlchemyUnitOfWork",
     "ScanModel",
+    "SchemaNotMigratedError",
     "SqlAlchemyAuditRepository",
     "SqlAlchemyUnitOfWorkFactory",
     "UserORM",

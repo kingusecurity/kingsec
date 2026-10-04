@@ -33,11 +33,14 @@ import sys
 import uvicorn
 
 from kingsec import __version__
+from kingsec._cli_messages import migrations_not_applied_message
 from kingsec._data_dir_notice import announce_data_dir
 from kingsec.adapters.inbound.web.app import create_fastapi_app
 from kingsec.bootstrap.composition import create_wired_application
 from kingsec.bootstrap.web import register_middleware
+from kingsec.infrastructure.config import ConfigError
 from kingsec.infrastructure.logging import get_logger
+from kingsec.infrastructure.persistence import SchemaNotMigratedError
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -94,7 +97,22 @@ def main() -> None:
     if args.port is not None:
         os.environ["KINGSEC_SERVER__PORT"] = str(args.port)
 
-    kingsec_app = create_wired_application()
+    # A startup failure here must never surface as a raw traceback - that
+    # is the exact first-run experience this error boundary exists to
+    # close. Known, actionable conditions get a tailored one-liner;
+    # anything else still gets a clean message instead of a stack trace.
+    try:
+        kingsec_app = create_wired_application()
+    except SchemaNotMigratedError:
+        print(f"ERROR: {migrations_not_applied_message()}", file=sys.stderr)
+        sys.exit(1)
+    except ConfigError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as exc:  # last-resort guard, see docstring above
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(1)
+
     announce_data_dir(kingsec_app.settings)
 
     with kingsec_app:
