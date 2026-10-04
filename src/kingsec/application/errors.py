@@ -41,6 +41,29 @@ class AssessmentNotFoundError(ApplicationError):
     """No assessment exists for the requested identifier."""
 
 
+class AuthorizationGrantNotFoundError(ApplicationError):
+    """No authorization grant exists for the requested identifier."""
+
+
+class AuthorizationScopeError(ApplicationError):
+    """The requested target is not covered, at every ScannerSurfaceTier a
+    selected profile's scanners would actually touch, by any active
+    AuthorizationGrant (Phase 4 - see domain/authorization_grant.py's
+    covers_target()/satisfies_tier()). Raised by CreateAssessment.execute()
+    before an assessment is created - KingSec never creates then blocks;
+    it refuses to create the unauthorized work in the first place.
+    """
+
+    def __init__(self, target_value: str, required_tier: str) -> None:
+        self.target_value = target_value
+        self.required_tier = required_tier
+        super().__init__(
+            f"No active authorization grant covers {target_value!r} for a "
+            f"{required_tier!r} scan - a scanner in this profile would touch "
+            "surface beyond what any current grant licenses."
+        )
+
+
 class AssessmentDataCorruptedError(ApplicationError):
     """An assessment row exists but cannot be reconstructed into a domain
     Assessment (Phase 2B Task 2 Condition 1) - distinct from

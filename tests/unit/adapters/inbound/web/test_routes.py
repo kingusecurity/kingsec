@@ -31,12 +31,10 @@ from kingsec.application.dto import (
     ListAssessmentsRequest,
     ListAssessmentsResponse,
     SeverityCount,
-    StartAssessmentRequest,
-    StartAssessmentResponse,
     SubmitAssessmentRequest,
     SubmitAssessmentResponse,
 )
-from kingsec.application.ports import TokenClaims
+from kingsec.application.ports import TokenClaims, UserRepository
 from kingsec.application.ports.inbound.service_api import ServiceAPI
 from kingsec.domain import Role
 
@@ -67,7 +65,6 @@ class StubServiceAPI(ServiceAPI):
 
     def __init__(self) -> None:
         self.create_called = False
-        self.start_called = False
         self.submit_called = False
         self.cancel_called = False
         self.list_called = False
@@ -81,15 +78,6 @@ class StubServiceAPI(ServiceAPI):
             assessment_id="asmt-test-001",
             status="authorized",
             target=f"{request.target_value} ({request.target_type})",
-        )
-
-    def start_assessment(self, request: StartAssessmentRequest) -> StartAssessmentResponse:
-        self.start_called = True
-        return StartAssessmentResponse(
-            assessment_id=request.assessment_id,
-            status="completed",
-            findings_count=3,
-            highest_severity="critical",
         )
 
     def submit_assessment(self, request: SubmitAssessmentRequest) -> SubmitAssessmentResponse:
@@ -182,9 +170,22 @@ def client(stub_service: StubServiceAPI) -> TestClient:
     """Build a TestClient with a minimal Application-like state."""
     app = FastAPI()
 
-    # Minimal stub that has a .resolve() method returning the stub service.
+    class _StubUserRepository:
+        """Phase 3: /health calls app.resolve(UserRepository) directly -
+        an admin already exists, so bootstrap_required reads False, the
+        normal case for every route this fixture otherwise exercises."""
+
+        def count_by_role(self, role: Role) -> int:
+            return 1
+
+    stub_user_repository = _StubUserRepository()
+
+    # Minimal stub that has a .resolve() method returning the stub service
+    # for everything except UserRepository (needed by /health).
     class _StubApp:
-        def resolve(self, service_type: type) -> StubServiceAPI:
+        def resolve(self, service_type: type) -> object:
+            if service_type is UserRepository:
+                return stub_user_repository
             return stub_service
 
     app.state.kingsec_app = _StubApp()  # type: ignore[attr-defined]
@@ -212,6 +213,41 @@ class TestHealthEndpoint:
         resp = client.get("/api/v1/health")
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
+
+    def test_bootstrap_required_false_when_an_admin_exists(self, client: TestClient) -> None:
+        # This fixture's own _StubUserRepository.count_by_role always
+        # returns 1 (an admin exists) - the normal case for every other
+        # route this fixture exercises.
+        resp = client.get("/api/v1/health")
+        assert resp.status_code == 200
+        assert resp.json()["bootstrap_required"] is False
+
+    def test_bootstrap_required_true_when_no_admin_exists(self) -> None:
+        """Phase 3 (auth hardening): a fresh install, migrated but never
+        bootstrapped, must say so on the one endpoint any caller - even
+        unauthenticated - can already reach."""
+        from kingsec.adapters.inbound.web.error_handlers import register_error_handlers
+        from kingsec.adapters.inbound.web.routes import router
+        from kingsec.application.ports import UserRepository
+
+        class _NoAdminUserRepository:
+            def count_by_role(self, role: Role) -> int:
+                return 0
+
+        class _StubApp:
+            def resolve(self, service_type: type) -> object:
+                if service_type is UserRepository:
+                    return _NoAdminUserRepository()
+                raise ValueError(f"unexpected resolve() call in this test: {service_type}")
+
+        app = FastAPI()
+        app.state.kingsec_app = _StubApp()  # type: ignore[attr-defined]
+        register_error_handlers(app)
+        app.include_router(router)
+
+        resp = TestClient(app, raise_server_exceptions=False).get("/api/v1/health")
+        assert resp.status_code == 200
+        assert resp.json()["bootstrap_required"] is True
 
     def test_only_one_router_defines_get_health(self) -> None:
         # Phase 30: health_routes.py used to also define GET /health

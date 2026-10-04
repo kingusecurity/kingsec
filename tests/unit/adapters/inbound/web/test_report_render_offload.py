@@ -98,14 +98,24 @@ def slow_download_client() -> Iterator[TestClient]:
     """
     from kingsec.adapters.inbound.web.error_handlers import register_error_handlers
     from kingsec.adapters.inbound.web.routes import router
-    from kingsec.application.ports import AssessmentRepository, ReportRepository
+    from kingsec.application.ports import AssessmentRepository, ReportRepository, UserRepository
     from kingsec.application.ports import ReportGeneratorPort as ReportGeneratorPortType
 
     assessment, report = _build_assessment_and_report()
+
+    class _StubUserRepository:
+        """Phase 3: /health calls app.resolve(UserRepository) directly -
+        exercised mid-test by test_health_stays_responsive_while_a_slow_
+        report_renders below."""
+
+        def count_by_role(self, role: object) -> int:
+            return 1
+
     ports = {
         AssessmentRepository: _FakeAssessmentRepository(assessment),
         ReportRepository: _FakeReportRepository(report),
         ReportGeneratorPortType: _SlowReportGenerator(),
+        UserRepository: _StubUserRepository(),
     }
 
     class _StubApp:

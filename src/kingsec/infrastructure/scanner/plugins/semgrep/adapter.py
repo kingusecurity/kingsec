@@ -30,6 +30,7 @@ from kingsec.domain import (
     ScannerPluginMetadata,
     ScannerRequirement,
     ScannerResult,
+    ScannerSurfaceTier,
     Target,
 )
 from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE
@@ -76,6 +77,11 @@ class SemgrepPlugin(ScannerPluginPort):
                 requirement=ScannerRequirement.REACHABLE_HOST,
                 scan_categories=frozenset({ScanCategory.VULNERABILITY, ScanCategory.INFORMATION}),
                 output_format=OutputFormat.STRUCTURED_JSON,
+                # Phase 4: NOT WIRED TO ANY PROFILE (see module docstring) -
+                # no live enforcement effect today. Narrowest tier assigned
+                # as the honest placeholder: a static source-code analyzer
+                # touches no network surface at all.
+                surface_tier=ScannerSurfaceTier.HOST_PORT_PATH,
             ),
         )
 

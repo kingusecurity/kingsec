@@ -1,0 +1,412 @@
+PHASE 6 — REPORT DESIGN
+STEP 1: Baseline PDF + Proposal (no template code written)
+Branch: feat/phase-6-report-design
+================================================================================
+
+BASELINE PDF
+================================================================================
+
+Regenerated from the real, live-stored 45-finding DVWA assessment in
+C:\kingsec-e2e (asmt-38836463c82547718bad11cdba957cdb, target
+http://127.0.0.1:18080, COMPLETED_WITH_GAPS, 4 of 5 scanners ran).
+
+Method: loaded the real Assessment via SQLAlchemyAssessmentRepository
+directly (read-only session, no commit), built Report.from_assessment()
+(pure domain construction), rendered via the real ReportRenderer/WeasyPrint
+pipeline — the exact code path the live application uses, not a synthetic
+mock. kingsec.db's mtime is unchanged (confirmed before/after) — nothing
+was written to the shared e2e evidence database.
+
+  Path: C:\kingsec-e2e\phase6-baseline\phase6-baseline-45findings.pdf
+  Size: 135,317 bytes
+
+Real severity breakdown in this baseline (queried directly from the
+findings table, not estimated): 1 CRITICAL ("DVWA Default Login"),
+0 HIGH, 5 MEDIUM, 11 LOW, 28 INFORMATIONAL = 45.
+
+================================================================================
+TASK 1 — THE LIMITATIONS SECTION
+================================================================================
+
+CORRECTION TO THE BRIEF, stated plainly: the brief names seven
+disclosures. Reading _limitations() in full, there are actually EIGHT
+compressed into that one paragraph — the brief's seven plus severity
+demotion (_severity_demotion_note: discloses when the content-based
+classifier reduced a finding's severity below what the path/title alone
+would suggest, and why). It's conditional — only renders when at least
+one finding was demoted — which is probably why it read as absent from
+the list. It survives in every design below like the other seven; noting
+the count discrepancy now rather than silently matching "seven" to avoid
+under-designing for it.
+
+PROPOSAL: two tiers, not one restructure.
+
+--- Tier 1 — "Scope at a Glance" (NEW, placed on page 2, immediately
+    after the Executive Summary) ---
+
+Three items only — the ones that bound WHAT was tested, which is exactly
+what a reader who stops after page 2 needs to know before trusting
+anything above it:
+  - Authentication scope (unauthenticated only — full sentence, this is
+    the one item that most changes what a reader thinks they're getting)
+  - Port coverage (nmap's actual scanned range, in one sentence)
+  - Scanner coverage (which scanners ran / didn't — a compact version;
+    the existing "Scanner Coverage" section, a few sections later, stays
+    as the detailed version with per-scanner reasons)
+
+This is a genuine ADDITION, not a shortened substitute — the full-length
+versions of all three stay in Tier 2 below, word-for-word. A short
+front-page pointer and a full back-of-report disclosure are different
+things serving different readers; this satisfies "every disclosure
+survives" by construction, since nothing here replaces anything.
+
+--- Tier 2 — "Limitations & Methodology Notes" (restructured, stays near
+    the end, now grouped and subheaded instead of one paragraph) ---
+
+Same eight disclosures, same words (verbatim reuse of the existing
+derivation functions — _port_coverage_note, _rate_limit_note,
+_severity_demotion_note, _authentication_scope_note, the CVE-note
+branch, the opening two sentences, and the trailing config-change
+sentence), regrouped under two subheadings rather than run together:
+
+  "What This Assessment Did Not Cover" (scope group)
+    - Authentication scope (full sentence)
+    - Port coverage (full sentence, embeds the real recorded spec)
+    - Rate limiting (full sentence, per-scanner detail)
+
+  "Confidence and Methodology" (confidence group)
+    - Point-in-time snapshot
+    - False positive / false negative risk
+    - CVE/CVSS correlation (the conditional branch, unchanged)
+    - Severity adjustments (the demotion note, when present)
+    - Configuration changes invalidate these results
+
+Each becomes its own <h4> with 1-3 sentences under it, not a table —
+a table reads well for terse, uniform rows; these vary from one
+sentence (config-change) to a multi-clause list (severity demotion's
+reason breakdown), and forcing that into table cells would either
+truncate the longer ones or leave the table absurdly tall. Subheadings
+scan properly at both lengths and both personas: the SME can skim eight
+bold lines in ten seconds; the reviewer can read the sentence under
+each without hunting through prose for where one disclosure ends and
+the next begins.
+
+Grouping rationale matches your own instinct in the backlog note
+("possibly grouped by theme — scope/coverage vs. methodology/
+confidence") — implemented as written.
+
+================================================================================
+TASK 2 — THE FOURFOLD REPETITION
+================================================================================
+
+Every one of the 45 findings currently renders in Risk Prioritization,
+Findings (table), Technical Findings (full card), AND Remediation Steps
+(full card) — two of those four are genuinely full-content renderings of
+the same material (Technical Findings' facts/description/evidence, and
+Remediation Steps' recommendation list), not just references.
+
+Reader test, applied to each of the four:
+
+  Risk Prioritization (ordered list, badge+title only)
+    READER: the SME or their contractor doing a first pass — "what do I
+    fix first." A ranked checklist, nothing more. KEEP, unchanged in
+    content, but each item becomes a same-document anchor link straight
+    to that finding's full card (WeasyPrint renders internal #anchor
+    links as real clickable links in the PDF) — today it's a dead-end
+    list; linking it turns "render #1 of 4" into "index #1 of 2."
+
+  Findings (table: severity/title/status/evidence-count/rec-count)
+    READER: the technical reviewer triaging or importing into a tracker
+    — wants a scannable, spreadsheet-shaped overview before reading
+    anything in full. KEEP, unchanged in content, same anchor-link
+    treatment as above — "index #2 of 2."
+
+  Technical Findings (full card: facts table, description, evidence)
+    READER: the reviewer who wants the complete technical record.
+    MERGE remediation into this card (see below) — this becomes the
+    ONE place each finding's full content lives.
+
+  Remediation Steps (full card: recommendation list)
+    READER, as currently structured: nobody distinct. Whoever wants the
+    fix for a finding is, by definition, also the person who just read
+    (or is about to read) that finding's technical detail — today they
+    have to leave the technical card, find the SAME finding again in a
+    completely separate section, and read the fix in isolation from the
+    evidence that justifies it. That's not a second audience, it's the
+    same reader making two trips. MERGE into Technical Findings: each
+    finding's full card gets a final "Remediation" subsection appended,
+    reusing effective_recommendations() exactly as today — same content,
+    zero information lost, one trip instead of two.
+
+Net effect: 4 renderings of every finding become 1 full render (renamed
+"Findings" — technical detail + remediation together) plus 2 compact,
+genuinely-distinct indices that jump straight to it. For 45 findings
+this does not just trim pages, it removes an entire category of
+findings appearing 4 times each — the real bloat source named in the
+brief.
+
+================================================================================
+TASK 3 — GROUP REPEATED FINDINGS
+================================================================================
+
+Checked this against the real baseline instead of reasoning abstractly.
+The 45-finding assessment has not one but TWO strong grouping
+candidates:
+
+  - 10 "Open port N/tcp" findings (135, 902, 912, 3000, 3389, 5357,
+    18080 at LOW; 445, 1001, 5678 at INFORMATIONAL) — the brief's own
+    example, and the real count in this baseline happens to be exactly
+    10, matching "10 network services exposed" precisely.
+  - 10 "HTTP Missing Security Headers" findings, all INFORMATIONAL,
+    identical title, presumably one per crawled path — an equally
+    strong case the brief didn't name but the data makes obvious.
+
+Together, 20 of 45 findings (44%) in this one real report are exact-
+title-repeat noise from two finding families. That is the actual scale
+of what grouping would fix here, not a hypothetical.
+
+PROPOSED MECHANISM (presentation-layer only, as instructed):
+
+Group findings that share ALL of: (a) the same title-prefix pattern
+(e.g. "Open port ", or exact-title match for a family like "HTTP
+Missing Security Headers" that has no natural prefix/suffix split), (b)
+identical severity, (c) identical effective_recommendations (so two
+findings that happen to share a title but got different remediation
+text for some reason never merge). This runs entirely inside the
+template layer, over report.entries, after every domain-layer
+computation (severity_counts, executive_score, verdict) has already
+finished reading the real ungrouped entries — grouping never touches
+those inputs.
+
+Rendered group: one card, title becomes "N network services exposed"
+(or a comparable generated summary for other families — "N pages
+missing security headers"), containing a compact table (e.g. Port |
+Evidence summary) with each original finding's own evidence still
+present — either inline per row (nmap's evidence is short: a banner
+line) or as a per-row expand if a family's evidence runs long. No
+evidence is dropped, summarized-away, or replaced by a synthetic
+description — every individual finding_id, its full evidence, and its
+own place in the immutable Report.entries snapshot stays exactly as
+persisted; grouping is purely how those entries get laid out on the
+page.
+
+EXPLICIT ANSWER, as required before this touches anything scoring-
+adjacent:
+
+  Does grouping change the severity distribution chart? NO.
+  Does grouping change report.total_findings or severity_counts? NO.
+
+Both are computed in domain/report.py from the real, ungrouped
+findings tuple, before rendering ever begins — grouping is a rendering
+decision applied afterward, over a copy of entries used only to decide
+how many <div> blocks to emit. The 45-finding count, the 1/0/5/11/28
+severity breakdown, and the executive score all stay exactly what
+they are today, undiminished by how the page groups them visually.
+This is presentation, not a scoring interaction — but flagging it
+explicitly, as instructed, rather than asserting it without saying so
+plainly enough to be checked.
+
+One open design question worth a decision before Step 2: does a GROUP
+still get its own row in Risk Prioritization / the Findings table (as
+one line, "10 network services exposed"), or does grouping apply only
+inside the full-card section from Task 2? I'd propose: group
+consistently across all three surviving views (the two indices AND the
+full card) — an index that still lists 10 separate "Open port" lines
+while the detail page shows 1 grouped card would read as inconsistent
+and undercut exactly the "professional, not machine output" goal this
+task exists for.
+
+================================================================================
+TASK 4 — THE EXECUTIVE SUMMARY
+================================================================================
+
+Current order: opening paragraph (target/date/verdict headline/count/
+highest severity) → urgent note (Critical/High callout, when present) →
+score panel (gauge) → action callout (separate paragraph, after the
+gauge).
+
+The brief's instruction ("three sentences... the number comes after")
+is close to what's there today in raw HTML order, but the ACTION
+sentence — "what to do first" — currently lives in a separate callout
+AFTER the gauge, not folded into the opening three sentences. A reader
+who reads the opening paragraph and stops sees WHAT was found but not
+YET what to do about it; that only arrives after the visually-dominant
+gauge, which is what makes the gauge read as the opening move even
+though it isn't literally first in the markup.
+
+PROPOSAL: three sentences, restructured to genuinely contain all three
+required elements before the gauge:
+
+  1. What was looked at — target, date, (cross-reference the new Scope-
+     at-a-Glance block from Task 1 rather than repeat it)
+  2. What was found — verdict headline, finding count, highest severity
+     (unchanged content, already exists)
+  3. What to do first — the SHORT version of today's late action
+     callout, moved up here. For a Critical/High report this sentence
+     becomes redundant with the urgent note that immediately follows it
+     (both would say "act now") — so state it only when urgent_note
+     will NOT also fire, exactly the same suppression logic
+     _executive_summary already uses today for the existing action
+     callout (Phase 2C Step 2 FIX 4's "the second dilutes the first"
+     lesson, applied one line earlier instead of removed).
+
+Then: urgent_note (Critical/High callout) — UNCHANGED POSITION, still
+immediately after the three-sentence opening, still above the score
+panel, still first and unconditional the way Phase 2C Step 1 built it
+to be. This keeps its precedence exactly as instructed.
+
+Then: the score panel (gauge + band + score narrative) — now genuinely
+last, after every plain-language element, matching "the number comes
+after."
+
+The existing late action callout is then REMOVED, not duplicated — its
+content is now sentence 3 above; leaving both would reproduce the
+FIX-4 dilution defect this same file already fixed once.
+
+================================================================================
+TASK 5 — A METHODOLOGY SECTION
+================================================================================
+
+Confirmed missing entirely — no section anywhere states what each
+scanner does, in plain language, in one place.
+
+PROPOSAL: a new "Methodology" section, placed early — directly after
+Scope at a Glance (Task 1) / the rewritten Executive Summary (Task 4),
+since the reviewer persona's "how did you determine this" question
+arrives as soon as they've read the verdict, not on page 20.
+
+Content, entirely reusing existing derived data (no new domain logic
+for the coverage facts — only one small, scoped addition, noted below):
+
+  - Which scanners ran and their outcome: reuse Scanner Coverage's own
+    grouping logic (same source data, same "Nmap, Nuclei: completed, 12
+    findings" sentence shape) — presented here as the methodology's
+    factual backbone, with the existing Scanner Coverage section either
+    folded in here directly or kept separate with a cross-reference (a
+    Step-2 decision, not a Step-1 one — both are cheap; I lean toward
+    folding it in, since a reviewer asking "how did you determine this"
+    and a reviewer asking "which scanners ran" are the same reviewer,
+    seconds apart).
+  - One plain-language line per scanner on what it does — NEW static
+    content, factual and well-known (same standard already applied to
+    _GENERIC_REMEDIATION_BY_CWE's "real CWE-class guidance, not a
+    fabrication"): e.g. "Nmap — discovers open network ports and
+    running services." "Nuclei — tests for known vulnerability patterns
+    using community-maintained templates." One sentence each for the
+    six wired scanners (Nmap, Nuclei, Nikto, FFUF, Gobuster, ZAP).
+  - What was and wasn't covered: reuse the SAME port-coverage/
+    authentication-scope/rate-limit derivation functions Tasks 1 and 4
+    already call — never a second, independently-worded copy that could
+    drift from the Limitations section's version of the same fact.
+  - What the operator configured: the assessment profile used (e.g.
+    "Web Application Scan"). GAP FOUND WHILE INVESTIGATING: Assessment
+    already carries a real profile_id property, but
+    Report.from_assessment() never copies it into the Report dataclass
+    — Report has no profile field today. This is a small, precise
+    addition (one new Report field, one line in from_assessment()) that
+    Methodology depends on; flagging it now so it's visible before
+    approval, not discovered mid-implementation. No other data gaps
+    found for this section.
+
+================================================================================
+TASK 6 — MAKE BRANDING SETTABLE
+================================================================================
+
+Confirmed exactly as described: render_report_html(..., brand_name=...)
+/ ReportRenderer(brand_name=...) / ReportGeneratorAdapter(brand_name=...)
+/ create_wired_application(brand_name: str = "KingSec", ...) are all
+real, already wired, already correctly used in the cover page, header,
+and footer. The ENTIRE gap is that nothing between the real kingsec CLI
+entry point and that keyword argument ever supplies a non-default
+value — __main__.py never passes brand_name at all.
+
+PROPOSAL: the smallest change that closes the gap.
+
+  - New settings group, ReportingSettings (infrastructure/config/
+    models.py), matching the existing nested-settings pattern
+    (ServerSettings, PerformanceSettings, etc.): one field,
+    brand_name: str = "KingSec". Env var: KINGSEC_REPORTING__BRAND_NAME.
+  - In bootstrap/composition.py: create_wired_application's brand_name
+    parameter default changes from the literal "KingSec" to a sentinel
+    (e.g. None); when None, resolve it from the already-loaded Settings
+    (settings.reporting.brand_name) instead of a hardcoded string. An
+    explicit caller-supplied value (tests, scripts, any future admin
+    API) still overrides — this only changes what the REAL, unmodified
+    call path (the kingsec CLI, which passes nothing today) resolves
+    to.
+
+No license-gate check anywhere in this path, per explicit instruction
+— LicenseGate already has 4 of 10 methods enforcing nothing, and this
+doesn't become a fifth. No template change needed at all: templates.py
+already renders whatever brand_name it's given, correctly, everywhere
+it appears.
+
+This makes the "Branded PDF" pricing-page claim (removed as FALSE in
+Phase 5) true again the moment it ships — worth noting for whoever
+revisits docs/commercial/website-pricing.md afterward, though that's
+a Phase 5 file, not this phase's scope.
+
+================================================================================
+TASK 7 — ASSET ATTRIBUTION: FLAG, DO NOT FIX
+================================================================================
+
+Confirmed, and worse in the real baseline than the brief's example
+alone suggests. _technical_finding_card's facts table hardcodes
+("Affected Asset", target) — target is report.target, the assessment's
+single URL/IP/hostname, applied identically to EVERY finding regardless
+of what actually produced it. There is no per-finding asset field
+anywhere in FindingSummary or the underlying Finding domain model to
+draw from instead — this is a real, structural data gap, not a template
+oversight, and it can't be fixed inside this phase's scope (report
+templates only, no data-model changes) without stepping on the backlog
+item already logged for it.
+
+WHERE THIS SHOWS, concretely, in the real 45-finding baseline: all 10
+"Open port N/tcp" findings — including port 3389 (RDP) and port 445
+(SMB), both host-level services on whatever machine is listening at
+127.0.0.1, not application-layer facts about the DVWA URL — will each
+render "Affected Asset: http://127.0.0.1:18080" in their technical
+card. A reviewer who knows what RDP and SMB are will read "open RDP
+port" attributed to a URL and immediately flag it as an error in the
+report, not a nuance — exactly the credibility risk the brief
+describes.
+
+HOW BAD IT LOOKS ONCE THE REST IS POLISHED: worse, not better. Today
+the report reads as somewhat mechanical throughout (four repeated
+renderings, a wall-of-text Limitations paragraph, ten identical "Open
+port" entries) — a wrong asset attribution is one odd line among many
+imperfections, easy to miss. After Tasks 1-4 land, the report will read
+as considerably more professional and deliberate everywhere else; a
+factually wrong "Affected Asset" field on a clean, well-organized page
+will stand out MORE, not less, precisely because everything around it
+now looks careful. This is the argument for promoting it after this
+phase, stated as requested rather than left implicit.
+
+No fix proposed or attempted here, per instruction.
+
+================================================================================
+NOT PROPOSED: scope-out items observed but untouched
+================================================================================
+
+Two things surfaced while reading the real baseline that are explicitly
+out of scope this phase, noted only so they're not lost:
+  - Port 3389 (RDP) and 445 (SMB) both render at LOW/INFORMATIONAL
+    severity in this real report — the exact "recognised service name →
+    Low, unrecognised → Informational" defect STATUS.md's Phase 2C
+    backlog already names as not withstanding professional review. Not
+    touched (severity assignment is explicitly out of scope this
+    phase).
+  - The 4 "HTTP 403" sensitive-configuration-file findings (.hta,
+    .htaccess, .htpasswd, server-status) are a smaller, third grouping
+    candidate beyond the two named in Task 3 above — weaker case (paths
+    are more individually distinct than open ports or missing-header
+    instances), mentioned for completeness, not proposed as a Task 3
+    target unless you want it included.
+
+================================================================================
+STOPPING HERE, per instruction.
+================================================================================
+
+No template code written. Waiting for approval before Step 2 (Tasks 1
+and 2), and a regenerated PDF will follow before continuing to
+Tasks 3-6.

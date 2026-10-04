@@ -2,22 +2,30 @@
 
 Step 4 of the Phase 03 prompt requires verifying whether failure_reason risks
 exposing stack traces, absolute paths, internal hostnames, subprocess command
-lines, or credentials. Inspection of every Assessment.fail() call site
-(start_assessment.py, submit_assessment.py) found both pass raw str(exc) from
-a broad `except Exception` - which, for an unvetted/unexpected exception, can
-carry exactly that kind of detail. KingSec already has a safe/unsafe message
-split for exactly this situation (kingsec.shared.errors.KingSecError.message
-vs .user_message, and the same "safe by construction" property already holds
-for kingsec.application.errors.ApplicationError, whose subclasses are all
+lines, or credentials. Inspection of every Assessment.fail() call site found
+raw str(exc) passed from a broad `except Exception` - which, for an
+unvetted/unexpected exception, can carry exactly that kind of detail. KingSec
+already has a safe/unsafe message split for exactly this situation
+(kingsec.shared.errors.KingSecError.message vs .user_message, and the same
+"safe by construction" property already holds for
+kingsec.application.errors.ApplicationError, whose subclasses are all
 deliberately-authored business-rule messages, not wrapped raw exceptions -
-see ExecutionPlanUnsatisfiedError, already asserted verbatim into
-failure_reason by two existing, unmodified tests in test_start_assessment.py
-and test_submit_assessment.py). This file proves the two call sites use that
+see ExecutionPlanUnsatisfiedError). This file proves submit_assessment.py's
+own `except Exception as exc: assessment.fail(...)` call site uses that
 existing distinction correctly:
 
     KingSecError            -> exc.user_message   (already the safe one)
     ApplicationError        -> str(exc)            (already safe: developer-authored)
     anything else           -> KingSecError.default_user_message (unvetted; assume unsafe)
+
+Phase 2C Step 2, FIX 2: the original version of this file additionally
+covered the same guarantee for the since-deleted StartAssessment use case
+(dead code - zero real callers, its own unconditional assessment.complete()
+call bypassed Phase 2A's success-counting policy). Two of its three
+scenarios were already independently duplicated below for SubmitAssessment;
+the third (a KingSecError carrying an explicit .user_message, e.g.
+ScannerError) was not, and has been added below so this guarantee is not
+silently lost.
 
 Written FIRST, before any fix. safe_failure_message does not exist yet, so
 these fail at collection (ImportError) until _support.py adds it, and the
@@ -28,13 +36,10 @@ from __future__ import annotations
 
 from typing import Any
 
-import pytest
 from tests.unit.application.conftest import InMemoryAssessmentRepository
 
 from kingsec.application._support import safe_failure_message
-from kingsec.application.dto import StartAssessmentRequest
-from kingsec.application.errors import ApplicationError, ExecutionPlanUnsatisfiedError
-from kingsec.application.use_cases.start_assessment import StartAssessment
+from kingsec.application.errors import ExecutionPlanUnsatisfiedError
 from kingsec.domain import Assessment, Authorization, Target, TargetType
 from kingsec.domain.enums import AssessmentStatus
 from kingsec.shared.errors import KingSecError, ScannerError
@@ -87,58 +92,6 @@ class _RaisingScanner:
         return {"nmap": "Nmap"}
 
 
-class TestStartAssessmentFailureReasonSanitization:
-    def test_unvetted_scanner_exception_does_not_leak_into_failure_reason(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
-        assessment = _authorized(assessments)
-        raw = FileNotFoundError("[Errno 2] No such file or directory: '/opt/scanners/nmap/nmap.xml'")
-        use_case = StartAssessment(assessments, _RaisingScanner(raw))
-
-        with pytest.raises(FileNotFoundError):
-            use_case.execute(StartAssessmentRequest(str(assessment.id)))
-
-        stored = assessments.get(assessment.id)
-        assert stored.status == AssessmentStatus.FAILED
-        assert stored.failure_reason == KingSecError.default_user_message
-        assert "/opt/scanners" not in (stored.failure_reason or "")
-
-    def test_kingsec_scanner_error_exposes_only_its_user_message(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
-        assessment = _authorized(assessments)
-        exc = ScannerError("nmap exited 1: command was /opt/scanners/nmap -sV --script vuln 10.0.0.5")
-        use_case = StartAssessment(assessments, _RaisingScanner(exc))
-
-        with pytest.raises(ScannerError):
-            use_case.execute(StartAssessmentRequest(str(assessment.id)))
-
-        stored = assessments.get(assessment.id)
-        assert stored.failure_reason == "The security scan could not be completed."
-        assert "/opt/scanners" not in (stored.failure_reason or "")
-
-    def test_application_error_reason_still_reaches_failure_reason_verbatim(
-        self, assessments: InMemoryAssessmentRepository
-    ) -> None:
-        # Same intentional-message class as ExecutionPlanUnsatisfiedError,
-        # which two EXISTING tests already rely on seeing verbatim in
-        # failure_reason - this proves the sanitization fix keeps that
-        # legitimate case intact, not just the new unsafe-message case.
-        assessment = _authorized(assessments)
-
-        class _NamedApplicationError(ApplicationError):
-            pass
-
-        exc = _NamedApplicationError("Target is out of the authorized scope.")
-        use_case = StartAssessment(assessments, _RaisingScanner(exc))
-
-        with pytest.raises(ApplicationError):
-            use_case.execute(StartAssessmentRequest(str(assessment.id)))
-
-        stored = assessments.get(assessment.id)
-        assert stored.failure_reason == "Target is out of the authorized scope."
-
-
 class _InlineJobRunner:
     """Runs the submitted job synchronously, in-thread - deterministic for tests."""
 
@@ -153,8 +106,8 @@ class _InlineJobRunner:
 
 
 class TestSubmitAssessmentFailureReasonSanitization:
-    """submit_assessment.py has its OWN `except Exception as exc: assessment.fail(...)`
-    call site, separate from start_assessment.py's - both needed the fix."""
+    """submit_assessment.py's own `except Exception as exc: assessment.fail(...)`
+    call site."""
 
     def test_unvetted_scanner_exception_does_not_leak_into_failure_reason(
         self, assessments: InMemoryAssessmentRepository
@@ -172,6 +125,27 @@ class TestSubmitAssessmentFailureReasonSanitization:
         assert stored.status == AssessmentStatus.FAILED
         assert stored.failure_reason == KingSecError.default_user_message
         assert "internal-scanner-host" not in (stored.failure_reason or "")
+
+    def test_kingsec_scanner_error_exposes_only_its_user_message(
+        self, assessments: InMemoryAssessmentRepository
+    ) -> None:
+        """Phase 2C Step 2, FIX 2: this scenario previously existed only on
+        the since-deleted StartAssessment use case's own test class -
+        preserved here against SubmitAssessment so the guarantee (a
+        KingSecError's explicit .user_message reaches failure_reason, never
+        its raw internal message) is not silently lost."""
+        from kingsec.application.dto import SubmitAssessmentRequest
+        from kingsec.application.submit_assessment import SubmitAssessment
+
+        assessment = _authorized(assessments)
+        exc = ScannerError("nmap exited 1: command was /opt/scanners/nmap -sV --script vuln 10.0.0.5")
+        use_case = SubmitAssessment(assessments, _RaisingScanner(exc), _InlineJobRunner())
+
+        use_case.execute(SubmitAssessmentRequest(str(assessment.id), is_admin=True))
+
+        stored = assessments.get(assessment.id)
+        assert stored.failure_reason == "The security scan could not be completed."
+        assert "/opt/scanners" not in (stored.failure_reason or "")
 
     def test_application_error_reason_still_reaches_failure_reason_verbatim(
         self, assessments: InMemoryAssessmentRepository

@@ -69,8 +69,19 @@ def _is_admin(user: CurrentUser) -> bool:
     summary="Health check",
     description="Returns service health status. Exposes no internal details.",
 )
-async def health_check() -> schemas.HealthResponse:
-    return schemas.HealthResponse(status="ok")
+async def health_check(request: Request) -> schemas.HealthResponse:
+    # Phase 3 (auth hardening): the one public, unauthenticated signal
+    # that no administrator exists yet - never internal details, just a
+    # boolean an operator's monitoring (or the frontend) can act on
+    # without needing to read source or hit /auth/register just to
+    # provoke its 403.
+    from kingsec.application.ports import UserRepository
+    from kingsec.domain import Role
+
+    app: Application = request.app.state.kingsec_app
+    users: UserRepository = app.resolve(UserRepository)
+    bootstrap_required = users.count_by_role(Role.ADMIN) == 0
+    return schemas.HealthResponse(status="ok", bootstrap_required=bootstrap_required)
 
 
 # ── Auth ─────────────────────────────────────────────────────────────────────
@@ -400,6 +411,8 @@ async def create_assessment(
         owner_id=current_user.user_id,
         requesting_username=current_user.username,
         profile_id=body.profile_id,
+        requesting_is_admin=_is_admin(current_user),
+        override_scope_check=body.override_scope_check,
     )
     result = service.create_assessment(request)
     return schemas.CreateAssessmentResponse(
@@ -998,6 +1011,36 @@ async def list_findings(
 # ── Reports ───────────────────────────────────────────────────────────────────
 
 
+def _refuse_stale_report_if_assessment_now_failed(assessment: Any) -> None:
+    """Phase 2C Step 2, GAP-1 follow-up: the same refusal
+    Report.from_assessment() applies at GENERATION time must also apply on
+    the READ path.
+
+    A report is a snapshot, and Phase 2B-c Priority 2's report cache means
+    /reports/{id}/download can serve a STORED artifact without ever calling
+    from_assessment() again - a report generated before derive_assessment_status()
+    existed can still be sitting in the database with a stale
+    assessment_status, and both the JSON metadata endpoint (get_report) and
+    the download endpoint (download_report) read that stored row directly,
+    bypassing generation-time's own refusal entirely. Re-checking the
+    assessment's CURRENT derived status here, before either endpoint reads
+    the stored report, closes that gap: a report whose assessment now
+    derives to FAILED is refused with the same IllegalStateTransition
+    Report.from_assessment() itself would raise - never served from cache.
+    """
+    from kingsec.domain.enums import AssessmentStatus
+    from kingsec.domain.errors import IllegalStateTransition
+    from kingsec.domain.report import derive_assessment_status
+
+    derived_status = derive_assessment_status(assessment)
+    if derived_status is AssessmentStatus.FAILED:
+        raise IllegalStateTransition(
+            "no report can be generated: every scanner failed to complete for this "
+            "assessment, so no assessment data was collected",
+            current=derived_status,
+        )
+
+
 def _get_list_reports_uc(request: Request) -> Any:
     app: Application = request.app.state.kingsec_app
     from kingsec.application.use_cases.list_reports import ListReports
@@ -1084,9 +1127,9 @@ async def get_report(
     from kingsec.domain import AssessmentId, Severity
 
     assessments: AssessmentRepository = app.resolve(AssessmentRepository)
-    check_assessment_access(
-        assessments.get(AssessmentId(assessment_id)), current_user.user_id, _is_admin(current_user)
-    )
+    assessment = assessments.get(AssessmentId(assessment_id))
+    check_assessment_access(assessment, current_user.user_id, _is_admin(current_user))
+    _refuse_stale_report_if_assessment_now_failed(assessment)
 
     repo: ReportRepository = app.resolve(ReportRepository)
     report = repo.get(AssessmentId(assessment_id))
@@ -1135,9 +1178,9 @@ async def download_report(
         )
 
     assessments: AssessmentRepository = app.resolve(AssessmentRepository)
-    check_assessment_access(
-        assessments.get(AssessmentId(assessment_id)), current_user.user_id, _is_admin(current_user)
-    )
+    assessment = assessments.get(AssessmentId(assessment_id))
+    check_assessment_access(assessment, current_user.user_id, _is_admin(current_user))
+    _refuse_stale_report_if_assessment_now_failed(assessment)
 
     repo: ReportRepository = app.resolve(ReportRepository)
     generator: ReportGeneratorPort = app.resolve(ReportGeneratorPort)

@@ -179,6 +179,27 @@ The bundled compose file builds the image from the local `Dockerfile`,
 binds the API to `127.0.0.1:8765`, and stores data in a named volume —
 you do not need to create one yourself.
 
+### Before you expose this beyond your own machine
+
+By default, `docker-compose.yml` publishes the port as
+`"127.0.0.1:8765:8765"` — reachable only from the host KingSec is running
+on, not from your network. Inside the container the server binds to
+`0.0.0.0`, which is safe as shipped because Docker's own network
+namespace isolates it; the host-side `127.0.0.1:` prefix is the actual
+guardrail.
+
+If you change that line to `"8765:8765"` (dropping the `127.0.0.1:`
+prefix) — for example, to put KingSec behind a reverse proxy or reach it
+from another machine — the API becomes reachable from your network the
+moment the container starts. Before doing that:
+- Confirm `GET /api/v1/health` reports `"bootstrap_required": false`.
+  While it's `true`, no administrator exists yet, and self-registration
+  is disabled by default — see "First-Run Setup" below for how to fix
+  that safely, before anyone else on the network can reach it.
+- Put a reverse proxy with TLS in front of it; KingSec itself does not
+  terminate TLS.
+- Only then change the port mapping.
+
 ---
 
 ## Direct (non-Docker) Installation
@@ -583,14 +604,16 @@ running.
 
 ## Recovering Admin Access
 
-If every admin account is lost, use the bundled recovery CLI (this exists
-and works — verified against the source — but was undocumented in
-earlier releases of this guide):
+`kingsec-bootstrap` is also how you recover if every admin account is
+lost. Same command as "First-Run Setup" below:
 ```bash
 kingsec-bootstrap --username <name> --password <secret>
 ```
 This refuses to run if an admin already exists, and refuses to run if
-migrations have not been applied.
+migrations have not been applied. (Deliberately: it checks for an
+existing *admin*, not any user at all — if it required no users to exist
+whatsoever, it would refuse in exactly the recovery scenario it exists
+for, whenever ordinary accounts survive an admin's loss.)
 
 ---
 
@@ -604,15 +627,23 @@ frontend (see "Running the Frontend" above) and open
 
 ### Step 2: Create the First Admin Account
 
-Register via the UI's "Register" link, or directly against the API:
+Self-registration is disabled by default, and the UI's "Register" link
+will not create an admin even when enabled — self-registered accounts
+are always Viewer, never Admin. The **only** way to create the first
+administrator is `kingsec-bootstrap`, run once against your installed
+instance:
 ```bash
-curl -X POST http://127.0.0.1:8765/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","email":"admin@example.com","password":"<a strong password>"}'
+kingsec-bootstrap --username admin --password "<a strong password>"
 ```
-**Verified in this audit:** the first user ever registered is
-automatically granted the Admin role; every subsequent registration
-defaults to Viewer until an admin promotes them.
+This requires migrations to already be applied (see "Database
+Migrations" above) and refuses to run if an admin already exists. Log in
+with these credentials at `http://127.0.0.1:8765/docs` or the frontend.
+
+If you want ordinary users to be able to sign themselves up afterward
+(as Viewers — never Admin), set
+`KINGSEC_SECURITY__ALLOW_SELF_REGISTRATION=true`. It is off by default:
+on a network-reachable instance, an open signup endpoint is worth
+enabling deliberately, not by accident.
 
 ### Step 3: Verify Scanner Connectivity
 

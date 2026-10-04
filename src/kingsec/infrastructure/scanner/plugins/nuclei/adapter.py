@@ -26,6 +26,7 @@ from kingsec.domain import (
     ScannerPluginMetadata,
     ScannerRequirement,
     ScannerResult,
+    ScannerSurfaceTier,
     Target,
 )
 from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE
@@ -79,6 +80,12 @@ class NucleiPlugin(ScannerPluginPort):
                 requirement=ScannerRequirement.REACHABLE_HOST,
                 scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                 output_format=OutputFormat.STRUCTURED_JSON,
+                # Phase 4: verified directly against nuclei.py:_build_args()
+                # - "-u target.value" only, then the full template set runs
+                # against that base. Templates check paths unrelated to any
+                # path in the given target (e.g. /actuator/health,
+                # /.git/config) - host:port, any path.
+                surface_tier=ScannerSurfaceTier.HOST_PORT_ANY_PATH,
             ),
         )
 

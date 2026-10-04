@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re as _re
 from datetime import UTC, datetime
 
 from kingsec.application.compliance import (
@@ -8,6 +9,8 @@ from kingsec.application.compliance import (
     ComplianceMapper,
     ComplianceReportGenerator,
 )
+from kingsec.application.compliance.framework_definitions import FRAMEWORK_DEFINITIONS
+from kingsec.application.compliance.mapper import _KEYWORD_CONTROL_MAP
 from kingsec.domain.compliance import (
     ComplianceFramework,
     ComplianceReport,
@@ -88,6 +91,45 @@ class TestComplianceMapper:
         assert len(controls) == 10
         assert any(c.control_id.value == "A01" for c in controls)
         assert any(c.control_id.value == "A05" for c in controls)
+
+
+_PLACEHOLDER_DIGIT_RUNS = frozenset(
+    {
+        "0123", "1234", "2345", "3456", "4567", "5678", "6789", "7890", "8901", "9012",
+        "0000", "1111", "2222", "3333", "4444", "5555", "6666", "7777", "8888", "9999",
+    }
+)
+
+
+def _looks_placeholder_shaped(control_id: str) -> bool:
+    return any(run in _PLACEHOLDER_DIGIT_RUNS for run in _re.findall(r"\d{4}", control_id))
+
+
+class TestComplianceMapperNoFabricatedIds:
+    """Phase 5 fix (docs/STATUS.md, docs/CLAIM-AUDIT.md item 4): CVE-2025-1234
+    was a fabricated identifier baked into the keyword map and reused as a
+    FRAMEWORK_DEFINITIONS control, alongside CVE-2025-5678 and CVE-2025-9012
+    (also fabricated, found in this same sweep). All eight FRAMEWORK_DEFINITIONS
+    entries under ComplianceFramework.CVE used the identical sequential-digit
+    placeholder pattern. A CVE names one specific vulnerability instance
+    assigned by a CNA - it cannot correctly represent a generic keyword
+    category the way OWASP/CIS/NIST/CWE/PCI/ISO/MITRE control ids do elsewhere
+    in this same table, so the fix is removal, not a real-id substitution.
+    Before the fix, all three checks below failed.
+    """
+
+    def test_keyword_map_has_no_cve_framework_entries(self) -> None:
+        cve_entries = [row for row in _KEYWORD_CONTROL_MAP if row[1] == ComplianceFramework.CVE]
+        assert cve_entries == []
+
+    def test_framework_definitions_has_no_cve_controls(self) -> None:
+        assert FRAMEWORK_DEFINITIONS.get(ComplianceFramework.CVE, ()) == ()
+
+    def test_no_placeholder_shaped_control_ids_anywhere(self) -> None:
+        offenders = [ctrl_id for _kw, _fw, ctrl_id, _title in _KEYWORD_CONTROL_MAP if _looks_placeholder_shaped(ctrl_id)]
+        for controls in FRAMEWORK_DEFINITIONS.values():
+            offenders.extend(c.control_id.value for c in controls if _looks_placeholder_shaped(c.control_id.value))
+        assert offenders == []
 
 
 class TestComplianceCoverageCalculator:

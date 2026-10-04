@@ -31,6 +31,7 @@ from kingsec.domain import (
     ScannerPluginMetadata,
     ScannerRequirement,
     ScannerResult,
+    ScannerSurfaceTier,
     Target,
 )
 from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE
@@ -77,6 +78,11 @@ class TrivyPlugin(ScannerPluginPort):
                 requirement=ScannerRequirement.REACHABLE_HOST,
                 scan_categories=frozenset({ScanCategory.VULNERABILITY, ScanCategory.CONFIGURATION}),
                 output_format=OutputFormat.STRUCTURED_JSON,
+                # Phase 4: NOT WIRED TO ANY PROFILE (see module docstring) -
+                # no live enforcement effect today. Narrowest tier assigned
+                # as the honest placeholder: an image/filesystem/repo
+                # scanner touches no network surface at all.
+                surface_tier=ScannerSurfaceTier.HOST_PORT_PATH,
             ),
         )
 

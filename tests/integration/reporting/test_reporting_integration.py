@@ -16,8 +16,8 @@ from kingsec.application import (
     GenerateReportRequest,
     ReportGeneratorPort,
     ScannerPort,
-    StartAssessment,
-    StartAssessmentRequest,
+    SubmitAssessment,
+    SubmitAssessmentRequest,
 )
 from kingsec.bootstrap import Container
 from kingsec.domain import (
@@ -63,6 +63,19 @@ class _StubScanner(ScannerPort):
         return {"stub": "Stub Scanner"}
 
 
+class _InlineJobRunner:
+    """Runs the submitted job synchronously, in-thread - deterministic for tests."""
+
+    def submit(self, job_id, fn, *args, **kwargs) -> None:
+        fn()
+
+    def is_running(self, job_id) -> bool:
+        return False
+
+    def shutdown(self, wait: bool = True) -> None:
+        pass
+
+
 class TestRealRendering:
     @needs_weasyprint
     def test_real_pdf_generation(self) -> None:
@@ -101,7 +114,9 @@ class TestFullSlice:
             created = CreateAssessment(assessments).execute(
                 CreateAssessmentRequest("10.0.0.5", "ip_address", "tester", "10.0.0.5")
             )
-            StartAssessment(assessments, _StubScanner()).execute(StartAssessmentRequest(created.assessment_id))
+            SubmitAssessment(assessments, _StubScanner(), _InlineJobRunner()).execute(
+                SubmitAssessmentRequest(created.assessment_id, is_admin=True)
+            )
             response = GenerateReport(assessments, reports, generator).execute(
                 GenerateReportRequest(created.assessment_id, is_admin=True)
             )

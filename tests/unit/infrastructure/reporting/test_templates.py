@@ -13,12 +13,13 @@ from tests.unit.infrastructure.reporting.conftest import build_report
 
 _SECTIONS = (
     "Executive Summary",
+    "Scope at a Glance",
+    "Methodology",
     "Assessment Information",
     "Scanner Coverage",
     "Risk Summary",
     "Findings",
-    "Technical Findings",
-    "Remediation Steps",
+    "Finding Details",
     "Visual Elements",
     "Risk Prioritization",
     "Affected Assets Summary",
@@ -180,7 +181,16 @@ class TestBusinessImpact:
         assert "No Critical or High severity findings" in html
 
 
-class TestRemediationSteps:
+class TestFindingDetails:
+    """Phase 6 Task 2: Technical Findings and Remediation Steps were merged
+    into one section (Finding Details) - a finding's evidence and its fix
+    now live in the same card instead of two separately-paginated ones. All
+    the individual content assertions below are unchanged from before the
+    merge (same underlying functions, same text); what changed is that they
+    now all come from a single `id="finding-details"` section instead of
+    two.
+    """
+
     def test_renders_recommendation_text(self) -> None:
         html = render_report_html(build_report())
         assert "Fix" in html and "use params" in html  # from the fixture's Recommendation
@@ -215,8 +225,6 @@ class TestRemediationSteps:
         assert "Review whether this open port/service is required" in html
         assert "No specific remediation guidance is available" not in html
 
-
-class TestTechnicalFindings:
     def test_renders_description_and_evidence(self) -> None:
         html = render_report_html(build_report())
         assert "injectable parameter" in html  # finding description
@@ -226,6 +234,69 @@ class TestTechnicalFindings:
     def test_finding_without_evidence_gets_honest_note(self) -> None:
         html = render_report_html(build_report())
         assert "No evidence was recorded for this finding" in html
+
+    def test_evidence_and_remediation_for_the_same_finding_share_one_card(self) -> None:
+        """The actual point of the Task 2 merge: a finding's evidence and
+        its remediation must be readable without leaving its card - assert
+        both appear inside the SAME finding-card div, not merely somewhere
+        on the page."""
+        report = build_report()
+        critical = next(e for e in report.entries if e.severity is Severity.CRITICAL)
+        html = render_report_html(report)
+        card_start = html.index(f'id="finding-{critical.finding_id}"')
+        card_end = html.index("</div>", html.index("<h4>Remediation</h4>", card_start))
+        card_html = html[card_start:card_end]
+        assert "<h4>Evidence</h4>" in card_html
+        assert "<h4>Remediation</h4>" in card_html
+
+    def test_old_separate_sections_no_longer_exist(self) -> None:
+        """Regression guard: the two old, separately-rendered sections must
+        both be gone, not merely renamed - their removal is the actual
+        page-count reduction Task 2 exists to produce."""
+        html = render_report_html(build_report())
+        assert 'id="technical-findings"' not in html
+        assert 'id="remediation-steps"' not in html
+        assert "<h2>Technical Findings</h2>" not in html
+        assert "<h2>Remediation Steps</h2>" not in html
+
+
+class TestFindingAnchorLinks:
+    """Phase 6 Task 2: Risk Prioritization and the Findings table are now
+    compact indices that link to each finding's full card in Finding
+    Details, instead of each independently re-rendering the finding."""
+
+    def test_every_finding_has_a_stable_anchor_id(self) -> None:
+        report = build_report()
+        html = render_report_html(report)
+        for entry in report.entries:
+            assert f'id="finding-{entry.finding_id}"' in html
+
+    def test_risk_prioritization_links_to_the_real_anchor(self) -> None:
+        report = build_report()
+        html = render_report_html(report)
+        section = html.split('id="risk-prioritization"')[1].split("</section>")[0]
+        for entry in report.entries:
+            assert f'href="#finding-{entry.finding_id}"' in section
+
+    def test_findings_table_links_to_the_real_anchor(self) -> None:
+        report = build_report()
+        html = render_report_html(report)
+        section = html.split('<section id="findings">')[1].split("</section>")[0]
+        for entry in report.entries:
+            assert f'href="#finding-{entry.finding_id}"' in section
+
+    def test_every_link_target_actually_exists_in_the_document(self) -> None:
+        """The real safety net: every #finding-<id> href in the whole
+        document must resolve to a real id="finding-<id>" somewhere in the
+        same document - a broken internal link is worse than none."""
+        import re
+
+        report = build_report()
+        html = render_report_html(report)
+        hrefs = set(re.findall(r'href="#(finding-[^"]+)"', html))
+        ids = set(re.findall(r'id="(finding-[^"]+)"', html))
+        assert hrefs, "expected at least one finding anchor link"
+        assert hrefs <= ids
 
 
 class TestCoverPage:
@@ -393,6 +464,50 @@ class TestUrgentActionFraming:
         assert "Remediation is recommended for the issues identified below" in html
 
 
+class TestExecutiveSummaryThreeSentenceOrder:
+    """Phase 6 Task 4: what was looked at, what was found, what to do
+    first - all three before the score panel; the gauge comes last, never
+    interleaved with plain-language content."""
+
+    def test_action_callout_now_precedes_the_score_panel(self) -> None:
+        """Low-only report: no urgent framing fires, so the generic
+        'Action required' callout is the 'what to do first' sentence -
+        it must appear BEFORE 'Overall Risk Score', not after (the
+        pre-Task-4 position)."""
+        report = build_report()
+        from collections import Counter
+
+        low_entries = tuple(dataclasses.replace(e, severity=Severity.LOW) for e in report.entries)
+        counts = Counter(e.severity for e in low_entries)
+        severity_counts = tuple(sorted(counts.items(), key=lambda kv: kv[0], reverse=True))
+        report = dataclasses.replace(report, entries=low_entries, severity_counts=severity_counts)
+        html = render_report_html(report)
+        section = html.split('id="executive-summary"')[1].split("</section>")[0]
+        assert section.index("Action required.") < section.index("Overall Risk Score")
+
+    def test_urgent_note_still_precedes_the_score_panel(self) -> None:
+        """Critical/High report: urgent_note is the 'what to do first'
+        content, and it must still appear before the gauge - Task 4 must
+        not have disturbed the position Phase 2C Step 1 built it to
+        have."""
+        html = render_report_html(build_report())  # default fixture has a CRITICAL finding
+        section = html.split('id="executive-summary"')[1].split("</section>")[0]
+        assert section.index("Critical finding(s) present") < section.index("Overall Risk Score")
+
+    def test_action_callout_never_renders_twice(self) -> None:
+        """The late, post-gauge position must be gone entirely - not just
+        moved and left duplicated."""
+        report = build_report()
+        from collections import Counter
+
+        low_entries = tuple(dataclasses.replace(e, severity=Severity.LOW) for e in report.entries)
+        counts = Counter(e.severity for e in low_entries)
+        severity_counts = tuple(sorted(counts.items(), key=lambda kv: kv[0], reverse=True))
+        report = dataclasses.replace(report, entries=low_entries, severity_counts=severity_counts)
+        html = render_report_html(report)
+        assert html.count("Action required.") == 1
+
+
 class TestNoSignalBandOverride:
     """Phase 2C Step 2, (d) (approved threshold): zero findings above
     Informational severity always scores 100.0 under both formulas and
@@ -456,6 +571,283 @@ class TestNoSignalBandOverride:
         html = render_report_html(report)
         assert "No Findings — Coverage Limited" in html
         assert ">Strong</span>" not in html
+
+
+class TestScoreLineScannerDenominator:
+    """Phase 2C Step 2, FIX 4: real report evidence (GAP-1) showed (d)'s
+    no-signal override rendering "100.0 / 100" with NO scanner denominator
+    at all - identical in form to a genuinely clean, fully-covered result,
+    even though the underlying assessment had zero scanner coverage. Zero
+    findings from zero coverage and zero findings from full coverage are
+    completely different claims; the denominator must appear on every
+    score line, regardless of which band override fires."""
+
+    def test_no_signal_report_with_real_coverage_shows_the_denominator(self) -> None:
+        """The case (d) was actually built for: scanners that DID run
+        successfully and found nothing above Informational - the score
+        line must still say so explicitly, not just show a bare number."""
+        summary = (
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=0),
+            ScannerRunSummary(scanner_id="nuclei", name="Nuclei", status=ScannerRunState.SUCCEEDED, findings_count=0),
+        )
+        report = build_report(with_findings=False, scanner_summary=summary)
+        html = render_report_html(report)
+        assert "No Findings — Coverage Limited" in html
+        assert "Based on 2 of 2 scanner(s)." in html
+
+    def test_normal_strong_band_report_also_shows_the_denominator(self) -> None:
+        """Not just the no-signal override case - ANY score line with real
+        scanner_summary data must show the denominator."""
+        summary = (
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=6),
+        )
+        report = build_report(with_findings=False, scanner_summary=summary)
+        low_entries = tuple(
+            dataclasses.replace(e, severity=Severity.LOW) for e in (build_report().entries[:1])
+        )
+        report = dataclasses.replace(
+            report,
+            entries=low_entries,
+            severity_counts=((Severity.LOW, 1),),
+        )
+        html = render_report_html(report)
+        assert ">Strong</span>" in html
+        assert "Based on 1 of 1 scanner(s)." in html
+
+    def test_v1_score_line_also_shows_the_denominator(self) -> None:
+        summary = (
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=0),
+        )
+        report = dataclasses.replace(
+            build_report(with_findings=False, scanner_summary=summary), score_version="v1"
+        )
+        html = render_report_html(report)
+        assert "Based on 1 of 1 scanner(s)." in html
+
+    def test_no_scanner_summary_at_all_omits_the_denominator_not_a_bogus_zero_of_zero(self) -> None:
+        # A pre-feature fixture with no scanner_summary has nothing to
+        # report - "0 of 0 scanner(s)" would be noise, not honesty.
+        html = render_report_html(build_report(with_findings=False))
+        assert "Based on" not in html
+
+    def test_incomplete_coverage_still_uses_its_own_inline_denominator(self) -> None:
+        """The Partial Coverage branch already states its own denominator
+        inline ("based on N of M scanners") - this must not gain a second,
+        duplicate coverage_clause on top of it."""
+        from kingsec.domain.enums import AssessmentStatus
+
+        summary = (
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=1),
+            ScannerRunSummary(scanner_id="nuclei", name="Nuclei", status=ScannerRunState.FAILED),
+        )
+        report = dataclasses.replace(
+            build_report(scanner_summary=summary), assessment_status=AssessmentStatus.COMPLETED_WITH_GAPS
+        )
+        html = render_report_html(report)
+        # Scoped to the score-panel specifically: the verdict headline
+        # above it (Verdict.from_findings()'s own coverage-lead sentence,
+        # pre-existing and unrelated to this fix) legitimately also
+        # mentions "1 of 2 scanners ran" - only the score line's OWN
+        # denominator must not be duplicated.
+        score_panel = html.split('class="score-panel"')[1].split("</div></div>")[0]
+        assert score_panel.count("of 2 scanner") == 1
+
+
+class TestZeroFindingsActionCalloutIsHonest:
+    """Phase 2C Step 2, GAP-1 fix round FIX 5a: real report evidence showed
+    "Action required. Remediation is recommended for the issues identified
+    below." rendered with ZERO findings - a COMPLETED_WITH_GAPS assessment
+    where the coverage gap itself, not any specific finding, is why action
+    is required (Verdict.from_findings() forces action_required=True here
+    regardless of findings). The empty-content defect family again."""
+
+    def test_zero_findings_incomplete_coverage_does_not_claim_issues_below(self) -> None:
+        from kingsec.domain.enums import AssessmentStatus
+
+        summary = (
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=0),
+            ScannerRunSummary(scanner_id="nuclei", name="Nuclei", status=ScannerRunState.FAILED),
+        )
+        report = dataclasses.replace(
+            build_report(with_findings=False, scanner_summary=summary),
+            assessment_status=AssessmentStatus.COMPLETED_WITH_GAPS,
+        )
+        html = render_report_html(report)
+        assert "Action required." in html
+        assert "Remediation is recommended for the issues identified below" not in html
+        assert "Scanner coverage was incomplete for this assessment" in html
+
+    def test_findings_present_still_says_issues_identified_below(self) -> None:
+        """Unaffected control: when there ARE real findings driving action
+        (not a coverage gap), the original phrasing stays exactly as
+        before. Severity forced to LOW (not Critical/High) so the urgent-
+        action framing doesn't suppress this callout entirely."""
+        report = build_report()
+        low_entries = tuple(dataclasses.replace(e, severity=Severity.LOW) for e in report.entries)
+        report = dataclasses.replace(
+            report, entries=low_entries, severity_counts=((Severity.LOW, len(low_entries)),)
+        )
+        html = render_report_html(report)
+        assert "Remediation is recommended for the issues identified below" in html
+
+
+class TestStrongBandNarrativeActionAware:
+    """Phase 2C Step 2, GAP-1 fix round FIX 5b: same contradiction class
+    Phase 2A-b fixed for "generally sound standing" appearing next to
+    "Action required" (docs/STATUS.md) - GAP-3's real evidence showed
+    "This places the assessed environment in strong standing overall."
+    sitting three lines above "Action required" for a fully-COMPLETED
+    assessment with 6 real Low findings. Resolved on the narrative side,
+    matching Phase 2A-b's own precedent (not by suppressing the callout,
+    which carries a true "these findings still need fixing" signal)."""
+
+    def test_strong_band_with_real_findings_names_the_remediation_need(self) -> None:
+        """GAP-3's exact real shape: a fully-COMPLETED assessment scoring
+        >=90 (Strong) from real Low findings that genuinely warrant
+        remediation."""
+        report = build_report()
+        low_entries = tuple(dataclasses.replace(e, severity=Severity.LOW) for e in report.entries)
+        report = dataclasses.replace(
+            report, entries=low_entries, severity_counts=((Severity.LOW, len(low_entries)),)
+        )
+        html = render_report_html(report)
+        section = html.split('class="score-panel"')[1].split("</div></div>")[0]
+        assert ">Strong</span>" in section
+        assert "though the findings below still warrant remediation" in section
+        assert "Action required." in html
+
+    def test_score_narrative_unit_action_required_true(self) -> None:
+        from kingsec.infrastructure.reporting.templates import _score_narrative
+
+        text = _score_narrative(95.0, action_required=True)
+        assert "though the findings below still warrant remediation" in text
+
+    def test_score_narrative_unit_action_required_false_unchanged(self) -> None:
+        from kingsec.infrastructure.reporting.templates import _score_narrative
+
+        text = _score_narrative(95.0, action_required=False)
+        assert text == "This places the assessed environment in strong standing overall."
+
+    def test_lower_tiers_unaffected_by_action_required_param(self) -> None:
+        """Only the Strong tier (>=90) needed this - Good/Fair/Weak/Critical
+        already name "issues that warrant attention" unconditionally, so
+        they never contradicted an Action Required callout to begin with."""
+        from kingsec.infrastructure.reporting.templates import _score_narrative
+
+        assert _score_narrative(80.0, action_required=True) == _score_narrative(80.0, action_required=False)
+
+
+class TestScopeAtAGlance:
+    """Phase 6 Task 1: a compact preview of the scope-limiting disclosures
+    (authentication scope, port coverage, scanner coverage), placed right
+    after the Executive Summary so a reader who stops after page 2 still
+    knows what was not examined. An addition, not a replacement - the full
+    versions of all three must still render, unchanged, in Limitations &
+    Methodology Notes."""
+
+    def test_section_present_and_positioned_after_executive_summary(self) -> None:
+        html = render_report_html(build_report())
+        assert 'id="scope-at-a-glance"' in html
+        assert html.index('id="executive-summary"') < html.index('id="scope-at-a-glance"')
+
+    def test_contains_the_authentication_scope_short_sentence(self) -> None:
+        html = render_report_html(build_report())
+        section = html.split('id="scope-at-a-glance"')[1].split("</section>")[0]
+        assert "unauthenticated assessment" in section
+
+    def test_full_authentication_sentence_still_renders_unchanged_in_limitations(self) -> None:
+        """Every disclosure must survive - the compact preview is an
+        addition, never a substitute for the full version."""
+        html = render_report_html(build_report())
+        limitations = html.split('id="limitations"')[1].split("</section>")[0]
+        assert "unauthenticated external assessment" in limitations
+        assert "reachable only after authentication was not tested" in limitations
+
+    def test_contains_port_coverage_when_nmap_recorded_a_spec(self) -> None:
+        summary = (
+            ScannerRunSummary(
+                scanner_id="nmap",
+                name="Nmap",
+                status=ScannerRunState.SUCCEEDED,
+                findings_count=1,
+                port_specification="top 1000 ports",
+            ),
+        )
+        html = render_report_html(build_report(scanner_summary=summary))
+        section = html.split('id="scope-at-a-glance"')[1].split("</section>")[0]
+        assert "Port coverage: top 1000 ports." in section
+
+    def test_omits_port_coverage_line_when_nmap_did_not_run(self) -> None:
+        html = render_report_html(build_report(scanner_summary=()))
+        section = html.split('id="scope-at-a-glance"')[1].split("</section>")[0]
+        assert "Port coverage" not in section
+
+    def test_contains_scanner_coverage_summary(self) -> None:
+        summary = (
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=1),
+            ScannerRunSummary(scanner_id="nuclei", name="Nuclei", status=ScannerRunState.FAILED),
+        )
+        html = render_report_html(build_report(scanner_summary=summary))
+        section = html.split('id="scope-at-a-glance"')[1].split("</section>")[0]
+        assert "Scanner coverage: 1 of 2 scanner(s) completed" in section
+
+
+class TestMethodology:
+    """Phase 6 Task 5: one place a reviewer can check how findings were
+    determined - which scanners ran and what each does, what was and
+    wasn't covered, and what the operator configured."""
+
+    def test_section_present_and_positioned_after_scope_at_a_glance(self) -> None:
+        html = render_report_html(build_report())
+        assert 'id="methodology"' in html
+        assert html.index('id="scope-at-a-glance"') < html.index('id="methodology"')
+
+    def test_known_profile_id_resolves_to_its_display_name(self) -> None:
+        html = render_report_html(build_report(profile_id="web-scan"))
+        section = html.split('id="methodology"')[1].split("</section>")[0]
+        assert "Web Application Scan" in section
+
+    def test_unknown_profile_id_falls_back_to_the_raw_id(self) -> None:
+        """A future or deleted profile must never be silently hidden or
+        guessed at - show the real id rather than nothing."""
+        html = render_report_html(build_report(profile_id="some-future-profile"))
+        section = html.split('id="methodology"')[1].split("</section>")[0]
+        assert "some-future-profile" in section
+
+    def test_no_profile_states_that_plainly(self) -> None:
+        html = render_report_html(build_report())  # profile_id defaults to None
+        section = html.split('id="methodology"')[1].split("</section>")[0]
+        assert "did not use a pre-configured profile" in section
+
+    def test_scanner_descriptions_appear_in_plain_language(self) -> None:
+        summary = (
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=1),
+            ScannerRunSummary(scanner_id="nuclei", name="Nuclei", status=ScannerRunState.FAILED),
+        )
+        html = render_report_html(build_report(scanner_summary=summary))
+        section = html.split('id="methodology"')[1].split("</section>")[0]
+        assert "Discovers open network ports and running services" in section
+        assert "Tests for known vulnerability patterns" in section
+
+    def test_coverage_facts_reuse_the_same_functions_as_scope_at_a_glance(self) -> None:
+        """These must never be a second, independently-worded copy that
+        could drift from Scope at a Glance / Limitations - assert the
+        SAME derived fact (the real recorded port spec) appears in both
+        sections for the same report."""
+        summary = (
+            ScannerRunSummary(
+                scanner_id="nmap",
+                name="Nmap",
+                status=ScannerRunState.SUCCEEDED,
+                findings_count=1,
+                port_specification="top 1000 ports",
+            ),
+        )
+        html = render_report_html(build_report(scanner_summary=summary))
+        methodology_section = html.split('id="methodology"')[1].split("</section>")[0]
+        limitations_section = html.split('id="limitations"')[1].split("</section>")[0]
+        assert "top 1000 ports" in methodology_section
+        assert "top 1000 ports" in limitations_section
 
 
 class TestLimitations:
@@ -547,8 +939,18 @@ class TestPortCoverageDisclosure:
         """A FAILED nmap must not be silently read as "used the default" -
         port_specification is None here too, but for a different reason
         (nmap never completed), and the two must not be conflated."""
+        # A companion SUCCEEDED scanner keeps this a real COMPLETED_WITH_GAPS
+        # shape (Phase 2C Step 2 GAP-1 fix: a report can never be built at
+        # all when EVERY scanner failed) - the assertion is about nmap
+        # specifically, not about the assessment's overall coverage.
+        other = ScannerRunSummary(scanner_id="nuclei", name="Nuclei", status=ScannerRunState.SUCCEEDED, findings_count=1)
         html = render_report_html(
-            build_report(scanner_summary=(self._nmap_summary(port_specification=None, status=ScannerRunState.FAILED),))
+            build_report(
+                scanner_summary=(
+                    self._nmap_summary(port_specification=None, status=ScannerRunState.FAILED),
+                    other,
+                )
+            )
         )
         assert "Nmap's port scan" not in html
 
@@ -629,7 +1031,12 @@ class TestRateLimitDisclosure:
         assert "Gobuster Scanner" in section
 
     def test_failed_scanner_gets_no_rate_limit_claim(self) -> None:
+        # A companion SUCCEEDED scanner keeps this a real COMPLETED_WITH_GAPS
+        # shape (Phase 2C Step 2 GAP-1 fix: a report can never be built at
+        # all when EVERY scanner failed) - the assertion is about ffuf
+        # specifically, not about the assessment's overall coverage.
         summary = (
+            self._run("nmap", "Nmap", rate_limit_description=None),
             self._run(
                 "ffuf",
                 "ffuf Scanner",
@@ -793,6 +1200,174 @@ class TestRiskPrioritization:
         assert "estimated fix effort" not in section.lower()
 
 
+class TestOpenPortGrouping:
+    """Phase 6 Task 3: open-port findings sharing severity, status, and
+    effective remediation collapse into one group, presentation-only, and
+    consistently across all three finding-related views."""
+
+    @staticmethod
+    def _port_finding(report, index: int, title: str, *, severity=None):
+        """Clone an existing entry into a fresh, real open-port finding -
+        same discipline as the file's other tests that build FindingSummary
+        variants via dataclasses.replace() rather than hand-rolling one."""
+        template = report.entries[1]  # the fixture's LOW "Missing headers" entry
+        return dataclasses.replace(
+            template,
+            finding_id=f"port-{index}",
+            title=title,
+            description="",
+            severity=severity if severity is not None else template.severity,
+            recommendations=(),
+        )
+
+    def _report_with_ports(self, titles: list[str], *, severity=Severity.LOW):
+        report = build_report()
+        ports = [self._port_finding(report, i, t, severity=severity) for i, t in enumerate(titles)]
+        entries = (*report.entries, *ports)
+        from collections import Counter
+
+        counts = Counter(e.severity for e in entries)
+        severity_counts = tuple(sorted(counts.items(), key=lambda kv: kv[0], reverse=True))
+        return dataclasses.replace(report, entries=entries, severity_counts=severity_counts)
+
+    def test_multiple_open_port_findings_collapse_into_one_card(self) -> None:
+        report = self._report_with_ports(["Open port 22/tcp", "Open port 80/tcp", "Open port 3389/tcp"])
+        html = render_report_html(report)
+        section = html.split('id="finding-details"')[1].split("</section>")[0]
+        # SQL Injection + Missing headers (both non-port, still singleton) + the one port group.
+        assert section.count('class="finding-card"') == 3
+        assert "3 network services exposed" in section
+
+    def test_group_title_names_severity_when_multiple_groups_exist(self) -> None:
+        """Two 'N network services exposed' groups at different severities
+        must not read as identical titles side by side - the title names
+        the severity so a reader can tell them apart without opening both
+        cards (Phase 6 closeout - small, cheap fix)."""
+        report = build_report()
+        low_ports = [
+            self._port_finding(report, i, t, severity=Severity.LOW)
+            for i, t in enumerate(["Open port 22/tcp", "Open port 80/tcp"])
+        ]
+        info_ports = [
+            self._port_finding(report, i, t, severity=Severity.INFORMATIONAL)
+            for i, t in enumerate(["Open port 445/tcp", "Open port 3389/tcp"], start=2)
+        ]
+        entries = (*report.entries, *low_ports, *info_ports)
+        from collections import Counter
+
+        counts = Counter(e.severity for e in entries)
+        severity_counts = tuple(sorted(counts.items(), key=lambda kv: kv[0], reverse=True))
+        report = dataclasses.replace(report, entries=entries, severity_counts=severity_counts)
+        html = render_report_html(report)
+        section = html.split('id="finding-details"')[1].split("</section>")[0]
+        assert "2 network services exposed (Low)" in section
+        assert "2 network services exposed (Informational)" in section
+
+    def test_group_preserves_each_ports_own_evidence(self) -> None:
+        report = self._report_with_ports(["Open port 22/tcp", "Open port 80/tcp"])
+        html = render_report_html(report)
+        section = html.split('id="finding-details"')[1].split("</section>")[0]
+        assert "22/tcp" in section
+        assert "80/tcp" in section
+
+    def test_remediation_appears_once_per_group_not_per_member(self) -> None:
+        report = self._report_with_ports(
+            ["Open port 22/tcp", "Open port 80/tcp", "Open port 443/tcp", "Open port 3389/tcp"]
+        )
+        html = render_report_html(report)
+        assert html.count("Review whether this open port/service is required") == 1
+
+    def test_differing_severity_prevents_merging(self) -> None:
+        report = build_report()
+        low_port = self._port_finding(report, 0, "Open port 22/tcp", severity=Severity.LOW)
+        info_port = self._port_finding(report, 1, "Open port 80/tcp", severity=Severity.INFORMATIONAL)
+        entries = (*report.entries, low_port, info_port)
+        from collections import Counter
+
+        counts = Counter(e.severity for e in entries)
+        severity_counts = tuple(sorted(counts.items(), key=lambda kv: kv[0], reverse=True))
+        report = dataclasses.replace(report, entries=entries, severity_counts=severity_counts)
+        html = render_report_html(report)
+        section = html.split('id="finding-details"')[1].split("</section>")[0]
+        # SQL Injection + Missing headers + 2 DISTINCT port singletons - never merged.
+        assert section.count('class="finding-card"') == 4
+        assert "network services exposed" not in section
+
+    def test_non_port_findings_are_never_grouped(self) -> None:
+        """The default fixture's two findings (neither matches the
+        open-port title pattern) must render exactly as before Task 3 -
+        two singleton cards, no group title anywhere."""
+        html = render_report_html(build_report())
+        section = html.split('id="finding-details"')[1].split("</section>")[0]
+        assert section.count('class="finding-card"') == 2
+        assert "network services exposed" not in section
+
+    def test_grouped_consistently_across_all_three_views(self) -> None:
+        """Risk Prioritization, the Findings table, and Finding Details
+        must all show the SAME single group, not three ports in one view
+        and one group in another."""
+        report = self._report_with_ports(["Open port 22/tcp", "Open port 80/tcp", "Open port 443/tcp"])
+        html = render_report_html(report)
+
+        risk_section = html.split('id="risk-prioritization"')[1].split("</section>")[0]
+        findings_section = html.split('<section id="findings">')[1].split("</section>")[0]
+        details_section = html.split('id="finding-details"')[1].split("</section>")[0]
+
+        assert risk_section.count("3 network services exposed") == 1
+        assert findings_section.count("3 network services exposed") == 1
+        assert details_section.count("3 network services exposed") == 1
+        # None of the three individual port titles appear as their own
+        # separate row/card/list-item anywhere - only inside the group.
+        for port_title in ("Open port 22/tcp", "Open port 80/tcp", "Open port 443/tcp"):
+            assert port_title not in risk_section
+            assert port_title not in findings_section
+
+    def test_grouping_never_changes_total_findings_or_severity_counts(self) -> None:
+        """The scoring-safety guarantee: report.total_findings and
+        severity_counts are computed from the real, ungrouped entries
+        before rendering ever begins - grouping the RENDERED page must
+        never be visible in those numbers."""
+        report = self._report_with_ports(["Open port 22/tcp", "Open port 80/tcp", "Open port 443/tcp"])
+        assert report.total_findings == 5  # 2 fixture findings + 3 real port findings
+        assert sum(count for _, count in report.severity_counts) == 5
+        html = render_report_html(report)
+        # The Findings table and Risk Summary must still reflect the real,
+        # ungrouped counts - the executive summary's own finding count is
+        # the clearest read of this.
+        assert f"<strong>{report.total_findings}</strong> finding(s) in total" in html
+
+    def test_title_format_is_wired_to_the_real_nmap_parser_construction(self) -> None:
+        """THE required test (Task 3, point 2): grouping must not depend
+        on an independently-maintained copy of "Open port N/proto" - it
+        must break the moment nmap_parser.py's own construction changes.
+        Calls the REAL parse_nmap_xml() against a minimal, valid nmap XML
+        fragment (not a hand-built Finding) and asserts the resulting
+        title matches OPEN_PORT_TITLE_PATTERN - the same pattern
+        _group_open_port_findings groups on. If nmap_parser.py's title
+        f-string ever changes shape, this test fails here, not silently
+        inside the grouping logic."""
+        from kingsec.infrastructure.scanner.nmap import OPEN_PORT_TITLE_PATTERN
+        from kingsec.infrastructure.scanner.nmap_parser import parse_nmap_xml
+
+        xml = (
+            "<nmaprun>"
+            "<host>"
+            '<status state="up"/>'
+            '<address addr="10.0.0.5"/>'
+            "<ports>"
+            '<port portid="22" protocol="tcp"><state state="open"/></port>'
+            "</ports>"
+            "</host>"
+            "</nmaprun>"
+        )
+        findings = parse_nmap_xml(xml)
+        assert len(findings) == 1
+        match = OPEN_PORT_TITLE_PATTERN.match(findings[0].title)
+        assert match is not None, f"nmap_parser.py's real title {findings[0].title!r} no longer matches the grouping pattern"
+        assert match.group(1) == "22"
+        assert match.group(2) == "tcp"
+
+
 class TestAffectedAssets:
     def test_renders_target_and_finding_count(self) -> None:
         report = build_report()
@@ -855,6 +1430,10 @@ class TestScannerCoverage:
         from kingsec.domain.enums import ScannerRunState
 
         summary = (
+            # A companion SUCCEEDED scanner keeps this a real
+            # COMPLETED_WITH_GAPS shape (Phase 2C Step 2 GAP-1 fix: a report
+            # can never be built at all when EVERY scanner failed).
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=1),
             ScannerRunSummary(
                 scanner_id="trivy",
                 name="Trivy",
@@ -880,6 +1459,10 @@ class TestScannerCoverageStderrDisclosure:
         from kingsec.domain.enums import ScannerRunState
 
         summary = (
+            # A companion SUCCEEDED scanner keeps this a real
+            # COMPLETED_WITH_GAPS shape (Phase 2C Step 2 GAP-1 fix: a report
+            # can never be built at all when EVERY scanner failed).
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=1),
             ScannerRunSummary(
                 scanner_id="ffuf",
                 name="ffuf",
@@ -897,6 +1480,7 @@ class TestScannerCoverageStderrDisclosure:
         from kingsec.domain.enums import ScannerRunState
 
         summary = (
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=1),
             ScannerRunSummary(
                 scanner_id="trivy",
                 name="Trivy",
@@ -916,6 +1500,10 @@ class TestScannerCoverageStderrDisclosure:
         from kingsec.domain.enums import ScannerRunState
 
         summary = (
+            # A companion SUCCEEDED scanner keeps this a real
+            # COMPLETED_WITH_GAPS shape (Phase 2C Step 2 GAP-1 fix: a report
+            # can never be built at all when EVERY scanner failed).
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=1),
             ScannerRunSummary(
                 scanner_id="ffuf",
                 name="ffuf",

@@ -57,8 +57,22 @@ class TestOpenAPI:
 class TestVersionRouting:
     def test_v1_routes_accessible(self) -> None:
         from kingsec.adapters.inbound.web.routes import router
+        from kingsec.application.ports import UserRepository
+
+        class _StubUserRepository:
+            """Phase 3: /health calls app.resolve(UserRepository) directly."""
+
+            def count_by_role(self, role: object) -> int:
+                return 1
+
+        class _StubApp:
+            def resolve(self, service_type: type) -> object:
+                if service_type is UserRepository:
+                    return _StubUserRepository()
+                raise ValueError(f"unexpected resolve() call in this test: {service_type}")
 
         app = FastAPI()
+        app.state.kingsec_app = _StubApp()  # type: ignore[attr-defined]
         app.include_router(router)
         client = TestClient(app, raise_server_exceptions=False)
         resp = client.get("/api/v1/health")

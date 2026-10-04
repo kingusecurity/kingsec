@@ -33,8 +33,6 @@ from kingsec.application.dto import (
     GetAssessmentRequest,
     ListAssessmentsRequest,
     ListAssessmentsResponse,
-    StartAssessmentRequest,
-    StartAssessmentResponse,
     SubmitAssessmentRequest,
     SubmitAssessmentResponse,
 )
@@ -73,14 +71,6 @@ class _IntegrationService(ServiceAPI):
             assessment_id=self._assessment_id,
             status="authorized",
             target=f"{request.target_value} ({request.target_type})",
-        )
-
-    def start_assessment(self, request: StartAssessmentRequest) -> StartAssessmentResponse:
-        return StartAssessmentResponse(
-            assessment_id=request.assessment_id,
-            status="completed",
-            findings_count=0,
-            highest_severity=None,
         )
 
     def submit_assessment(self, request: SubmitAssessmentRequest) -> SubmitAssessmentResponse:

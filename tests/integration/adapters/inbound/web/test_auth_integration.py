@@ -20,7 +20,7 @@ from kingsec.application.ports.outbound.lockout_repository import LockoutReposit
 from kingsec.application.ports.outbound.mfa_secret_repository import MfaSecretRepository
 from kingsec.application.ports.outbound.rate_limiter import RateLimiterPort
 from kingsec.application.use_cases.check_rate_limit import CheckRateLimit
-from kingsec.domain import Role, User
+from kingsec.domain import User
 from kingsec.domain.mfa import MfaSecret
 from kingsec.domain.rate_limit import AccountLockout, LockoutPolicy, RateLimitDecision, RateLimitPolicy
 from kingsec.infrastructure.config import Settings
@@ -134,18 +134,7 @@ class StubUserRepo:
     def save(self, user: User) -> None:
         self._users[user.id] = user
 
-    def save_new_user_claiming_bootstrap_admin(self, user: User) -> User:
-        if not self._users:
-            user = User(
-                id=user.id,
-                username=user.username,
-                email=user.email,
-                password_hash=user.password_hash,
-                role=Role.ADMIN,
-                is_active=user.is_active,
-                created_at=user.created_at,
-                last_login_at=user.last_login_at,
-            )
+    def save_new_user(self, user: User) -> User:
         self._users[user.id] = user
         return user
 
@@ -269,7 +258,8 @@ class TestAuthFlowIntegration:
         app, _token_service, _user_repo = _build_app()
         client = TestClient(app)
 
-        # Step 1: Register (first user becomes Admin)
+        # Step 1: Register (Phase 3: self-registration always grants Viewer,
+        # never Admin, regardless of order - see RegisterUser)
         register_resp = client.post(
             "/api/v1/auth/register",
             json={
@@ -281,7 +271,7 @@ class TestAuthFlowIntegration:
         assert register_resp.status_code == 201
         body = register_resp.json()
         assert body["username"] == "newuser"
-        assert body["role"] == "Admin"
+        assert body["role"] == "Viewer"
 
         # Step 2: Login
         login_resp = client.post(
@@ -305,7 +295,7 @@ class TestAuthFlowIntegration:
         assert me_resp.status_code == 200
         me_body = me_resp.json()
         assert me_body["username"] == "newuser"
-        assert me_body["role"] == "Admin"
+        assert me_body["role"] == "Viewer"
 
     def test_refresh_token_lifecycle(self) -> None:
         """Login → Refresh → use new access token."""
@@ -363,7 +353,8 @@ class TestAuthFlowIntegration:
         app, _token_service, _user_repo = _build_app()
         client = TestClient(app)
 
-        # Register admin (first user becomes Admin)
+        # Register an unrelated first user (Phase 3: self-registration
+        # never grants Admin - both users below end up Viewer)
         client.post(
             "/api/v1/auth/register",
             json={
@@ -372,7 +363,7 @@ class TestAuthFlowIntegration:
                 "password": "AdminPass99",
             },
         )
-        # Register viewer (second user becomes Viewer)
+        # Register the user under test - also Viewer
         client.post(
             "/api/v1/auth/register",
             json={

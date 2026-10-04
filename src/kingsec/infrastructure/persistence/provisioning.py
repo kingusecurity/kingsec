@@ -15,11 +15,12 @@ from typing import TYPE_CHECKING, Any, Protocol
 from sqlalchemy import Engine
 
 from kingsec.application import AssessmentRepository, ReportRepository
+from kingsec.application.ports import AuthorizationGrantRepository
 from kingsec.application.ports.outbound.assessment_concurrency import AssessmentConcurrencyPort
 from kingsec.infrastructure.logging import get_logger
 
 from .database import create_database_engine, create_session_factory, validate_schema_version
-from .repositories import LegacyAssessmentRepository, LegacyReportRepository
+from .repositories import LegacyAssessmentRepository, LegacyAuthorizationGrantRepository, LegacyReportRepository
 from .repositories.assessment_concurrency import SqlAlchemyAssessmentConcurrencyRepository
 
 if TYPE_CHECKING:  # typing only
@@ -80,6 +81,12 @@ def register_persistence(
 
     container.register_instance(AssessmentRepository, LegacyAssessmentRepository(session_factory))
     container.register_instance(ReportRepository, LegacyReportRepository(session_factory))
+    # Phase 4 (authorization scope enforcement): registered unconditionally -
+    # whether CreateAssessment actually RECEIVES this depends on
+    # settings.security.enforce_authorization_scope, decided in
+    # composition.py's _register_use_cases(), not here. This function's
+    # job is only "is a real adapter available", never a policy decision.
+    container.register_instance(AuthorizationGrantRepository, LegacyAuthorizationGrantRepository(session_factory))
     # KSEC-87-02: same session_factory/engine as everything else here - the
     # concurrency-slot table lives in the same database, so its atomic
     # UPDATEs participate in the same SQLite write-serialization as every

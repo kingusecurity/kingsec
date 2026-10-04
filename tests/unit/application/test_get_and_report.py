@@ -12,7 +12,6 @@ from tests.unit.application.conftest import (
     InMemoryReportRepository,
     StubAI,
     StubReportGenerator,
-    StubScanner,
     UnconfiguredAI,
     make_findings,
 )
@@ -23,8 +22,6 @@ from kingsec.application import (
     GenerateReportRequest,
     GetAssessment,
     GetAssessmentRequest,
-    StartAssessment,
-    StartAssessmentRequest,
 )
 from kingsec.application.ports import (
     AIPort,
@@ -46,12 +43,18 @@ from kingsec.domain import (
 
 
 def _completed(assessments: InMemoryAssessmentRepository, findings: list[Finding] | None = None) -> Assessment:
+    """A COMPLETED assessment with recorded findings - pure setup for tests
+    that exercise GetAssessment/GenerateReport, not scan orchestration
+    itself (that has its own coverage in test_submit_assessment.py), so
+    this manipulates the domain object directly rather than going through
+    a use case."""
     assessment = Assessment.create(Target("10.0.0.5", TargetType.IP_ADDRESS))
     assessment.authorize(Authorization.grant("tester", scope="10.0.0.5"))
+    assessment.start()
+    for finding in findings if findings is not None else make_findings():
+        assessment.record_finding(finding)
+    assessment.complete()
     assessments.save(assessment)
-    StartAssessment(assessments, StubScanner(findings if findings is not None else make_findings())).execute(
-        StartAssessmentRequest(str(assessment.id))
-    )
     return assessment
 
 

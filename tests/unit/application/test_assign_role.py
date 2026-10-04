@@ -32,7 +32,7 @@ class StubUserRepository(UserRepository):
     def save(self, user: User) -> None:
         self._users[user.id] = user
 
-    def save_new_user_claiming_bootstrap_admin(self, user: User) -> User:
+    def save_new_user(self, user: User) -> User:
         self._users[user.id] = user
         return user
 

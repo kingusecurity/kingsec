@@ -2,6 +2,7 @@ import { Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import { LoadingState } from '@/components/ui'
 import { useMe } from '@/hooks/use-auth'
+import { useHealth } from '@/hooks/use-settings'
 
 const roleHierarchy: Record<string, number> = {
   viewer: 10,
@@ -67,6 +68,31 @@ export function GuestGuard({ children }: GuestGuardProps) {
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />
+  }
+
+  return <>{children}</>
+}
+
+interface BootstrapGuardProps {
+  children: React.ReactNode
+}
+
+/**
+ * Redirects /login and /register to /bootstrap-required when no
+ * administrator exists yet - a self-registration form that always
+ * refuses with "no administrator exists yet" is a dead end, not a
+ * usable first-run path. Never wrap /bootstrap-required itself in
+ * this guard - that would be a redirect loop.
+ */
+export function BootstrapGuard({ children }: BootstrapGuardProps) {
+  const { data, isLoading } = useHealth()
+
+  if (isLoading) {
+    return <LoadingState message="Checking instance status..." />
+  }
+
+  if (data?.bootstrap_required) {
+    return <Navigate to="/bootstrap-required" replace />
   }
 
   return <>{children}</>

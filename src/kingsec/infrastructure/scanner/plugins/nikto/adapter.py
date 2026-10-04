@@ -23,6 +23,7 @@ from kingsec.domain import (
     ScannerPluginMetadata,
     ScannerRequirement,
     ScannerResult,
+    ScannerSurfaceTier,
     Target,
 )
 from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE
@@ -77,6 +78,11 @@ class NiktoPlugin(ScannerPluginPort):
                 requirement=ScannerRequirement.REACHABLE_HOST,
                 scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                 output_format=OutputFormat.RAW_TEXT,
+                # Phase 4: verified directly against nikto.py - parses
+                # (hostname, port, use_ssl) from the target and scans the
+                # web server there; does not respect any path component at
+                # all. Host:port, any path.
+                surface_tier=ScannerSurfaceTier.HOST_PORT_ANY_PATH,
             ),
         )
 

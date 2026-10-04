@@ -17,6 +17,7 @@ from __future__ import annotations
 from .audit_repository import SqlAlchemyAuditRepository
 from .base import Base
 from .database import (
+    SchemaNotMigratedError,
     build_sqlite_url,
     create_database_engine,
     create_schema,
@@ -40,6 +41,7 @@ from .models import (
 from .provisioning import register_persistence
 from .repositories import (
     LegacyAssessmentRepository,
+    LegacyAuthorizationGrantRepository,
     LegacyReportRepository,
     SQLAlchemyAssessmentRepository,
     SQLAlchemyAssetRepository,
@@ -63,6 +65,7 @@ __all__ = [
     "FindingORM",
     "JobModel",
     "LegacyAssessmentRepository",
+    "LegacyAuthorizationGrantRepository",
     "LegacyReportRepository",
     "RecommendationORM",
     "ReportModel",
@@ -74,6 +77,7 @@ __all__ = [
     "SQLAlchemyScanRepository",
     "SQLAlchemyUnitOfWork",
     "ScanModel",
+    "SchemaNotMigratedError",
     "SqlAlchemyAuditRepository",
     "SqlAlchemyUnitOfWorkFactory",
     "UserORM",

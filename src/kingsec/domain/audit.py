@@ -40,6 +40,11 @@ class AuditAction(StrEnum):
 
     # User management
     USER_REGISTERED = "user_registered"
+    # kingsec-bootstrap CLI (Phase 3) - distinct from USER_REGISTERED so an
+    # operator scanning audit logs for admin-creation events finds a
+    # self-describing entry, not a USER_REGISTERED row that needs
+    # filtering by role.
+    ADMIN_BOOTSTRAPPED = "admin_bootstrapped"
     ROLE_CHANGED = "role_changed"
     PASSWORD_CHANGED = "password_changed"  # nosec B105 — audit event type name, not a credential
     USER_DEACTIVATED = "user_deactivated"
@@ -60,6 +65,19 @@ class AuditAction(StrEnum):
 
     # Authorization failures
     AUTHORIZATION_FAILURE = "authorization_failure"
+
+    # Authorization grants (Phase 4: scope enforcement)
+    AUTHORIZATION_GRANT_CREATED = "authorization_grant_created"
+    AUTHORIZATION_GRANT_REVOKED = "authorization_grant_revoked"
+    # A CreateAssessment.execute() call was refused because no active
+    # grant covers the target at a ScannerSurfaceTier the profile's
+    # scanners would actually touch - see AuthorizationScopeError.
+    SCOPE_CHECK_REFUSED = "scope_check_refused"
+    # An admin used the scope-check override to proceed despite
+    # SCOPE_CHECK_REFUSED's own refusal - distinct from it so an audit
+    # query can find every override separately from every refusal, not
+    # just infer overrides from the absence of a matching refusal entry.
+    SCOPE_CHECK_OVERRIDDEN = "scope_check_overridden"
 
     # Schedule lifecycle
     SCHEDULE_CREATED = "schedule_created"

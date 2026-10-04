@@ -8,7 +8,9 @@ the tests behavioural: we assert on outcomes, not on which methods were called.
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Sequence
+from datetime import datetime
 
 import pytest
 
@@ -18,9 +20,11 @@ from kingsec.application import (
     RenderedReport,
     ReportNotFoundError,
 )
+from kingsec.application.errors import AuthorizationGrantNotFoundError
 from kingsec.application.ports import (
     AIPort,
     AssessmentRepository,
+    AuthorizationGrantRepository,
     ReportGeneratorPort,
     ReportRepository,
     ScannerPort,
@@ -30,12 +34,14 @@ from kingsec.domain import (
     Assessment,
     AssessmentId,
     AssessmentStatus,
+    AuthorizationGrant,
     Finding,
     Recommendation,
     Report,
     Severity,
     Target,
 )
+from kingsec.domain.identifiers import AuthorizationGrantId
 
 # --- fake repositories -------------------------------------------------------
 
@@ -98,6 +104,31 @@ class InMemoryAssessmentRepository(AssessmentRepository):
         is_admin: bool = False,
     ) -> tuple[list[FindingProjection], int]:
         return [], 0
+
+
+class InMemoryAuthorizationGrantRepository(AuthorizationGrantRepository):
+    def __init__(self) -> None:
+        self._store: dict[str, AuthorizationGrant] = {}
+
+    def save(self, grant: AuthorizationGrant) -> None:
+        self._store[grant.id.value] = grant
+
+    def get(self, grant_id: AuthorizationGrantId) -> AuthorizationGrant:
+        try:
+            return self._store[grant_id.value]
+        except KeyError:
+            raise AuthorizationGrantNotFoundError(grant_id.value) from None
+
+    def list(self, *, limit: int = 50, offset: int = 0) -> list[AuthorizationGrant]:
+        ordered = sorted(self._store.values(), key=lambda g: g.valid_from, reverse=True)
+        return ordered[offset : offset + limit]
+
+    def find_active(self, at: datetime) -> list[AuthorizationGrant]:
+        return [g for g in self._store.values() if g.is_active(at)]
+
+    def revoke(self, grant_id: AuthorizationGrantId, revoked_at: datetime) -> None:
+        grant = self.get(grant_id)
+        self._store[grant_id.value] = dataclasses.replace(grant, revoked_at=revoked_at)
 
 
 class InMemoryReportRepository(ReportRepository):
@@ -247,6 +278,11 @@ class StubReportGenerator(ReportGeneratorPort):
 @pytest.fixture
 def assessments() -> InMemoryAssessmentRepository:
     return InMemoryAssessmentRepository()
+
+
+@pytest.fixture
+def authorization_grants() -> InMemoryAuthorizationGrantRepository:
+    return InMemoryAuthorizationGrantRepository()
 
 
 @pytest.fixture

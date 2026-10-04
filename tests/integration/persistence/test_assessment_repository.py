@@ -328,6 +328,41 @@ class TestMapping:
         assert loaded.authorization is not None
         assert loaded.authorization.authorized_by == "tester"
 
+    def test_null_authorization_id_round_trips_and_the_row_renders_correctly(
+        self, repo: SQLAlchemyAssessmentRepository, session: Session
+    ) -> None:
+        """Every pre-enforcement (and pre-Phase-4) row has authorization_id
+        = NULL at the database level. This is the real risk the dropped
+        synthesized-grant backfill test was replaced with: prove a NULL
+        row loads and serves through the actual read path
+        (AssessmentView.from_domain(), the same mapping GetAssessment
+        uses) without raising."""
+        from kingsec.application.dto import AssessmentView
+
+        assessment = make_assessment()
+        assert assessment.authorization_id is None
+        repo.save(assessment)
+        session.flush()
+
+        loaded = repo.get(assessment.id)
+        assert loaded.authorization_id is None
+
+        view = AssessmentView.from_domain(loaded)
+        assert view.assessment_id == str(loaded.id)
+
+    def test_round_trips_a_populated_authorization_id(
+        self, repo: SQLAlchemyAssessmentRepository, session: Session
+    ) -> None:
+        assessment = Assessment.create(
+            Target("example.com", TargetType.HOSTNAME),
+            authorization_id="agrt-deadbeef00000000000000000000000",
+        )
+        repo.save(assessment)
+        session.flush()
+
+        loaded = repo.get(assessment.id)
+        assert loaded.authorization_id == "agrt-deadbeef00000000000000000000000"
+
     def test_round_trips_unicode(self, repo: SQLAlchemyAssessmentRepository, session: Session) -> None:
         target = Target("unicode-test.example.com", TargetType.HOSTNAME)
         assessment = make_assessment(target=target)

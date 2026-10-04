@@ -54,6 +54,7 @@ Activated by default when no license key is configured.
 - **Community → Professional**: Activate a Professional license key.
 - **Professional → Enterprise**: Activate an Enterprise license key (replaces existing license).
 - **Downgrade**: Deactivate the current license and activate a lower-tier license.
+- **Renewal**: not supported as an in-place operation — a signed license's fields are cryptographically fixed by the issuer, so renewal means issuing a new signed key and activating it, the same as any other upgrade above.
 
 ## License Validation
 
@@ -79,7 +80,11 @@ The `LicenseGate` service centralizes all edition checks:
 - `can_use_team_collaboration()`
 - `can_create_multiple_orgs()`
 
-No scattered edition checks exist outside this service.
+No scattered edition checks exist outside this service — but four of the
+ten methods above (`can_use_advanced_reports`, `can_use_custom_roles`,
+`can_use_custom_branding`, `can_create_multiple_orgs`) are not currently
+called by anything, so the edition tier has no effect on those four
+capabilities today. Tracked as an open defect; see `docs/STATUS.md`.
 
 ## API Endpoints
 
@@ -97,10 +102,14 @@ All license events are recorded in the audit trail:
 
 - `LICENSE_ACTIVATED` — A new license was activated.
 - `LICENSE_EXPIRED` — A license reached its expiration date.
-- `LICENSE_RENEWED` — A license was renewed with a new key or edition.
 - `LICENSE_VALIDATION_FAILED` — Signature or clock rollback detection triggered.
 - `LICENSE_DEACTIVATED` — A license was manually deactivated.
-- `EDITION_CHANGED` — The edition was changed (e.g. Professional → Enterprise).
+
+Two additional action types, `LICENSE_RENEWED` and `EDITION_CHANGED`, are
+declared but never emitted by any code path today — renewal by field
+mutation is explicitly unsupported (see Renewal, under Upgrade Path,
+above; issuing and activating a new signed key records `LICENSE_ACTIVATED`
+instead), and no separate edition-change event exists.
 
 ## Configuration
 

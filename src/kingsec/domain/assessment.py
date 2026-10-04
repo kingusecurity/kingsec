@@ -97,6 +97,7 @@ class Assessment:
         created_at: datetime | None = None,
         profile_id: str | None = None,
         schedule_occurrence_id: str | None = None,
+        authorization_id: str | None = None,
         version: int = 0,
     ) -> None:
         if not isinstance(assessment_id, AssessmentId):
@@ -137,6 +138,22 @@ class Assessment:
         # carried through to persistence, the same treatment profile_id
         # already gets for its own, unrelated reference.
         self._schedule_occurrence_id = schedule_occurrence_id
+        # Phase 4 (authorization scope enforcement): durable record of WHICH
+        # AuthorizationGrant(s) find_covering() actually matched when this
+        # assessment was created - proof, for audit, of what a given
+        # assessment relied on. None means one of two things, both honestly
+        # "no specific grant is why this assessment exists": created before
+        # enforcement existed, or enforcement was configured but nothing
+        # about the target/profile required a grant check. A comma-joined
+        # list of grant ids records the (real, possible) case where
+        # different required ScannerSurfaceTiers were each satisfied by a
+        # DIFFERENT grant - never silently collapsed to just one, which
+        # would misstate the audit trail. The sentinel
+        # ADMIN_OVERRIDE_AUTHORIZATION_ID (application/use_cases/
+        # create_assessment.py) marks the admin-bypass case, distinguishable
+        # from both by never matching the "agrt-" prefix a real grant id
+        # always has.
+        self._authorization_id = authorization_id
         # Populated once, at completion, from the execution engine's
         # per-scanner state - empty until then, and permanently empty for
         # assessments that predate this feature.
@@ -153,6 +170,7 @@ class Assessment:
         created_at: datetime | None = None,
         profile_id: str | None = None,
         schedule_occurrence_id: str | None = None,
+        authorization_id: str | None = None,
     ) -> Assessment:
         """Create a new DRAFT assessment with a freshly generated id."""
         return cls(
@@ -161,6 +179,7 @@ class Assessment:
             created_at=created_at,
             profile_id=profile_id,
             schedule_occurrence_id=schedule_occurrence_id,
+            authorization_id=authorization_id,
         )
 
     @classmethod
@@ -177,6 +196,7 @@ class Assessment:
         profile_id: str | None = None,
         scanner_summary: tuple[ScannerRunSummary, ...] = (),
         schedule_occurrence_id: str | None = None,
+        authorization_id: str | None = None,
         version: int = 1,
     ) -> Assessment:
         """Rebuild an Assessment from stored state (persistence boundary).
@@ -205,6 +225,7 @@ class Assessment:
         a._owner_id = None
         a._profile_id = profile_id
         a._schedule_occurrence_id = schedule_occurrence_id
+        a._authorization_id = authorization_id
         a._scanner_summary = scanner_summary
         a._findings = {f.id: f for f in (findings or [])}
         if len(a._findings) != len(findings or []):
@@ -271,6 +292,12 @@ class Assessment:
     @property
     def schedule_occurrence_id(self) -> str | None:
         return self._schedule_occurrence_id
+
+    @property
+    def authorization_id(self) -> str | None:
+        """See the field comment in __init__ for what the three possible
+        shapes of a non-None value mean."""
+        return self._authorization_id
 
     @property
     def scanner_summary(self) -> tuple[ScannerRunSummary, ...]:

@@ -43,6 +43,7 @@ from .models import (
     NmapSettings,
     PerformanceSettings,
     RateLimitSettings,
+    ReportingSettings,
     ScannerSettings,
     SecretsSettings,
     SecurityHeadersSettings,
@@ -104,6 +105,7 @@ class Settings(BaseSettings):
     middleware: MiddlewareSettings = Field(default_factory=MiddlewareSettings)
     performance: PerformanceSettings = Field(default_factory=PerformanceSettings)
     integrations: IntegrationSettings = Field(default_factory=IntegrationSettings)
+    reporting: ReportingSettings = Field(default_factory=ReportingSettings)
 
     @model_validator(mode="after")
     def _guard_default_secrets_in_production(self) -> Settings:

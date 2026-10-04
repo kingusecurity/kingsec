@@ -137,10 +137,60 @@ Per the plan's own rule ("Do not start a phase until the previous one's acceptan
 
 ## Backlog (logged, not fixed — flagged during Phase 1 setup)
 
-1. **BUG: a `KINGSEC_STORAGE__DATA_DIR` override that fails to resolve silently falls back to the default path instead of failing loudly.** Discovered the hard way during Phase 1 setup: an env-file `source` with an unquoted path containing spaces silently dropped the override, and `kingsec-migrate` ran against the real `~/.kingsec/kingsec.db` instead of the intended isolated directory. The settings layer should fail closed (raise, not silently substitute a default) when an explicitly-set value for a security/isolation-relevant path can't be applied — same philosophy as the existing secret-placeholder guardrail. Not fixed — out of scope for Phase 1.
-2. **Two account-lockout implementations exist; the one covered by tests (`AccountLockoutService`, fixed in Phase 0) is not the one the live login path actually uses** (`CheckAccountLockout` + a DB-backed `lockout_repo`, reading the `account_lockouts` table). Phase 0's fix changed no live behavior as a result. Whether the DB-backed mechanism has an analogous escalation-reset defect is unknown — not investigated. Move to Phase 3 scope (auth hardening).
+### TOP PRIORITY (promoted, Phase 6 — ranked above the numbered list below)
+
+The Phase 6 report redesign didn't create these two defects, but it did
+what the old wall-of-findings layout couldn't: put each one on a clean
+page as a single titled claim, where it's immediately visible instead of
+buried as one line among dozens. Both are ranked above every item in the
+numbered list below.
+
+1. **Asset-attribution defect.** Full detail already on file — see
+   "Backlog — asset-attribution defect (reframed from 'HOST SERVICES
+   contamination', GAP-1 fix round, logged, not fixed)" further down this
+   section; not restated here. **New evidence from the Phase 6 redesign
+   confirms the original finding, sharper than before:** the grouped
+   open-port card renders `AFFECTED ASSET: http://127.0.0.1:18080 (url)`
+   above a table of seven ports including 3389 (RDP) — nginx's own URL
+   presented as the asset for an RDP port finding. In the old
+   one-line-among-many layout this read as an odd detail; as a titled
+   card on its own page, grouped and clean, it is the first thing a
+   reviewer will question.
+
+2. **Port severity heuristic (new, found via the Phase 6 redesign).**
+   Grouping open-port findings by `(severity, status, remediation)`
+   (Task 3, `_group_open_port_findings()` in
+   `infrastructure/reporting/templates.py`) surfaced a heuristic that was
+   always there but never visible as a single claim: the real baseline
+   assessment's 10 open-port findings split into "7 network services
+   exposed" (Low) and "3 network services exposed" (Informational) — and
+   the Informational group contains port 445 (SMB). Asserting, in a
+   titled card, that three exposed network services are merely
+   informational — with SMB among them — will not survive professional
+   review. As one line among 28 findings this went unnoticed; grouped and
+   titled, it reads as a claim the report is making. **Not fixed** — the
+   heuristic that assigns severity to open-port findings by
+   port/protocol needs its own review; not investigated further here,
+   per instruction to log rather than fix this round.
+
+**Why these two are scoped together, not as two independent items:** a
+port finding is about a *host* (which asset was it observed on) and its
+severity is about the *service* (how much should a reviewer care) — both
+questions get asked about the exact same finding, at the exact same
+moment, by the exact same reviewer looking at the exact same card. Fixing
+attribution without revisiting the severity heuristic (or vice versa)
+leaves the other half of the same reviewer's objection standing.
+
+---
+
+1. ~~**BUG: a `KINGSEC_STORAGE__DATA_DIR` override that fails to resolve silently falls back to the default path instead of failing loudly.**~~ **RESOLVED (visibility), Phase 8.** `kingsec-migrate`, `kingsec-bootstrap`, and the server now all announce the resolved data directory on stderr before acting (`announce_data_dir()`, `src/kingsec/_data_dir_notice.py`) — loudly, with an explicit `NOTICE:` line, whenever the env var is unset and the default is in play. An operator no longer has to run `load_settings()` out-of-band to learn which database a command touched, which is what this very backlog item, and the Phase 4 incident below, both required to even diagnose. Scope note: this closes the *visibility* gap, not the original ask (fail closed / raise instead of silently defaulting) — the default itself is unchanged, per explicit instruction not to change it, only to announce it.
+2. ~~Two account-lockout implementations exist...~~ **RESOLVED, Phase 3.** Confirmed the live login path uses `CheckAccountLockout` + `RecordFailedAuthentication`/`RecordSuccessfulAuthentication` (the DB-backed `LockoutRepository`/`account_lockouts` table family) — not `AccountLockoutService`. Definitive answer on the open question: the live path does **not** have an analogous escalation-reset defect, because it never implemented escalation in the first place — `AccountLockout` (`domain/rate_limit.py`) has no field to record a prior-lockout count, so `RecordFailedAuthentication` always applies the same fixed `lockout_duration_seconds`. `AccountLockoutService` deleted (in-memory, single-process, structurally incompatible with the DB-backed live design — see Phase 3 section below and the carried-over-conclusion pattern's fifth instance above). No second lockout implementation remains.
 3. **Phase 0 added only 1 regression test for 6 fixed defects.** Missing dedicated regression tests for: the `find_oldest_pending` tie-order fix (both `InMemoryJobService` and `PersistentJobService` variants), and the `AccountLockoutService.clear()` escalation-preservation fix (beyond the one pre-existing test it was verified against, `test_progressive_lockout_duration`, no *new* test was added asserting escalation survives a clear specifically). Should be added before this class of defect is considered closed out.
 4. **Unconfirmed: is the `rowid` tiebreaker in `SQLAlchemyJobRepository.list()` actually safe long-term?** It relies on SQLite's implicit `rowid` being monotonically increasing for this table. Not yet confirmed whether `scan_jobs` is declared with `AUTOINCREMENT` (which prevents rowid reuse after deletes) or is a plain rowid table (where SQLite *can* reuse a deleted row's rowid for a later insert, which would silently reintroduce the exact tie-order bug this was meant to fix, just under a different trigger condition). Needs verification before relying on this fix indefinitely.
+5. **BUG (found during Phase 5's claim audit): `AssessmentConcurrencyPort.try_reserve_slot()` is built but never called.** KSEC-87-02's own docstring says this port exists specifically because `max_concurrent_assessments` "existed as configuration but was never enforced anywhere." The atomic, TOCTOU-safe mechanism it built to fix that is itself unwired — grepped every call site of `try_reserve_slot(` across the whole codebase; it appears only in comments/docstrings in three files, never an actual call, and `AssessmentConcurrencyPort` is registered in the DI container but never resolved into `CreateAssessment`/`SubmitAssessment`/any use case. `max_concurrent_assessments` is not enforced anywhere in the running application today — the exact defect KSEC-87-02 was supposed to close. **Same pattern as Phase 0's `AccountLockoutService.clear()` fix** (see the carried-over-conclusion pattern's fifth instance, above): a correct fix, applied to code that does not run, then documented (KSEC-87-02's own docstring, `ADMIN_GUIDE.md`) as though it landed in production. The lesson from Phase 0 — a precisely-scoped "fixed" claim is not self-maintaining and needs re-stating at the point a reader would generalize it — applies again here. Not fixed — out of scope for Phase 5 (docs-only). Full detail: `docs/CLAIM-AUDIT.md` item 7.
+6. **SECURITY FINDING (found during Phase 5's claim audit while checking the "local-first" encryption-boundary claim): `MfaSecretORM.secret_key` (the TOTP shared secret) is stored fully plaintext — not encrypted, not hashed.** Ranked above the docs-shaped findings in this list because it is a live security defect, not a documentation gap: anyone with filesystem/backup access to the database can read every user's MFA secret directly and generate valid codes, defeating the second factor entirely. `api_key_encrypted` (AI provider config) is the only encrypted column in the schema — this is the same one-encrypted-column finding from `docs/CLAIM-AUDIT.md` item 2, called out here on its own because it's a security defect, not a marketing-copy overstatement. Not fixed — out of scope for Phase 5 (docs-only); needs its own phase (encrypt at rest, likely via the same mechanism already used for `api_key_encrypted`, plus a migration for existing secrets).
+7. **BUG (found during Phase 5's claim audit): 4 of `LicenseGate`'s 10 documented methods have zero call sites outside `gate.py` itself** (`can_use_advanced_reports`, `can_use_custom_roles`, `can_use_custom_branding`, `can_create_multiple_orgs`). Declared as centralized tier-gating enforcement, but a quarter of it enforces nothing — the license tier has no actual effect on whether a caller can use these four capabilities. Same family as items 5 and 6 above and the unenforced settings theme below: a mechanism that exists, is documented, and does nothing. Not fixed — out of scope for Phase 5 (docs-only). Full detail: `docs/CLAIM-AUDIT.md`.
+8. ~~**BUG (found during Phase 5's claim audit): a placeholder CVE id in the real compliance mapping table.**~~ **FIXED, Phase 5 (exception to the docs-only scope, per explicit instruction).** `application/compliance/mapper.py`'s `_KEYWORD_CONTROL_MAP` had 4 entries (not 2 as first reported) mapping to `ComplianceFramework.CVE` with literal fabricated control ids — `CVE-2025-1234` (used twice, by the `{"unpatched","outdated"}` and `{"cve","known","vulnerability"}` keyword sets), `CVE-2025-5678` (`{"command","injection","rce"}`), and `CVE-2025-9012` (`{"privilege","escalation"}`). A further sweep of `framework_definitions.py` found `FRAMEWORK_DEFINITIONS[ComplianceFramework.CVE]` — an 8-entry block, all following the identical fabricated sequential-digit pattern (`1234/5678/9012/3456/7890/2345/6789/4321`), 4 of which weren't even reachable via the keyword map. **Fix: removed, not replaced.** A CVE names one specific vulnerability instance assigned by a CNA — it cannot legitimately represent a generic keyword category the way every other framework's control ids correctly do in this same table (OWASP/CIS/NIST/CWE/PCI/ISO/MITRE — spot-checked against known-real identifiers, e.g. `CWE-89`/`CWE-79`/`CWE-798`, `T1046`/`T1190`/`T1068`/`T1566`, all genuine). No real CVE id is a correct substitute for a category, so there is nothing to replace the fabricated ones with; the codebase's own real NVD client (`adapters/outbound/threat_intelligence/nvd_provider.py`, genuine NIST API integration, currently unwired — same disconnected-threat-intel shape already logged elsewhere in this file) is the only legitimate path to real CVE data, and it works by specific software/version lookup, not keyword category — architecturally incompatible with a static table regardless. Swept the rest of `_KEYWORD_CONTROL_MAP` and `FRAMEWORK_DEFINITIONS` for other fabricated-looking ids: **none found** — every other framework's control ids check out as real, published identifiers. Regression coverage added: `tests/unit/application/compliance/test_compliance.py::TestComplianceMapperNoFabricatedIds` (3 tests — no CVE-framework entries in the keyword map, no CVE controls in `FRAMEWORK_DEFINITIONS`, and a general placeholder-digit-run sweep across every entry in both tables) — confirmed all three fail against the pre-fix code and pass post-fix. `ruff check`/`mypy` clean on all touched files. Full detail: `docs/CLAIM-AUDIT.md` item 4.
 
 ---
 
@@ -192,6 +242,10 @@ Three separate times in this phase, a conclusion carried over from before a cont
 None of these were caught by pytest, ruff, or mypy — all three passed every automated gate. They were caught by manual review against independent sources (another document stating the same fact, or a human looking at the actual rendered PDF). The lesson, now codified in `CLAUDE.md`'s Verification honesty section: a conclusion carried over from before a context reset is unverified by default, regardless of how confidently it was stated, until it is re-checked against the current code in the current session.
 
 **A fourth instance recurred in Phase 2B Task 2:** a failing `tests/integration/test_alembic_migrations.py` line observed mid-session was reported as "confirmed pre-existing, unrelated" — stated as settled without being checked against a clean baseline. It was not pre-existing: verified via an isolated `git worktree` at the branch's own committed HEAD (738ce02) plus the working tree itself, both runs green, 13/13 passed, no reproduction anywhere. The individual explanation for why it appeared mid-session is not the useful part of this record (most likely a transient artifact of accumulated alembic-pollution files from an earlier full-suite run in the same session — see the pollution bug logged above — but that is a guess, not a finding); the pattern entry is: a FAILED line was characterized as pre-existing without verification, the same shape as items 1 and 2 above, not a new or different failure mode.
+
+**A fifth instance, a different mechanism but the same shape, closed in Phase 3:** Phase 0's Task B fix (`AccountLockoutService.clear()` preserving `lockout_count` across a clear, so a single successful login can't reset progressive-lockout escalation) was reported at the time as "net stronger security behaviour." That was true of the code fixed — and Phase 0 said so precisely, flagging in the same breath that the fix "changes no live authentication behaviour today" since `AccountLockoutService` was never wired into the real login path. The claim was accurate as written. What went wrong is what happened to it afterward: "we fixed the lockout escalation bug" sat in this file's record for six weeks, and by the time Phase 3 investigated it, that shorthand had drifted into something read as true of the product, when it was only ever true of a class the product does not execute. This is not a criticism of the Phase 0 fix itself, which was correct and is now proven, via Phase 3's own pinning test, to be architecturally inapplicable to the live path rather than merely unwired — `AccountLockoutService` was in-memory, single-process, structurally incompatible with the DB-backed live mechanism regardless of wiring. The lesson is the same as items 1-4: a precisely-scoped claim, true when written, is not self-maintaining — it needs to be re-stated at the point where a reader would reasonably generalize it, not just left to accumulate. `AccountLockoutService` is deleted as of Phase 3 (see that section below); the live path's real, current, fixed-duration behavior is now pinned by `test_live_lockout_duration_is_fixed_not_progressive`.
+
+**A sixth instance, in Phase 4, inverts the mechanism again:** Phase 4's own Step 1 investigation (reported in-session, not yet written to a persisted document) had already found and verified: `domain/authorization.py` - a frozen value object with `authorized_by`, `authorized_at`, `scope` - persisted on `AssessmentORM` (`infrastructure/persistence/models.py:43-45`) as `authorization_scope`. Later in the same phase, checking whether that field could source a migration backfill, the check re-grepped only `domain/assessment.py` (the aggregate's own module) for "scope", found nothing there, and reported the source might not exist. It lives on the value object the aggregate holds, not on the aggregate itself - a different module entirely, one the earlier Step 1 investigation had already named correctly. Items 1-5 are all a STALE conclusion carried forward and asserted as still true; this one is the reverse shape - a CURRENT, already-verified finding effectively forgotten, and a narrower, differently-scoped grep run in its place read as if it were the first and only investigation. Not caught by pytest, ruff, or mypy (a grep of the wrong file for a name that genuinely isn't there doesn't error); caught by the user pointing back to the Step 1 report itself. Same underlying lesson as items 1-5: a fact established earlier in a session is not reliably present later in that same session just because it was already found once - it needs to be re-checked (or at minimum re-grepped broadly, not just in the one file a later question happens to be about) at the point it is needed again, not assumed carried.
 
 ### What this phase fixed
 
@@ -537,24 +591,129 @@ per instruction — recorded as found. Whoever picks this up next should
 start by finding where the estimate is computed and check whether it is
 a hardcoded per-profile constant rather than derived from anything real.
 
-### Backlog — HOST SERVICES contamination, flagged prominently for Phase 2C
+### Backlog — asset-attribution defect (reframed from "HOST SERVICES contamination", GAP-1 fix round, logged, not fixed)
 
-Every run in Task 6's suite targets `127.0.0.1:<port>`, and nmap's
-host-sweep component scans the whole host, not just the target's own
-port — so **every run**, not only a bare quick-scan, surfaces this
-machine's own unrelated background services (RPC, SMB, VMware ports,
-RDP, WSDAPI, plus this host's own `vantriqsec-crm`/`vantriqsec-n8n`
-services — both confirmed pre-existing, off-limits, read-only, never
-touched) mixed into the target's own findings. Full detail in
-`docs/E2E-EVIDENCE-PHASE2B.md` §4 ("Host services vs. target findings").
-**Flagged prominently here, separately, for Phase 2C:** any
-severity/count aggregation across these runs — a dashboard, a trend
-chart, a cross-assessment rollup — must exclude these host-services
-ports uniformly, or it will double-count the same handful of unrelated
-services in every run's totals and silently inflate KingSec's own
-reported numbers. This is a real correctness risk for any future
-Phase 2C feature that aggregates across assessments, not just a report-
-rendering nicety.
+**Reframed.** This was originally logged as "HOST SERVICES contamination" —
+framed as if nmap scanning beyond the assessment's own port were the
+problem. It is not: nmap's host-sweep scans the whole host, not just the
+target's own port, and on a real engagement against e.g. `https://client.com/app`,
+that host's *other* ports genuinely belong to that client — the scanning
+itself is correct and valuable coverage, not noise to be filtered out.
+
+The real defect is **attribution**. Every finding nmap produces —
+whether it's the target's own port or another port on the same host — is
+currently attributed to `assessment.target` (the URL/hostname string),
+not to the host:port it was actually observed on. Confirmed directly
+against real evidence this round
+(`Downloads\KINGSEC-CLEAN-TARGET-REAL-SCAN-attempt.pdf`): a finding
+titled "Open port 3389/tcp" (RDP — a host-level service, nothing to do
+with the assessed application) rendered with **Affected Asset:
+`http://127.0.0.1:18090 (url)`** — the nginx container's own URL. A
+client reading "affected asset: your web app URL" next to a database or
+RDP port finding will not trust the report, regardless of how accurate
+the underlying port scan was.
+
+**The fix, when scoped:** every finding must be attributed to the asset
+it was actually observed on — host:port for nmap findings, the URL for
+web-layer scanners (ffuf, gobuster, ZAP, nuclei-on-http, etc.) — never to
+the assessment's target string as a blanket label. This:
+  - resolves the original "host services contamination" complaint as a
+    side effect (the host's other-port findings become honestly
+    attributed to the host, not falsely pinned to the target URL, so
+    they stop reading as contamination of the target's own findings);
+  - resolves the localhost-absurdity case (`127.0.0.1:<port>` picking up
+    this machine's own unrelated background services — RPC, SMB, VMware
+    ports, RDP, WSDAPI, plus this host's own `vantriqsec-crm`/
+    `vantriqsec-n8n` services, both confirmed pre-existing, off-limits,
+    read-only, never touched) as the same case of the general defect,
+    not a special one;
+  - is a **prerequisite for multi-host assessments** — any future feature
+    that assesses more than one host per assessment cannot honestly
+    report per-host findings until attribution is per-finding instead of
+    per-assessment.
+
+Full original detail in `docs/E2E-EVIDENCE-PHASE2B.md` §4 ("Host
+services vs. target findings") — still accurate as a description of the
+symptom, superseded by this entry as the diagnosis of the cause.
+
+**Not fixed.** This touches the finding model itself (adding a real
+observed-asset field, distinct from the assessment's target) — its own
+scoped piece of work, not attempted in this round. Any severity/count
+aggregation across runs — a dashboard, a trend chart, a cross-assessment
+rollup — remains at risk of double-counting the same unrelated services
+in every run's totals until this is fixed; that risk from the original
+entry still stands.
+
+### Status — the no-signal score override (`_is_no_signal`/`_NO_SIGNAL_COLOR`/`_NO_SIGNAL_LABEL`, `infrastructure/reporting/templates.py`): TESTED, NOT RENDERED
+
+Phase 2C Step 2's no-signal override — the band/label substitution applied
+when a report's `severity_counts` carries nothing above Informational
+(including the zero-findings case) — is unit tested and that coverage is
+trusted. It has **never been rendered from real scan data** on this
+machine, and cannot be, until the asset-attribution defect immediately
+above is fixed.
+
+Two honest attempts were made this engagement to produce a real,
+genuinely clean rendering as evidence:
+  1. GAP-1's own re-render (a real assessment with zero scanner coverage)
+     — correctly refused by `derive_assessment_status()` (a FAILED
+     assessment must never produce a scored report at all), so it never
+     reached the no-signal override in the first place.
+  2. A real Docker/nginx target stood up specifically to produce a
+     genuinely clean, fully-covered result
+     (`Downloads\KINGSEC-CLEAN-TARGET-REAL-SCAN-attempt.pdf`) — blocked
+     by the asset-attribution defect above: nmap's host-sweep findings
+     (this machine's own unrelated services, e.g. RDP on 3389) got
+     attributed to the target URL, so the result was never actually
+     clean/no-signal, regardless of the target's own findings.
+
+Both attempts were blocked by the same root cause, not by the override
+itself. No third attempt was made — per instruction, an honest "tested,
+not rendered, here is why" stands as the record for this item until
+asset attribution is fixed.
+
+### Backlog — `max_concurrent_assessments` silently does nothing (logged, not fixed, GAP-1 fix round)
+
+`settings.performance.max_concurrent_assessments`
+(`infrastructure/config/models.py:657`) has no live integration point
+anywhere in the running application right now. KSEC-87-02 already built
+the real enforcement mechanism honestly — `AssessmentConcurrencyPort`
+(`application/ports/outbound/assessment_concurrency.py`), an atomic
+`try_reserve_slot()`/`release_slot()` implementation
+(`infrastructure/persistence/repositories/assessment_concurrency.py`), a
+dedicated `assessment_concurrency_slots` table (migration
+`2026_09_03_000000__add_assessment_concurrency_slots.py`), and
+`TooManyConcurrentAssessmentsError` — but the only place that ever called
+`try_reserve_slot()` was the now-deleted `StartAssessment` use case's own
+DI wiring in `bootstrap/composition.py`. `submit_assessment.py` (the one
+real orchestrator every live submission path uses today) never called it
+at all, and `AssessmentConcurrencyPort` is not even DI-registered in
+`bootstrap/composition.py` anymore. Confirmed via a repo-wide grep for
+`try_reserve_slot(`: zero call sites outside the port definition, its own
+adapter implementation, and `tests/unit/infrastructure/test_assessment_concurrency.py`
+(which exercises the mechanism directly, not through any use case). The
+setting can be changed via `KINGSEC_PERFORMANCE__MAX_CONCURRENT_ASSESSMENTS`
+and nothing in the running application will ever read it.
+
+**Claim-audit flag for Phase 5:** `docs/ADMIN_GUIDE.md` currently tells
+admins this is a real, functioning control — twice: "Increase max
+concurrent assessments for larger teams" (Performance Tuning) and
+"Reduce max concurrent assessments in System Settings" (Troubleshooting
+→ Performance Issues During Assessments), the latter additionally implying
+a "System Settings" UI exists to change it. Neither claim is true today —
+the setting is fully inert. Not corrected in this round (out of scope);
+flagged here specifically because it's exactly the misrepresentation risk
+Phase 5 exists to catch (`docs/REMEDIATION-PLAN.md`'s Phase 5 "Truth
+pass").
+
+**Fix, when scoped:** either wire `try_reserve_slot()`/`release_slot()`
+into `SubmitAssessment.execute()` (claim before `job_runner.submit()`,
+release in the background job's terminal paths) so the setting does what
+`ADMIN_GUIDE.md` already claims, or remove the setting from `Settings`
+and correct `ADMIN_GUIDE.md` to stop describing a control that doesn't
+exist. Either resolution is acceptable; leaving it half-built (a real,
+tested enforcement mechanism sitting completely disconnected from the one
+production code path that would use it) is not.
 
 ### Backlog — scan-time AI enrichment has the same per-finding spam defect Priority 2 fixed elsewhere (logged, not fixed)
 
@@ -603,3 +762,862 @@ every disclosure mechanism built in Phase 2C (and Task 4, and Phase
 2B-c) feeds into this same paragraph, so fixing its presentation is a
 prerequisite for any of those disclosures actually being read, not an
 independent nicety.
+
+---
+
+## Phase 3 — Auth hardening
+
+**Branch:** `fix/phase-3-auth-hardening` (based on `feat/phase-2c-scoring-v2`)
+**Status:** Implementation complete, gate pending. Scope: registration,
+first-admin bootstrap, the lockout duplication (see the carried-over-
+conclusion pattern's fifth instance, above, and the resolved Backlog
+item #2), related config and tests.
+
+### The defect
+
+Self-registration was enabled by default with no way to disable it, and
+`RegisterUser` atomically granted ADMIN to whichever caller's insert was
+first to observe an empty `users` table (KSEC-73-05). On any network-
+reachable instance, the first unauthenticated caller to reach
+`/auth/register` — the only one of the four public, unauthenticated
+routes with no rate limit — permanently owned the system. Full
+investigation: `POST /auth/register` had no auth dependency, no rate
+limit, and no gate of any kind; the shipped `docker-compose.yml` already
+sets `KINGSEC_SERVER__ALLOW_EXTERNAL_BIND=true` inside the container, so
+the only thing standing between a default deployment and exposure was
+the host-side port mapping (`127.0.0.1:8765:8765`) — a one-line operator
+edit away, not a rare, deliberate opt-in.
+
+### What changed
+
+- **Self-registration is OFF by default** (`SecuritySettings.
+  allow_self_registration = False`, `KINGSEC_SECURITY__ALLOW_SELF_
+  REGISTRATION` to override). `RegisterUser.execute()` refuses before any
+  other check, with a message naming exactly what to do: "run kingsec-
+  bootstrap" when no admin exists yet, or the env var name when one
+  already does and registration is just turned off.
+- **Self-registration can never grant ADMIN again, regardless of this
+  flag.** The atomic `CASE WHEN COUNT(*)=0 THEN 'ADMIN'` bootstrap-claim
+  SQL is gone. `UserRepository.save_new_user_claiming_bootstrap_admin`
+  is now `save_new_user` — a plain insert, role exactly as given, first
+  user or not. This is the part that actually closes the vulnerability;
+  the flag alone would only have moved the race to whenever an operator
+  re-enables registration.
+- **`kingsec-bootstrap` is now the ONLY way an initial admin gets
+  created.** Its existing guard (refuses if an admin already exists) is
+  **kept as-is, deliberately** — a stricter "refuses if any user exists"
+  guard was considered and explicitly rejected: this tool's stated
+  purpose is recovery after admin loss, and the stricter guard would
+  refuse in exactly that scenario if ordinary user accounts survive. The
+  weaker guard defends against what it needs to (a second admin behind
+  an existing admin's back); nothing in this phase's design depends on
+  it being stricter, since the grant-logic removal above is what closes
+  the actual race.
+- **The bootstrap password is now validated** — previously zero
+  validation on the path that creates the most powerful account in the
+  system, while self-registration had full validation. Reuses
+  `ChangePassword._validate_password`, the same canonical policy
+  `admin_users.py` already reuses for the identical reason.
+- **`GET /health` gains `bootstrap_required: bool`** (`count_by_role
+  (ADMIN) == 0`) — the one public, unauthenticated signal that an
+  operator must run `kingsec-bootstrap`, without needing to read source
+  or provoke `/auth/register`'s 403 just to find out.
+- **Both Q6 audit gaps closed.** New `AuditAction.ADMIN_BOOTSTRAPPED`,
+  distinct from `USER_REGISTERED` — an operator scanning for admin-
+  creation events now finds a self-describing entry instead of having to
+  filter by role. `kingsec-bootstrap` now records one (best-effort,
+  matching the existing `_publish_audit` pattern), closing the one
+  admin-creation path that previously had zero audit trail at all.
+
+### A real, pre-existing bug found while testing kingsec-bootstrap (not fixed, flagged here)
+
+`_bootstrap.py` had **zero test coverage before this phase.** Writing
+its first tests (which necessarily call it more than once, to test the
+admin-exists guard) surfaced a genuine, reproducible defect, confirmed
+via two independent, real `python -m kingsec._bootstrap` subprocess
+invocations — not a test-harness artifact: **running `kingsec-bootstrap`
+a second time against an already-bootstrapped instance prints the wrong
+error.** Instead of "an admin user already exists," it prints "ERROR:
+migrations not applied; run 'kingsec-migrate' first" — actively
+misleading advice, since migrations genuinely are applied. Root cause:
+`_migrations_applied()`'s `alembic check` subprocess reports several
+unrelated backup/scan-snapshot tables (`scan_snapshot`,
+`backup_verification`, `backup_schedule`, `backup_recovery_test`,
+`scan_restore`, `backup_recovery_plan`, `scan_backup`) as "removed" —
+i.e. present in the database but no longer defined in the live ORM
+metadata — but only on the **second** `alembic check` invocation in a
+process's lifetime, not the first. Not root-caused further (a deep,
+pre-existing `alembic`/model-registration interaction, unrelated to
+registration/bootstrap/lockout) and not fixed here — out of this
+phase's scope. `tests/integration/test_bootstrap_cli.py`'s admin-exists
+test isolates around it (patches `_migrations_applied` for the second
+call specifically, with a comment explaining why) rather than either
+hiding it or blocking on it. **Whoever picks this up:** this makes
+`kingsec-bootstrap` unsafe to run twice in a row today, which is an
+entirely ordinary thing for an operator to do (confirming a typo,
+re-running after an unclear result) — worth prioritizing.
+
+### Tests
+
+`tests/integration/test_bootstrap_cli.py` (new — first coverage this CLI
+has ever had): creates an admin and asserts a findable `ADMIN_BOOTSTRAPPED`
+audit entry distinct from `USER_REGISTERED`; refuses when an admin
+already exists; rejects a weak password before touching the database.
+`tests/unit/application/test_register_user.py`: registering with self-
+registration disabled grants nothing, with the two distinct messages
+(no admin yet vs. admin exists); every self-registered user is Viewer,
+first or not (replacing the old admin-grant assertions, which tested the
+exact vulnerability). `tests/unit/adapters/inbound/web/test_routes.py`:
+`/health`'s `bootstrap_required` in both states.
+`tests/unit/application/test_rate_limit_use_cases.py`:
+`test_live_lockout_duration_is_fixed_not_progressive`, pinning current
+behavior per the carried-over-conclusion pattern's fifth instance above
+— replace, don't delete, if escalation is ever implemented.
+
+### Backlog — progressive lockout escalation is not implemented on the live path (logged, not fixed, Phase 3, explicit decision)
+
+Overruling the phase's own Step 2 starting position: escalation needs a
+new persisted field, a migration, a tiering policy, and a decay rule —
+none of that is what makes first-user-becomes-admin a sales-conversation
+-ending finding, and a fixed 900-second lockout is a defensible,
+shippable control plenty of production systems ship as-is. Not
+implemented this phase. When it is scoped, it needs:
+  - **A persisted lockout-count/tier field** on `AccountLockout`
+    (`domain/rate_limit.py`) — the current three fields (`user_id`,
+    `locked_until`, `failed_attempts`) have nowhere to record how many
+    times an account has been locked before. Requires a schema migration
+    to `account_lockouts`.
+  - **A tiering policy** — `AccountLockoutService`'s deleted 60/120/300/600s
+    table is a reasonable starting point, not a requirement.
+  - **A decay rule** — when does the count itself reset? The deleted
+    class's answer (only on full eviction after a clean `lockout_window`,
+    never on a mere successful login) is the one documented design that
+    actually avoided the "attacker who occasionally succeeds resets their
+    own escalation" trap — worth preserving as a design note even though
+    the code itself is gone.
+  - It should be built directly against the live, DB-backed
+    `LockoutRepository`/`RecordFailedAuthentication` family — never a
+    revival of `AccountLockoutService`'s in-memory design, which is
+    structurally incompatible with a multi-process deployment (see the
+    carried-over-conclusion pattern's fifth instance, above).
+
+## Phase 4 — real-database incident: `~/.kingsec/kingsec.db` migrated unexpectedly
+
+**What happened.** While applying Phase 4's migration to the real
+`C:\kingsec-e2e\kingsec.db` (approved, backed up, applied correctly), a
+read-only check of the separate real developer database at
+`~/.kingsec/kingsec.db` (which no Phase 4 work was ever supposed to touch)
+found it had ALSO been migrated to head `289b5978e448` — `alembic_version`
+matched, and the new `authorization_grants` table existed there too,
+written at 11:25 AM that day, roughly 50 minutes before the intended
+migration ran. Content was minimal and untouched by data loss: exactly 1
+pre-existing assessment row (unchanged, `authorization_id` NULL),
+`authorization_grants` empty (0 rows) — a real schema change with no data
+impact.
+
+**The Phase 1 precedent** (Backlog item 1, above): an env-file `source`
+with an unquoted path containing spaces silently dropped a
+`KINGSEC_STORAGE__DATA_DIR` override during Phase 1 setup, and
+`kingsec-migrate` ran against this exact same real `~/.kingsec/kingsec.db`
+instead of the intended isolated directory. That incident was caught,
+backed up (`kingsec.db.bak-phase1`), and confirmed to have caused no data
+loss. This is the second time the same real database has been reached by
+a migration it was never meant to receive — different mechanism, same
+underlying shape: something resolved KingSec's real default data
+directory instead of an explicitly isolated one.
+
+**What was ruled out** (all confirmed directly, not inferred): every
+`alembic upgrade`/`revision` command run this session used an explicit
+`ALEMBIC_DATABASE_URL` pointing at either a scratch file or, for the real
+apply, explicitly `C:/kingsec-e2e/kingsec.db` — never the default. Every
+composition-root smoke test (`create_wired_application()`) explicitly set
+`KINGSEC_STORAGE__DATA_DIR` to a fresh `tempfile.mkdtemp()` path. No CLI or
+server process was run against default settings at any point.
+
+**Test-suite investigation, in two designs:**
+
+*First design (rejected after empirical proof it was wrong):* patched
+`StorageSettings.data_dir`'s `default_factory` directly, to raise the
+moment the value was even COMPUTED, regardless of whether anything
+subsequently used it. Run against the full suite: **451 failures across
+47 files** - all the same error, confirmed via grep with no other cause
+mixed in. Investigating why revealed the design flaw: pydantic eagerly
+evaluates every field's default whenever `Settings()`/`StorageSettings()`
+is constructed, including in tests built entirely from in-memory fakes
+that never touch a real database at all (representative case:
+`test_session_api.py`'s `app()` fixture, which needs `Settings()` only
+for unrelated JWT configuration). Confirmed empirically: constructing
+`StorageSettings()` against a controlled tmp `HOME` creates nothing on
+disk. **Computing a path string is not the hazard; opening or migrating a
+database there is** - all 451 were false positives, and would have
+required touching 47 files (3 of them this engagement's own Phase 4 test
+files) to silence a harmless computation. The lesson: a guard belongs at
+the point of the real side effect, not at every place a value merely
+passes through.
+
+*Second design (kept):* reading the actual code confirmed the real side
+effect - both `build_sqlite_url()`
+(`infrastructure/persistence/database.py`, the app-wiring path) and
+`_resolve_database_url()` (`alembic/env.py`, the migration path) call
+`data_dir.mkdir(parents=True, exist_ok=True)` on the settings-derived
+fallback. The relocated guard (`tests/conftest.py`,
+`_forbid_real_home_database`) patches `build_sqlite_url` directly: raises,
+naming the real path, if the settings-derived `data_dir` resolves to
+`Path.home() / ".kingsec"`, before the `mkdir` or URL construction
+happens. The explicit `url=` path into `create_database_engine()` (what
+nearly every test already uses) never calls `build_sqlite_url` and is
+untouched. `alembic/env.py` cannot safely be imported in-process to patch
+the same way (its module bottom unconditionally runs
+`run_migrations_online()`/`_offline()` on import, expecting Alembic's own
+script-runner context) - moot in practice, since every migration
+invocation in this codebase, including every test, goes through it
+exclusively via subprocess, never in-process. The subprocess path is
+guarded separately: `tests/integration/test_alembic_migrations.py`'s
+`_run_alembic()` helper had one call site
+(`TestSingleHead.test_exactly_one_head`, calling `_run_alembic("heads")`
+with no URL) that silently inherited ambient environment instead of an
+isolated one - `database_url` is now a required parameter, not
+optional-defaulting, closing that gap structurally rather than only at
+that one call site. Empirically ruled out as the actual mechanism before
+being fixed: `alembic heads` against a controlled tmp data dir creates no
+database file at all.
+
+Full suite with the relocated guard: **0 errors, 0 failures**, same 4357
+tests, 1 unrelated skip - confirms nothing in the suite opens a database
+at the real default location.
+
+**What could not be identified.** With the guard passing cleanly, the
+11:25 AM write did not originate from this test suite. Per instruction,
+this is recorded as **unidentified**, not attributed to a suspected
+cause. `~/.kingsec/kingsec.db` itself was left untouched throughout this
+investigation - still at head `289b5978e448` with its one pre-existing
+row and empty `authorization_grants` table, deliberately not downgraded
+or cleaned up, since doing so risks more than the harmless state it is
+already in.
+
+**Open, not closed (at the time):** Backlog item 1 (above) - "an override
+that fails to resolve silently falls back to the default instead of
+failing loudly" - remained unresolved at the production-code level here;
+the guard built in this phase was test-only. **Visibility resolved,
+Phase 8** (see "Phase 8 — onboarding/bootstrap fix" below): the
+*mechanism* behind this incident is no longer a mystery either. Phase 8's
+investigation of a different, real bootstrap defect independently found
+that `create_wired_application()` touches the database the moment it
+runs - and that a silent fallback to `~/.kingsec` when
+`KINGSEC_STORAGE__DATA_DIR` isn't visible to a given process is fully
+sufficient, by itself, to explain an unattributed write like the 11:25 AM
+one here: no malicious or stray code path is required, only an unset env
+var in that one invocation. Phase 8 did not re-investigate this specific
+11:25 AM write - it closes the general mechanism going forward
+(`announce_data_dir()` now makes every such fallback loud), not this
+one incident's exact provenance, which remains as recorded above:
+unidentified, not reattributed.
+
+**Design constraint (Part 2, rejected as a fix - logged as a rule instead):**
+investigating a permanent production-code fix for programmatic migration
+invocation found no in-process migration entry point exists anywhere in
+this codebase - every invocation, including `kingsec-migrate` itself,
+goes through subprocess. Building one anyway (e.g. an
+`apply_migrations_to(database_url)` function) would have been a function
+with zero callers, added to prevent something nobody does - the same
+half-built shape as `historical_scope_note`, the fifteen inert settings,
+and the unenforced license gates: infrastructure for a hazard with no
+reachable path. Not shipped. Recorded instead as a constraint for
+whenever this changes: **any in-process migration entry point added in
+the future must take an explicit `database_url` with no ambient
+fallback to `KINGSEC_STORAGE__DATA_DIR`/the real default - this is a
+requirement on that future code, not a TODO to write it now.**
+
+## Phase 5 — Truth pass (docs/phase-5-truth-pass)
+
+**Task A (`docs/CLAIM-AUDIT.md`):** complete. Every claim in README.md,
+docs/INSTALL.md, docs/LICENSING.md, docs/ADMIN_GUIDE.md, the commercial
+docs, and frontend user-facing copy audited against the real code - 12
+FALSE, ~8 UNSUPPORTED, 2 code defects logged (this section, items 5 and
+8 - item 8 fixed as an explicit exception, see below).
+
+**Exception to docs-only scope (approved): the placeholder CVE ids were
+fixed this phase, not just logged.** See item 8, above, for the full
+before/after - the sweep found 4 fabricated entries in
+`_KEYWORD_CONTROL_MAP` (not the 2 originally spotted) plus a further 8 in
+`FRAMEWORK_DEFINITIONS[CVE]`, all removed, with 3 new regression tests
+and a clean sweep of every other framework's control ids (all real,
+spot-checked).
+
+**Task B (the rewrite):** complete for every FALSE and UNSUPPORTED claim
+identified in Task A. In priority order:
+
+1. `docs/commercial/*` (9 files: website-pricing, website-about,
+   website-faq, website-benefits, product-messaging, website-features,
+   website-home, plus a clean sweep of the remaining commercial docs) -
+   scanner/profile counts corrected to the real 6/6, report formats
+   corrected to HTML/PDF, the Trivy/Semgrep/Amass and "Branded PDF"/
+   white-label sold-but-nonexistent claims removed or reframed as not
+   currently available at any tier, and a dedicated "What KingSec
+   Assesses" / unauthenticated-scope section added to the pricing page,
+   about page, FAQ, and home page - not a buried caveat.
+2. `docs/ADMIN_GUIDE.md` - the entire fabricated "Admin > System
+   Settings" UI section replaced with the real configuration mechanism
+   (environment variables / JSON config file), including an explicit
+   callout that `max_concurrent_assessments` is read but not enforced.
+   Also fixed: the bulk-user-actions claim (no such UI exists - removed),
+   the welcome-email claim (no code path sends one - removed), the
+   session-invalidation timing (was "within 60 seconds," corrected to
+   "immediately" after confirming `DeactivateUser.execute()` calls
+   `RevokeAllSessions` synchronously and `is_revoked()` is checked on
+   every request), the `kingsec db check` self-contradiction, the wrong
+   `KINGSEC_JWT_SECRET` env var name (now `KINGSEC_JWT__SECRET_KEY`
+   everywhere), the auto-migration-on-startup claim (corrected to match
+   the real, tested `validate_schema_version()` behavior), and the
+   automated-backup navigation path (was pointed at the fictional System
+   Settings page; corrected to the real Admin > Backups > Schedules UI,
+   confirmed to exist in `BackupCenterPage.tsx`).
+3. Frontend copy - one flagged item (`ComplianceDashboardPage.tsx`'s
+   header description overselling the keyword-matching compliance
+   mapper as if it were a certified assessment) corrected; a sweep for
+   the same false scanner/profile/format numbers elsewhere in the
+   frontend found nothing else to fix.
+4. `README.md`, `docs/INSTALL.md`, `docs/LICENSING.md` - README's
+   scanner count, assessment-profile table (deleted the two profiles
+   that no longer exist, "Source Code Review" and "Container
+   Assessment," and corrected every remaining profile's scanner list
+   and duration against the real `assessment_profiles.py` definitions),
+   and report-format claims corrected; a "What KingSec Assesses" section
+   added. INSTALL.md's own "9 scanners, none mandatory" line was already
+   accurate in context - no change needed. LICENSING.md: added the
+   4-of-10-methods-unenforced caveat to Feature Gates, and a new finding
+   from this pass - `LICENSE_RENEWED` and `EDITION_CHANGED` are declared
+   audit action types that no code path ever emits (`renew()` always
+   raises before any audit call; there is no separate edition-change
+   event) - documented as declared-but-dead rather than left implying
+   both fire in normal use.
+
+**UNSUPPORTED claims verified this phase** (not just downgraded to vaguer
+wording, per instruction - each below was checked against real code):
+- Session-invalidation timing: verified immediate (see ADMIN_GUIDE fix
+  above), not "60 seconds" as previously stated.
+- Welcome email on user creation: verified FALSE - no code path exists
+  anywhere (`RegisterUser` has none; no admin-facing `CreateUser` email
+  trigger exists; `EmailNotificationPort`/`NotificationPort.send_email`
+  is wired only to playbook `SEND_EMAIL` actions). Claim removed.
+- AI-enrichment payload contents: verified the real payload
+  (`application/ai/explain_finding.py`) sends title, severity,
+  **description**, and evidence snippets, all redacted - the FAQ's "only
+  finding title, severity, and evidence snippets" omitted description;
+  corrected everywhere this claim appears.
+- "White-label UI": verified FALSE - zero white-label capability
+  anywhere in the frontend; removed from every commercial doc.
+- LICENSING.md's per-request validation claim: verified ACCURATE for
+  the 6 of 10 `LicenseGate` methods that have real call sites (each
+  does a fresh, uncached repository lookup) - paired with the
+  4-of-10-unenforced caveat above so the claim isn't read as covering
+  all ten.
+- Custom assessment profiles / ad-hoc individual-scanner selection
+  (website-features.md): verified FALSE - `ExecutionPlanner` has no
+  public method to add or override a profile; the only alternative to
+  choosing a profile is `profile_id=None`, which runs every
+  target-compatible scanner, not a hand-picked subset. Corrected to
+  describe this real "profile-free assessment" behavior instead.
+- Custom scanner plugin integration (Enterprise tier): verified real -
+  `ScannerPluginRegistry.register()` is a genuine, working extension
+  point - but reframed everywhere as a code-level integration done
+  through services, not a self-serve UI toggle, since no such UI exists.
+
+**Backlog additions from this phase, ranked (security finding first,
+then the "same pattern" code-but-unwired findings, then the docs-audit
+findings):**
+
+7. **SECURITY FINDING, still open:** `MfaSecretORM.secret_key` plaintext
+   - see item 6, above. Not fixed this phase (docs-only, except the CVE
+   exception).
+8. **BUG, still open:** `AssessmentConcurrencyPort.try_reserve_slot()`
+   built but never called - see item 5, above.
+9. **BUG, still open:** `LicenseGate`'s 4 unenforced methods - see item
+   7, above.
+10. **BUG, newly found this phase, logged not fixed:**
+    `AuditAction.LICENSE_RENEWED` and `AuditAction.EDITION_CHANGED`
+    (`domain/audit.py`) are declared but never `.record()`'d anywhere in
+    the codebase - `LicenseActivationService.renew()` always raises
+    `ValueError` before any audit call could happen (renewal by field
+    mutation is explicitly unsupported), and no code path emits a
+    separate edition-change event; `activate()` always records
+    `LICENSE_ACTIVATED` instead, even for what a user would call a
+    renewal or an edition change. Same family as items 5, 6 (above the
+    security finding), 7, and 9 - a declared mechanism with no live
+    path. `docs/LICENSING.md` corrected to state this plainly rather
+    than implying both events fire in normal use.
+
+**Task C (licensing) - complete.** `docs/THIRD_PARTY_LICENSES.md` (51
+Python runtime + 64 npm production packages, both the direct source for
+`sbom.cdx.json`), one merged CycloneDX 1.6 SBOM (115 components,
+schema-validated), and a CI `licenses` job covering both ecosystems -
+tested in both directions (passes against the real trees, fails when a
+disallowed license is deliberately introduced). Copyleft found and
+flagged: `pyphen` (GPLv2+/LGPLv2+/MPL-1.1, multi-licensed) and `certifi`
+(MPL-2.0, weak/file-level) - neither blocking, both documented with
+reasoning. `docs/LICENSING-RISK.md` needed no changes - already at spec.
+
+**Two additions requested after the round, both applied:**
+
+1. **License elections recorded, not just the multi-license option.**
+   Swept both production trees for every package whose declared license
+   contains an "OR" (a genuine choice, as opposed to "AND," which means
+   both terms apply and isn't an election). Three found, all Python,
+   none npm: `pyphen` (GPLv2+/LGPLv2+/MPL-1.1 - elects **MPL-1.1**),
+   `cryptography` (Apache-2.0/BSD-3-Clause - elects **Apache-2.0**, for
+   the patent grant), `structlog` (MIT/Apache-2.0 - elects
+   **Apache-2.0**, same reasoning). Recorded in
+   `docs/THIRD_PARTY_LICENSES.md` as a dated election ("VantriqSec
+   elects... effective 2026-09-23"), not merely "this option is
+   available" - the distinction matters because an unrecorded election
+   lets a future dispute start from the strictest reading.
+
+2. **npm dev-only tree scanned once and inventoried, not gated.** 375
+   dev-only packages (439 full tree - 64 production). License
+   distribution recorded in full in `docs/THIRD_PARTY_LICENSES.md`;
+   **no GPL/LGPL/AGPL found there either.** Three non-obvious entries
+   named individually (`argparse`'s `Python-2.0` tag, and two
+   multi-licensed-but-fully-permissive transitive deps of native-module
+   tooling). Scope decision stated explicitly: dev tooling never ships,
+   so gating it in CI would fail builds over licenses that carry zero
+   redistribution risk - the CI gate still checks production-only (64
+   packages), but the surface is now a known quantity, not a blind spot.
+
+**Itemized disposition of all 9 UNSUPPORTED claims (the original
+summary said "~8"; the precise count is 9, counting the license-
+validation row's 4 bundled sub-claims as one) - see
+`docs/CLAIM-AUDIT.md`'s updated Summary-for-Task-B section for full
+evidence per row. Five were verified ACCURATE (the "honest by design"
+values claims, the 4 license-validation sub-claims, the 5-endpoint
+license API table, the key-rotation two-pass/abort mechanics, and the
+"Free tier has no timeout" claim); four were verified FALSE/OVERSTATED
+and already corrected in Task B (the "60 seconds" session timing, the
+welcome-email trigger, the AI-payload contents, and "white-label UI").
+None were softened into vaguer wording instead of being verified or
+removed.**
+
+**Found and fixed in the same pass, not originally flagged:** re-testing
+the ADMIN_GUIDE's `curl http://127.0.0.1:8765/api/version` claim (which
+Task A had already marked "likely FALSE, not independently re-tested")
+confirmed it - no `/api/version` route exists anywhere; the real,
+no-auth check is `/api/v1/healthz/live`. Checking it surfaced that
+**README.md's own "Health check" quick-link had the identical defect**
+(`/api/v1/health`, also nonexistent) - missed during Task B's original
+pass since it wasn't on the flagged list. Both fixed to the real route.
+
+### ACCEPTANCE (Phase 5 - Tasks A, B, and C, plus the post-round additions)
+
+- [x] `docs/CLAIM-AUDIT.md` with a verdict for every claim found
+- [x] No FALSE claim remains in customer-facing copy (README, INSTALL,
+      LICENSING, ADMIN_GUIDE, all `docs/commercial/*`, frontend copy)
+- [x] No UNSUPPORTED claim remains unresolved - all 9 itemized above,
+      each verified or removed, none softened into vaguer wording
+- [x] The one approved docs-only exception (placeholder CVE ids) fixed,
+      tested, and reported back as a deviation, not silently expanded
+- [x] `docs/THIRD_PARTY_LICENSES.md` + SBOM committed, both ecosystems,
+      license elections recorded, dev tree inventoried
+- [x] CI license gate added and TESTED (both ecosystems, both directions)
+- [x] Full gate green (ruff/mypy/import-linter/pytest, npm
+      lint/tsc/vitest); 3 commits by module boundary, pushed
+
+**Phase 5 is closed.**
+
+---
+
+## Phase 6 — Report design
+
+**Branch:** `feat/phase-6-report-design`
+**Scope IN:** report structure, content organisation, Limitations section,
+executive summary, methodology section, report branding.
+**Scope OUT:** the scoring formula, severity assignment, asset attribution
+(backlog - flagged where it shows in the rendered report), any scanner
+behaviour.
+
+### Step 1 — investigation and proposal (no code)
+
+Regenerated a real baseline PDF from the real, stored 45-finding DVWA
+assessment in `C:\kingsec-e2e` (`asmt-38836463c82547718bad11cdba957cdb`),
+via a read-only session against the real repository and `Report.from_assessment()`
+- not a synthetic fixture. Full proposal for all 7 tasks:
+`docs/audits/PHASE-6-REPORT-DESIGN-PROPOSAL.txt`. Approved for Tasks 1, 2,
+4, 5, 6, 7; Task 3 held pending two empirical questions (below).
+
+### Step 2 — Tasks 1 and 2 implemented
+
+**Task 1:** new "Scope at a Glance" section (authentication scope, port
+coverage, scanner coverage - compact, front-loaded) added right after the
+Executive Summary. The full Limitations section restructured from one
+unbroken paragraph into two subheaded groups ("What This Assessment Did
+Not Cover" / "Confidence and Methodology") - all eight disclosures
+survive verbatim (the brief named seven; severity demotion is a real,
+conditional eighth one found while reading `_limitations()` in full).
+Port coverage and authentication scope share a single source of truth
+between their compact and full renderings.
+
+**Task 2:** Technical Findings and Remediation Steps merged into one
+"Finding Details" section. Risk Prioritization and the Findings table
+became genuine indices linking to each finding's full card via a stable
+`id="finding-{finding_id}"` anchor, instead of two more full
+re-renderings.
+
+**A measurement-mechanism correction, recorded precisely because the
+first explanation was wrong:**
+
+The first report of this round's page-count result (30 -> 30, no net
+change against a predicted 27-29) attributed the missing reduction to
+`.finding-card { page-break-inside: avoid; }` forcing whitespace as
+cards grew. **That explanation does not hold - it was checked
+empirically and disproved.** Page density across pages 5-28: baseline
+24.0 non-empty lines/page, regenerated 25.0 non-empty lines/page, zero
+pages under 15 lines in either version. Equally full; no whitespace
+effect.
+
+The real accounting, from the actual section page-spans:
+
+```
+baseline:  Technical Findings 6-22 (17pp) + Remediation Steps 23-28 (6pp) = 23pp
+new:       Finding Details 6-27 (22pp)                                    = 22pp
+total non-empty lines: 765 -> 782 (the new report has MORE content, not less)
+```
+
+Merging saved exactly **one page**. Task 1's new Scope-at-a-Glance
+section plus the two-group Limitations restructure's subheading overhead
+spent that one page back. Net zero.
+
+**The mechanism is relocation, not deletion.** Task 2 moved remediation
+text from its own section into each finding's existing card - the text
+still has to live somewhere, so total content did not shrink; only the
+per-finding duplicate header (title + severity badge, rendered twice
+before, once now) was genuinely removed. That is why the saving was one
+page, not several, and it is a content-accounting fact, not a CSS
+side-effect. Recorded here so the wrong (CSS-whitespace) explanation
+does not stand as the record of what happened.
+
+**This reframes Task 3 with stronger reasoning than originally proposed:**
+grouping *deletes* content where merging only *moved* it. Ten open-port
+findings collapsing into one removes nine complete cards - nine titles,
+nine facts tables, nine evidence blocks, and nine verbatim copies of the
+same remediation paragraph - not a relocation, a real reduction.
+
+### Step 1 questions, answered empirically before Task 3 started
+
+**Question 1 - does Phase 2B-c's FIX 5 (nuclei per-matcher grouping)
+collapse the 10 "HTTP Missing Security Headers" findings in current
+behaviour?** Reconstructed 10 raw JSONL records sharing the exact
+`(template-id, matched-at)` observed in this baseline's real persisted
+evidence and ran the real `parse_nuclei_jsonl()` against them directly
+(not read, executed): returned exactly 1 Finding with 10 evidence
+entries. FIX 5 works. The stored baseline's 10 separate rows are
+historical - `git log` shows FIX 5 committed 2026-09-14 21:47:26; this
+assessment was created 2026-09-13T16:18:18, one day earlier. No code
+defect. The second Task 3 grouping candidate (headers) is dropped; the
+real figure is 10 of 45 (port findings only), not 20 of 45.
+
+**Question 2 - does `FindingSummary`/`Finding` carry a scanner id,
+template id, or check type to group on instead of a title string?**
+Read both classes in full: neither does, genuinely, not just unused.
+Found a better anchor than a fresh string match: `nmap.py` already has a
+private `_OPEN_PORT_TITLE` regex, and `nmap_parser.py:119` is the literal
+source generating the "Open port N/proto" title. Task 3 groups on the
+existing regex; the required title-format-change test is wired to the
+real `nmap_parser.py` construction path, not a hardcoded copy of the
+pattern.
+
+### The 4x file size (135KB -> 562KB, page count unchanged): status
+
+Confirmed the size grew (real, reproducible measurement); the
+explanation offered for it - internal anchor-link/named-destination
+structure changing how WeasyPrint lays out PDF objects - is **INFERRED,
+not TESTED**. It was reasoned from the html-string-length delta (+5.6%)
+being far smaller than the byte-size delta (+315%), not confirmed by
+inspecting the PDF's actual internal object structure. Not blocking
+(562KB is a normal attachment size); re-checked after Task 3, below.
+
+### Task 3 implemented - port findings grouped, 10 of 45
+
+`OPEN_PORT_TITLE_PATTERN` made public in `nmap.py` (was `_OPEN_PORT_TITLE`,
+already used internally for dedup) - `templates.py` groups on this real
+regex, never an independently-maintained string copy. Grouping key:
+severity + status + effective remediation, ALL must match - a non-port
+finding is always a singleton; two port findings differing in any of
+those three are never merged. Applied consistently across Risk
+Prioritization, the Findings table, and Finding Details (a group is one
+line/one row/one card in all three, never listed individually in one
+view and grouped in another). Presentation-only: `report.total_findings`
+and `severity_counts` are computed before grouping ever runs and stay
+exactly 45/1/0/5/11/28, unaffected - verified by a real test
+(`test_grouping_never_changes_total_findings_or_severity_counts`) rather
+than just asserted in a docstring. The real port data split into two
+groups (7 LOW-severity ports, 3 INFORMATIONAL-severity ports) rather than
+one 10-port group, because severity is part of the grouping key and the
+real data genuinely has both.
+
+**Measured, using the new metric (not page count):**
+
+```
+                          before Task 3   after Task 3
+Page count:                    30              25
+Total non-empty lines:       1,313           1,106
+Remediation marker count:       10               2   (2 groups: LOW ports + INFORMATIONAL ports)
+Finding Details span:        6-27 (22pp)     6-23 (18pp)
+Findings-region lines:          835             653
+```
+
+This is the real reduction the "relocation, not deletion" framing
+predicted: Task 3 removed 9 duplicate titles, 9 facts tables, and 8 of
+10 remediation paragraphs (10 became 2, not 1, because of the severity
+split above) - genuine deletions, not a relocation like Task 2's merge.
+
+**File size, re-checked as instructed:** 135KB (pre-Task 1/2) -> 562KB
+(Task 1+2) -> 506KB (Task 3) - it did NOT grow another 4x; it went down
+somewhat. Consistent with (not proof of) the anchor-structure theory:
+Task 3 removes 9 anchor targets and correspondingly fewer links in Risk
+Prioritization/the Findings table. Still INFERRED, not TESTED - the
+PDF's internal object structure has not been directly inspected either
+time.
+
+### Tasks 4, 5, 6 implemented (all approved as proposed in Step 1)
+
+**Task 4 (executive summary):** now states what was looked at, what was
+found, and what to do first, all before the score panel. The former
+late, post-gauge "Action required" callout moved to before
+urgent_note/the gauge and never renders twice. urgent_note's own
+position is unchanged - still immediately after the opening content,
+still above the score panel. The FIX-4 suppression rule (never show
+both the generic callout and urgent framing together) is now commented
+as load-bearing: relocating the callout earlier doesn't relax the
+requirement, it just changes where the two would collide if the
+suppression were ever removed.
+
+**Task 5 (methodology section):** new "Methodology" section right after
+Scope at a Glance - which profile was used, which scanners ran with a
+one-line plain-language description of each, and what was/wasn't
+covered (reusing the SAME derivation functions Scope at a Glance and
+Limitations already call). Required `Report.profile_id`, copied from
+`Assessment.profile_id` - a real, pre-existing property `from_assessment()`
+simply never read before. Tested end to end against a real
+`Assessment.create(profile_id=...)`, not just via `dataclasses.replace()`.
+The real baseline assessment's own profile_id turned out to be a genuine
+`"web-scan"` - confirmed when regenerating the final PDF, not assumed.
+
+**Task 6 (report branding):** new `ReportingSettings.brand_name`
+(default `"KingSec"`, env var `KINGSEC_REPORTING__BRAND_NAME`), wired
+through `create_wired_application()`'s existing `brand_name` parameter -
+`None` now resolves from Settings instead of a hardcoded literal; an
+explicit value still overrides. No `LicenseGate` check anywhere in this
+path, per instruction. Tested end to end through the REAL composition
+root (`create_wired_application()`, real DI container, real
+`ReportGeneratorPort`, real rendered output) - the same methodology as
+Phase 4's `enforce_authorization_scope` test, not a unit test on the
+settings object alone. Three cases covered: configured value reaches
+the render, unconfigured falls back to the real default, and an
+explicit `create_wired_application(brand_name=...)` argument still wins
+over the env var.
+
+### Final measurement - all of Tasks 1-6 against the same 45-finding baseline
+
+```
+                          original baseline   Tasks 1-6 applied
+Page count:                     30                   26
+Total non-empty lines:        1,338                1,138
+Remediation marker count:        10                    2
+Finding Details span:      (Technical 6-22+Remediation   6-24 (19pp)
+                             23-28 = 23pp combined)
+```
+
+A real, honest net reduction - 4 pages, 200 non-empty lines, 8 fewer
+duplicate remediation paragraphs - while ADDING two new sections (Scope
+at a Glance, Methodology) that did not exist in the baseline at all.
+The domain-layer numbers that must never move did not: 45 findings,
+severity_counts, and executive_score are identical to the original
+baseline in every regenerated version this phase produced.
+
+Full gate (ruff, mypy, import-linter, full pytest suite) green after
+every task. 5 commits on `feat/phase-6-report-design`, not yet pushed.
+
+**Final regenerated PDF:**
+`C:\kingsec-e2e\phase6-baseline\phase6-final-tasks1-6-45findings.pdf`
+(510,567 bytes, 26 pages) - the same assessment
+(`asmt-38836463c82547718bad11cdba957cdb`) the Step 1 baseline used,
+generated read-only against `C:\kingsec-e2e\kingsec.db` (mtime
+unchanged, confirmed).
+
+## Phase 8 — Onboarding/bootstrap migration-check fix
+
+**Trigger.** `kingsec-bootstrap` refused to create an admin against
+`C:\kingsec-e2e` with "migrations not applied", even though
+`alembic -c alembic.ini current` independently showed the chain at head
+(`289b5978e448`). Reported as the top-priority defect - first-run
+onboarding - above asset attribution.
+
+**Step 1 investigation, four questions answered with direct
+reproduction (not inferred):**
+
+1. `_bootstrap.py`'s `_migrations_applied()` shelled out to `alembic
+   check`, which runs BOTH a chain-head comparison AND an autogenerate
+   schema diff against `models.py`. Reproduced directly against
+   `C:\kingsec-e2e`: the diff - not the chain - failed, over 7 tables
+   present in the live schema but absent from `models.py`. stdout/stderr
+   were sent to `DEVNULL`, so the real reason never reached the operator.
+2. `kingsec-migrate` just runs `alembic upgrade head` and passes the
+   exit code through - no bug in isolation. The reported "2 INFO lines,
+   exit 0, DB not at head" symptom is fully explained by a confirmed,
+   real, already-migrated leftover database at `~/.kingsec` (last
+   written 2026-09-20): if the env var isn't visible to one particular
+   invocation, the silent default produces an identical-looking no-op
+   success against the wrong database.
+3. Three separate implementations of "is this migrated" exist -
+   bootstrap's strict `alembic check`, migrate's no-check `upgrade head`,
+   and the server's own much weaker `validate_schema_version()` (only
+   "does `alembic_version` have any row"). Path resolution is unified
+   (all three read `KINGSEC_STORAGE__DATA_DIR` via the same
+   `load_settings()`); migration-state *checking* was not.
+4. The web UI's `bootstrap_required` fallback (`GET /health`) works -
+   confirmed structurally. It never calls alembic at all; it queries
+   `users` directly, and the server starts fine because its own check
+   (#3, weakest of the three) only requires `alembic_version` to have a
+   row.
+
+**Correction to the original framing, made before any fix was written
+and accepted:** a fresh install was first believed to be unaffected -
+`kingsec-migrate` then `kingsec-bootstrap` against two brand-new scratch
+databases both succeeded cleanly. **That belief did not survive FIX 1's
+own test-writing and was corrected again, immediately, before it shipped
+anywhere:** reproducing the orphan-table case for FIX 1's test suite
+found that the first clean reproduction had only checked `alembic check`
+*before* `kingsec-bootstrap` ever ran. Checking *after* shows the real
+behaviour - **this reproduces on the very first bootstrap/server run
+against ANY database, fresh or not.**
+
+**The 7 "orphaned" tables are not orphaned, dead, or removed-without-a-
+migration - they are live, and this project's own earlier Downloads
+report calling them that was wrong, corrected here before it was acted
+on.** `backup_schedule`, `backup_verification`, `scan_snapshot`,
+`backup_recovery_plan`, `scan_restore`, `scan_backup`,
+`backup_recovery_test` are created by
+`infrastructure/backup/schema.py::ensure_backup_tables()`, called
+unconditionally from `_register_backup_services()`
+(`bootstrap/composition.py:1952`) every time `create_wired_application()`
+wires up - i.e. every bootstrap run and every server start - via raw
+`CREATE TABLE IF NOT EXISTS` SQL, entirely outside Alembic's
+`models.py`/autogenerate tracking. `backup_routes.py` wires a real API
+on top of them (`versioning.py:27`, `v1_backup_router`) - a live,
+reachable feature (`BackupService`, `BackupRepositoryPort`,
+`BackupStoragePort`, `BackupEncryptionPort`, `BackupCompressionPort`),
+not scaffolding. **No DROP migration will be written for these tables -
+that would delete a working feature's schema.** The real defect is the
+inverse of what was first assumed: a live feature's tables were never
+brought into Alembic, so Alembic's own tooling permanently misreads them
+as drift. Logged here, alongside this engagement's other
+built-then-not-properly-wired instances, as its own backlog item, not
+fixed this phase:
+
+   **BUG: a shipped feature's schema is created by a raw-SQL side-channel
+   with no Alembic history, no version, and no upgrade path.**
+   `ensure_backup_tables()` creates 7 real tables via `CREATE TABLE IF
+   NOT EXISTS` outside Alembic entirely - not just "untracked by
+   autogenerate" but **genuinely unmanaged**: no migration ever created
+   them, so there is no revision to point at, no recorded history of
+   what their schema has ever been, and no supported path to alter them
+   (a hand-edited `CREATE TABLE` string is the only thing that has ever
+   defined this schema). `alembic check`'s "removed table" misreport
+   (the proximate cause of the FIX 1 bug) is a symptom of this, not the
+   disease itself.
+
+   Two candidate fixes, not equal, named in full so the second is never
+   mistaken for a real fix:
+   - **Proper fix (this is the one that closes the loop):** add the 7
+     tables to `models.py`/`Base.metadata`, write a real Alembic
+     migration that creates them (reusing `_BACKUP_TABLES`'
+     `infrastructure/backup/schema.py` column definitions as the
+     source of truth for the migration's `op.create_table()` calls),
+     and retire `ensure_backup_tables()` entirely. This gives the
+     backup feature's schema an actual version, an actual upgrade
+     path, and stops it depending on a side-channel nothing else in
+     this codebase uses.
+   - **Lesser fix:** exclude the 7 tables from Alembic's autogenerate
+     comparison (`include_object` in `env.py`). This only papers over
+     `alembic check`'s false positive - FIX 1 already does this more
+     correctly by not depending on the autogenerate diff at all. The
+     schema itself stays exactly as unmanaged as it is today: still no
+     migration history, still no upgrade path, still one hand-edited
+     SQL string as its only definition. Not recommended as the actual
+     resolution to this item - named here only so it isn't proposed
+     later as if it were equivalent to the proper fix.
+
+   **Scope check (one grep, as requested): backup is the only such
+   side-channel.** Searched the whole `src/` tree for `CREATE TABLE`,
+   `ensure_*_table(s)`/`ensure_*_schema`, and `metadata.create_all(` /
+   `create_all(`: the only raw-SQL table-creation function anywhere in
+   the codebase is `ensure_backup_tables()` itself; the only other
+   `create_all(` call site is `infrastructure/persistence/database.py`'s
+   already-known, already-deprecated `create_schema()` (test/quick-start
+   only, gated behind `validate_migrations=False`, not a hidden
+   production path). Scope is exactly these 7 tables, not larger.
+
+   **Possible prerequisite, flagged not resolved:** this is a
+   data-recovery feature whose own schema has no version, no migration
+   history, and no supported upgrade path - the irony of an
+   un-versioned backup system is worth stating plainly. Whether this
+   makes the proper fix a prerequisite for the backup feature being
+   safe to sell is a product/risk call this phase does not make - flagged
+   for whoever scopes that future phase to decide, not decided here.
+
+   Not fixed this phase - needs its own phase, candidate fix selected
+   above.
+
+**FIX 1 — bootstrap's migration check now asks only "is the chain at
+head".** `_migrations_applied()` replaced by `_migration_chain_status()`
+(`src/kingsec/_bootstrap.py`), built on Alembic's own
+`ScriptDirectory`/`MigrationContext` - the same objects `alembic current`
+itself uses - compared against an engine from the same
+`create_database_engine()` the server uses. No autogenerate diff, no
+fourth bespoke "is it migrated" implementation. When genuinely behind
+head, the error now names the real current/head revisions instead of a
+message indistinguishable from the orphan-table false positive.
+
+Tests (`tests/integration/test_bootstrap_cli.py`,
+`TestBootstrapMigrationCheck`): a migrated database with the real
+`ensure_backup_tables()` drift applied now bootstraps successfully
+(fails against the pre-fix code - confirmed by temporarily reverting
+just `_bootstrap.py` via `git stash` and re-running: 3 of 5 tests fail
+with the exact pre-fix symptom, 2 unaffected); two real `_bootstrap_admin()`
+invocations in a row now correctly reach "admin user already exists" on
+the second call, with no monkeypatch needed to isolate that guard
+anymore (previously required one, see the test's prior history); a
+never-migrated database is still correctly refused, with the real
+current/head revisions named in the message. 8/8 relevant tests pass
+post-fix.
+
+**Verified against the real `C:\kingsec-e2e`, not just the test suite:**
+
+```
+$env:KINGSEC_STORAGE__DATA_DIR = "C:\kingsec-e2e"
+uv run kingsec-bootstrap --username admin --password "<fresh password>"
+
+Using database directory: C:\kingsec-e2e
+...
+ERROR: an admin user already exists
+```
+
+No "migrations not applied" - the real failure this whole phase started
+from. `ERROR: an admin user already exists` is the correct outcome (an
+admin was already created on this instance earlier in this engagement);
+FIX 1 reaches that correct guard now instead of being blocked before it.
+FIX 2's notice line is the first thing printed, exactly as designed.
+
+**FIX 2 — all three entrypoints announce the resolved database path.**
+`announce_data_dir()` (`src/kingsec/_data_dir_notice.py`), wired into
+`kingsec-migrate`, `kingsec-bootstrap`, and the server
+(`__main__.py`), prints the resolved data directory to stderr before any
+database action, with an explicit `NOTICE:` line when
+`KINGSEC_STORAGE__DATA_DIR` is unset and the default is in play. The
+default location itself is unchanged, per instruction - only its use is
+now visible. Closes TOP PRIORITY backlog item 1, above, at the
+visibility level. Tests: `tests/unit/test_data_dir_notice.py` (3 tests,
+all against an explicit `tmp_path`, never the real default).
+
+**FIX 3 — investigated, not applied.** See the backup-tables finding
+above: the original premise (7 dead tables, safe to drop) is false. No
+migration was written. Reported for review before any further FIX 3
+work, per instruction.

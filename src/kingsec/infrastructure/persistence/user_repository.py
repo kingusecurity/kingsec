@@ -11,7 +11,7 @@ from collections.abc import Callable
 from datetime import UTC
 from typing import Any
 
-from sqlalchemy import exists, func, or_, select, text
+from sqlalchemy import exists, func, or_, select
 
 from kingsec.application.ports import UserRepository
 from kingsec.domain import Role, User
@@ -56,39 +56,16 @@ class SqlAlchemyUserRepository(UserRepository):
                 session.add(_to_orm(user))
             session.commit()
 
-    def save_new_user_claiming_bootstrap_admin(self, user: User) -> User:
-        # KSEC-73-05: a single atomic INSERT ... SELECT statement, not a
-        # separate "count users" read followed by a later, separate
-        # insert. The CASE's COUNT(*) subquery and the row insertion
-        # happen as one database operation - SQLite (and Turso, its
-        # wire-compatible production target) serializes concurrent
-        # writers against the same table, so a second, concurrent call
-        # to this exact statement cannot observe the pre-insert empty
-        # count once the first call's row is visible; it will correctly
-        # see count > 0 and assign the non-admin role instead. This is
-        # the actual atomicity guarantee - not anything enforced in
-        # Python.
+    def save_new_user(self, user: User) -> User:
+        # Phase 3 (auth hardening): this used to be an atomic
+        # INSERT...SELECT with a CASE overriding the role to ADMIN for
+        # whichever call inserted the very first row (KSEC-73-05). That
+        # grant logic is gone - a plain insert of `user` exactly as
+        # given, the same _to_orm() helper .save()'s new-user branch
+        # already uses. See UserRepository.save_new_user's docstring for
+        # why the grant logic was removed.
         with self._session_factory() as session:
-            session.execute(
-                text("""
-                    INSERT INTO users
-                        (id, username, email, password_hash, role, is_active, created_at, last_login_at)
-                    SELECT
-                        :id, :username, :email, :password_hash,
-                        CASE WHEN (SELECT COUNT(*) FROM users) = 0 THEN 'ADMIN' ELSE :default_role END,
-                        :is_active, :created_at, :last_login_at
-                """),
-                {
-                    "id": user.id,
-                    "username": user.username,
-                    "email": user.email,
-                    "password_hash": user.password_hash,
-                    "default_role": user.role.name,
-                    "is_active": user.is_active,
-                    "created_at": user.created_at.isoformat(),
-                    "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
-                },
-            )
+            session.add(_to_orm(user))
             session.commit()
             persisted = session.get(UserORM, user.id)
             if persisted is None:

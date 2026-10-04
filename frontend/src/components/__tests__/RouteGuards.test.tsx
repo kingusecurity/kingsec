@@ -1,8 +1,14 @@
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { RoleGuard } from '../shared/RouteGuards'
+import { RoleGuard, BootstrapGuard } from '../shared/RouteGuards'
 import { useAuthStore } from '@/store/auth'
+
+vi.mock('@/hooks/use-settings', () => ({
+  useHealth: vi.fn(),
+}))
+
+import { useHealth } from '@/hooks/use-settings'
 
 const queryClient = new QueryClient()
 
@@ -52,5 +58,39 @@ describe('RouteGuard', () => {
 
     expect(screen.getByText('No Access')).toBeInTheDocument()
     expect(screen.queryByText('Admin Only')).not.toBeInTheDocument()
+  })
+})
+
+describe('BootstrapGuard', () => {
+  function renderWithRoutes(initialPath: string) {
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={[initialPath]}>
+          <Routes>
+            <Route path="/login" element={<BootstrapGuard><div>Login Form</div></BootstrapGuard>} />
+            <Route path="/bootstrap-required" element={<div>Bootstrap Instructions</div>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+  }
+
+  it('renders children when bootstrap is not required', () => {
+    vi.mocked(useHealth).mockReturnValue({ data: { status: 'ok', bootstrap_required: false }, isLoading: false } as any)
+    renderWithRoutes('/login')
+    expect(screen.getByText('Login Form')).toBeInTheDocument()
+  })
+
+  it('redirects to /bootstrap-required when no admin exists yet', () => {
+    vi.mocked(useHealth).mockReturnValue({ data: { status: 'ok', bootstrap_required: true }, isLoading: false } as any)
+    renderWithRoutes('/login')
+    expect(screen.getByText('Bootstrap Instructions')).toBeInTheDocument()
+    expect(screen.queryByText('Login Form')).not.toBeInTheDocument()
+  })
+
+  it('shows a loading state while checking, not the form', () => {
+    vi.mocked(useHealth).mockReturnValue({ data: undefined, isLoading: true } as any)
+    renderWithRoutes('/login')
+    expect(screen.queryByText('Login Form')).not.toBeInTheDocument()
   })
 })

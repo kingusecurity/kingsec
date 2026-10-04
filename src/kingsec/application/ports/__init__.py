@@ -11,6 +11,7 @@ from .outbound.api_key_repository import ApiKeyRepository
 from .outbound.assessment_execution_repository import AssessmentExecutionRepositoryPort
 from .outbound.audit_event_repository import AuditEventRepository
 from .outbound.audit_publisher import AuditPublisher
+from .outbound.authorization_grant_repository import AuthorizationGrantRepository
 from .outbound.cache_metrics import CacheMetricsPort, CacheStats
 from .outbound.clock_port import ClockPort
 from .outbound.dashboard_repository import DashboardRepositoryPort
@@ -74,6 +75,7 @@ __all__ = [
     "AssetRepositoryPort",
     "AuditEventRepository",
     "AuditPublisher",
+    "AuthorizationGrantRepository",
     "BackupServicePort",
     "CacheMetricsPort",
     "CacheStats",

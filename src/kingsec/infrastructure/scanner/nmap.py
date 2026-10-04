@@ -39,7 +39,12 @@ _logger = get_logger("kingsec.infrastructure.scanner")
 _PORT_SELECTOR_FLAGS_WITH_VALUE = {"-p", "--top-ports"}
 _PORT_SELECTOR_FLAGS_STANDALONE = {"-p-", "-F"}
 
-_OPEN_PORT_TITLE = re.compile(r"^Open port (\d+)/(\w+)$")
+#: The real, live source of an nmap open-port Finding's title (see
+#: nmap_parser.py's own f"Open port {portid}/{protocol}" construction) -
+#: made public (Phase 6 Task 3) so report-layer grouping can match against
+#: this exact pattern instead of an independently-maintained string copy
+#: that could silently drift from what nmap_parser.py actually emits.
+OPEN_PORT_TITLE_PATTERN = re.compile(r"^Open port (\d+)/(\w+)$")
 
 
 def _strip_port_selector_flags(scan_args: tuple[str, ...]) -> tuple[tuple[str, ...], tuple[str, ...]]:
@@ -166,7 +171,7 @@ def _dedupe_findings(findings: Sequence[Finding]) -> tuple[Finding, ...]:
     seen: set[tuple[str, str]] = set()
     result: list[Finding] = []
     for finding in findings:
-        match = _OPEN_PORT_TITLE.match(finding.title)
+        match = OPEN_PORT_TITLE_PATTERN.match(finding.title)
         if match is None:
             result.append(finding)
             continue

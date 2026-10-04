@@ -4,16 +4,14 @@
 
 ## Assessment Engine
 
-- **Pre-configured profiles** — Eight built-in assessment profiles map to real-world workflows:
+- **Pre-configured profiles** — Six built-in assessment profiles map to real-world workflows:
   - Quick Host Scan (~5 min)
   - Network Assessment (~30 min)
   - Web Application Scan (~60 min)
   - API Assessment (~45 min)
-  - Source Code Review (~15 min)
-  - Container Assessment (~10 min)
   - External Footprint (~20 min)
   - Full Assessment (~90 min)
-- **Custom assessments** — Define ad-hoc targets, select individual scanners, and override profile parameters.
+- **Profile-free assessments** — Skip the profile entirely and KingSec runs every scanner compatible with your target type.
 - **Scheduled assessments** — Run assessments on a one-time or recurring schedule.
 - **Concurrent execution** — Multiple assessments can run simultaneously with configurable parallelism.
 - **Progress tracking** — Real-time status updates per scanner and per target.
@@ -22,8 +20,8 @@
 
 ## Scanner Orchestration
 
-- **Plugin-based architecture** — Each scanner is a self-contained plugin. Add, remove, or update scanners without touching the core.
-- **Nine bundled scanners** — Nmap, Nuclei, Nikto, FFUF, Gobuster, Trivy, Semgrep, Amass, OWASP ZAP.
+- **Plugin-based architecture** — Each scanner is a self-contained plugin, added via a documented interface without touching the orchestration core.
+- **Six scanners, wired into every profile** — Nmap, Nuclei, Nikto, FFUF, Gobuster, OWASP ZAP. (Trivy, Semgrep, and Amass are also registered as plugins in the codebase but are not currently reachable through any assessment profile.)
 - **Normalized output** — All scanner results are parsed into a common schema: target, finding type, severity, evidence, and timestamp.
 - **Deduplication** — Findings from multiple scanners targeting the same asset are merged and correlated.
 - **Isolated execution** — Scanners run in separate processes. A crash in one scanner does not affect others.
@@ -36,17 +34,16 @@
 - **Context-aware analysis** — AI evaluates findings in the context of your assessment profile and target type.
 - **Remediation guidance** — Natural-language steps for addressing each finding, including code snippets where relevant.
 - **Severity clarification** — AI can explain why a finding is rated a given severity and what real-world impact it may have.
-- **Privacy-preserving** — Only finding metadata (title, severity, evidence snippet) is sent to the AI provider. Raw scan data stays local.
+- **Privacy-preserving** — Only finding title, severity, description, and evidence snippets — redacted before sending — go to the AI provider. Raw scan data stays local.
 - **Toggleable** — AI enrichment is optional and can be enabled per-assessment or globally.
 
 ---
 
 ## Reporting
 
-- **Multi-format export** — JSON, HTML, PDF, CSV, Markdown.
+- **HTML and PDF export.**
 - **On-demand reports** — Generate a report for any completed assessment.
 - **Scheduled reports** — Automatically generate and export reports on a cadence.
-- **Customizable templates** — HTML and Markdown templates can be modified.
 - **Executive summaries** — Each report includes a high-level overview suitable for non-technical stakeholders.
 - **Technical appendices** — Full finding details, evidence, and raw scanner output included in extended reports.
 

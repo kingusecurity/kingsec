@@ -180,6 +180,55 @@ class TestRecordFailedAuthentication:
         assert result.locked  # 4 >= 3 so locked again
         assert result.failed_attempts == 4
 
+    def test_live_lockout_duration_is_fixed_not_progressive(self) -> None:
+        """Phase 3 (auth hardening), Q5's definitive answer: this
+        documents CURRENT behavior on the live login path, NOT a desired
+        invariant. AccountLockout (domain/rate_limit.py) has exactly three
+        fields - user_id, locked_until, failed_attempts - and none of them
+        record how many times this account has been locked before.
+        RecordFailedAuthentication.execute() always computes
+        locked_until = now + lockout_duration_seconds, the same fixed
+        value every time, forever - unlike the separate, never-wired
+        AccountLockoutService (deleted this phase), which escalated
+        60s/120s/300s/600s across repeated lockouts. This is not a bug to
+        fix here (see docs/STATUS.md's own decision record) - a fixed
+        900s lockout is a defensible, shippable control.
+
+        If progressive escalation is EVER implemented on this path (see
+        docs/STATUS.md's backlog entry naming what it would need - a
+        persisted lockout-count/tier field, a migration, a tiering
+        policy, a decay rule), THIS TEST MUST BE REPLACED, NOT DELETED:
+        a fixed duration would then be the wrong behavior, not merely an
+        undesired one, and something needs to keep proving whatever the
+        new, real invariant is.
+        """
+        lockout_repo = FakeLockoutRepository()
+        clock = FakeClock(_now=1000.0)
+        use_case = RecordFailedAuthentication(lockout_repo, clock, max_attempts=1, lockout_duration_seconds=900)
+        req = RecordFailedAuthenticationRequest(user_id="u5", ip_address="1.2.3.4", username="eve")
+
+        # First lockout episode.
+        first = use_case.execute(req)
+        assert first.locked
+        assert first.locked_until is not None
+        first_duration = first.locked_until - clock.now()
+        assert first_duration == 900.0
+
+        # Let the lock naturally expire, then lock the SAME account again -
+        # a second, independent episode with a higher failed_attempts count.
+        clock._now = first.locked_until + 1.0
+        second = use_case.execute(req)
+        assert second.locked
+        assert second.locked_until is not None
+        assert second.failed_attempts > first.failed_attempts
+        second_duration = second.locked_until - clock.now()
+
+        assert second_duration == first_duration == 900.0, (
+            "the live lockout path escalated duration across repeated lockouts - "
+            "if this is intentional, REPLACE this test, don't just delete it "
+            "(see docs/STATUS.md's lockout-escalation backlog entry)"
+        )
+
 
 class TestRecordSuccessfulAuthentication:
     def test_resets_failed_attempts(self) -> None:

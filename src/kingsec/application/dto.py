@@ -259,6 +259,15 @@ class CreateAssessmentRequest:
     # never interprets this value - it is only carried through to the
     # persisted Assessment, the same treatment profile_id already gets.
     schedule_occurrence_id: str | None = None
+    # Phase 4 (authorization scope enforcement). Both trusted as already
+    # vetted by the caller (the inbound route checks the requester's role
+    # via its own require_admin/_is_admin dependency, the same pattern
+    # search_findings()'s is_admin parameter already uses) - CreateAssessment
+    # never re-derives a role from these two flags, only honors them
+    # together: override_scope_check is only ever effective when
+    # requesting_is_admin is also True.
+    requesting_is_admin: bool = False
+    override_scope_check: bool = False
 
 
 @dataclass(frozen=True)
@@ -411,23 +420,6 @@ class AssessmentView:
 
 
 @dataclass(frozen=True)
-class StartAssessmentRequest:
-    """Request to begin an authorized assessment."""
-
-    assessment_id: str
-
-
-@dataclass(frozen=True)
-class StartAssessmentResponse:
-    """Response from starting an assessment."""
-
-    assessment_id: str
-    status: str
-    findings_count: int
-    highest_severity: str | None
-
-
-@dataclass(frozen=True)
 class SubmitAssessmentRequest:
     """Request to submit an assessment for background execution."""
 
@@ -516,3 +508,46 @@ class GenerateReportResponse:
     artifact_media_type: str
     artifact_filename: str
     artifact_bytes: int
+
+
+# ── AuthorizationGrant DTOs (Phase 4) ───────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class CreateAuthorizationGrantRequest:
+    """Request to create a new AuthorizationGrant."""
+
+    authorized_by: str
+    authorizing_organization: str
+    target_specification_type: str
+    target_specification_value: str
+    valid_from: str
+    valid_until: str
+    created_by: str
+
+
+@dataclass(frozen=True)
+class CreateAuthorizationGrantResponse:
+    """Response from successful AuthorizationGrant creation."""
+
+    grant_id: str
+    target_specification_type: str
+    target_specification_value: str
+    valid_from: str
+    valid_until: str
+
+
+@dataclass(frozen=True)
+class RevokeAuthorizationGrantRequest:
+    """Request to revoke an existing AuthorizationGrant."""
+
+    grant_id: str
+    revoked_by: str
+
+
+@dataclass(frozen=True)
+class RevokeAuthorizationGrantResponse:
+    """Response from successful AuthorizationGrant revocation."""
+
+    grant_id: str
+    revoked_at: str

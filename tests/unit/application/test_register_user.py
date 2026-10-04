@@ -6,7 +6,11 @@ import pytest
 
 from kingsec.application.dto import RegisterUserRequest
 from kingsec.application.ports import PasswordHasher, UserRepository
-from kingsec.application.use_cases.register_user import RegisterUser, RegistrationError
+from kingsec.application.use_cases.register_user import (
+    RegisterUser,
+    RegistrationDisabledError,
+    RegistrationError,
+)
 from kingsec.domain import Role, User
 from kingsec.domain.user import PasswordValidationError
 
@@ -40,18 +44,7 @@ class StubUserRepository(UserRepository):
     def save(self, user: User) -> None:
         self.saved_users.append(user)
 
-    def save_new_user_claiming_bootstrap_admin(self, user: User) -> User:
-        if len(self.saved_users) == 0:
-            user = User(
-                id=user.id,
-                username=user.username,
-                email=user.email,
-                password_hash=user.password_hash,
-                role=Role.ADMIN,
-                is_active=user.is_active,
-                created_at=user.created_at,
-                last_login_at=user.last_login_at,
-            )
+    def save_new_user(self, user: User) -> User:
         self.saved_users.append(user)
         return user
 
@@ -102,7 +95,7 @@ class TestRegisterUser:
 
         assert result.username == "newuser"
         assert result.email == "new@example.com"
-        assert result.role == "Admin"
+        assert result.role == "Viewer"
         assert len(repo.saved_users) == 1
 
     def test_registration_with_duplicate_username(self) -> None:
@@ -199,30 +192,35 @@ class TestRegisterUser:
         with pytest.raises(PasswordValidationError, match="digit"):
             register.execute(request)
 
-    def test_second_user_becomes_viewer(self) -> None:
+    def test_second_user_is_also_viewer(self) -> None:
         repo = StubUserRepository()
         hasher = StubPasswordHasher()
 
-        # First user becomes ADMIN.
         register = RegisterUser(repo, hasher)
         first_req = RegisterUserRequest(
-            username="admin",
-            email="admin@example.com",
+            username="first",
+            email="first@example.com",
             password="SecurePass1",
         )
         first_result = register.execute(first_req)
-        assert first_result.role == "Admin"
+        assert first_result.role == "Viewer"
 
-        # Second user becomes VIEWER.
         second_req = RegisterUserRequest(
-            username="viewer",
-            email="viewer@example.com",
+            username="second",
+            email="second@example.com",
             password="SecurePass1",
         )
         second_result = register.execute(second_req)
         assert second_result.role == "Viewer"
 
-    def test_first_user_is_admin_on_empty_database(self) -> None:
+    def test_first_user_on_empty_database_is_viewer_not_admin(self) -> None:
+        """Phase 3 (auth hardening): the exact vulnerability this phase
+        closes. Before this fix, the very first user ever registered was
+        atomically granted ADMIN (KSEC-73-05) - meaning an unauthenticated
+        caller who won the race to be first through /auth/register on a
+        network-reachable instance could permanently own the system. Self-
+        registration must never grant ADMIN again, first user or not; the
+        initial admin is created only by kingsec-bootstrap."""
         repo = StubUserRepository()
         hasher = StubPasswordHasher()
 
@@ -234,10 +232,10 @@ class TestRegisterUser:
         )
         result = register.execute(request)
 
-        assert result.role == "Admin"
-        assert repo.saved_users[0].role == Role.ADMIN
+        assert result.role == "Viewer"
+        assert repo.saved_users[0].role == Role.VIEWER
 
-    def test_third_user_becomes_viewer(self) -> None:
+    def test_third_user_is_also_viewer(self) -> None:
         repo = StubUserRepository()
         hasher = StubPasswordHasher()
 
@@ -250,5 +248,69 @@ class TestRegisterUser:
                     password="SecurePass1",
                 )
             )
-            expected = "Admin" if i == 0 else "Viewer"
-            assert result.role == expected, f"user{i}: expected {expected}, got {result.role}"
+            assert result.role == "Viewer", f"user{i}: expected Viewer, got {result.role}"
+
+
+class TestRegistrationDisabled:
+    """Phase 3 (auth hardening): SecuritySettings.allow_self_registration
+    defaults to False in production (wired explicitly in
+    bootstrap/composition.py) - RegisterUser's own constructor defaults
+    allow_self_registration=True for test/construction convenience only
+    (~30 unrelated call sites across other test files construct
+    RegisterUser(repo, hasher) as setup for a different feature). These
+    tests exercise the disabled path explicitly."""
+
+    def test_registering_the_first_user_when_disabled_grants_nothing(self) -> None:
+        repo = StubUserRepository()
+        hasher = StubPasswordHasher()
+
+        register = RegisterUser(repo, hasher, allow_self_registration=False)
+        request = RegisterUserRequest(
+            username="first",
+            email="first@example.com",
+            password="SecurePass1",
+        )
+
+        with pytest.raises(RegistrationDisabledError):
+            register.execute(request)
+
+        assert repo.saved_users == [], "a refused registration must never persist a user"
+
+    def test_disabled_with_no_admin_yet_points_at_kingsec_bootstrap(self) -> None:
+        repo = StubUserRepository()
+        hasher = StubPasswordHasher()
+
+        register = RegisterUser(repo, hasher, allow_self_registration=False)
+        request = RegisterUserRequest(
+            username="anyone",
+            email="anyone@example.com",
+            password="SecurePass1",
+        )
+
+        with pytest.raises(RegistrationDisabledError, match="kingsec-bootstrap"):
+            register.execute(request)
+
+    def test_disabled_with_an_existing_admin_names_the_setting(self) -> None:
+        repo = StubUserRepository()
+        hasher = StubPasswordHasher()
+        # Seed an existing admin directly, the way a real deployment would
+        # have one after kingsec-bootstrap ran - count_by_role must see it.
+        repo.saved_users.append(
+            User(
+                id="admin-1",
+                username="existing_admin",
+                email="admin@example.com",
+                password_hash="hashed:x",
+                role=Role.ADMIN,
+            )
+        )
+
+        register = RegisterUser(repo, hasher, allow_self_registration=False)
+        request = RegisterUserRequest(
+            username="anyone",
+            email="anyone@example.com",
+            password="SecurePass1",
+        )
+
+        with pytest.raises(RegistrationDisabledError, match="KINGSEC_SECURITY__ALLOW_SELF_REGISTRATION"):
+            register.execute(request)

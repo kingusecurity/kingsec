@@ -9,15 +9,20 @@ callers a consistent, application-level error for bad input.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 
 from kingsec.domain import (
     Assessment,
     AssessmentId,
+    AuthorizationGrant,
     InvariantViolation,
     ScannerRunSummary,
     Target,
+    TargetSpecification,
+    TargetSpecificationType,
     TargetType,
 )
+from kingsec.domain.identifiers import AuthorizationGrantId
 from kingsec.domain.pipeline import PipelineExecution
 from kingsec.domain.schedule import ScanSchedule
 from kingsec.shared.errors import KingSecError
@@ -183,5 +188,72 @@ def build_target(value: str, type_raw: str) -> Target:
     target_type = _parse_target_type(type_raw)
     try:
         return Target(value, target_type)
+    except InvariantViolation as exc:
+        raise InputValidationError(str(exc)) from exc
+
+
+def _parse_target_specification_type(raw: str) -> TargetSpecificationType:
+    """Parse a target-specification-type string, or raise InputValidationError."""
+    try:
+        return TargetSpecificationType(raw)
+    except ValueError as exc:
+        allowed = ", ".join(t.value for t in TargetSpecificationType)
+        raise InputValidationError(f"invalid target specification type {raw!r}; expected one of: {allowed}") from exc
+
+
+def build_target_specification(type_raw: str, value: str) -> TargetSpecification:
+    """Build a validated TargetSpecification from raw primitives (Phase 4)."""
+    spec_type = _parse_target_specification_type(type_raw)
+    try:
+        return TargetSpecification(type=spec_type, value=value)
+    except InvariantViolation as exc:
+        raise InputValidationError(str(exc)) from exc
+
+
+def parse_utc_datetime(raw: str) -> datetime:
+    """Parse an ISO-8601 timestamp, or raise InputValidationError.
+
+    Phase 4: AuthorizationGrant.valid_from/valid_until require a
+    timezone-aware datetime - a bare ValueError from a malformed string,
+    or the domain's own InvariantViolation for a naive one, both collapse
+    to the same application-level InputValidationError a caller expects.
+    """
+    try:
+        moment = datetime.fromisoformat(raw)
+    except ValueError as exc:
+        raise InputValidationError(f"invalid timestamp {raw!r}: {exc}") from exc
+    if moment.tzinfo is None or moment.tzinfo.utcoffset(moment) is None:
+        raise InputValidationError(f"timestamp {raw!r} must be timezone-aware (e.g. end with 'Z' or '+00:00')")
+    return moment
+
+
+def build_authorization_grant(
+    *,
+    grant_id: AuthorizationGrantId,
+    authorized_by: str,
+    authorizing_organization: str,
+    target_specification: TargetSpecification,
+    valid_from: datetime,
+    valid_until: datetime,
+    created_by: str,
+) -> AuthorizationGrant:
+    """Build a validated AuthorizationGrant from already-parsed primitives.
+
+    Phase 4: the AuthorizationGrant constructor itself raises
+    InvariantViolation for e.g. valid_until <= valid_from - translated
+    here into InputValidationError, the same boundary every other
+    build_*() helper in this module enforces, rather than letting the
+    domain error escape CreateAuthorizationGrant.execute() uncaught.
+    """
+    try:
+        return AuthorizationGrant(
+            id=grant_id,
+            authorized_by=authorized_by,
+            authorizing_organization=authorizing_organization,
+            target_specification=target_specification,
+            valid_from=valid_from,
+            valid_until=valid_until,
+            created_by=created_by,
+        )
     except InvariantViolation as exc:
         raise InputValidationError(str(exc)) from exc

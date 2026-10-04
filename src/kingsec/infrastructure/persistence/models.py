@@ -44,6 +44,15 @@ class AssessmentORM(Base):
     authorized_at: Mapped[str | None] = mapped_column(String, nullable=True)
     authorization_scope: Mapped[str | None] = mapped_column(String, nullable=True)
 
+    # Phase 4 (authorization scope enforcement) - distinct from the three
+    # columns above, which are the pre-existing free-text Authorization
+    # value object. This is which AuthorizationGrant(s) find_covering()
+    # actually matched (or the admin-override sentinel) - see
+    # domain/assessment.py's authorization_id field comment for the full
+    # contract. NULL for every pre-enforcement row and unenforced-path
+    # creation, not a data gap.
+    authorization_id: Mapped[str | None] = mapped_column(String, nullable=True)
+
     failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     organization_id: Mapped[str | None] = mapped_column(String, ForeignKey("organizations.id"), nullable=True)
@@ -82,6 +91,27 @@ class AssessmentORM(Base):
         cascade="all, delete-orphan",
         lazy="selectin",  # avoid N+1: load all findings in one extra query
     )
+
+
+class AuthorizationGrantORM(Base):
+    """Row representation of an :class:`~kingsec.domain.AuthorizationGrant` aggregate.
+
+    Phase 4 (authorization scope enforcement). Timestamps stored as
+    ISO-8601 strings, matching AssessmentORM's own convention above -
+    portable and index-friendly without a database-specific datetime type.
+    """
+
+    __tablename__ = "authorization_grants"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    authorized_by: Mapped[str] = mapped_column(String, nullable=False)
+    authorizing_organization: Mapped[str] = mapped_column(String, nullable=False)
+    target_specification_type: Mapped[str] = mapped_column(String, nullable=False)
+    target_specification_value: Mapped[str] = mapped_column(String, nullable=False)
+    valid_from: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    valid_until: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    created_by: Mapped[str] = mapped_column(String, nullable=False)
+    revoked_at: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class FindingORM(Base):

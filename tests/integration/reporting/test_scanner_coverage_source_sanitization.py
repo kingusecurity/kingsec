@@ -26,6 +26,7 @@ from kingsec.domain import (
     ScannerPluginMetadata,
     ScannerRequirement,
     ScannerResult,
+    ScannerSurfaceTier,
     Target,
     TargetType,
 )
@@ -56,6 +57,7 @@ class _StubPlugin:
                 requirement=ScannerRequirement.REACHABLE_HOST,
                 scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                 output_format=OutputFormat.FINDINGS,
+                surface_tier=ScannerSurfaceTier.HOST_PORT_PATH,
             ),
         )
 
@@ -72,6 +74,19 @@ class _StubPlugin:
         pass
 
 
+class _SucceedingStubPlugin(_StubPlugin):
+    """A companion scanner that always succeeds - keeps _real_scanner_summary()'s
+    output a real COMPLETED_WITH_GAPS shape (Phase 2C Step 2 GAP-1 fix: a
+    report can never be built at all when EVERY scanner failed), while
+    these tests' own assertions stay about the ONE scanner under test."""
+
+    def __init__(self, plugin_id: str) -> None:
+        super().__init__(plugin_id, raise_on_scan=RuntimeError("unused"))
+
+    def scan(self, target: Target, config: PluginConfig) -> ScannerResult:
+        return ScannerResult(scanner_id=ScannerId(self._id), findings=(), raw_output="", duration_seconds=0.01)
+
+
 def _real_scanner_summary(exc: Exception) -> tuple:
     """Run the real orchestrator against a single failing plugin and return
     the real ScannerRunSummary it would produce (mirrors submit_assessment.py's
@@ -81,9 +96,10 @@ def _real_scanner_summary(exc: Exception) -> tuple:
 
     registry = InMemoryPluginRegistry()
     registry.register(_StubPlugin("nuclei", exc))
+    registry.register(_SucceedingStubPlugin("nmap"))
     orchestrator = ScannerOrchestrator(registry)
     engine = AssessmentExecutionEngine()
-    engine.start_execution("asmt-1", {"nuclei": "Nuclei Scanner"})
+    engine.start_execution("asmt-1", {"nuclei": "Nuclei Scanner", "nmap": "Nmap Scanner"})
 
     orchestrator.execute_all(Target("10.0.0.5", TargetType.IP_ADDRESS), execution_engine=engine, tracking_id="asmt-1")
 

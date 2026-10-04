@@ -79,9 +79,11 @@ def _resolve_database_url() -> str:
         return db_url
 
     # Default: derive SQLite path from data_dir setting.
+    from kingsec._data_dir_notice import announce_data_dir
     from kingsec.infrastructure.config.loader import load_settings
 
     settings = load_settings()
+    announce_data_dir(settings)
     data_dir = settings.storage.data_dir
     data_dir.mkdir(parents=True, exist_ok=True)
     return f"sqlite:///{data_dir / 'kingsec.db'}"

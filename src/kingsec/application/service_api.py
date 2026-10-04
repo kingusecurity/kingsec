@@ -21,8 +21,6 @@ from kingsec.application.dto import (
     GetAssessmentRequest,
     ListAssessmentsRequest,
     ListAssessmentsResponse,
-    StartAssessmentRequest,
-    StartAssessmentResponse,
     SubmitAssessmentRequest,
     SubmitAssessmentResponse,
 )
@@ -34,7 +32,6 @@ from kingsec.application.use_cases.delete_assessment import DeleteAssessment
 from kingsec.application.use_cases.generate_report import GenerateReport
 from kingsec.application.use_cases.get_assessment import GetAssessment
 from kingsec.application.use_cases.list_assessments import ListAssessments
-from kingsec.application.use_cases.start_assessment import StartAssessment
 
 
 class UseCaseServiceAPI(ServiceAPI):
@@ -43,7 +40,6 @@ class UseCaseServiceAPI(ServiceAPI):
     def __init__(
         self,
         create_assessment: CreateAssessment,
-        start_assessment: StartAssessment,
         submit_assessment: SubmitAssessment,
         cancel_assessment: CancelAssessment,
         list_assessments: ListAssessments,
@@ -52,7 +48,6 @@ class UseCaseServiceAPI(ServiceAPI):
         delete_assessment: DeleteAssessment,
     ) -> None:
         self._create = create_assessment
-        self._start = start_assessment
         self._submit = submit_assessment
         self._cancel = cancel_assessment
         self._list = list_assessments
@@ -62,9 +57,6 @@ class UseCaseServiceAPI(ServiceAPI):
 
     def create_assessment(self, request: CreateAssessmentRequest) -> CreateAssessmentResponse:
         return self._create.execute(request)
-
-    def start_assessment(self, request: StartAssessmentRequest) -> StartAssessmentResponse:
-        return self._start.execute(request)
 
     def submit_assessment(self, request: SubmitAssessmentRequest) -> SubmitAssessmentResponse:
         return self._submit.execute(request)

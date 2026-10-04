@@ -38,6 +38,7 @@ from .test_rbac import (
     StubTokenService,
     StubUserRepo,
     _login,
+    _promote_user_in_repo,
     _register_user,
 )
 
@@ -182,8 +183,10 @@ class TestAssignRoleBodyMaxLengthBoundary:
         app, user_repo, _audit = _build_app()
         client = TestClient(app)
 
-        # First registered user is auto-promoted to Admin.
+        # Phase 3: self-registration never grants Admin - promote directly
+        # in the stub repo, same pattern test_rbac.py itself uses.
         _register_user(client, username="admin1", email="admin1@example.com")
+        _promote_user_in_repo(user_repo, "admin1", "admin")
         admin_token = _login(client, username="admin1")
         _register_user(client, username="target1", email="target1@example.com")
         target_id = user_repo.find_by_username("target1").id
@@ -204,6 +207,7 @@ class TestAssignRoleBodyMaxLengthBoundary:
         client = TestClient(app)
 
         _register_user(client, username="admin1", email="admin1@example.com")
+        _promote_user_in_repo(user_repo, "admin1", "admin")
         admin_token = _login(client, username="admin1")
         _register_user(client, username="target1", email="target1@example.com")
         target_id = user_repo.find_by_username("target1").id

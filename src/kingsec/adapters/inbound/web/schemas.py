@@ -71,6 +71,87 @@ class CreateAssessmentBody(BaseModel):
         description="Assessment profile to plan this scan against. Omit to run every target-compatible scanner (the pre-profile default behavior).",
         examples=["quick-scan"],
     )
+    override_scope_check: bool = Field(
+        default=False,
+        description="Admin-only: proceed even if no active authorization grant covers this target's scan surface. Ignored unless the requester is an admin.",
+    )
+
+
+class CreateAuthorizationGrantBody(BaseModel):
+    """POST /api/v1/authorization-grants request body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    authorized_by: str = Field(
+        ...,
+        min_length=1,
+        max_length=256,
+        description="Who authorized this grant (person, ticket, or engagement reference).",
+        examples=["ciso@example.com"],
+    )
+    authorizing_organization: str = Field(
+        ...,
+        min_length=1,
+        max_length=256,
+        description="The organization this authorization was issued on behalf of.",
+        examples=["Example Corp"],
+    )
+    target_specification_type: str = Field(
+        ...,
+        description="ip_address, network, hostname, wildcard_hostname, or url_prefix.",
+        examples=["ip_address"],
+    )
+    target_specification_value: str = Field(
+        ...,
+        min_length=1,
+        max_length=2048,
+        description="The target value this grant covers, in the form its type expects.",
+        examples=["10.0.0.5"],
+    )
+    valid_from: str = Field(..., description="ISO-8601 timestamp the grant becomes active.")
+    valid_until: str = Field(..., description="ISO-8601 timestamp the grant expires.")
+
+
+class CreateAuthorizationGrantResponse(BaseModel):
+    """POST /api/v1/authorization-grants response body."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    grant_id: str
+    target_specification_type: str
+    target_specification_value: str
+    valid_from: str
+    valid_until: str
+
+
+class GrantCoverageTierResult(BaseModel):
+    """Per-tier result inside CheckGrantCoverageResponse."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tier: str
+    covered: bool
+    grant_id: str | None = None
+
+
+class CheckGrantCoverageResponse(BaseModel):
+    """GET /api/v1/authorization-grants/check response body.
+
+    A read-only dry run of CreateAssessment's own scope check
+    (effective_scan_surface()/find_covering(), called directly - never
+    reimplemented) so a UI can warn an operator before they submit a
+    new-assessment form, with no risk of silently drifting from what
+    the real enforcement would actually decide.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enforced: bool
+    target_type: str
+    target_value: str
+    profile_id: str
+    required_tiers: list[GrantCoverageTierResult]
+    fully_covered: bool
 
 
 class StartAssessmentBody(BaseModel):
@@ -119,6 +200,14 @@ class HealthResponse(BaseModel):
     status: str = Field(
         default="ok",
         description="Health status.",
+    )
+    bootstrap_required: bool = Field(
+        default=False,
+        description=(
+            "Phase 3 (auth hardening): true when no administrator exists yet. "
+            "The one public, unauthenticated signal that an operator must run "
+            "kingsec-bootstrap before this instance can be used."
+        ),
     )
 
 

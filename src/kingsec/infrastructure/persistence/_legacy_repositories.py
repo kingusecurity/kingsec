@@ -15,6 +15,7 @@ per-call transaction boundary and debug logging around those primitives.
 from __future__ import annotations
 
 import builtins
+from datetime import datetime
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
@@ -23,8 +24,10 @@ from kingsec.application import (
     AssessmentRepository,
     ReportRepository,
 )
+from kingsec.application.ports import AuthorizationGrantRepository
 from kingsec.application.ports.repositories import AssessmentPage, FindingProjection, ReportProjection
-from kingsec.domain import Assessment, AssessmentId, Report
+from kingsec.domain import Assessment, AssessmentId, AuthorizationGrant, Report
+from kingsec.domain.identifiers import AuthorizationGrantId
 from kingsec.infrastructure.logging import get_logger
 
 from . import _operations as ops
@@ -259,3 +262,74 @@ class LegacyReportRepository(ReportRepository):
             from kingsec.infrastructure.persistence.repositories.report import SQLAlchemyReportRepository
 
             return SQLAlchemyReportRepository(session).count()
+
+
+class LegacyAuthorizationGrantRepository(AuthorizationGrantRepository):
+    """Persists :class:`~kingsec.domain.AuthorizationGrant` aggregates (Phase 4).
+
+    Session-per-call, autocommit - same transaction-ownership style as
+    LegacyAssessmentRepository above. Delegates the actual persistence
+    logic to the session-bound SQLAlchemyAuthorizationGrantRepository
+    rather than duplicating it, so behaviour can never diverge between
+    this container-singleton adapter and any future Unit-of-Work caller.
+    """
+
+    def __init__(self, session_factory: sessionmaker[Session]) -> None:
+        self._session_factory = session_factory
+
+    def save(self, grant: AuthorizationGrant) -> None:
+        from kingsec.infrastructure.persistence.repositories.authorization_grant import (
+            SQLAlchemyAuthorizationGrantRepository,
+        )
+
+        try:
+            with self._session_factory.begin() as session:
+                SQLAlchemyAuthorizationGrantRepository(session).save(grant)
+            _logger.debug("authorization grant saved", grant_id=grant.id.value)
+        except SQLAlchemyError as exc:
+            ops.raise_persistence_error("failed to save authorization grant", exc, grant.id.value)
+
+    def get(self, grant_id: AuthorizationGrantId) -> AuthorizationGrant:
+        from kingsec.infrastructure.persistence.repositories.authorization_grant import (
+            SQLAlchemyAuthorizationGrantRepository,
+        )
+
+        try:
+            with self._session_factory() as session:
+                return SQLAlchemyAuthorizationGrantRepository(session).get(grant_id)
+        except SQLAlchemyError as exc:
+            ops.raise_persistence_error("failed to load authorization grant", exc, grant_id.value)
+
+    def list(self, *, limit: int = 50, offset: int = 0) -> builtins.list[AuthorizationGrant]:
+        from kingsec.infrastructure.persistence.repositories.authorization_grant import (
+            SQLAlchemyAuthorizationGrantRepository,
+        )
+
+        try:
+            with self._session_factory() as session:
+                return SQLAlchemyAuthorizationGrantRepository(session).list(limit=limit, offset=offset)
+        except SQLAlchemyError as exc:
+            ops.raise_persistence_error("failed to list authorization grants", exc, "-")
+
+    def find_active(self, at: datetime) -> builtins.list[AuthorizationGrant]:
+        from kingsec.infrastructure.persistence.repositories.authorization_grant import (
+            SQLAlchemyAuthorizationGrantRepository,
+        )
+
+        try:
+            with self._session_factory() as session:
+                return SQLAlchemyAuthorizationGrantRepository(session).find_active(at)
+        except SQLAlchemyError as exc:
+            ops.raise_persistence_error("failed to find active authorization grants", exc, "-")
+
+    def revoke(self, grant_id: AuthorizationGrantId, revoked_at: datetime) -> None:
+        from kingsec.infrastructure.persistence.repositories.authorization_grant import (
+            SQLAlchemyAuthorizationGrantRepository,
+        )
+
+        try:
+            with self._session_factory.begin() as session:
+                SQLAlchemyAuthorizationGrantRepository(session).revoke(grant_id, revoked_at)
+            _logger.debug("authorization grant revoked", grant_id=grant_id.value)
+        except SQLAlchemyError as exc:
+            ops.raise_persistence_error("failed to revoke authorization grant", exc, grant_id.value)

@@ -262,6 +262,111 @@ class TestPartialCoverageVerdict:
         assert "no action required" not in report.verdict.headline.lower()
 
 
+class TestStatusDerivedFromScannerSummary:
+    """Phase 2C Step 2, GAP-1 fix: Report.assessment_status must be DERIVED
+    from the assessment's own scanner_summary, not a passthrough of
+    assessment.status - a persisted status can disagree with the scanner
+    results it's supposed to summarize.
+
+    Built the way the real defect actually arose - record a
+    scanner_summary showing the true (bad) outcome, then call .complete()
+    directly, exactly what an unconditional-complete() write path (e.g.
+    the since-deleted StartAssessment use case) would do, bypassing the
+    orchestrator's own success-counting decision - NOT via
+    dataclasses.replace() on an already-correct Report. See CLAUDE.md's
+    Verification honesty section: a test that hand-sets its own input can
+    only verify what happens downstream of that input being correct: it
+    never exercises whether the input is DERIVED correctly from real data,
+    which is exactly the defect class this closes.
+    """
+
+    # The exact real shape of asmt-1983c7e4b1564815b62bb0bf02dc3e08 in
+    # C:\kingsec-e2e\kingsec.db: status persisted as COMPLETED, but zero of
+    # 5 scanners actually succeeded.
+    _STALE_ROW_SUMMARY = (
+        ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.PENDING),
+        ScannerRunSummary(
+            scanner_id="gobuster",
+            name="Gobuster",
+            status=ScannerRunState.FAILED,
+            skipped_reason="wordlist could not be found",
+        ),
+        ScannerRunSummary(
+            scanner_id="ffuf",
+            name="FFUF",
+            status=ScannerRunState.FAILED,
+            skipped_reason="wordlist could not be found",
+        ),
+        ScannerRunSummary(
+            scanner_id="zap",
+            name="OWASP ZAP",
+            status=ScannerRunState.FAILED,
+            skipped_reason="scan process exited with an error",
+        ),
+        ScannerRunSummary(
+            scanner_id="nuclei",
+            name="Nuclei",
+            status=ScannerRunState.SKIPPED_INCOMPATIBLE,
+            skipped_reason="Missing Nuclei templates",
+        ),
+    )
+
+    def test_zero_successes_refuses_a_scored_report_even_when_status_says_completed(self, running) -> None:
+        """The actual stale-row fixture (asmt-1983c7e4b1564815b62bb0bf02dc3e08's
+        real shape): record a scanner_summary showing zero successes, then
+        call .complete() directly. assessment.status ends up COMPLETED;
+        scanner_summary says otherwise. from_assessment() must refuse to
+        build a scored report regardless."""
+        running.record_scanner_summary(self._STALE_ROW_SUMMARY)
+        running.complete()
+        assert running.status.value == "completed"  # confirms the contradiction genuinely exists
+
+        with pytest.raises(IllegalStateTransition, match="no report can be generated"):
+            Report.from_assessment(running)
+
+    def test_some_successes_derives_completed_with_gaps_despite_completed_status(self, running) -> None:
+        """Same shape, but 4 of 5 scanners succeeded - the persisted status
+        COMPLETED must not survive into the report; assessment_status must
+        derive COMPLETED_WITH_GAPS from the real scanner data, so
+        downstream rendering (the Partial Coverage override) fires from
+        real data, not a hand-set field."""
+        summary = (
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=1),
+            ScannerRunSummary(scanner_id="gobuster", name="Gobuster", status=ScannerRunState.SUCCEEDED),
+            ScannerRunSummary(scanner_id="ffuf", name="FFUF", status=ScannerRunState.SUCCEEDED),
+            ScannerRunSummary(scanner_id="zap", name="OWASP ZAP", status=ScannerRunState.SUCCEEDED),
+            ScannerRunSummary(scanner_id="nuclei", name="Nuclei", status=ScannerRunState.FAILED),
+        )
+        running.record_scanner_summary(summary)
+        running.record_finding(make_finding(Severity.LOW))
+        running.complete()  # the bug this reproduces: should have been complete_with_gaps()
+        assert running.status.value == "completed"
+
+        report = Report.from_assessment(running)
+        assert report.assessment_status.value == "completed_with_gaps"
+
+    def test_all_successes_confirms_completed_agrees_and_no_disagreement(self, running) -> None:
+        """The non-buggy case: status and scanner_summary genuinely agree.
+        Must not be affected by the derivation - same guarantee as before."""
+        summary = (
+            ScannerRunSummary(scanner_id="nmap", name="Nmap", status=ScannerRunState.SUCCEEDED, findings_count=1),
+        )
+        running.record_scanner_summary(summary)
+        running.complete()
+
+        report = Report.from_assessment(running)
+        assert report.assessment_status.value == "completed"
+
+    def test_no_scanner_summary_falls_back_to_persisted_status(self, running) -> None:
+        """An assessment with no scanner_summary at all (pre-feature
+        assessment, or a fixture that never calls record_scanner_summary())
+        has nothing to derive from - must fall back to the persisted
+        status exactly as before this fix."""
+        running.complete()
+        report = Report.from_assessment(running)
+        assert report.assessment_status.value == "completed"
+
+
 class TestOrderingAndCounts:
     def test_entries_are_ordered_worst_first(self, running) -> None:
         _complete(
@@ -522,3 +627,36 @@ class TestImmutability:
         report = Report.from_assessment(running)
         with pytest.raises(dataclasses.FrozenInstanceError):
             report.target = "changed"  # type: ignore[misc]
+
+
+class TestProfileId:
+    """Phase 6 Task 5: Assessment.profile_id was always real and set at
+    creation time - from_assessment() simply never copied it onto Report
+    before. Tests the actual copy-through end to end (a real Assessment
+    built with a real profile_id, not a dataclasses.replace() shortcut
+    that would only prove the field exists, not that it's populated
+    correctly)."""
+
+    def test_profile_id_copied_from_a_real_assessment(self) -> None:
+        from datetime import UTC, datetime
+
+        from kingsec.domain import Assessment, Authorization, Target, TargetType
+
+        assessment = Assessment.create(Target("10.0.0.5", TargetType.IP_ADDRESS), profile_id="web-scan")
+        assessment.authorize(Authorization("tester", datetime.now(UTC), scope="10.0.0.5"))
+        assessment.start()
+        assessment.complete()
+        report = Report.from_assessment(assessment)
+        assert report.profile_id == "web-scan"
+
+    def test_no_profile_selected_stays_none(self) -> None:
+        from datetime import UTC, datetime
+
+        from kingsec.domain import Assessment, Authorization, Target, TargetType
+
+        assessment = Assessment.create(Target("10.0.0.5", TargetType.IP_ADDRESS))  # profile_id defaults to None
+        assessment.authorize(Authorization("tester", datetime.now(UTC), scope="10.0.0.5"))
+        assessment.start()
+        assessment.complete()
+        report = Report.from_assessment(assessment)
+        assert report.profile_id is None

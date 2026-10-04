@@ -25,12 +25,22 @@ _REAL_ALEMBIC_DIR = _PROJECT_ROOT / "src" / "kingsec" / "alembic"
 _REAL_VERSIONS_DIR = _REAL_ALEMBIC_DIR / "versions"
 
 
-def _run_alembic(*args: str, database_url: str | None = None) -> subprocess.CompletedProcess[str]:
+def _run_alembic(*args: str, database_url: str) -> subprocess.CompletedProcess[str]:
     """Run an Alembic command as a subprocess.
+
+    ``database_url`` is required, not optional - this is a subprocess,
+    invisible to any in-process test guard (see tests/conftest.py's
+    session-scoped default-data-dir guard). A previous version of this
+    helper defaulted to None and silently let the subprocess inherit
+    whatever ambient environment the test process had, which meant any
+    call site that forgot the argument (found: test_exactly_one_head's
+    ``_run_alembic("heads")``) would resolve Alembic's real default
+    database location instead of an isolated one. Every caller must now
+    decide explicitly.
 
     Args:
         *args: Alembic CLI arguments (e.g. ``"upgrade", "head"``).
-        database_url: Optional database URL override via env var.
+        database_url: Database URL override via env var - always required.
 
     Returns:
         The completed subprocess result.
@@ -39,8 +49,7 @@ def _run_alembic(*args: str, database_url: str | None = None) -> subprocess.Comp
         subprocess.CalledProcessError: If the Alembic command exits non-zero.
     """
     env = os.environ.copy()
-    if database_url:
-        env["ALEMBIC_DATABASE_URL"] = database_url
+    env["ALEMBIC_DATABASE_URL"] = database_url
 
     return subprocess.run(
         [sys.executable, "-m", "alembic", *args],
@@ -145,6 +154,7 @@ EXPECTED_TABLES = frozenset(
         "assets",
         "audit_entries",
         "audit_events",
+        "authorization_grants",
         "copilot_conversations",
         "cve_entries",
         "dead_letter_entries",
@@ -623,10 +633,15 @@ class TestMigrationAtomicity:
         # (add_report_assessment_status_and_backfill_scanner_status), then
         # Phase 2B-c moved it forward again to 5db990f46ee0 (add severity
         # demotion columns to findings), then Phase 2C Step 2 moved it
-        # forward again to 9601803f77a8 (add score_version to reports) -
-        # this must track the real head, not remain pinned to whatever
-        # revision was head when this test was first written.
-        assert stamp == "9601803f77a8"
+        # forward again to 9601803f77a8 (add score_version to reports),
+        # then Phase 4 moved it forward again to 289b5978e448 (add
+        # authorization_grants table and assessments.authorization_id -
+        # regenerated from the original 3b66008d3e1e after review dropped
+        # the unused historical_scope_note column and added the
+        # authorization_id audit-trail column instead) - this must track
+        # the real head, not remain pinned to whatever revision was head
+        # when this test was first written.
+        assert stamp == "289b5978e448"
 
 
 class TestSingleHead:
@@ -640,8 +655,9 @@ class TestSingleHead:
     relying on every future migration author to notice a subprocess error
     on their first real run."""
 
-    def test_exactly_one_head(self) -> None:
-        result = _run_alembic("heads")
+    def test_exactly_one_head(self, tmp_path: Path) -> None:
+        db_url = f"sqlite:///{tmp_path / 'test.db'}"
+        result = _run_alembic("heads", database_url=db_url)
         assert result.returncode == 0, result.stderr
         head_lines = [line for line in result.stdout.splitlines() if line.strip()]
         assert len(head_lines) == 1, (

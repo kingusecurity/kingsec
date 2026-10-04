@@ -274,18 +274,21 @@ class TestQueueAuthorizationMutations:
 
     def test_admin_can_retry_a_job(self) -> None:
         _register_user(self.client, username="admin1", email="admin1@example.com")
+        _promote_user_in_repo(self._ur, "admin1", "admin")
         token = _login(self.client, username="admin1")
         resp = self.client.post("/api/v1/queue/retry/jq-1", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200, resp.text
 
     def test_admin_can_cancel_a_job(self) -> None:
         _register_user(self.client, username="admin1", email="admin1@example.com")
+        _promote_user_in_repo(self._ur, "admin1", "admin")
         token = _login(self.client, username="admin1")
         resp = self.client.post("/api/v1/queue/cancel/jq-1", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200, resp.text
 
     def test_admin_can_requeue_a_dead_letter_entry(self) -> None:
         _register_user(self.client, username="admin1", email="admin1@example.com")
+        _promote_user_in_repo(self._ur, "admin1", "admin")
         token = _login(self.client, username="admin1")
         resp = self.client.post("/api/v1/queue/dead-letter/dl-1/requeue", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200, resp.text
@@ -318,6 +321,7 @@ class TestQueueAuthorizationSingleEntryDetail:
 
     def test_admin_can_read_single_entry_detail(self) -> None:
         _register_user(self.client, username="admin1", email="admin1@example.com")
+        _promote_user_in_repo(self._ur, "admin1", "admin")
         token = _login(self.client, username="admin1")
         resp = self.client.get("/api/v1/queue/jq-1", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200
@@ -438,6 +442,7 @@ class TestQueueAuthorizationLegitimateWorkflow:
     def test_admin_full_queue_lifecycle(self) -> None:
         _seed_entry(self._qr, entry_id="jq-2")
         _register_user(self.client, username="admin1", email="admin1@example.com")
+        _promote_user_in_repo(self._ur, "admin1", "admin")
         token = _login(self.client, username="admin1")
         headers = {"Authorization": f"Bearer {token}"}
 

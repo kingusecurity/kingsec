@@ -23,6 +23,7 @@ from kingsec.domain import (
     ScannerPluginMetadata,
     ScannerRequirement,
     ScannerResult,
+    ScannerSurfaceTier,
     Target,
 )
 from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE
@@ -76,11 +77,19 @@ class NmapPlugin(ScannerPluginPort):
                 requirement=ScannerRequirement.REACHABLE_HOST,
                 scan_categories=frozenset({ScanCategory.DISCOVERY, ScanCategory.CONFIGURATION}),
                 output_format=OutputFormat.RAW_TEXT,
+                # Phase 4: verified directly against
+                # nmap.py:_scan_url_two_invocations() - a URL target's
+                # sweep invocation carries no port restriction at all,
+                # independent of the target's own port. Non-URL targets
+                # get the same unrestricted single invocation. Sweeps the
+                # whole host, any port.
+                surface_tier=ScannerSurfaceTier.HOST_ANY_PORT,
             ),
             ScannerCapability(
                 requirement=ScannerRequirement.NETWORK_RANGE,
                 scan_categories=frozenset({ScanCategory.DISCOVERY, ScanCategory.CONFIGURATION}),
                 output_format=OutputFormat.RAW_TEXT,
+                surface_tier=ScannerSurfaceTier.HOST_ANY_PORT,
             ),
         )
 

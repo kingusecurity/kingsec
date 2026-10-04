@@ -124,30 +124,41 @@ def create_schema(engine: Engine) -> None:
     Base.metadata.create_all(engine)
 
 
+class SchemaNotMigratedError(RuntimeError):
+    """The database has not been migrated via Alembic.
+
+    A dedicated subclass (not a bare ``RuntimeError``) so callers - the
+    server's own startup error boundary, in particular - can catch this
+    specific, known, actionable condition and print the same remediation
+    message ``kingsec-bootstrap`` already uses, instead of either a raw
+    traceback or a second, independently-worded message.
+    """
+
+
 def validate_schema_version(engine: Engine) -> None:
     """Verify that the database has been migrated via Alembic.
 
     Checks for the ``alembic_version`` table and a recorded version. Raises
-    ``RuntimeError`` with a clear remediation message if the database appears
-    unmigrated — this prevents the application from starting with a stale or
-    empty schema.
+    ``SchemaNotMigratedError`` if the database appears unmigrated — this
+    prevents the application from starting with a stale or empty schema.
 
     Args:
         engine: The engine connected to the target database.
 
     Raises:
-        RuntimeError: If ``alembic_version`` is missing or has no version row.
+        SchemaNotMigratedError: If ``alembic_version`` is missing or has no
+            version row.
     """
     from sqlalchemy import inspect, text
 
     inspector = inspect(engine)
 
     if "alembic_version" not in inspector.get_table_names():
-        raise RuntimeError("Database schema is not up to date.\nRun:\n  alembic upgrade head")
+        raise SchemaNotMigratedError("Database schema is not up to date.\nRun:\n  alembic upgrade head")
 
     with engine.connect() as conn:
         result = conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1"))
         row = result.fetchone()
 
     if row is None:
-        raise RuntimeError("Database schema is not up to date.\nRun:\n  alembic upgrade head")
+        raise SchemaNotMigratedError("Database schema is not up to date.\nRun:\n  alembic upgrade head")

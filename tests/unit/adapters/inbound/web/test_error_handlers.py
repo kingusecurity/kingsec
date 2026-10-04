@@ -10,6 +10,7 @@ from kingsec.adapters.inbound.web.error_handlers import (
     _error_response,
     admin_operation_error,
     handle_assessment_not_found,
+    handle_authorization_scope_error,
     handle_domain_error,
     handle_illegal_state_transition,
     handle_input_validation_error,
@@ -22,6 +23,7 @@ from kingsec.adapters.inbound.web.error_handlers import (
 from kingsec.application.errors import (
     AgentNotFoundError,
     AssessmentNotFoundError,
+    AuthorizationScopeError,
     InputValidationError,
     PluginValidationError,
     ReportNotFoundError,
@@ -82,6 +84,16 @@ class TestApplicationErrorHandlers:
 
         body = json.loads(resp.body)
         assert body["error_code"] == ErrorCode.NOT_FOUND
+
+    @pytest.mark.asyncio
+    async def test_authorization_scope_error_returns_403(self) -> None:
+        exc = AuthorizationScopeError("10.0.0.5", "host_any_port")
+        resp = await handle_authorization_scope_error(None, exc)
+        assert resp.status_code == 403
+        import json
+
+        body = json.loads(resp.body)
+        assert body["error_code"] == ErrorCode.AUTHORIZATION
 
     @pytest.mark.asyncio
     async def test_report_not_found_returns_404(self) -> None:

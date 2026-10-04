@@ -62,6 +62,39 @@ class OutputFormat(Enum):
     STRUCTURED_JSON = "structured_json"
 
 
+class ScannerSurfaceTier(Enum):
+    """What EXTENT of surface a scanner actually touches given a target -
+    not what target types it accepts (that's ScannerRequirement), but how
+    far its own invocation reaches once it runs.
+
+    Phase 4 (authorization scope enforcement): derived from each plugin's
+    own capability declaration, never a hand-maintained table elsewhere -
+    a parallel table is exactly how Blocking 1 arose in the first place
+    (nmap's Phase 2B two-invocation URL design widened its real surface
+    without anything re-checking what "in scope" meant against it).
+
+    HOST_ANY_PORT: sweeps the entire host, independent of any port the
+        target itself specifies (nmap: verified directly against
+        nmap.py's _scan_url_two_invocations(), which runs a sweep
+        invocation with no port restriction at all, plus a second
+        invocation for the target's own explicit port).
+    HOST_PORT_ANY_PATH: touches host:port only, but does not respect any
+        path the target specifies - the tool's own crawling/template
+        logic can reach any path on that port (nikto, nuclei, zap - each
+        verified directly against its own _build_args()/equivalent; none
+        pass a path-restricting flag, and each is documented or observed
+        to range beyond whatever path was given).
+    HOST_PORT_PATH: touches host:port, and respects the target's own path
+        as a base - never ranges to a sibling path (ffuf, gobuster -
+        verified directly: both literally append their fuzz/brute-force
+        probe under the given path, e.g. ffuf's f"{base_url}/FUZZ").
+    """
+
+    HOST_ANY_PORT = "host_any_port"
+    HOST_PORT_ANY_PATH = "host_port_any_path"
+    HOST_PORT_PATH = "host_port_path"
+
+
 class ScannerRequirement(Enum):
     """What a scanner NEEDS a target to provide, independent of TargetType.
 
@@ -175,6 +208,12 @@ class ScannerCapability:
     requirement: ScannerRequirement
     scan_categories: frozenset[ScanCategory]
     output_format: OutputFormat
+    # Phase 4: which extent of surface this scanner actually touches given
+    # a target - the single source of truth effective_scan_surface()
+    # reads, never a parallel table. Required (no default) so a newly
+    # added scanner cannot be registered without its author having made
+    # this an explicit decision.
+    surface_tier: ScannerSurfaceTier
 
     def __post_init__(self) -> None:
         if not isinstance(self.requirement, ScannerRequirement):
@@ -186,6 +225,8 @@ class ScannerCapability:
                 raise InvariantViolation(f"ScannerCapability scan_categories contains non-ScanCategory: {sc!r}")
         if not isinstance(self.output_format, OutputFormat):
             raise InvariantViolation("ScannerCapability output_format must be an OutputFormat")
+        if not isinstance(self.surface_tier, ScannerSurfaceTier):
+            raise InvariantViolation(f"ScannerCapability surface_tier must be a ScannerSurfaceTier: {self.surface_tier!r}")
 
 
 @dataclass(frozen=True, slots=True)

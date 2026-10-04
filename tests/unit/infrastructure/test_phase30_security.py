@@ -17,7 +17,6 @@ from kingsec.infrastructure.plugin.sandbox import (
     build_sandbox_for_plugin,
 )
 from kingsec.infrastructure.plugin.validator import _TRUSTED_PUBLISHER_FINGERPRINTS, PluginValidator
-from kingsec.infrastructure.security.lockout import AccountLockoutService
 
 # ---------------------------------------------------------------------------
 # Plugin Sandbox Tests
@@ -250,69 +249,6 @@ class TestPluginSignatureValidation:
 # ---------------------------------------------------------------------------
 # Account Lockout Tests
 # ---------------------------------------------------------------------------
-
-
-class TestAccountLockoutService:
-    """Test account lockout with progressive delays."""
-
-    def test_no_lockout_initially(self) -> None:
-        lockout = AccountLockoutService(max_failures=3, lockout_window=60)
-        assert lockout.is_locked_out("alice") is False
-
-    def test_lockout_after_threshold(self) -> None:
-        lockout = AccountLockoutService(max_failures=3, lockout_window=60)
-        lockout.record_failure("alice")
-        lockout.record_failure("alice")
-        assert lockout.is_locked_out("alice") is False
-        lockout.record_failure("alice")
-        assert lockout.is_locked_out("alice") is True
-
-    def test_lockout_retry_after(self) -> None:
-        lockout = AccountLockoutService(max_failures=2, lockout_window=60)
-        lockout.record_failure("alice")
-        lockout.record_failure("alice")
-        retry = lockout.retry_after("alice")
-        assert retry > 0
-
-    def test_clear_resets_lockout(self) -> None:
-        lockout = AccountLockoutService(max_failures=2, lockout_window=60)
-        lockout.record_failure("alice")
-        lockout.record_failure("alice")
-        assert lockout.is_locked_out("alice") is True
-        lockout.clear("alice")
-        assert lockout.is_locked_out("alice") is False
-
-    def test_different_users_independent(self) -> None:
-        lockout = AccountLockoutService(max_failures=2, lockout_window=60)
-        lockout.record_failure("alice")
-        lockout.record_failure("alice")
-        assert lockout.is_locked_out("alice") is True
-        assert lockout.is_locked_out("bob") is False
-
-    def test_progressive_lockout_duration(self) -> None:
-        lockout = AccountLockoutService(max_failures=1, lockout_window=60)
-        # First lockout: 60s
-        lockout.record_failure("alice")
-        assert lockout.is_locked_out("alice") is True
-        first_retry = lockout.retry_after("alice")
-        lockout.clear("alice")
-        # Second lockout: 120s
-        lockout.record_failure("alice")
-        second_retry = lockout.retry_after("alice")
-        assert second_retry > first_retry
-        lockout.clear("alice")
-
-    def test_eviction_cleans_old_records(self) -> None:
-        lockout = AccountLockoutService(max_failures=2, lockout_window=1, eviction_interval=2)
-        lockout.record_failure("alice")
-        lockout.record_failure("alice")
-        lockout.clear("alice")
-        time.sleep(1.5)
-        # Trigger eviction with more failures than eviction_interval
-        lockout.record_failure("bob")
-        lockout.record_failure("bob")
-        # Alice should have been evicted
-        assert "alice" not in lockout._records
 
 
 # ---------------------------------------------------------------------------

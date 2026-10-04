@@ -17,7 +17,7 @@ from kingsec.application.ports.outbound.clock_port import ClockPort
 from kingsec.application.ports.outbound.lockout_repository import LockoutRepository
 from kingsec.application.ports.outbound.mfa_secret_repository import MfaSecretRepository
 from kingsec.application.use_cases.check_rate_limit import CheckRateLimit
-from kingsec.domain import Role, User
+from kingsec.domain import User
 from kingsec.domain.mfa import MfaSecret
 from kingsec.domain.rate_limit import AccountLockout, LockoutPolicy, RateLimitDecision, RateLimitPolicy
 from kingsec.infrastructure.config import Settings
@@ -129,18 +129,7 @@ class StubUserRepo:
     def save(self, user: User) -> None:
         self._users[user.id] = user
 
-    def save_new_user_claiming_bootstrap_admin(self, user: User) -> User:
-        if not self._users:
-            user = User(
-                id=user.id,
-                username=user.username,
-                email=user.email,
-                password_hash=user.password_hash,
-                role=Role.ADMIN,
-                is_active=user.is_active,
-                created_at=user.created_at,
-                last_login_at=user.last_login_at,
-            )
+    def save_new_user(self, user: User) -> User:
         self._users[user.id] = user
         return user
 
@@ -348,13 +337,14 @@ def _register_viewer(
     email: str = "test@example.com",
     password: str = "SecurePass1",
 ) -> None:
-    """Helper: register an admin first, then register the requested user as a Viewer.
+    """Helper: register a user as a Viewer.
 
-    The very first user in a fresh database automatically becomes ADMIN.
-    This helper creates that admin user, then creates the requested user
-    as a VIEWER so callers can test viewer-level permissions.
+    Phase 3 (auth hardening): every self-registered user is a Viewer,
+    always - there is no longer a first-user-becomes-admin special case
+    to work around, so this is now a thin, explicitly-named alias for
+    `_register_user` (kept as its own function so callers stay readable
+    about which role they're asserting on).
     """
-    _register_user(client, username="admin_bootstrap", email="admin@bootstrap.local", password="AdminPass99")
     _register_user(client, username=username, email=email, password=password)
 
 

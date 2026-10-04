@@ -26,8 +26,9 @@ import re
 from html import escape
 
 from kingsec.domain import HistoryPoint, Report, ScannerRunSummary, Severity
-from kingsec.domain.enums import AssessmentStatus, ScannerRunState, SeverityDemotionReason
+from kingsec.domain.enums import AssessmentStatus, FindingStatus, ScannerRunState, SeverityDemotionReason
 from kingsec.domain.report import FindingSummary, failed_scanners_in
+from kingsec.infrastructure.scanner.nmap import OPEN_PORT_TITLE_PATTERN
 
 # Phase 2A: reports are now generated from either a COMPLETED or a
 # COMPLETED_WITH_GAPS assessment (domain-enforced in Report.from_assessment),
@@ -115,6 +116,7 @@ section:first-of-type h2 { margin-top: 4px; }
 h3 { font-size: 13px; margin: 12px 0 4px; color: #1e293b; }
 h4 { font-size: 10.5px; }
 p { margin: 0 0 8px; }
+a { color: #0b3d63; text-decoration: none; border-bottom: 1px dotted #0b3d63; }
 .report-header { border-bottom: 3px solid #0b3d63; padding-bottom: 12px; margin-bottom: 4px; }
 .brand { display: flex; align-items: center; gap: 12px; }
 .logo-placeholder { width: 40px; height: 40px; border-radius: 8px; background: #0b3d63;
@@ -167,6 +169,13 @@ tr { page-break-inside: avoid; }
      text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 9px; border-radius: 10px;
      margin-bottom: 6px; }
 
+/* ---- Limitations groups (Phase 6 Task 1) --------------------------------- */
+.limitation-group { margin-bottom: 14px; }
+.limitation-group h3 { margin: 16px 0 6px; }
+.limitation-group h4 { margin: 10px 0 3px; font-size: 10.5px; color: #0b3d63;
+     text-transform: uppercase; letter-spacing: 0.04em; }
+.limitation-group p { margin: 0 0 10px; }
+
 footer { margin-top: 32px; border-top: 1px solid #e2e8f0; padding-top: 10px;
      color: #94a3b8; font-size: 9.5px; }
 """
@@ -182,8 +191,32 @@ def _badge(severity: Severity) -> str:
     return f'<span class="badge {_sev_class(severity)}">{escape(severity.label)}</span>'
 
 
-def _score_narrative(score: float) -> str:
+def _score_narrative(score: float, *, action_required: bool = False) -> str:
+    """The plain-language sentence accompanying the score line.
+
+    Phase 2C Step 2, GAP-1 fix round FIX 5b: same contradiction class Phase
+    2A-b fixed for "generally sound standing" appearing next to "Action
+    required" (docs/STATUS.md - the fix there was to make the NARRATIVE
+    coverage-aware, not to suppress the callout, since the callout carried
+    real information). Only the Strong tier (>=90) reads as unconditionally
+    reassuring on its own - the Good/Fair/Weak/Critical tiers already name
+    "issues that warrant attention" in their own text, so they never
+    contradicted an Action Required callout to begin with. GAP-3's real
+    evidence: a fully-COMPLETED assessment scoring 91.3 (Strong) from 6 real
+    Low findings that genuinely warrant remediation - "strong standing
+    overall" sitting three lines above "Action required" read as two
+    disconnected, seemingly-contradictory claims about the same report.
+    Resolved on the narrative side (not by suppressing the callout, which
+    would hide a true "these findings still need fixing" signal): the
+    Strong-tier sentence now names that explicitly when real action is
+    required, exactly as the other four tiers already did.
+    """
     if score >= 90:
+        if action_required:
+            return (
+                "This places the assessed environment in strong standing overall, "
+                "though the findings below still warrant remediation."
+            )
         return "This places the assessed environment in strong standing overall."
     if score >= 75:
         return "This places the assessed environment in good standing, with room for improvement."
@@ -301,6 +334,17 @@ _AUTHENTICATION_SCOPE_SENTENCE = (
     "after authentication was not tested. A clean or low-finding result above "
     "reflects only what is reachable without credentials and says nothing about "
     "what sits behind a login."
+)
+
+# Phase 6 Task 1: the compact, Scope-at-a-Glance rendering of the SAME fact
+# _AUTHENTICATION_SCOPE_SENTENCE states in full - both are static (this
+# report has no way to test authenticated scope yet, so there is nothing
+# per-report to derive), but they must be updated TOGETHER if that ever
+# changes (credentialed scanning lands). Not a replacement for the full
+# sentence - both render, in different sections.
+_AUTHENTICATION_SCOPE_SHORT = (
+    "This was an unauthenticated assessment — nothing behind a login was examined; "
+    "a clean result says nothing about what sits behind a login."
 )
 
 
@@ -468,6 +512,19 @@ def _cover_page(report: Report, *, brand_name: str) -> str:
     )
 
 
+def _nmap_port_coverage(report: Report) -> tuple[bool, str | None]:
+    """(had a successful nmap run, recorded port spec or None if never
+    recorded) - the single source of truth both _port_coverage_note()
+    (full, in Limitations) and _port_coverage_short() (compact, in Scope
+    at a Glance) read from, so the two can never describe different
+    facts (Phase 6 Task 1).
+    """
+    nmap_runs = [s for s in report.scanner_summary if s.scanner_id == "nmap" and s.status.is_success]
+    if not nmap_runs:
+        return False, None
+    return True, nmap_runs[0].port_specification
+
+
 def _port_coverage_note(report: Report) -> str:
     """Task 4: what nmap's port scan actually covered, for the Limitations
     section - derived from the recorded ScannerRunSummary.port_specification,
@@ -489,10 +546,9 @@ def _port_coverage_note(report: Report) -> str:
     FAILED/SKIPPED nmap must not get any port-coverage claim, known or
     unknown.
     """
-    nmap_runs = [s for s in report.scanner_summary if s.scanner_id == "nmap" and s.status.is_success]
-    if not nmap_runs:
+    had_run, spec = _nmap_port_coverage(report)
+    if not had_run:
         return ""
-    spec = nmap_runs[0].port_specification
     if spec is None:
         # Genuinely never recorded - never guess what nmap's default was,
         # never imply "nmap's own default" when the record doesn't say so.
@@ -508,6 +564,32 @@ def _port_coverage_note(report: Report) -> str:
         "possible port — a service running on a port outside that coverage would not "
         "have been seen by this assessment."
     )
+
+
+def _port_coverage_short(report: Report) -> str:
+    """Phase 6 Task 1: the compact, Scope-at-a-Glance version of
+    _port_coverage_note() above - same underlying fact (_nmap_port_coverage),
+    a shorter sentence. Not a replacement: the full note still renders in
+    Limitations & Methodology Notes, unchanged."""
+    had_run, spec = _nmap_port_coverage(report)
+    if not had_run:
+        return ""
+    if spec is None:
+        return "Port coverage was not recorded for this scan — treat the port scope as unknown."
+    return f"Port coverage: {escape(spec)}."
+
+
+def _scanner_coverage_short(report: Report) -> str:
+    """Phase 6 Task 1: a one-line scanner-coverage summary for Scope at a
+    Glance - same succeeded/total computation the Executive Summary's own
+    coverage_clause already uses, so the two numbers can never disagree.
+    The full per-scanner reasons stay in the existing Scanner Coverage
+    section, unchanged."""
+    total = len(report.scanner_summary)
+    if not total:
+        return ""
+    succeeded = sum(1 for s in report.scanner_summary if s.status.is_success)
+    return f"Scanner coverage: {succeeded} of {total} scanner(s) completed — see Scanner Coverage below for details."
 
 
 def _rate_limit_note(report: Report) -> str:
@@ -584,13 +666,125 @@ def _authentication_scope_note(report: Report) -> str:
     return _AUTHENTICATION_SCOPE_SENTENCE
 
 
-def _limitations(report: Report) -> str:
-    """A general, honest limitations statement.
+def _scope_at_a_glance(report: Report) -> str:
+    """Phase 6 Task 1: a compact, front-loaded preview of the scope-limiting
+    disclosures (authentication scope, port coverage, scanner coverage) -
+    placed right after the Executive Summary so a reader who stops after
+    page 2 still knows what was not examined.
 
-    Per-tool coverage detail (which scanners ran, which were skipped and why)
-    is now tracked and rendered separately in Scanner Coverage - this section
-    stays about what automated scanning as a method cannot guarantee, not
-    about which specific tools executed.
+    This is an ADDITION, not a replacement for anything in Limitations &
+    Methodology Notes below: all three disclosures still render there in
+    full, unchanged. Nothing here shortens or waters down a disclosure -
+    it previews it, using the exact same derived facts (never a separately
+    worded copy that could drift from the full version).
+    """
+    items = [f"<li>{_AUTHENTICATION_SCOPE_SHORT}</li>"]
+    port_short = _port_coverage_short(report)
+    if port_short:
+        items.append(f"<li>{port_short}</li>")
+    scanner_short = _scanner_coverage_short(report)
+    if scanner_short:
+        items.append(f"<li>{scanner_short}</li>")
+    return (
+        '<section id="scope-at-a-glance">'
+        "<h2>Scope at a Glance</h2>"
+        "<p>What this assessment did and did not cover, before the findings below:</p>"
+        f"<ul>{''.join(items)}</ul>"
+        "</section>"
+    )
+
+
+# Phase 6 Task 5: real, well-known, one-line descriptions of what each
+# wired scanner does - same standard as domain/report.py's
+# _GENERIC_REMEDIATION_BY_CWE table ("real CWE-class guidance, not a
+# fabrication"): factual and widely documented, not guessed. Keyed by
+# ScannerRunSummary.scanner_id, the same id every other coverage-related
+# function in this module already reads.
+_SCANNER_DESCRIPTIONS: dict[str, str] = {
+    "nmap": "Discovers open network ports and running services.",
+    "nuclei": "Tests for known vulnerability patterns using community-maintained templates.",
+    "nikto": "Checks web servers for common misconfigurations and known issues.",
+    "ffuf": "Discovers hidden files, directories, and parameters via automated guessing.",
+    "gobuster": "Discovers hidden files, directories, and parameters via automated guessing.",
+    "zap": "Actively and passively tests the web application for common vulnerability classes.",
+}
+
+# Phase 6 Task 5: display names for the real, current assessment profiles
+# (application/assessment_profiles.py's _DEFAULT_PROFILES) - kept here
+# rather than importing ExecutionPlanner, since this module's own design
+# stays pure-stdlib/no-DI (see the module docstring); a profile id not in
+# this table (a future profile, or stale data from a deleted one) falls
+# back to showing the raw id honestly rather than guessing a name.
+_PROFILE_DISPLAY_NAMES: dict[str, str] = {
+    "quick-scan": "Quick Host Scan",
+    "network-scan": "Network Assessment",
+    "web-scan": "Web Application Scan",
+    "api-scan": "API Assessment",
+    "external-footprint": "External Footprint Mapping",
+    "full-assessment": "Full Assessment",
+}
+
+
+def _methodology(report: Report) -> str:
+    """Phase 6 Task 5: one place a reviewer can check "how did you
+    determine this" - which scanners ran and what each does in plain
+    language, what was and wasn't covered (reusing the SAME derivation
+    functions Scope at a Glance and Limitations already call, never a
+    second independently-worded copy that could drift), and what the
+    operator configured. Placed early (right after Scope at a Glance) -
+    the reviewer persona's methodology question arrives as soon as they've
+    read the verdict, not on page 20.
+
+    Scanner Coverage (a few sections later) stays the detailed per-scanner
+    outcome/reason breakdown - this section is the plain-language
+    "what is each of these tools and what did they look at" companion to
+    it, not a replacement.
+    """
+    parts: list[str] = []
+
+    if report.profile_id is not None:
+        profile_name = _PROFILE_DISPLAY_NAMES.get(report.profile_id, report.profile_id)
+        parts.append(f"<p>This assessment used the <strong>{escape(profile_name)}</strong> profile.</p>")
+    else:
+        parts.append("<p>This assessment did not use a pre-configured profile.</p>")
+
+    if report.scanner_summary:
+        seen: set[str] = set()
+        items: list[str] = []
+        for s in report.scanner_summary:
+            if s.scanner_id in seen:
+                continue
+            seen.add(s.scanner_id)
+            description = _SCANNER_DESCRIPTIONS.get(s.scanner_id, "")
+            ran = "ran" if s.status.is_success else "did not complete"
+            items.append(f"<li><strong>{escape(s.name)}</strong> — {escape(description)} ({ran} for this assessment)</li>")
+        parts.append(f"<p>Scanners configured for this assessment:</p><ul>{''.join(items)}</ul>")
+
+    coverage_notes = "".join(
+        f"<li>{n.strip()}</li>"
+        for n in (_authentication_scope_note(report), _port_coverage_note(report), _rate_limit_note(report))
+        if n.strip()
+    )
+    if coverage_notes:
+        parts.append(f"<p>What was and was not covered:</p><ul>{coverage_notes}</ul>")
+
+    return f'<section id="methodology"><h2>Methodology</h2>{"".join(parts)}</section>'
+
+
+def _limitations(report: Report) -> str:
+    """Limitations & Methodology Notes: every disclosure this report makes,
+    grouped by theme and individually subheaded (Phase 6 Task 1 restructure).
+
+    Previously one unbroken paragraph concatenating eight independently-
+    derived disclosures - honest, but unreadable as a disclosure mechanism:
+    an SME will not read past the first two sentences of a wall of text on
+    the last page (docs/STATUS.md's own backlog note on this). Restructured
+    into two subheaded groups; EVERY disclosure survives, verbatim, reusing
+    the exact same derivation functions as before - this is a presentation
+    change, not a content change. Three of the eight (authentication scope,
+    port coverage, scanner coverage - the ones that bound WHAT was tested)
+    also get a compact preview in Scope at a Glance, right after the
+    Executive Summary; the full versions here are unchanged by that.
 
     The CVE/CVSS sentence is conditional: some scanners (Nuclei, Trivy)
     genuinely correlate findings to CVE/CVSS data and it's rendered above
@@ -616,19 +810,46 @@ def _limitations(report: Report) -> str:
             "vectors; where that detail matters, it should be researched separately for the "
             "specific software/version in use."
         )
+
+    def _item(heading: str, body: str) -> str:
+        stripped = body.strip()
+        return f"<h4>{escape(heading)}</h4><p>{stripped}</p>" if stripped else ""
+
+    scope_group = (
+        _item("Authentication Scope", _authentication_scope_note(report))
+        + _item("Port Coverage", _port_coverage_note(report))
+        + _item("Rate Limiting", _rate_limit_note(report))
+    )
+    confidence_group = (
+        _item(
+            "Point-in-Time Snapshot",
+            "This assessment reflects automated scanning of the authorized target "
+            f"(<strong>{escape(report.target)}</strong>) at a single point in time "
+            f"({escape(report.generated_at.strftime('%Y-%m-%d %H:%M:%S %Z'))}). It does not "
+            "constitute a comprehensive security audit.",
+        )
+        + _item(
+            "False Positive / False Negative Risk",
+            "Automated tools carry an inherent risk of false negatives (real issues not "
+            "detected) and false positives (flagged issues that are not actually "
+            "exploitable) — findings above should be independently verified before "
+            "remediation is prioritized on their basis alone.",
+        )
+        + _item("CVE / CVSS Correlation", cve_note)
+        + _item("Severity Adjustments", _severity_demotion_note(report))
+        + _item(
+            "Configuration Changes",
+            "A change to the target's configuration after this assessment invalidates "
+            "these results.",
+        )
+    )
     return (
         '<section id="limitations">'
-        "<h2>Limitations</h2>"
-        "<p>This assessment reflects automated scanning of the authorized target "
-        f"(<strong>{escape(report.target)}</strong>) at a single point in time "
-        f"({escape(report.generated_at.strftime('%Y-%m-%d %H:%M:%S %Z'))}). It does not "
-        "constitute a comprehensive security audit. Automated tools carry an inherent risk "
-        "of false negatives (real issues not detected) and false positives (flagged issues "
-        "that are not actually exploitable) — findings above should be independently verified "
-        f"before remediation is prioritized on their basis alone. {cve_note}"
-        f"{_port_coverage_note(report)}{_rate_limit_note(report)}{_severity_demotion_note(report)}"
-        f"{_authentication_scope_note(report)} A change to "
-        "the target's configuration after this assessment invalidates these results.</p>"
+        "<h2>Limitations &amp; Methodology Notes</h2>"
+        '<div class="limitation-group"><h3>What This Assessment Did Not Cover</h3>'
+        f"{scope_group}</div>"
+        '<div class="limitation-group"><h3>Confidence and Methodology</h3>'
+        f"{confidence_group}</div>"
         "</section>"
     )
 
@@ -639,14 +860,25 @@ def _executive_summary(report: Report) -> str:
     score = report.executive_score
     incomplete = report.assessment_status is AssessmentStatus.COMPLETED_WITH_GAPS
 
+    # Phase 2C Step 2, FIX 4: the scanner denominator must appear on EVERY
+    # score line, regardless of which band override fires - zero findings
+    # from zero scanner coverage and zero findings from full coverage are
+    # completely different claims (the GAP-1 defect: (d)'s no-signal
+    # override rendered "100.0 / 100" with no denominator at all, identical
+    # in form to a genuinely clean, fully-covered result). Omitted only when
+    # there is no scanner_summary at all to report (pre-feature fixture) -
+    # the incomplete-coverage branch below already states its own
+    # denominator inline and needs no separate clause.
+    succeeded_count = sum(1 for s in report.scanner_summary if s.status.is_success)
+    total_count = len(report.scanner_summary)
+    coverage_clause = f" Based on {succeeded_count} of {total_count} scanner(s)." if total_count else ""
+
     if incomplete:
         # Phase 2A-b: a score derived from a fraction of the configured
         # scanners is not a posture measure - force the neutral band/color
         # and state the real denominator, never the reassuring narrative a
         # complete run would get.
         band_color, band_label = _PARTIAL_COVERAGE_COLOR, _PARTIAL_COVERAGE_LABEL
-        succeeded_count = sum(1 for s in report.scanner_summary if s.status.is_success)
-        total_count = len(report.scanner_summary)
         score_copy = (
             f"Overall Risk Score: <strong>{score:.1f} / 100</strong> — based on "
             f"{succeeded_count} of {total_count} scanners. Not a posture score. "
@@ -660,45 +892,76 @@ def _executive_summary(report: Report) -> str:
         # compute_executive_score_v1's own docstring).
         no_signal = _is_no_signal(report)
         band_color, band_label = (_NO_SIGNAL_COLOR, _NO_SIGNAL_LABEL) if no_signal else _score_band(score)
-        narrative = _NO_SIGNAL_NARRATIVE if no_signal else escape(_score_narrative(score))
+        narrative = (
+            _NO_SIGNAL_NARRATIVE
+            if no_signal
+            else escape(_score_narrative(score, action_required=verdict.action_required))
+        )
         score_copy = (
             f"Overall Risk Score: <strong>{score:.1f} / 100</strong>. "
             f"{narrative} "
             "This score deducts fixed points per finding by severity "
             "(Critical 25, High 10, Medium 5, Low 2) from a 100-point baseline — "
             "a simple, explainable measure, not a formal risk-modeling output. "
-            "(Historical scoring model.)"
+            f"(Historical scoring model.){coverage_clause}"
         )
     else:
         no_signal = _is_no_signal(report)
         band_color, band_label = (_NO_SIGNAL_COLOR, _NO_SIGNAL_LABEL) if no_signal else _score_band(score)
-        narrative = _NO_SIGNAL_NARRATIVE if no_signal else escape(_score_narrative(score))
+        narrative = (
+            _NO_SIGNAL_NARRATIVE
+            if no_signal
+            else escape(_score_narrative(score, action_required=verdict.action_required))
+        )
         score_copy = (
             f"Overall Risk Score: <strong>{score:.1f} / 100</strong>. "
             f"{narrative} "
             "This score applies a fixed retention percentage per finding by severity, "
             "multiplicatively, from a 100-point baseline — bounded and never fully "
             "exhausted, so remediating findings always raises it. A simple, "
-            "explainable measure, not a formal risk-modeling output."
+            f"explainable measure, not a formal risk-modeling output.{coverage_clause}"
         )
 
     urgent_note = _urgent_action_note(report)
-    # Phase 2C Step 2, FIX 4: real report evidence showed the Critical/High
-    # framing ("...immediate remediation required.") immediately followed,
-    # two lines later, by the weaker generic "Action required. Remediation
-    # is recommended for the issues identified below." - the second dilutes
-    # the first rather than reinforcing it. Suppressed whenever the urgent
-    # framing already fired: it already states action is required, more
-    # specifically and more strongly, so the generic callout adds nothing
-    # and only softens the message. Reports with no Critical/High finding
-    # (e.g. Medium/Low-only, which still set verdict.action_required) are
-    # unaffected - they never had urgent framing to begin with.
+    # Phase 6 Task 4: three plain-language things, in this exact order,
+    # before the score panel - what was looked at, what was found, what to
+    # do first. The gauge comes after all three, never before.
+    #
+    # Phase 2C Step 2, FIX 4's suppression rule is LOAD-BEARING here, not a
+    # stylistic choice: real report evidence showed the Critical/High
+    # framing ("...immediate remediation required.") immediately followed
+    # by the weaker generic "Action required. Remediation is recommended
+    # for the issues identified below." - the second dilutes the first
+    # rather than reinforcing it. This "what to do first" sentence is
+    # therefore SUPPRESSED whenever urgent_note will also render: urgent
+    # framing already states action is required, more specifically and
+    # more strongly, and rendering both would reproduce the exact dilution
+    # defect this rule exists to prevent - moving this sentence earlier in
+    # the page does not relax that requirement, it just changes where the
+    # two would collide if the suppression were ever removed. Reports with
+    # no Critical/High finding (e.g. Medium/Low-only, which still set
+    # verdict.action_required) are unaffected - they never had urgent
+    # framing to begin with, so this sentence is the only "what to do
+    # first" they get.
+    # Phase 2C Step 2, GAP-1 fix round FIX 5a: a COMPLETED_WITH_GAPS
+    # assessment with zero findings still has verdict.action_required=True
+    # (Verdict.from_findings() forces this - the coverage gap itself is the
+    # required action, independent of what was found). Real report
+    # evidence showed this rendering "Action required. Remediation is
+    # recommended for the issues identified below." with nothing below -
+    # the empty-content defect family again. The reason action is required
+    # here is the coverage gap, not a finding, so the callout must say that.
     action = (
         ""
         if urgent_note
         else (
             '<p class="callout action-required"><strong>Action required.</strong> '
-            "Remediation is recommended for the issues identified below.</p>"
+            + (
+                "Remediation is recommended for the issues identified below.</p>"
+                if report.total_findings
+                else "Scanner coverage was incomplete for this assessment — see Scanner "
+                "Coverage below for what did not run.</p>"
+            )
             if verdict.action_required
             else '<p class="callout">No immediate action is required.</p>'
         )
@@ -716,13 +979,18 @@ def _executive_summary(report: Report) -> str:
     return (
         '<section id="executive-summary">'
         "<h2>Executive Summary</h2>"
+        # Sentence 1 (what was looked at) + Sentence 2 (what was found) -
+        # unchanged content from before Task 4, already exactly this shape.
         f"<p>A security assessment of <strong>{escape(report.target)}</strong> was completed on "
         f"{escape(report.generated_at.strftime('%Y-%m-%d'))}. {escape(verdict.headline)} "
         f"The assessment recorded <strong>{report.total_findings}</strong> finding(s) in total, "
         f"with a highest observed severity of <strong>{escape(highest)}</strong>.</p>"
+        # Sentence 3 (what to do first) - relocated from after the score
+        # panel to here, before it; never rendered twice (see the
+        # suppression comment above).
+        f"{action}"
         f"{urgent_note}"
         f"{score_panel}"
-        f"{action}"
         "</section>"
     )
 
@@ -975,7 +1243,50 @@ def _visual_elements(report: Report) -> str:
     )
 
 
-def _risk_prioritization(report: Report) -> str:
+def _group_open_port_findings(
+    entries: tuple[FindingSummary, ...],
+) -> tuple[tuple[FindingSummary, ...], ...]:
+    """Phase 6 Task 3: collapse open-port findings sharing the same
+    severity, status, and remediation into one group - PRESENTATION ONLY,
+    applied after every domain-layer computation (severity_counts,
+    executive_score, verdict) has already read the real, ungrouped
+    report.entries. Grouping never touches those - report.total_findings,
+    severity_counts, and executive_score are unaffected by anything this
+    function does.
+
+    Groups on OPEN_PORT_TITLE_PATTERN - nmap.py's own real source of an
+    open-port Finding's title (nmap_parser.py's f"Open port
+    {portid}/{protocol}" construction), never an independently-maintained
+    string copy that could silently drift from what nmap actually emits.
+    A non-matching entry always becomes its own singleton group and is
+    never merged with anything. A matching entry only merges with another
+    matching entry that shares the EXACT SAME severity, status, and
+    effective remediation - two open-port findings that happen to differ
+    in any of those are never silently blended into one card.
+
+    Order preserved: report.entries is already worst-first; a group's
+    position is anchored by its first member's position.
+    """
+    groups: list[list[FindingSummary]] = []
+    group_by_key: dict[tuple[Severity, FindingStatus, tuple[tuple[str, str], ...]], list[FindingSummary]] = {}
+    for entry in entries:
+        match = OPEN_PORT_TITLE_PATTERN.match(entry.title)
+        if match is None:
+            groups.append([entry])
+            continue
+        rec_key = tuple((r.title, r.description) for r in entry.effective_recommendations)
+        key = (entry.severity, entry.status, rec_key)
+        existing = group_by_key.get(key)
+        if existing is not None:
+            existing.append(entry)
+        else:
+            new_group = [entry]
+            group_by_key[key] = new_group
+            groups.append(new_group)
+    return tuple(tuple(g) for g in groups)
+
+
+def _risk_prioritization(report: Report, *, groups: tuple[tuple[FindingSummary, ...], ...]) -> str:
     """A ranked "fix this first" action list, reusing the already worst-first
     entry ordering — pure presentation over data Units 2-3 already
     computed, no new domain logic.
@@ -990,8 +1301,16 @@ def _risk_prioritization(report: Report) -> str:
     """
     if not report.entries:
         return ""
+    # Phase 6 Task 2: links straight to the finding's full card in Finding
+    # Details, so this stays a genuine index rather than a fourth full
+    # rendering of the same content. Phase 6 Task 3: iterates over GROUPS
+    # (a group of open-port findings collapses to one line here too) -
+    # grouped consistently across all three surviving views, never listed
+    # individually here while the detail page shows one card.
     items = "".join(
-        f"<li>{_badge(entry.severity)} <strong>{escape(entry.title)}</strong></li>" for entry in report.entries
+        f'<li>{_badge(group[0].severity)} '
+        f'<a href="#{_finding_group_anchor_id(group)}"><strong>{escape(_finding_group_title(group))}</strong></a></li>'
+        for group in groups
     )
     return (
         '<section id="risk-prioritization">'
@@ -1116,24 +1435,32 @@ def _risk_summary(report: Report) -> str:
     )
 
 
-def _findings(report: Report) -> str:
+def _findings(report: Report, *, groups: tuple[tuple[FindingSummary, ...], ...]) -> str:
     if not report.entries:
         return '<section id="findings"><h2>Findings</h2><p>No findings were recorded for this assessment.</p></section>'
+    # Phase 6 Task 3: one row per GROUP, not per entry - a group's status
+    # and effective_recommendations are guaranteed uniform across its
+    # members by _group_open_port_findings' own grouping key, so reading
+    # them off the first member is exact, not an approximation. Evidence
+    # count is summed across the whole group - nothing is dropped, only
+    # displayed once per group instead of once per member.
     rows = "".join(
         "<tr>"
-        f"<td>{_badge(entry.severity)}</td>"
-        f"<td>{escape(entry.title)}</td>"
-        f"<td>{escape(entry.status.value)}</td>"
-        f"<td>{entry.evidence_count}</td>"
+        f"<td>{_badge(group[0].severity)}</td>"
+        # Phase 6 Task 2: links to the finding's full card in Finding
+        # Details, so this stays a compact index, not a second full render.
+        f'<td><a href="#{_finding_group_anchor_id(group)}">{escape(_finding_group_title(group))}</a></td>'
+        f"<td>{escape(group[0].status.value)}</td>"
+        f"<td>{sum(e.evidence_count for e in group)}</td>"
         # Phase 2A-b: the raw entry.recommendation_count (len(recommendations))
-        # undercounts against what the reader actually sees in the Remediation
-        # Steps section, which renders effective_recommendations (real ones,
-        # or the generic fallback for well-known finding types) - use the
+        # undercounts against what the reader actually sees in Finding
+        # Details, which renders effective_recommendations (real ones, or
+        # the generic fallback for well-known finding types) - use the
         # same effective count here so the table never contradicts the
         # section below it.
-        f"<td>{len(entry.effective_recommendations)}</td>"
+        f"<td>{len(group[0].effective_recommendations)}</td>"
         "</tr>"
-        for entry in report.entries
+        for group in groups
     )
     return (
         '<section id="findings">'
@@ -1147,8 +1474,48 @@ def _findings(report: Report) -> str:
     )
 
 
-def _technical_findings(report: Report, *, target: str) -> str:
-    """Detailed per-finding technical write-up: description, facts, evidence.
+def _finding_anchor_id(entry: FindingSummary) -> str:
+    """A stable, escaped per-finding anchor id, shared by every section that
+    links to a finding's full card (Risk Prioritization, Findings) and the
+    card itself (Finding Details) - single source of truth so a link and
+    its target can never drift apart (Phase 6 Task 2)."""
+    return f"finding-{escape(entry.finding_id)}"
+
+
+def _finding_group_anchor_id(group: tuple[FindingSummary, ...]) -> str:
+    """A group's anchor is its first member's - Phase 6 Task 3, same
+    single-source-of-truth discipline as _finding_anchor_id above."""
+    return _finding_anchor_id(group[0])
+
+
+def _finding_group_title(group: tuple[FindingSummary, ...]) -> str:
+    """Phase 6 Task 3: a singleton group renders its real title, unchanged
+    from before grouping existed; a real group (len > 1) renders a
+    generated summary title - never a fabricated specific claim, just an
+    honest count of what the group actually contains."""
+    if len(group) == 1:
+        return group[0].title
+    return f"{len(group)} network services exposed ({group[0].severity.label})"
+
+
+def _finding_details(
+    report: Report, *, target: str, groups: tuple[tuple[FindingSummary, ...], ...]
+) -> str:
+    """Phase 6 Task 2: the ONE place each finding's full content lives -
+    technical write-up (facts, description, evidence) AND remediation
+    guidance together in one card. Previously two separate sections
+    (Technical Findings, Remediation Steps) a reader had to flip between to
+    see a finding's evidence and its fix side by side - merged because
+    nobody reads one without the other (see the reader test in
+    docs/audits/PHASE-6-REPORT-DESIGN-PROPOSAL.txt's Task 2). Risk
+    Prioritization and the Findings table both link here instead of
+    re-rendering the same content a third and fourth time.
+
+    Phase 6 Task 3: a singleton group renders exactly as before (one
+    finding, one card, via _finding_detail_card); a real group (multiple
+    open-port findings sharing severity/status/remediation) renders via
+    _finding_group_card instead - one card for the whole group, with every
+    member's own port and evidence still individually visible inside it.
 
     CVE and CVSS are rendered as an explicit "Not available" rather than
     omitted, because the current scanning pipeline does not correlate a
@@ -1157,8 +1524,13 @@ def _technical_findings(report: Report, *, target: str) -> str:
     """
     if not report.entries:
         return ""
-    cards = "".join(_technical_finding_card(entry, target=target) for entry in report.entries)
-    return f'<section id="technical-findings"><h2>Technical Findings</h2>{cards}</section>'
+    cards = "".join(
+        _finding_detail_card(group[0], target=target)
+        if len(group) == 1
+        else _finding_group_card(group, target=target)
+        for group in groups
+    )
+    return f'<section id="finding-details"><h2>Finding Details</h2>{cards}</section>'
 
 
 _NOT_CORRELATED = "Not available — not correlated by the current scan"
@@ -1176,7 +1548,7 @@ def _format_cvss(entry: FindingSummary) -> str:
     return f"{entry.cvss_score:.1f}"
 
 
-def _technical_finding_card(entry: FindingSummary, *, target: str) -> str:
+def _finding_detail_card(entry: FindingSummary, *, target: str) -> str:
     facts = "".join(
         f"<tr><th>{escape(k)}</th><td>{escape(v)}</td></tr>"
         for k, v in (
@@ -1197,30 +1569,6 @@ def _technical_finding_card(entry: FindingSummary, *, target: str) -> str:
         if entry.evidence
         else "<p>No evidence was recorded for this finding.</p>"
     )
-    return (
-        '<div class="finding-card">'
-        f"<h3>{_badge(entry.severity)} {escape(entry.title)}</h3>"
-        f"<table>{facts}</table>"
-        f"<p>{escape(description)}</p>"
-        f"<h4>Evidence</h4>{evidence_html}"
-        "</div>"
-    )
-
-
-def _remediation_steps(report: Report) -> str:
-    """Concrete remediation guidance per finding, plus a sizing heuristic.
-
-    Findings with no recorded recommendation render an explicit, honest note
-    rather than being silently skipped — matching the rest of the report's
-    never-fabricate, never-silently-omit discipline.
-    """
-    if not report.entries:
-        return ""
-    cards = "".join(_remediation_card(entry) for entry in report.entries)
-    return f'<section id="remediation-steps"><h2>Remediation Steps</h2>{cards}</section>'
-
-
-def _remediation_card(entry: FindingSummary) -> str:
     effective = entry.effective_recommendations
     recs_html = (
         "".join(f"<li><strong>{escape(r.title)}</strong> — {escape(r.description)}</li>" for r in effective)
@@ -1228,9 +1576,60 @@ def _remediation_card(entry: FindingSummary) -> str:
         else "<li>No specific remediation guidance is available for this finding.</li>"
     )
     return (
-        '<div class="finding-card">'
+        f'<div class="finding-card" id="{_finding_anchor_id(entry)}">'
         f"<h3>{_badge(entry.severity)} {escape(entry.title)}</h3>"
-        f"<ul>{recs_html}</ul>"
+        f"<table>{facts}</table>"
+        f"<p>{escape(description)}</p>"
+        f"<h4>Evidence</h4>{evidence_html}"
+        f"<h4>Remediation</h4><ul>{recs_html}</ul>"
+        "</div>"
+    )
+
+
+def _finding_group_card(group: tuple[FindingSummary, ...], *, target: str) -> str:
+    """Phase 6 Task 3: one card for a group of open-port findings sharing
+    severity/status/remediation, instead of N separate cards each carrying
+    an identical remediation paragraph. Nothing is summarized away: every
+    member's own port/protocol and its own evidence stay individually
+    visible in the table below, not merged or dropped. Remediation is
+    real, not fabricated - group_by_key already guarantees every member
+    shares the exact same effective_recommendations, so rendering the
+    first member's is not an approximation.
+    """
+    first = group[0]
+    facts = "".join(
+        f"<tr><th>{escape(k)}</th><td>{escape(v)}</td></tr>"
+        for k, v in (
+            ("Affected Asset", target),
+            ("Services Grouped", str(len(group))),
+        )
+    )
+    port_rows = []
+    for entry in group:
+        match = OPEN_PORT_TITLE_PATTERN.match(entry.title)
+        port_label = f"{match.group(1)}/{match.group(2)}" if match else entry.title
+        evidence_summary = (
+            "; ".join(escape(e.summary) for e in entry.evidence)
+            if entry.evidence
+            else "No evidence recorded"
+        )
+        port_rows.append(f"<tr><td>{escape(port_label)}</td><td>{evidence_summary}</td></tr>")
+    ports_table = (
+        "<table><thead><tr><th>Port</th><th>Evidence</th></tr></thead>"
+        f"<tbody>{''.join(port_rows)}</tbody></table>"
+    )
+    effective = first.effective_recommendations
+    recs_html = (
+        "".join(f"<li><strong>{escape(r.title)}</strong> — {escape(r.description)}</li>" for r in effective)
+        if effective
+        else "<li>No specific remediation guidance is available for this finding.</li>"
+    )
+    return (
+        f'<div class="finding-card" id="{_finding_group_anchor_id(group)}">'
+        f"<h3>{_badge(first.severity)} {escape(_finding_group_title(group))}</h3>"
+        f"<table>{facts}</table>"
+        f"<h4>Exposed Services</h4>{ports_table}"
+        f"<h4>Remediation</h4><ul>{recs_html}</ul>"
         "</div>"
     )
 
@@ -1287,6 +1686,13 @@ def render_report_html(report: Report, *, brand_name: str = "KingSec") -> str:
         '<div class="subtitle">Security Assessment Report</div></div>'
         "</div></header>"
     )
+    # Phase 6 Task 3: computed ONCE, after every domain-layer number
+    # (severity_counts, executive_score, verdict) has already been derived
+    # from the real report.entries - passed into every section that needs
+    # to render per-finding, so Risk Prioritization, Findings, and Finding
+    # Details always agree on what's grouped and never disagree with each
+    # other (or with the unaffected scoring numbers) about it.
+    groups = _group_open_port_findings(report.entries)
     return (
         "<!DOCTYPE html>"
         '<html lang="en"><head><meta charset="utf-8">'
@@ -1296,14 +1702,15 @@ def render_report_html(report: Report, *, brand_name: str = "KingSec") -> str:
         f"{header}"
         "<main>"
         f"{_executive_summary(report)}"
+        f"{_scope_at_a_glance(report)}"
+        f"{_methodology(report)}"
         f"{_business_impact(report)}"
-        f"{_risk_prioritization(report)}"
+        f"{_risk_prioritization(report, groups=groups)}"
         f"{_assessment_information(report)}"
         f"{_scanner_summary(report)}"
         f"{_risk_summary(report)}"
-        f"{_findings(report)}"
-        f"{_technical_findings(report, target=report.target)}"
-        f"{_remediation_steps(report)}"
+        f"{_findings(report, groups=groups)}"
+        f"{_finding_details(report, target=report.target, groups=groups)}"
         f"{_visual_elements(report)}"
         f"{_affected_assets(report)}"
         f"{_limitations(report)}"

@@ -20,24 +20,26 @@ SMBs face the same threat landscape as large enterprises but lack the security t
 
 **The Solution**
 
-KingSec unifies nine industry-standard security scanners under a single, local-first platform with a built-in React frontend. It runs entirely on your machine — no telemetry, no cloud dependency, no data leaving your network. AI enrichment is optional, bring-your-own-key, and fully transparent. You get actionable, prioritized findings without the overhead of an enterprise-grade SOC.
+KingSec unifies six industry-standard security scanners under a single, local-first platform with a built-in React frontend. It runs entirely on your machine — no telemetry, no cloud dependency, no data leaving your network. AI enrichment is optional, bring-your-own-key, and fully transparent. You get actionable, prioritized findings without the overhead of an enterprise-grade SOC.
+
+**What it doesn't do:** KingSec performs unauthenticated external assessment. It examines what's reachable without logging in — it has no mechanism to authenticate to your application, so anything behind a login screen is out of scope. A clean result tells you nothing about what's behind authentication.
 
 ---
 
 ## Key Features
 
 - **Local-first & private** — All scanning, processing, and storage happens on your infrastructure. No data is sent to external services unless you explicitly configure an AI provider with your own key.
-- **Nine scanners, one interface** — Nmap, Nuclei, Nikto, FFUF, Gobuster, Trivy, Semgrep, Amass, and OWASP ZAP are orchestrated through a unified assessment engine. Results are correlated and deduplicated automatically.
+- **Six scanners, one interface** — Nmap, Nuclei, Nikto, FFUF, Gobuster, and OWASP ZAP are orchestrated through a unified assessment engine. Results are correlated and deduplicated automatically.
 - **AI-enriched findings** — Connect your own OpenAI, Anthropic, or compatible API key to receive natural-language remediation guidance, severity explanations, and context-aware recommendations. The AI augments — it never replaces — the scanner results.
 - **Role-based access control** — JWT-authenticated with RBAC and optional MFA/TOTP. Users, teams, and permissions are managed through the Settings panel.
-- **Eight assessment profiles** — From a five-minute Quick Host Scan to a 90-minute Full Assessment, pre-configured profiles match common workflows so you don't need to build a scan from scratch.
-- **Multi-format reporting** — Export findings as JSON, HTML, PDF, CSV, or Markdown. Reports are available on demand or scheduled.
+- **Six assessment profiles** — From a five-minute Quick Host Scan to a 90-minute Full Assessment, pre-configured profiles match common workflows so you don't need to build a scan from scratch.
+- **HTML and PDF reporting** — Reports are available on demand or scheduled.
 
 ---
 
 ## Scanner Framework
 
-KingSec ships with a plugin-based scanner architecture. Each scanner runs as an isolated process; results are parsed, normalized, and merged into a unified findings database. This design means you can add, remove, or update scanners independently of the core platform.
+KingSec ships with a plugin-based scanner architecture. Each scanner runs as an isolated process; results are parsed, normalized, and merged into a unified findings database. Scanners are added via a documented plugin interface, independent of the orchestration core.
 
 | Scanner | Category | Typical Use |
 |---|---|---|
@@ -46,10 +48,9 @@ KingSec ships with a plugin-based scanner architecture. Each scanner runs as an 
 | Nikto | Web server scanning | Web server misconfiguration and known issues |
 | FFUF | Web fuzzing | Directory and parameter discovery |
 | Gobuster | Directory/ DNS busting | Subdomain and path enumeration |
-| Trivy | Container / filesystem | OS packages and dependency vulnerabilities |
-| Semgrep | Static analysis | Code quality and security pattern matching |
-| Amass | External footprint | Subdomain enumeration and mapping |
 | OWASP ZAP | Web application | Active and passive web application scanning |
+
+Trivy, Semgrep, and Amass are also built as scanner plugins in the codebase, but none of the six assessment profiles currently schedule them — they're not part of a live assessment today.
 
 ---
 

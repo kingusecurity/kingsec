@@ -41,8 +41,6 @@ from .dto import (
     RotateApiKeyRequest,
     RotateApiKeyResponse,
     SeverityCount,
-    StartAssessmentRequest,
-    StartAssessmentResponse,
     SubmitAssessmentRequest,
     SubmitAssessmentResponse,
     UserView,
@@ -328,7 +326,6 @@ from .use_cases.session_dto import (
     TerminateOtherSessionsRequest,
     TerminateOtherSessionsResponse,
 )
-from .use_cases.start_assessment import StartAssessment
 from .use_cases.store_secret import StoreSecret
 from .use_cases.submit_scheduled_assessment import SubmitScheduledAssessment
 from .use_cases.terminate_other_sessions import TerminateOtherSessions
@@ -614,9 +611,6 @@ __all__ = [
     "SessionView",
     "SeverityCount",
     "SnapshotNotFoundError",
-    "StartAssessment",
-    "StartAssessmentRequest",
-    "StartAssessmentResponse",
     "StartPipeline",
     "StoreSecret",
     "StoreSecretRequest",

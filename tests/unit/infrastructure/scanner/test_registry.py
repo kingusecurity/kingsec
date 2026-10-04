@@ -16,6 +16,7 @@ from kingsec.domain import (
     ScannerPluginMetadata,
     ScannerRequirement,
     ScannerResult,
+    ScannerSurfaceTier,
     Target,
     TargetType,
 )
@@ -37,6 +38,7 @@ class _FakePlugin(ScannerPluginPort):
         requirement: ScannerRequirement | None = None,
         scan_categories: frozenset[ScanCategory] | None = None,
         output_format: OutputFormat = OutputFormat.FINDINGS,
+        surface_tier: ScannerSurfaceTier = ScannerSurfaceTier.HOST_PORT_ANY_PATH,
         available: bool = True,
         availability_reason: str | None = None,
     ) -> None:
@@ -45,6 +47,7 @@ class _FakePlugin(ScannerPluginPort):
         self._requirement = requirement or ScannerRequirement.REACHABLE_HOST
         self._scan_categories = scan_categories or frozenset({ScanCategory.VULNERABILITY})
         self._output_format = output_format
+        self._surface_tier = surface_tier
         self._available = available
         self._availability_reason = availability_reason
 
@@ -64,6 +67,7 @@ class _FakePlugin(ScannerPluginPort):
                 requirement=self._requirement,
                 scan_categories=self._scan_categories,
                 output_format=self._output_format,
+                surface_tier=self._surface_tier,
             ),
         )
 
@@ -104,11 +108,13 @@ class _MultiCapPlugin(ScannerPluginPort):
                 requirement=ScannerRequirement.REACHABLE_HOST,
                 scan_categories=frozenset({ScanCategory.VULNERABILITY}),
                 output_format=OutputFormat.STRUCTURED_JSON,
+                surface_tier=ScannerSurfaceTier.HOST_PORT_ANY_PATH,
             ),
             ScannerCapability(
                 requirement=ScannerRequirement.NETWORK_RANGE,
                 scan_categories=frozenset({ScanCategory.DISCOVERY}),
                 output_format=OutputFormat.RAW_TEXT,
+                surface_tier=ScannerSurfaceTier.HOST_ANY_PORT,
             ),
         )
 

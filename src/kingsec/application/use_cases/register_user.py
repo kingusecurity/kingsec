@@ -1,26 +1,26 @@
 """Use case: register a new user.
 
 Steps:
+    0. Refuse if self-registration is disabled (SecuritySettings.
+       allow_self_registration, default False - Phase 3, auth hardening).
     1. Validate the password meets complexity requirements.
     2. Check that the username is not already taken.
     3. Check that the email is not already registered.
     4. Hash the password.
-    5. Build the user entity with the non-bootstrap default role.
-    6. Persist, atomically claiming the first-user-becomes-admin
-       bootstrap slot if this is the very first user the table has
-       ever had.
+    5. Build the user entity with the default role (VIEWER).
+    6. Persist via UserRepository.save_new_user.
     7. Publish audit entry.
 
 Security considerations:
     - Passwords are hashed before storage (never stored in plaintext).
-    - Default role is "viewer" (least privilege) for all users except
-      the very first one, which becomes ADMIN to bootstrap the system.
-    - KSEC-73-05: the first-user-admin decision is made by a single
-      atomic database operation (UserRepository.
-      save_new_user_claiming_bootstrap_admin), not a separate "count
-      users" read followed by a later insert - two concurrent
-      registrations against an empty database cannot both win the
-      bootstrap-admin claim.
+    - Default role is "viewer" (least privilege) for every self-registered
+      user, including the first. Phase 3 (auth hardening) removed the old
+      KSEC-73-05 "first user becomes ADMIN" bootstrap grant entirely: an
+      unauthenticated caller who won the race to be first through this
+      endpoint on a network-reachable instance could permanently own the
+      system. The initial admin is now created ONLY by `kingsec-bootstrap`
+      (src/kingsec/_bootstrap.py), an operator-invoked CLI requiring an
+      explicit credential, never this HTTP endpoint.
     - Duplicate username/email are rejected with generic messages.
     - Audit entries record registration attempts for security monitoring.
 """
@@ -47,13 +47,46 @@ class RegisterUser:
         hasher: PasswordHasher,
         audit: AuditPublisher | None = None,
         license_gate: LicenseGate | None = None,
+        allow_self_registration: bool = True,
     ) -> None:
+        # `allow_self_registration` defaults to True here (test/construction
+        # convenience, same shape as `license_gate: ... | None = None`
+        # meaning "no limit unless a caller asks for one") - the real,
+        # secure-by-default value (SecuritySettings.allow_self_registration
+        # = False) is what bootstrap/composition.py's DI factory actually
+        # passes in production. ~30 existing call sites across unrelated
+        # test files (RBAC, MFA, audit-events, worker-routes-authorization,
+        # etc.) construct `RegisterUser(user_repo, hasher)` purely as setup
+        # for a feature they're not testing; defaulting this to False here
+        # would break all of them for something out of this phase's scope.
         self._users = users
         self._hasher = hasher
         self._audit = audit
         self._license_gate = license_gate
+        self._allow_self_registration = allow_self_registration
 
     def execute(self, request: RegisterUserRequest) -> RegisterUserResponse:
+        # Step -1 (Phase 3, auth hardening): self-registration is OFF by
+        # default (SecuritySettings.allow_self_registration). When
+        # disabled, refuse before any other check - never let a caller
+        # learn about the license limit, uniqueness, etc. for a path that
+        # is closed regardless. The message differs depending on whether
+        # an administrator exists yet, so an operator reading their own
+        # logs can act without reading source (Phase 3 requirement):
+        #   - no admin yet: point at kingsec-bootstrap, the only path that
+        #     can create one.
+        #   - an admin already exists: name the setting that would
+        #     re-enable this endpoint.
+        if not self._allow_self_registration:
+            if self._users.count_by_role(Role.ADMIN) == 0:
+                raise RegistrationDisabledError(
+                    "no administrator exists yet; run kingsec-bootstrap to initialize this instance"
+                )
+            raise RegistrationDisabledError(
+                "self-registration is disabled; set KINGSEC_SECURITY__ALLOW_SELF_REGISTRATION=true "
+                "to enable it, or contact an administrator"
+            )
+
         # Step 0: Enforce the installation-wide user limit (server-side
         # count, never client-supplied). `max_users() is None` means
         # unlimited (Professional/Enterprise). The numeric limit alone is
@@ -88,9 +121,9 @@ class RegisterUser:
         # Step 4: Hash the password.
         password_hash = self._hasher.hash(request.password)
 
-        # Step 5: Build the user entity with the non-bootstrap default
-        # role (VIEWER) - the repository may atomically override this to
-        # ADMIN if this call turns out to be the very first user.
+        # Step 5: Build the user entity with the default role (VIEWER).
+        # Phase 3: never overridden to ADMIN by the repository anymore -
+        # see save_new_user_claiming_bootstrap_admin's removal, below.
         import uuid
 
         user = User(
@@ -101,10 +134,11 @@ class RegisterUser:
             role=Role.VIEWER,
         )
 
-        # Step 6: Persist, atomically claiming the bootstrap-admin slot
-        # (KSEC-73-05). Use the value actually persisted, not `user`,
-        # since the role may have been overridden.
-        persisted = self._users.save_new_user_claiming_bootstrap_admin(user)
+        # Step 6: Persist. Use the value actually persisted, not `user`,
+        # for symmetry with the pre-Phase-3 code this replaces (the role
+        # is no longer overridden, but the persisted row is still the
+        # source of truth for the response/audit entry below).
+        persisted = self._users.save_new_user(user)
 
         # Step 7: Audit successful registration.
         self._publish_audit(
@@ -152,3 +186,11 @@ class RegisterUser:
 
 class RegistrationError(ApplicationError):
     """Raised when user registration fails."""
+
+
+class RegistrationDisabledError(ApplicationError):
+    """Raised when self-registration is disabled (SecuritySettings.
+    allow_self_registration = False, the default since Phase 3). Never
+    raised for any other reason - the message itself already tells the
+    caller exactly what to do (run kingsec-bootstrap, or set the env var),
+    so no separate error code branching is needed at the call site."""

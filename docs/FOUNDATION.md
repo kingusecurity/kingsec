@@ -170,9 +170,9 @@ Configuration follows twelve-factor discipline: **config lives in the environmen
 - **`.env` is git-ignored**; `.gitignore` explicitly re-includes `.env.example` so the template stays tracked while real values never can be.
 - **One typed settings object.** `infrastructure/config` will load these variables via `pydantic-settings` into a validated settings model with sane defaults — no scattered `os.getenv` reads, and invalid configuration fails fast at startup with a clear message.
 - **`KINGSEC_` prefix** namespaces every variable so it's unambiguous in a shared shell and trivially filterable.
-- **Trust defaults are encoded here.** `KINGSEC_HOST` defaults to `127.0.0.1` (local-first, not exposed); `KINGSEC_REQUIRE_AUTHORIZATION` defaults to `true` (the authorization gate is on unless someone deliberately turns it off); `KINGSEC_AI_API_KEY` is user-supplied, blank in the template, and used only on the local machine.
+- **Trust defaults are encoded here.** `KINGSEC_HOST` defaults to `127.0.0.1` (local-first, not exposed); `KINGSEC_AI_API_KEY` is user-supplied, blank in the template, and used only on the local machine.
 
-Variable groups: application (env, log level/format), local web server (host, port), persistence (data dir, db path), AI provider (provider, key, model, base URL, timeout), jobs (workers, timeout), reporting (output dir), and the safety/authorization gate. See `.env.example` for the annotated list.
+Variable groups: application (env, log level/format), local web server (host, port), persistence (data dir, db path), AI provider (provider, key, model, base URL, timeout), jobs (workers, timeout), and reporting (output dir). See `.env.example` for the annotated list.
 
 ---
 

@@ -3,6 +3,35 @@
 All notable changes to this project are documented here.
 The format follows Keep a Changelog, and the project aims to follow Semantic Versioning.
 
+## [Unreleased]
+### Security
+- **Breaking default change:** self-registration (`POST /auth/register`) is now **disabled by default**. Previously, the first user ever registered was automatically granted Admin — on any network-reachable instance, whoever reached `/auth/register` first permanently owned the system. Self-registration no longer grants Admin under any circumstances, even when re-enabled; the initial administrator is now created only by `kingsec-bootstrap`.
+- **Upgrade impact:** if your deployment relied on open self-registration (e.g. letting analysts sign themselves up as Viewers), that endpoint now returns `403` immediately after upgrading. Set `KINGSEC_SECURITY__ALLOW_SELF_REGISTRATION=true` to restore the old signup availability — accounts created this way are always Viewer, never Admin, regardless of registration order. Deployments that already have an administrator (effectively every real deployment) see no other behavior change.
+- Added `AuditAction.ADMIN_BOOTSTRAPPED`: admin creation via `kingsec-bootstrap` is now audit-logged (previously the one deliberate admin-creation path had no audit trail at all) and distinguishable from a self-registered `USER_REGISTERED` entry.
+- `kingsec-bootstrap` now validates the supplied password against the same policy self-registration already enforced (previously unvalidated — the most privileged account in the system had a weaker bar than a Viewer).
+- `GET /health` now reports `bootstrap_required: bool`, so an operator (or monitoring) can tell a fresh, never-bootstrapped instance apart from a normal one without reading source or provoking `/auth/register`'s new 403.
+- Removed `AccountLockoutService` (`infrastructure/security/lockout.py`) — an in-memory, single-process progressive-lockout implementation that was fully built and tested but never wired into the live login path, which uses a separate, DB-backed mechanism with a fixed (non-escalating) lockout duration. See `docs/STATUS.md`'s Phase 3 section for the full account-lockout investigation.
+- **Breaking default change (pending composition-root wiring — see below):** once authorization scope enforcement is live, `POST /assessments` (`CreateAssessment`) refuses to create a new assessment whose target and requested profile are not covered, at every real scanner surface tier that profile would actually touch, by an active `AuthorizationGrant`. Plainly: **after this feature is wired in, no new assessment can be created for a target until an `AuthorizationGrant` exists covering it** — there is no grace period and no fallback to the old always-allowed behavior.
+- **Upgrade impact:** the request body's `override_scope_check` field (`POST /assessments`) is a single-operator escape hatch for internal use — an Admin-role requester can set it to bypass a refusal for one assessment at a time; a non-admin setting it is silently ignored and the assessment is still refused. Every override is audit-logged (`AuditAction.SCOPE_CHECK_OVERRIDDEN`, naming every missing tier) exactly as visibly as a refusal is (`AuditAction.SCOPE_CHECK_REFUSED`) — never a silent bypass. It is not the intended mechanism: create a real `AuthorizationGrant` instead (see below).
+- Added `POST /api/v1/authorization-grants` (ADMIN only — create), `GET /api/v1/authorization-grants` (ANALYST and above — list), `DELETE /api/v1/authorization-grants/{grant_id}` (ADMIN only — revoke). Create/revoke are Admin-only deliberately: an Analyst who could self-grant their own authorization would be able to authorize their own scans, weakening the control this feature exists to enforce. Example:
+  ```
+  curl -X POST https://<host>/api/v1/authorization-grants \
+    -H "Authorization: Bearer <admin-token>" -H "Content-Type: application/json" \
+    -d '{
+      "authorized_by": "ciso@example.com",
+      "authorizing_organization": "Example Corp",
+      "target_specification_type": "ip_address",
+      "target_specification_value": "10.0.0.5",
+      "valid_from": "2026-01-01T00:00:00+00:00",
+      "valid_until": "2099-01-01T00:00:00+00:00"
+    }'
+  ```
+  No frontend for grant management this round — an API route plus this documented curl usage is the deliverable; a UI is logged as a follow-up.
+- Assessments created before this feature existed, or while it remains unwired, carry `authorization_id = NULL` — this is not a data gap: it honestly means "no grant check applies to this row," and the existing `authorized_by`/`authorized_at`/`authorization_scope` free-text fields remain each such assessment's real authorization record, unchanged.
+- Added `AuditAction.SCOPE_CHECK_REFUSED` and `AuditAction.SCOPE_CHECK_OVERRIDDEN` (assessment creation), and `AuditAction.AUTHORIZATION_GRANT_CREATED`/`AUTHORIZATION_GRANT_REVOKED` (grant lifecycle).
+- New `authorization_grants` table and a new, nullable `assessments.authorization_id` column recording which grant(s) (or the override path) an assessment relied on — migration `289b5978e448`.
+- The composition root now constructs `CreateAssessment` with the real grant repository, scanner registry, and execution planner wired in, gated by the new `KINGSEC_SECURITY__ENFORCE_AUTHORIZATION_SCOPE` setting (default `true`) — set to `false` to roll back to pre-Phase-4 behavior without a redeploy. Enforcement is not live until the migration above has actually been applied to a given deployment's database (`alembic upgrade head`).
+
 ## [2.0.0] - 2026-07-30
 ### Added
 - General Availability release, consolidating 33 phases of development into a production-ready product (see RELEASE_NOTES.md for the full feature list: Attack Surface Management, multi-scanner Vulnerability Management, AI Copilot, Playbooks, Continuous Monitoring, Threat Intelligence, Compliance Dashboard, Asset Inventory, SSO/IdP configuration, Plugin SDK, Distributed Workers, Backup/Restore, License management)

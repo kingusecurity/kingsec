@@ -12,8 +12,8 @@ from kingsec.application import (
     CreateAssessmentRequest,
     GetAssessment,
     GetAssessmentRequest,
-    StartAssessment,
-    StartAssessmentRequest,
+    SubmitAssessment,
+    SubmitAssessmentRequest,
 )
 from kingsec.domain import Severity, Target, TargetType
 from kingsec.infrastructure.config.models import ScannerSettings
@@ -32,6 +32,19 @@ _TARGET = Target("10.0.0.5", TargetType.IP_ADDRESS)
 def _adapter(binary: Path, **overrides) -> NucleiScannerAdapter:
     # Uses the REAL SubprocessCommandRunner (no runner override).
     return NucleiScannerAdapter(ScannerSettings(binary_path=str(binary), **overrides))
+
+
+class _InlineJobRunner:
+    """Runs the submitted job synchronously, in-thread - deterministic for tests."""
+
+    def submit(self, job_id, fn, *args, **kwargs) -> None:
+        fn()
+
+    def is_running(self, job_id) -> bool:
+        return False
+
+    def shutdown(self, wait: bool = True) -> None:
+        pass
 
 
 class TestRealSubprocess:
@@ -71,15 +84,16 @@ class TestEndToEndSlice:
             created = CreateAssessment(assessments).execute(
                 CreateAssessmentRequest("10.0.0.5", "ip_address", "tester", "10.0.0.5")
             )
-            started = StartAssessment(assessments, scanner).execute(StartAssessmentRequest(created.assessment_id))
-
-            assert started.status == "completed"
-            assert started.findings_count == 2
-            assert started.highest_severity == Severity.CRITICAL.label
+            SubmitAssessment(assessments, scanner, _InlineJobRunner()).execute(
+                SubmitAssessmentRequest(created.assessment_id, is_admin=True)
+            )
 
             # Findings from the real scanner process are durably persisted.
             view = GetAssessment(assessments).execute(GetAssessmentRequest(created.assessment_id, is_admin=True))
+            assert view.status == "completed"
+            assert len(view.findings) == 2
             titles = {f.title for f in view.findings}
             assert "Critical RCE" in titles
+            assert any(f.severity == Severity.CRITICAL.label for f in view.findings)
         finally:
             engine.dispose()

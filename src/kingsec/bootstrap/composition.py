@@ -111,7 +111,6 @@ from kingsec.application import (
     SecretProviderPort,
     ServiceAPI,
     SessionRepository,
-    StartAssessment,
     StoreSecret,
     SubmitAssessment,
     SubmitScheduledAssessment,
@@ -160,7 +159,7 @@ def create_wired_application(
     log_stream: Any | None = None,
     ensure_directories: bool = True,
     report_format: str = "pdf",
-    brand_name: str = "KingSec",
+    brand_name: str | None = None,
     validate_migrations: bool = True,
 ) -> Application:
     """Compose a fully wired, production-ready application.
@@ -175,7 +174,13 @@ def create_wired_application(
         log_stream: Optional stream for logs (defaults to stdout).
         ensure_directories: Whether ``start()`` should create the data directory.
         report_format: Report deliverable format, ``"pdf"`` (default) or ``"html"``.
-        brand_name: Company-branding placeholder used in reports.
+        brand_name: Company-branding placeholder used in reports. ``None``
+            (the default) resolves from ``settings.reporting.brand_name``
+            (Phase 6 Task 6) - an explicit value here still overrides,
+            for tests/scripts that want one regardless of configuration.
+            Deliberately not gated by LicenseGate: 4 of 10 of its
+            documented methods already have zero call sites (see
+            docs/STATUS.md's backlog) and this does not become a fifth.
         validate_migrations: Whether to verify the Alembic schema version at
             startup. Pass ``False`` in tests that create a fresh database via
             ``create_schema()`` instead of ``alembic upgrade head``.
@@ -188,10 +193,11 @@ def create_wired_application(
         log_stream=log_stream,
         ensure_directories=ensure_directories,
     )
+    resolved_brand_name = brand_name if brand_name is not None else app.settings.reporting.brand_name
     _register_adapters(
         app,
         report_format=report_format,
-        brand_name=brand_name,
+        brand_name=resolved_brand_name,
         validate_migrations=validate_migrations,
     )
     _register_use_cases(app)
@@ -693,15 +699,16 @@ def _register_use_cases(app: Application) -> None:
     """Register use cases as DI factories.
 
     Each resolves its port dependencies from the container, so callers do
-    ``app.resolve(StartAssessment)`` and get a fully constructed interactor with
-    no manual wiring. The UseCaseServiceAPI facade is also registered here,
-    wiring the use cases into the ServiceAPI port.
+    ``app.resolve(SubmitAssessment)`` and get a fully constructed interactor
+    with no manual wiring. The UseCaseServiceAPI facade is also registered
+    here, wiring the use cases into the ServiceAPI port.
     """
     container = app.container
     settings = app.settings
     from kingsec.application.assessment_execution import AssessmentExecutionEngine
     from kingsec.application.assessment_profiles import ExecutionPlanner
-    from kingsec.application.ports.outbound.assessment_concurrency import AssessmentConcurrencyPort
+    from kingsec.application.ports import AuthorizationGrantRepository
+    from kingsec.application.ports.scanner_registry import ScannerPluginRegistry
 
     def _resolve_scanner_executor(c: Any) -> ScannerExecutor | None:
         """Return the resolved scanner if it also implements ScannerExecutor.
@@ -714,30 +721,54 @@ def _register_use_cases(app: Application) -> None:
         scanner = c.resolve(ScannerPort)
         return scanner if isinstance(scanner, ScannerExecutor) else None
 
-    container.register_factory(
-        CreateAssessment,
-        lambda c: CreateAssessment(
+    def _create_assessment_factory(c: Any) -> CreateAssessment:
+        """Phase 4: wire the real scope-enforcement dependencies only when
+        settings.security.enforce_authorization_scope is True (the
+        default). False reproduces the exact pre-Phase-4 construction
+        (all three optional deps left None) - an operator's real,
+        tested rollback lever if enforcement needs to be switched off
+        without a redeploy, never a phantom setting that reads as a gate
+        while wiring nothing."""
+        if settings.security.enforce_authorization_scope:
+            return CreateAssessment(
+                c.resolve(AssessmentRepository),
+                c.resolve(EventPublisher),
+                c.resolve(AuditPublisher),
+                grants=c.resolve(AuthorizationGrantRepository),
+                registry=c.resolve(ScannerPluginRegistry),
+                planner=c.resolve(ExecutionPlanner),
+            )
+        return CreateAssessment(
             c.resolve(AssessmentRepository),
             c.resolve(EventPublisher),
+            c.resolve(AuditPublisher),
+        )
+
+    container.register_factory(CreateAssessment, _create_assessment_factory)
+
+    # Phase 4: registered unconditionally, regardless of
+    # enforce_authorization_scope - creating/revoking grants is a
+    # separate concern from whether CreateAssessment currently checks
+    # them, and an operator who has switched enforcement off may still
+    # need to manage grants ahead of switching it back on.
+    from kingsec.application.use_cases.create_authorization_grant import CreateAuthorizationGrant
+    from kingsec.application.use_cases.revoke_authorization_grant import RevokeAuthorizationGrant
+
+    container.register_factory(
+        CreateAuthorizationGrant,
+        lambda c: CreateAuthorizationGrant(
+            c.resolve(AuthorizationGrantRepository),
             c.resolve(AuditPublisher),
         ),
     )
     container.register_factory(
-        StartAssessment,
-        lambda c: StartAssessment(
-            c.resolve(AssessmentRepository),
-            c.resolve(ScannerPort),
-            c.resolve(AIPort),
-            c.resolve(EventPublisher),
+        RevokeAuthorizationGrant,
+        lambda c: RevokeAuthorizationGrant(
+            c.resolve(AuthorizationGrantRepository),
             c.resolve(AuditPublisher),
-            c.resolve(ExecutionPlanner),
-            # KSEC-87-02: same session_factory/table register_persistence()
-            # already wires AssessmentRepository against, so this is always
-            # registered whenever AssessmentRepository (resolved above) is.
-            concurrency=c.resolve(AssessmentConcurrencyPort),
-            max_concurrent=settings.performance.max_concurrent_assessments,
         ),
     )
+
     container.register_factory(
         SubmitAssessment,
         lambda c: SubmitAssessment(
@@ -827,7 +858,6 @@ def _register_use_cases(app: Application) -> None:
         ServiceAPI,
         lambda c: UseCaseServiceAPI(
             c.resolve(CreateAssessment),
-            c.resolve(StartAssessment),
             c.resolve(SubmitAssessment),
             c.resolve(CancelAssessment),
             c.resolve(ListAssessments),
@@ -879,6 +909,7 @@ def _register_use_cases(app: Application) -> None:
             c.resolve(PasswordHasher),
             c.resolve(AuditPublisher),
             c.resolve(LicenseGate) if c.has(LicenseGate) else None,
+            settings.security.allow_self_registration,
         ),
     )
     container.register_factory(

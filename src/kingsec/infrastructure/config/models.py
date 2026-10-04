@@ -125,9 +125,26 @@ class SecuritySettings(BaseModel):
 
     model_config = _FROZEN
 
-    # The authorization gate defaults to ENABLED. Disabling it is a conscious,
-    # logged choice for the operator — never the accidental default state.
-    require_authorization: bool = True
+    # Phase 3 (auth hardening): self-registration defaults to DISABLED.
+    # Enabled by default, the first unauthenticated caller to reach
+    # /auth/register on a network-reachable instance could win the
+    # first-user-becomes-admin race. RegisterUser no longer grants ADMIN
+    # via this path regardless of this flag (see save_new_user) - but an
+    # open signup flow is still a real product decision, not a safe default.
+    allow_self_registration: bool = False
+
+    # Phase 4 (authorization scope enforcement): defaults to ENABLED,
+    # matching this file's trust-default convention (safe unless someone
+    # deliberately turns it off). Read directly by
+    # bootstrap/composition.py's adapter registration: when True, the real
+    # AuthorizationGrantRepository/ScannerPluginRegistry/ExecutionPlanner
+    # are wired into CreateAssessment; when False, CreateAssessment is
+    # constructed exactly as before this feature existed (all three
+    # optional deps left None), so an operator can roll back enforcement
+    # without a redeploy if something goes wrong. Unlike the deleted
+    # require_authorization, this flag has a real, tested effect on the
+    # composition root in both states.
+    enforce_authorization_scope: bool = True
 
 
 class JWTSettings(BaseModel):
@@ -667,6 +684,23 @@ class PerformanceSettings(BaseModel):
 
     # --- Health checks ---
     health_check_interval: float = Field(default=60.0, ge=10.0, description="Health check interval in seconds")
+
+
+class ReportingSettings(BaseModel):
+    """Report generation and branding configuration.
+
+    Phase 6 Task 6: brand_name was already wired end-to-end through the
+    real rendering pipeline (cover page, header, footer all use it
+    correctly) - the ONLY gap was that nothing fed a configured value
+    into that already-working plumbing, which is why "Branded PDF" was
+    removed from the pricing page as FALSE in Phase 5. This field closes
+    that gap; deliberately NOT gated by LicenseGate - see
+    bootstrap/composition.py's own comment on why.
+    """
+
+    _FROZEN = ConfigDict(frozen=True, extra="forbid")
+
+    brand_name: str = Field(default="KingSec", description="Company/product name shown in generated reports")
 
 
 class IntegrationSettings(BaseModel):

@@ -26,8 +26,6 @@ from kingsec.application.dto import (
     GetAssessmentRequest,
     ListAssessmentsRequest,
     ListAssessmentsResponse,
-    StartAssessmentRequest,
-    StartAssessmentResponse,
     SubmitAssessmentRequest,
     SubmitAssessmentResponse,
 )
@@ -38,9 +36,6 @@ class ServiceAPI(ABC):
 
     @abstractmethod
     def create_assessment(self, request: CreateAssessmentRequest) -> CreateAssessmentResponse: ...
-
-    @abstractmethod
-    def start_assessment(self, request: StartAssessmentRequest) -> StartAssessmentResponse: ...
 
     @abstractmethod
     def submit_assessment(self, request: SubmitAssessmentRequest) -> SubmitAssessmentResponse: ...
