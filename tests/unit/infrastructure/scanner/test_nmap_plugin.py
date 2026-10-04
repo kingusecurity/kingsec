@@ -554,4 +554,6 @@ class TestProvisioning:
         scanner = container.resolve(ScannerPort)
         findings = scanner.scan(_TARGET)
         assert len(findings) == 1
-        assert findings[0].severity is Severity.LOW
+        # Port 22/SSH rates MEDIUM under the port severity model (routinely
+        # brute-forced when exposed) - see nmap_parser's _MEDIUM_RISK_PORTS.
+        assert findings[0].severity is Severity.MEDIUM

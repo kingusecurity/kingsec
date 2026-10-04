@@ -1786,3 +1786,15 @@ Frontend findings UI change is now verified, not just reviewed.
 **Root cause:** `weasyprint 69.0` (what `pip install -e ".[dev]"` resolves for `weasyprint>=62.0,<70`) carries **PYSEC-2026-3940** — an SSRF where two `write_pdf()` channels (`xmp_metadata=[url]`, …) bypass a restrictive `url_fetcher`. Fixed upstream in 70.0, which the `<70` cap excluded. The cap dated back to the original reporting commit — a conservative bound, not a response to a breaking change. KingSec only calls `HTML(string=html).write_pdf()` (no `xmp_metadata`, no custom fetcher), so the SSRF was not directly reachable through KingSec's code path — but a security product shipping a PDF renderer with a known SSRF fails its own audit gate regardless.
 
 **Fix:** `weasyprint>=62.0,<71` in pyproject.toml; `uv lock --upgrade-package weasyprint` → 70.0 in uv.lock (`uv lock --check` passes). Verified: `pip-audit` clean on the fresh install; weasyprint 70.0 renders a valid `%PDF-1.7`.
+
+## CI fix, part 4 — pytest failures (2026-10-04, night)
+
+**Symptom:** after the pip-audit fix, CI Quality Gates failed at `Test (pytest)`.
+
+**Investigation:** reproduced CI-like conditions locally (fresh `pip install -e ".[dev]"` venv, `python` on PATH as on ubuntu-latest, proxy env unset, no stray server on 8765). Two genuine failures found:
+
+1. `test_orchestrator_resolves_nmap` (my oversight from the port-severity commit): asserted `Severity.LOW` for port 22/SSH, but the new severity model deliberately rates SSH MEDIUM ("routinely brute-forced"). The test pinned pre-model behavior — updated to MEDIUM with a comment citing the model.
+
+2. `test_resolved_binary_becomes_argv0_and_cwd_is_its_directory` (pre-existing): `Path(resolved).parent` in ZAP's `_build_args` uses the native path flavor, so a Windows-style ZAP path (e.g. `C:\Program Files\...\ZAP.exe`) yields `'.'` as cwd on Linux — ZAP would start in the wrong directory and silently fail to find its jars. Fixed with flavor detection (`ntpath.dirname` for Windows-style paths).
+
+Also fixed the environment for diagnosis: my leftover walkthrough server on 8765 was making `test_collect_health_status_unreachable` fail (it expects "unreachable"); server stopped. Verified: ruff/mypy/bandit clean on touched files.

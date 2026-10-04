@@ -8,6 +8,8 @@ JSON output into domain ``Finding`` objects.
 from __future__ import annotations
 
 import json
+import ntpath
+import os.path
 import uuid
 from collections.abc import Sequence
 from pathlib import Path
@@ -202,7 +204,17 @@ class ZapScannerAdapter(ScannerPort):
         settings = self._settings
         resolved = find_executable(settings.binary_path)
         binary_path = resolved or settings.binary_path
-        cwd = str(Path(resolved).parent) if resolved else None
+        # find_executable() may return a Windows-style path (ZAP's default
+        # install location, e.g. via a shared config value) even when KingSec
+        # itself runs on Linux. os.path only splits on the native separator,
+        # so Path(<windows path>).parent is '.' on POSIX and ZAP would start
+        # in the wrong cwd, silently failing to find its jars. Detect the
+        # flavor and parse accordingly.
+        cwd: str | None
+        if resolved and ("\\" in resolved or (len(resolved) > 1 and resolved[1] == ":")):
+            cwd = ntpath.dirname(resolved)
+        else:
+            cwd = os.path.dirname(resolved) if resolved else None
         output_dir = self._data_dir / "scanner-output"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_path = output_dir / f"zap-quickscan-{uuid.uuid4().hex}.json"
