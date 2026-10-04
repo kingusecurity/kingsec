@@ -227,6 +227,14 @@ class ReportORM(Base):
     # entries: list of dicts; severity_counts: list of [severity_name, count].
     entries: Mapped[list[Any]] = mapped_column(JSON, nullable=False)
     severity_counts: Mapped[list[Any]] = mapped_column(JSON, nullable=False)
+    # Which assessment profile the assessment ran under, recorded at report
+    # generation time (fixes the downloaded-report Methodology line that
+    # claimed "no pre-configured profile" for profiled assessments -
+    # report_to_orm/report_to_domain used to drop it). NULL = "not
+    # recorded" for rows persisted before this column existed; the
+    # template renders that as the no-profile wording, which is the
+    # honest statement for those rows.
+    profile_id: Mapped[str | None] = mapped_column(String, nullable=True)
     # Whether an AI provider was configured/available at generation time.
     ai_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # Prior reports for the same target (risk-over-time chart): list of

@@ -257,6 +257,7 @@ def report_to_orm(report: Report) -> ReportORM:
             for entry in report.entries
         ],
         severity_counts=[[severity.name, count] for severity, count in report.severity_counts],
+        profile_id=report.profile_id,
         ai_enabled=report.ai_enabled,
         history=[
             {
@@ -492,6 +493,11 @@ def report_to_domain(orm: ReportORM) -> Report:
         scanner_summary=_scanner_summary_from_json(orm.scanner_summary),
         assessment_status=AssessmentStatus(orm.assessment_status),
         score_version=orm.score_version,
+        # Reports persisted before the reports.profile_id column existed
+        # (migration 7545229e5084) have NULL here - domain Report already
+        # treats None as "no profile recorded", and the template renders
+        # the honest no-profile wording for them.
+        profile_id=orm.profile_id,
     )
 
 

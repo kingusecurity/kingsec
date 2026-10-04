@@ -1719,3 +1719,19 @@ No scanner binaries exist in this environment (nmap, nuclei, nikto, ffuf, gobust
 **Fix:** `infrastructure/ai/client.py` now catches `httpx.InvalidURL` at client construction and falls back to `trust_env=False` (ignoring ambient proxy config) with a `proxy_env_unparseable` warning log. Well-formed proxy environments keep the previous behavior (verified by test). Rationale for fallback-over-crash: a malformed `no_proxy` entry is an operator-environment quirk, never a reason to refuse startup; and silently misrouting AI API calls (which carry provider API keys) through a half-parsed proxy config would be worse than bypassing it.
 
 **Tests:** `TestMalformedProxyEnv` (2 tests) in `tests/unit/infrastructure/ai/test_client.py` — one reproduces the crash condition (no mock transport, matching the production path; a mock transport bypasses httpx's proxy setup and would not reproduce), one asserts well-formed envs keep `trust_env=True`. Full `tests/unit/infrastructure/ai/` suite: 88 passed. Ruff + mypy clean.
+
+## Report Methodology bug — profile line lost on download (2026-10-04)
+
+**Symptom:** an assessment launched under the `quick-scan` profile (API shows `profile_id: quick-scan`) produced a downloaded report whose Methodology said "This assessment did not use a pre-configured profile."
+
+**Root cause (persistence gap, not a template bug):** `Report.from_assessment()` correctly carried `profile_id` from the live `Assessment` into the domain `Report`, but `report_to_orm()` had nowhere to store it (`reports` had no such column) and `report_to_domain()` therefore rebuilt every stored report with `profile_id=None`. The generate endpoint renders from the fresh domain object (correct), but `/reports/{id}/download` re-renders from the stored row — so every downloaded report lost the profile line.
+
+**Fix:**
+- Migration `7545229e5084` adds `reports.profile_id` (nullable, no backfill — rows persisted before this column genuinely have "not recorded"; NULL renders the existing no-profile wording, which is the honest statement for those rows).
+- `ReportORM.profile_id` column, `report_to_orm` writes it, `report_to_domain` reads it.
+- Regression tests: `TestReportProfileIdMapping` (round-trip preserves set/unset profile_id; `_methodology` names "Quick Host Scan" after a round-trip); migration head stamp test updated to `7545229e5084`.
+- Same untracked-migration packaging caveat as before applies: `pip install .` only ships git-tracked migration files (hatch_build.py hook), so this must be committed before any install-based verification.
+
+**Verification:** `tests/unit/infrastructure/persistence/test_mappers.py` 10/10 pass; `tests/integration/test_alembic_migrations.py` 13/13 pass (including single-head); ruff + mypy clean on touched files.
+
+**Live verification (2026-10-04, same day):** reinstalled the committed wheel into the walkthrough venv, applied `kingsec-migrate` (DB now at head `7545229e5084`, `reports.profile_id` column present), restarted the server, re-authenticated, regenerated the report for assessment `asmt-0d80561cd197449ab2a8a72f3ec25d07` (the port-80 quick-scan), and downloaded it via the download endpoint. The downloaded HTML now reads "This assessment used the **Quick Host Scan** profile." — the exact path that was broken before. The two earlier fixes remain intact in the same downloaded report ("Affected Asset" row, "Rated Low: identified service…" rationale). Bug closed end-to-end, not just in unit tests.

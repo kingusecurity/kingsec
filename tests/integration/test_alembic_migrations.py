@@ -640,9 +640,11 @@ class TestMigrationAtomicity:
         # the unused historical_scope_note column and added the
         # authorization_id audit-trail column instead), then the
         # affected_asset fix moved it to 92f560c6414b (add affected_asset
-        # to findings) - this must track the real head, not remain pinned
+        # to findings), then the report-profile fix moved it to
+        # 7545229e5084 (add profile_id to reports) - this must track the
+        # real head, not remain pinned
         # to whatever revision was head when this test was first written.
-        assert stamp == "92f560c6414b"
+        assert stamp == "7545229e5084"
 
 
 class TestSingleHead:

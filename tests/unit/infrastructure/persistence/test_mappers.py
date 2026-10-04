@@ -120,3 +120,58 @@ class TestFindingAffectedAssetMapping:
         report = Report.from_assessment(assessment)
         restored = report_to_domain(report_to_orm(report))
         assert restored.entries[0].affected_asset == "10.0.0.9"
+
+
+class TestReportProfileIdMapping:
+    """profile_id survives the report ORM round-trip; the downloaded-report
+    Methodology line ("did not use a pre-configured profile") used to be
+    wrong for profiled assessments because report_to_orm had nowhere to
+    store it and report_to_domain always rebuilt with None."""
+
+    def test_round_trip_preserves_profile_id(self) -> None:
+        from kingsec.domain import Assessment, Authorization, Target, TargetType
+        from kingsec.infrastructure.persistence.mappers import report_to_domain, report_to_orm
+        from tests.unit.infrastructure.persistence.conftest import utc
+
+        assessment = Assessment.create(
+            Target("10.0.0.5", TargetType.IP_ADDRESS), profile_id="quick-scan"
+        )
+        assessment.authorize(Authorization("tester", utc(), scope="10.0.0.5"))
+        assessment.start()
+        assessment.complete()
+
+        report = Report.from_assessment(assessment)
+        assert report.profile_id == "quick-scan"
+
+        restored = report_to_domain(report_to_orm(report))
+        assert restored.profile_id == "quick-scan"
+
+    def test_round_trip_preserves_absent_profile_id(self) -> None:
+        from kingsec.infrastructure.persistence.mappers import report_to_domain, report_to_orm
+        from tests.unit.infrastructure.persistence.conftest import completed_assessment
+
+        # completed_assessment() sets no profile - the pre-migration
+        # honest state stays "not recorded", never fabricated.
+        report = Report.from_assessment(completed_assessment())
+        assert report.profile_id is None
+
+        restored = report_to_domain(report_to_orm(report))
+        assert restored.profile_id is None
+
+    def test_methodology_names_profile_after_round_trip(self) -> None:
+        from kingsec.domain import Assessment, Authorization, Target, TargetType
+        from kingsec.infrastructure.persistence.mappers import report_to_domain, report_to_orm
+        from kingsec.infrastructure.reporting.templates import _methodology
+        from tests.unit.infrastructure.persistence.conftest import utc
+
+        assessment = Assessment.create(
+            Target("10.0.0.5", TargetType.IP_ADDRESS), profile_id="quick-scan"
+        )
+        assessment.authorize(Authorization("tester", utc(), scope="10.0.0.5"))
+        assessment.start()
+        assessment.complete()
+
+        restored = report_to_domain(report_to_orm(Report.from_assessment(assessment)))
+        methodology = _methodology(restored)
+        assert "Quick Host Scan" in methodology
+        assert "did not use a pre-configured profile" not in methodology
