@@ -1760,3 +1760,11 @@ kingu approved `npm ci`. Full frontend verification of the affected_asset UI cha
 - `npx oxlint`: 0 warnings, 0 errors on touched files.
 
 Frontend findings UI change is now verified, not just reviewed.
+
+## CI fix — mypy red on main (2026-10-04, night)
+
+**Symptom:** GitHub CI "Quality Gates" failing on all Python versions at the `mypy src` step — red on `2c5ee53` (before my commits) and still red after the push.
+
+**Root cause:** `src/kingsec/infrastructure/notifications/repository.py` (added in PR #4) typed `_apply_filter` as `Select[tuple[NotificationORM]]`. CI installs `sqlalchemy>=2,<3` fresh via pip, which resolves to SQLAlchemy 2.1.x, where `select(Entity)` infers as `Select[Entity]` (not `Select[tuple[Entity]]`) and `.scalars().all()` no longer unwraps an explicitly tuple-typed Select. Three assignment/arg-type errors. It was the only `Select[tuple[...]]` in the codebase — every other repository uses `Select[Any]`.
+
+**Fix:** one-line annotation change to `Select[NotificationORM]`. Verified with `reveal_type` probes against the installed SQLAlchemy 2.1.3, `mypy` clean on the file, ruff clean, 87 notification unit tests pass.

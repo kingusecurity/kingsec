@@ -130,7 +130,7 @@ class SQLAlchemyNotificationRepository(NotificationRepositoryPort):
                 session.commit()
 
 
-def _apply_filter(stmt: Select[tuple[NotificationORM]], filter_: NotificationFilter | None) -> Select[tuple[NotificationORM]]:
+def _apply_filter(stmt: Select[NotificationORM], filter_: NotificationFilter | None) -> Select[NotificationORM]:
     if filter_ is None:
         return stmt
     if filter_.read is not None:
