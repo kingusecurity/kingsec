@@ -1768,3 +1768,13 @@ Frontend findings UI change is now verified, not just reviewed.
 **Root cause:** `src/kingsec/infrastructure/notifications/repository.py` (added in PR #4) typed `_apply_filter` as `Select[tuple[NotificationORM]]`. CI installs `sqlalchemy>=2,<3` fresh via pip, which resolves to SQLAlchemy 2.1.x, where `select(Entity)` infers as `Select[Entity]` (not `Select[tuple[Entity]]`) and `.scalars().all()` no longer unwraps an explicitly tuple-typed Select. Three assignment/arg-type errors. It was the only `Select[tuple[...]]` in the codebase — every other repository uses `Select[Any]`.
 
 **Fix:** one-line annotation change to `Select[NotificationORM]`. Verified with `reveal_type` probes against the installed SQLAlchemy 2.1.3, `mypy` clean on the file, ruff clean, 87 notification unit tests pass.
+
+## CI fix, part 2 — Bandit red on main (2026-10-04, night)
+
+**Symptom:** after the mypy fix, CI Quality Gates failed at `Security (Bandit)` on all Python versions.
+
+**Root cause:** 4 pre-existing findings `bandit -q -r src` flags (all pre-date my commits, from the Phase 2B-c era; bandit never ran in CI before because mypy failed first):
+- B608 (x2) in the 2026_09_10 scanner-status backfill migration: f-string SQL. The file already had `# noqa: S608` (ruff's marker), which Bandit does not honor. The interpolated table/column names are hardcoded literals at the migration's own call sites — no user input reaches them.
+- B101 (x2): `assert` in `assessment_execution.py` (invariant enforced by `__post_init__`) and `reporting/adapter.py` (`_cache_path` only called when `cache_dir` is set).
+
+**Fix:** `# nosec` markers with justifications, following the codebase's existing convention (e.g. `# nosec B105 — "refresh" is a JWT token type, not a credential`). No behavior changed. Verified: `bandit -q -r src` → 0 issues; ruff clean; mypy clean; 119 related unit tests pass.

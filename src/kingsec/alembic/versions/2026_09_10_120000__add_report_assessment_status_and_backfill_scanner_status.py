@@ -105,7 +105,7 @@ _SUCCESS_VALUE = "succeeded"
 
 def _backfill_scanner_summary(table_name: str, pk_col: str) -> None:
     conn = op.get_bind()
-    rows = conn.execute(sa.text(f"SELECT {pk_col}, scanner_summary FROM {table_name}")).fetchall()  # noqa: S608
+    rows = conn.execute(sa.text(f"SELECT {pk_col}, scanner_summary FROM {table_name}")).fetchall()  # noqa: S608  # nosec B608 — table_name/pk_col are hardcoded literals at the call sites below, never user input
     for pk, raw in rows:
         if not raw:
             continue
@@ -121,7 +121,7 @@ def _backfill_scanner_summary(table_name: str, pk_col: str) -> None:
                 changed = True
         if changed:
             conn.execute(
-                sa.text(f"UPDATE {table_name} SET scanner_summary = :val WHERE {pk_col} = :pk"),  # noqa: S608
+                sa.text(f"UPDATE {table_name} SET scanner_summary = :val WHERE {pk_col} = :pk"),  # noqa: S608  # nosec B608 — table_name/pk_col are hardcoded literals at the call sites below, never user input
                 {"val": json.dumps(entries), "pk": pk},
             )
 

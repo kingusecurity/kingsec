@@ -123,7 +123,7 @@ class ReportGeneratorAdapter(ReportGeneratorPort):
         eviction: orphaned entries from old snapshots are harmless disk
         usage, not a correctness problem, and were not asked for.
         """
-        assert self._cache_dir is not None
+        assert self._cache_dir is not None  # nosec B101 — _cache_path is only called when cache_dir is set (see render()); documents the precondition, never a user-controlled check
         raw_key = f"{report.assessment_id}:{report.generated_at.isoformat()}:{fmt}"
         digest = hashlib.sha256(raw_key.encode("utf-8")).hexdigest()[:16]
         return self._cache_dir / f"{report.assessment_id}-{digest}.{fmt}"

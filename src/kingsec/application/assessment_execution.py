@@ -202,7 +202,7 @@ class AssessmentExecutionEngine:
                     status=ScannerRunState.PENDING,
                 )
             else:
-                assert entry.skip_state is not None  # enforced by ScannerPlanEntry.__post_init__
+                assert entry.skip_state is not None  # nosec B101 — enforced by ScannerPlanEntry.__post_init__; documents the invariant, never a user-controlled check
                 entries[entry.scanner_id] = ScannerProgress(
                     scanner_id=entry.scanner_id,
                     name=entry.name,
