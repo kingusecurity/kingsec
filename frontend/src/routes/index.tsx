@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { AuthLayout } from '@/components/layout/AuthLayout'
-import { AuthGuard, RoleGuard, GuestGuard } from '@/components/shared/RouteGuards'
+import { AuthGuard, RoleGuard, GuestGuard, BootstrapGuard } from '@/components/shared/RouteGuards'
 import { PageErrorBoundary } from '@/components/shared/ErrorBoundary'
 import { Spinner } from '@/components/ui/Spinner'
 
@@ -22,6 +22,7 @@ const SettingsPage = lazy(() => import('@/pages/SettingsPage').then(m => ({ defa
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })))
 const UnauthorizedPage = lazy(() => import('@/pages/UnauthorizedPage').then(m => ({ default: m.UnauthorizedPage })))
 const SessionExpiredPage = lazy(() => import('@/pages/SessionExpiredPage').then(m => ({ default: m.SessionExpiredPage })))
+const BootstrapRequiredPage = lazy(() => import('@/pages/BootstrapRequiredPage').then(m => ({ default: m.BootstrapRequiredPage })))
 const LiveActivityPage = lazy(() => import('@/pages/LiveActivityPage').then(m => ({ default: m.LiveActivityPage })))
 const NotificationsPage = lazy(() => import('@/pages/NotificationsPage').then(m => ({ default: m.NotificationsPage })))
 const AuditLogPage = lazy(() => import('@/pages/AuditLogPage').then(m => ({ default: m.AuditLogPage })))
@@ -74,17 +75,22 @@ const isDev = import.meta.env.DEV
 export const router = createBrowserRouter([
   {
     path: '/login',
-    element: <GuestGuard><AuthLayout /></GuestGuard>,
+    element: <GuestGuard><BootstrapGuard><AuthLayout /></BootstrapGuard></GuestGuard>,
     children: [{ index: true, element: <Suspense fallback={<PageLoader />}><LoginPage /></Suspense> }],
   },
   {
     path: '/register',
-    element: <GuestGuard><AuthLayout /></GuestGuard>,
+    element: <GuestGuard><BootstrapGuard><AuthLayout /></BootstrapGuard></GuestGuard>,
     children: [{ index: true, element: <Suspense fallback={<PageLoader />}><RegisterPage /></Suspense> }],
   },
   {
     path: '/session-expired',
     element: <Suspense fallback={<PageLoader />}><SessionExpiredPage /></Suspense>,
+  },
+  {
+    path: '/bootstrap-required',
+    element: <GuestGuard><AuthLayout /></GuestGuard>,
+    children: [{ index: true, element: <Suspense fallback={<PageLoader />}><BootstrapRequiredPage /></Suspense> }],
   },
   {
     path: '/unauthorized',

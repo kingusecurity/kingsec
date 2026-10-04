@@ -32,7 +32,7 @@ export interface MfaStatus {
 
 export const settingsApi = {
   health: () =>
-    apiRequest<{ status: string }>('/health'),
+    apiRequest<{ status: string; bootstrap_required: boolean }>('/health'),
 
   healthz: () =>
     apiRequest<Record<string, unknown>>('/healthz/health'),

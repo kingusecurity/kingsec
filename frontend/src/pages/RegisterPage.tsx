@@ -35,14 +35,11 @@ export function RegisterPage() {
   }
 
   if (registerMutation.isSuccess) {
-    const isFirstAdmin = registerMutation.data.role === 'Admin'
     return (
       <div className="space-y-4">
         <h1 className="text-center text-xl font-semibold">Create account</h1>
         <div className="rounded-md bg-emerald-900/50 px-3 py-2 text-sm text-emerald-400">
-          {isFirstAdmin
-            ? "Account created. You're the first user, so you're the system administrator."
-            : 'Account created. You can now sign in.'}
+          Account created. You can now sign in.
         </div>
         <button
           type="button"
