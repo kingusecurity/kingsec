@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import io
 from datetime import UTC, datetime
+from typing import ClassVar
 
 import pytest
 from cryptography.fernet import Fernet
@@ -218,3 +219,87 @@ class TestCreatedGrantEnforcesAssessmentCreation:
             },
         )
         assert assessment_resp.status_code == 201
+
+
+class TestCheckGrantCoverageRoute:
+    """GET /api/v1/authorization-grants/check (Phase 8 Build B) - a
+    read-only dry run of CreateAssessment's own enforce_authorization_scope,
+    calling effective_scan_surface()/find_covering() directly so results
+    can never drift from what a real submission would actually decide."""
+
+    _CHECK_PARAMS: ClassVar[dict[str, str]] = {
+        "target_type": "ip_address",
+        "target_value": "10.0.0.99",
+        "profile_id": "quick-scan",
+    }
+
+    def test_no_grant_at_all_reports_not_covered(self, wired_app: Application) -> None:
+        client = _client_as(wired_app, role=Role.ANALYST)
+        resp = client.get("/api/v1/authorization-grants/check", params=self._CHECK_PARAMS)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["enforced"] is True
+        assert body["fully_covered"] is False
+        assert len(body["required_tiers"]) >= 1
+        assert all(t["covered"] is False and t["grant_id"] is None for t in body["required_tiers"])
+
+    def test_a_covering_ip_address_grant_reports_fully_covered(self, wired_app: Application) -> None:
+        admin = _client_as(wired_app, role=Role.ADMIN)
+        grant_resp = admin.post(
+            "/api/v1/authorization-grants",
+            json={**_GRANT_BODY, "target_specification_value": "10.0.0.99"},
+        )
+        assert grant_resp.status_code == 201
+        grant_id = grant_resp.json()["grant_id"]
+
+        client = _client_as(wired_app, role=Role.ANALYST)
+        resp = client.get("/api/v1/authorization-grants/check", params=self._CHECK_PARAMS)
+        body = resp.json()
+        assert body["fully_covered"] is True
+        assert all(t["covered"] is True and t["grant_id"] == grant_id for t in body["required_tiers"])
+
+    def test_blocking_1_a_url_grant_does_not_cover_a_host_tier_scan(self, wired_app: Application) -> None:
+        """The exact Phase 4 Blocking-1 case: a grant exists for this
+        target, but scoped as a URL prefix - quick-scan's nmap needs
+        HOST_ANY_PORT, which satisfies_tier() deliberately refuses for a
+        URL-scoped grant. This must report NOT fully covered, distinct
+        from the true no-grant-at-all case above (a real grant_id would
+        show up on ANY covered tier if one existed for this target at a
+        different tier - here none does)."""
+        admin = _client_as(wired_app, role=Role.ADMIN)
+        grant_resp = admin.post(
+            "/api/v1/authorization-grants",
+            json={
+                **_GRANT_BODY,
+                "target_specification_type": "url_prefix",
+                "target_specification_value": "http://10.0.0.99:8080/",
+            },
+        )
+        assert grant_resp.status_code == 201
+
+        client = _client_as(wired_app, role=Role.ANALYST)
+        resp = client.get("/api/v1/authorization-grants/check", params=self._CHECK_PARAMS)
+        body = resp.json()
+        assert body["fully_covered"] is False
+        assert all(t["covered"] is False for t in body["required_tiers"])
+
+    def test_viewer_is_refused(self, wired_app: Application) -> None:
+        client = _client_as(wired_app, role=Role.VIEWER)
+        resp = client.get("/api/v1/authorization-grants/check", params=self._CHECK_PARAMS)
+        assert resp.status_code == 403
+
+    def test_unknown_profile_is_404(self, wired_app: Application) -> None:
+        client = _client_as(wired_app, role=Role.ANALYST)
+        resp = client.get(
+            "/api/v1/authorization-grants/check",
+            params={**self._CHECK_PARAMS, "profile_id": "not-a-real-profile"},
+        )
+        assert resp.status_code == 404
+
+    def test_invalid_target_type_is_400(self, wired_app: Application) -> None:
+        client = _client_as(wired_app, role=Role.ANALYST)
+        resp = client.get(
+            "/api/v1/authorization-grants/check",
+            params={**self._CHECK_PARAMS, "target_type": "not_a_real_type"},
+        )
+        assert resp.status_code == 400

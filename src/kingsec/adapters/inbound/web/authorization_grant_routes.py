@@ -17,12 +17,17 @@ documented curl usage is the deliverable; a UI is logged as a follow-up.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Annotated, Any, cast
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
+from kingsec.application.assessment_profiles import ExecutionPlanner
+from kingsec.application.authorization_scope import effective_scan_surface, find_covering
 from kingsec.application.dto import CreateAuthorizationGrantRequest, RevokeAuthorizationGrantRequest
 from kingsec.application.ports import AuthorizationGrantRepository
+from kingsec.application.ports.scanner_registry import ScannerPluginRegistry
+from kingsec.domain import InvariantViolation, Target, TargetType
 
 from . import schemas
 from .auth import CurrentUser, require_admin, require_analyst
@@ -155,3 +160,87 @@ async def revoke_authorization_grant(
     use_case: RevokeAuthorizationGrant = Depends(_get_revoke_authorization_grant_use_case),
 ) -> None:
     use_case.execute(RevokeAuthorizationGrantRequest(grant_id=grant_id, revoked_by=user.username))
+
+
+@router.get(
+    "/authorization-grants/check",
+    response_model=schemas.CheckGrantCoverageResponse,
+    tags=["authorization-grants"],
+    summary="Check whether active grants cover a target+profile combination",
+    description=(
+        "Read-only dry run of the exact scope check CreateAssessment performs at "
+        "submission time - calls effective_scan_surface()/find_covering() "
+        "directly, never a reimplementation, so this can never drift from real "
+        "enforcement. Lets the new-assessment UI warn an operator before they "
+        "submit, instead of after. Requires ANALYST role or above."
+    ),
+    dependencies=[Depends(require_analyst)],
+    responses={
+        200: {"description": "Coverage result"},
+        400: {"description": "Invalid target_type or target_value"},
+        401: {"description": "Missing or invalid token"},
+        403: {"description": "Insufficient permissions (ANALYST or above required)"},
+        404: {"description": "Unknown profile_id"},
+    },
+)
+async def check_grant_coverage(
+    request: Request,
+    target_type: Annotated[str, Query(description="One of: ip_address, hostname, url, network")],
+    target_value: Annotated[str, Query(min_length=1, max_length=2048)],
+    profile_id: Annotated[str, Query(...)],
+    _user: CurrentUser = Depends(require_analyst),
+) -> schemas.CheckGrantCoverageResponse:
+    app: Application = request.app.state.kingsec_app
+
+    if not app.settings.security.enforce_authorization_scope:
+        # Mirrors CreateAssessment's own rollback lever (Phase 4):
+        # enforcement off means nothing would ever be checked or refused,
+        # so there is nothing to warn about - never a stale "missing
+        # grant" message the real submission would not actually produce.
+        return schemas.CheckGrantCoverageResponse(
+            enforced=False,
+            target_type=target_type,
+            target_value=target_value,
+            profile_id=profile_id,
+            required_tiers=[],
+            fully_covered=True,
+        )
+
+    try:
+        target = Target(value=target_value, type=TargetType(target_type))
+    except (ValueError, InvariantViolation) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    planner = cast(ExecutionPlanner, app.resolve(ExecutionPlanner))
+    profile = planner.get_profile(profile_id)
+    if profile is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Unknown profile: {profile_id!r}")
+
+    registry = cast(ScannerPluginRegistry, app.resolve(ScannerPluginRegistry))
+    required_tiers = effective_scan_surface(profile, registry, target.type)
+
+    grants_repo: AuthorizationGrantRepository = cast(
+        AuthorizationGrantRepository, app.resolve(AuthorizationGrantRepository)
+    )
+    now = datetime.now(UTC)
+    active_grants = grants_repo.find_active(now)
+
+    results: list[schemas.GrantCoverageTierResult] = []
+    for tier in sorted(required_tiers, key=lambda t: t.value):
+        grant = find_covering(active_grants, target, tier, now)
+        results.append(
+            schemas.GrantCoverageTierResult(
+                tier=tier.value,
+                covered=grant is not None,
+                grant_id=str(grant.id) if grant else None,
+            )
+        )
+
+    return schemas.CheckGrantCoverageResponse(
+        enforced=True,
+        target_type=target_type,
+        target_value=target_value,
+        profile_id=profile_id,
+        required_tiers=results,
+        fully_covered=all(r.covered for r in results),
+    )

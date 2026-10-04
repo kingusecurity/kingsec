@@ -124,6 +124,36 @@ class CreateAuthorizationGrantResponse(BaseModel):
     valid_until: str
 
 
+class GrantCoverageTierResult(BaseModel):
+    """Per-tier result inside CheckGrantCoverageResponse."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tier: str
+    covered: bool
+    grant_id: str | None = None
+
+
+class CheckGrantCoverageResponse(BaseModel):
+    """GET /api/v1/authorization-grants/check response body.
+
+    A read-only dry run of CreateAssessment's own scope check
+    (effective_scan_surface()/find_covering(), called directly - never
+    reimplemented) so a UI can warn an operator before they submit a
+    new-assessment form, with no risk of silently drifting from what
+    the real enforcement would actually decide.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enforced: bool
+    target_type: str
+    target_value: str
+    profile_id: str
+    required_tiers: list[GrantCoverageTierResult]
+    fully_covered: bool
+
+
 class StartAssessmentBody(BaseModel):
     """POST /api/v1/assessments/{id}/start request body (empty)."""
 
