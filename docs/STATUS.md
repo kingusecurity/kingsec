@@ -1778,3 +1778,11 @@ Frontend findings UI change is now verified, not just reviewed.
 - B101 (x2): `assert` in `assessment_execution.py` (invariant enforced by `__post_init__`) and `reporting/adapter.py` (`_cache_path` only called when `cache_dir` is set).
 
 **Fix:** `# nosec` markers with justifications, following the codebase's existing convention (e.g. `# nosec B105 — "refresh" is a JWT token type, not a credential`). No behavior changed. Verified: `bandit -q -r src` → 0 issues; ruff clean; mypy clean; 119 related unit tests pass.
+
+## CI fix, part 3 — pip-audit red on main (2026-10-04, night)
+
+**Symptom:** after the Bandit fix, CI Quality Gates failed at `Security (pip-audit)` on all Python versions.
+
+**Root cause:** `weasyprint 69.0` (what `pip install -e ".[dev]"` resolves for `weasyprint>=62.0,<70`) carries **PYSEC-2026-3940** — an SSRF where two `write_pdf()` channels (`xmp_metadata=[url]`, …) bypass a restrictive `url_fetcher`. Fixed upstream in 70.0, which the `<70` cap excluded. The cap dated back to the original reporting commit — a conservative bound, not a response to a breaking change. KingSec only calls `HTML(string=html).write_pdf()` (no `xmp_metadata`, no custom fetcher), so the SSRF was not directly reachable through KingSec's code path — but a security product shipping a PDF renderer with a known SSRF fails its own audit gate regardless.
+
+**Fix:** `weasyprint>=62.0,<71` in pyproject.toml; `uv lock --upgrade-package weasyprint` → 70.0 in uv.lock (`uv lock --check` passes). Verified: `pip-audit` clean on the fresh install; weasyprint 70.0 renders a valid `%PDF-1.7`.
