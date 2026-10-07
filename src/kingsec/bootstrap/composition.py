@@ -16,6 +16,7 @@ No business logic lives here — only wiring.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -158,7 +159,7 @@ def create_wired_application(
     env_file: str | Path | None = None,
     log_stream: Any | None = None,
     ensure_directories: bool = True,
-    report_format: str = "pdf",
+    report_format: str | None = None,
     brand_name: str | None = None,
     validate_migrations: bool = True,
 ) -> Application:
@@ -173,7 +174,13 @@ def create_wired_application(
         env_file: Optional ``.env`` path forwarded to configuration loading.
         log_stream: Optional stream for logs (defaults to stdout).
         ensure_directories: Whether ``start()`` should create the data directory.
-        report_format: Report deliverable format, ``"pdf"`` (default) or ``"html"``.
+        report_format: Report deliverable format, ``"pdf"`` or ``"html"``.
+            ``None`` (the default) resolves from
+            ``settings.reporting.report_format`` (env
+            ``KINGSEC_REPORTING__REPORT_FORMAT``), which itself defaults to
+            ``"pdf"`` — except on Windows, where it defaults to ``"html"``
+            because pip cannot install WeasyPrint's GTK3 system libraries
+            (a startup log line says so when that default kicks in).
         brand_name: Company-branding placeholder used in reports. ``None``
             (the default) resolves from ``settings.reporting.brand_name``
             (Phase 6 Task 6) - an explicit value here still overrides,
@@ -194,9 +201,20 @@ def create_wired_application(
         ensure_directories=ensure_directories,
     )
     resolved_brand_name = brand_name if brand_name is not None else app.settings.reporting.brand_name
+    resolved_report_format = report_format if report_format is not None else app.settings.reporting.report_format
+    if report_format is None and "report_format" not in app.settings.reporting.model_fields_set and os.name == "nt":
+        # The operator did not choose a format (no arg, no env/.env value)
+        # and this is Windows, where the settings default is HTML because
+        # pip cannot provide WeasyPrint's GTK3 system libraries. Say so
+        # out loud at startup so the default never looks like a bug.
+        app.logger.info(
+            "defaulting to HTML report format on Windows "
+            "(WeasyPrint needs the GTK3 runtime, which pip cannot install); "
+            "set KINGSEC_REPORTING__REPORT_FORMAT=pdf to override",
+        )
     _register_adapters(
         app,
-        report_format=report_format,
+        report_format=resolved_report_format,
         brand_name=resolved_brand_name,
         validate_migrations=validate_migrations,
     )

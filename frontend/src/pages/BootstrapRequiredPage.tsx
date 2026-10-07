@@ -1,7 +1,18 @@
+import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useHealth } from '@/hooks/use-settings'
 
 export function BootstrapRequiredPage() {
-  const { refetch, isFetching } = useHealth()
+  const { data, refetch, isFetching } = useHealth()
+  const navigate = useNavigate()
+
+  // The "check again" button refetches health, but without this effect the
+  // page never leaves even when an admin now exists — a dead end.
+  useEffect(() => {
+    if (data && !data.bootstrap_required) {
+      navigate('/login', { replace: true })
+    }
+  }, [data, navigate])
 
   return (
     <div className="space-y-4">
