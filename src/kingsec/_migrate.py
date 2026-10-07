@@ -17,10 +17,13 @@ import sys
 from pathlib import Path
 
 from kingsec import __version__
+from kingsec._python_guard import ensure_supported_python
 
 
 def run_migrations() -> int:
     """Apply all pending Alembic migrations using the packaged config."""
+    ensure_supported_python()
+
     parser = argparse.ArgumentParser(prog="kingsec-migrate", description="Apply pending Alembic migrations.")
     parser.add_argument("--version", action="version", version=f"kingsec-migrate {__version__}")
     parser.parse_args()

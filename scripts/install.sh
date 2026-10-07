@@ -28,19 +28,18 @@ BANNER
 
 # --- Step 1: Check Python ---
 info "Checking Python..."
-if has python3; then
-    PY=$(python3 --version 2>&1)
-    ok "Found: $PY"
-    PY_MAJOR=$(echo "$PY" | cut -d' ' -f2 | cut -d'.' -f1)
-    PY_MINOR=$(echo "$PY" | cut -d' ' -f2 | cut -d'.' -f2)
-    if [ "$PY_MAJOR" -lt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 12 ]; }; then
-        fail "Python 3.12+ required. Found: $PY"
-    fi
-elif has python; then
-    PY=$(python --version 2>&1)
-    ok "Found: $PY"
-else
-    fail "Python not found. Install Python 3.12+ first."
+if has python3; then PYBIN=python3; elif has python; then PYBIN=python
+else fail "Python not found. Install Python 3.11+ first."; fi
+PY=$($PYBIN --version 2>&1)
+ok "Found: $PY"
+PY_MAJOR=$(echo "$PY" | cut -d' ' -f2 | cut -d'.' -f1)
+PY_MINOR=$(echo "$PY" | cut -d' ' -f2 | cut -d'.' -f2)
+PY_MINOR="${PY_MINOR:-0}"
+if [ "$PY_MAJOR" -lt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 11 ]; }; then
+    fail "Python 3.11+ required (CI-tested: 3.11–3.13). Found: $PY"
+fi
+if [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -ge 14 ]; then
+    warn "Python $PY is newer than KingSec's CI-tested range (3.11–3.13); continuing, but expect rough edges."
 fi
 
 # --- Step 2: Check pip ---

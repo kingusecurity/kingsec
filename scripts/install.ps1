@@ -41,12 +41,17 @@ if (Test-Command "python") {
     $pyVer = python --version 2>&1
     Write-OK "Found: $pyVer"
     $verMatch = [regex]::Match($pyVer, '(\d+)\.(\d+)')
-    if ([int]$verMatch.Groups[1].Value -lt 3 -or ([int]$verMatch.Groups[1].Value -eq 3 -and [int]$verMatch.Groups[2].Value -lt 12)) {
-        Write-Fail "Python 3.12+ required. Found: $pyVer"
+    $pyMajor = [int]$verMatch.Groups[1].Value
+    $pyMinor = [int]$verMatch.Groups[2].Value
+    if ($pyMajor -lt 3 -or ($pyMajor -eq 3 -and $pyMinor -lt 11)) {
+        Write-Fail "Python 3.11+ required (CI-tested: 3.11-3.13). Found: $pyVer"
         exit 1
     }
+    if ($pyMajor -eq 3 -and $pyMinor -ge 14) {
+        Write-Warn "Python $pyVer is newer than KingSec's CI-tested range (3.11-3.13); continuing, but expect rough edges."
+    }
 } else {
-    Write-Fail "Python not found. Install Python 3.12+ from https://python.org"
+    Write-Fail "Python not found. Install Python 3.11+ from https://python.org"
     exit 1
 }
 

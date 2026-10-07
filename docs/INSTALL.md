@@ -208,6 +208,29 @@ Use this method for development, air-gapped environments, or when Docker
 is not available. **KingSec is not published on PyPI** — `pip install
 kingsec` will fail. Install from a repository checkout instead.
 
+### Automated setup (recommended for a first install)
+
+From the repository root:
+```bash
+./kingsec-setup.sh            # or: ./kingsec-setup.sh --dev   (editable install + dev tooling)
+```
+This creates `.venv`, installs KingSec, applies the known binary-wheel
+fixes (cffi / pydantic-core — the "missing compiled binary" class of
+failures), generates secrets into `.env` (values are never printed),
+runs the database migrations, and bootstraps the first admin account
+(prompts for the credentials securely; skips if an admin already
+exists). It is idempotent — safe to re-run after pulling updates.
+
+Then start the backend with:
+```bash
+./kingsec-start.sh
+```
+(On Windows, run both scripts from Git Bash.) The manual steps below do
+the same thing piece by piece — follow them instead if you need full
+control over each stage.
+
+### Manual steps
+
 ### Step 1: Clone the Repository
 
 ```bash
@@ -262,13 +285,15 @@ On Windows (PowerShell):
 $env:KINGSEC_SECRETS__ENCRYPTION_KEY = (python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
 ```
 
-> **Note:** there is no `kingsec db init` or `kingsec start --host/--port`
-> command. The real CLI has exactly three entry points: `kingsec`
-> (starts the server), `kingsec-migrate` (runs Alembic migrations), and
-> `kingsec-bootstrap` (creates a recovery admin account — see
-> "Recovering Admin Access" below). Host/port are configured via
-> `KINGSEC_SERVER__HOST` / `KINGSEC_SERVER__PORT` environment variables,
-> not command-line flags.
+> **Note:** there is no `kingsec db init` command. The real CLI has
+> exactly three entry points: `kingsec` (starts the server),
+> `kingsec-migrate` (runs Alembic migrations), and `kingsec-bootstrap`
+> (creates a recovery admin account — see "Recovering Admin Access"
+> below). Host/port come from `KINGSEC_SERVER__HOST` /
+> `KINGSEC_SERVER__PORT` and can also be overridden per-run with
+> `kingsec --host` / `kingsec --port` — the flags are routed through the
+> same validated environment variables, never a separate unvalidated
+> path.
 
 ### Step 5: Initialize the Database
 
@@ -392,6 +417,14 @@ some external libraries." **Verified in this audit**: a fresh, correctly
 migrated, correctly started install reproduces this exact failure until
 the GTK3 runtime is installed.
 
+You usually don't need to fix this: KingSec now defaults to **HTML
+reports on Windows** (`KINGSEC_REPORTING__REPORT_FORMAT` defaults to
+`html` there, `pdf` everywhere else), so report generation works out of
+the box with zero native dependencies — the startup log says so when
+the default kicks in. Only set
+`KINGSEC_REPORTING__REPORT_FORMAT=pdf` explicitly after installing the
+GTK3 runtime below.
+
 Fix: download and run the GTK3 runtime installer from
 https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases,
 then restart your terminal (and KingSec) so the updated `PATH` takes
@@ -447,6 +480,7 @@ verified against the running application in this audit:
 | `KINGSEC_STORAGE__DATA_DIR` | Optional | Defaults to `~/.kingsec` (SQLite). Used by **both** migrations and the running server. |
 | `KINGSEC_STORAGE__DATABASE_URL` | **Migration-only — do not set expecting it to affect the server** | Read only by the Alembic CLI (`env.py`, direct `os.environ` access), not by `Settings`. Setting it makes the running server (`kingsec` / `python -m kingsec`) refuse to start with `ConfigError: ... Extra inputs are not permitted`. |
 | `ALEMBIC_DATABASE_URL` | Optional, migration-only | Highest-precedence override for `kingsec-migrate` specifically. When unset, migrations fall back to `KINGSEC_STORAGE__DATABASE_URL` if set, otherwise the same SQLite file the server uses. |
+| `KINGSEC_REPORTING__REPORT_FORMAT` | Optional | `pdf` or `html`. Report deliverable format. Defaults to `pdf`, except on Windows where it defaults to `html` (WeasyPrint's GTK3 system libraries can't come from pip, so PDFs fail there until the GTK3 runtime is installed separately — see "Windows-Specific Notes"). |
 
 Generate the two secret values with:
 ```bash
@@ -461,7 +495,7 @@ python -c "import secrets; print(secrets.token_urlsafe(64))"                    
 KingSec uses pluggable scanners. Install them according to your
 assessment needs — see the table in `README.md`'s "Scanner Environment"
 section for the exact per-OS install commands and required assets. None
-of the 9 scanners are mandatory: KingSec starts and runs fine with zero
+of the 6 wired scanners are mandatory: KingSec starts and runs fine with zero
 scanners installed, it just skips any assessment that requires one that
 is missing.
 

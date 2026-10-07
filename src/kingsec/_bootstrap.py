@@ -28,6 +28,7 @@ from pathlib import Path
 from kingsec import __version__
 from kingsec._cli_messages import migrations_not_applied_message
 from kingsec._data_dir_notice import announce_data_dir
+from kingsec._python_guard import ensure_supported_python
 from kingsec.application import PasswordHasher
 from kingsec.application.ports import AuditPublisher, UserRepository
 from kingsec.application.use_cases.change_password import ChangePassword
@@ -157,6 +158,8 @@ def _bootstrap_admin(username: str, password: str, email: str = "") -> int:
 
 
 def main() -> int:
+    ensure_supported_python()
+
     parser = argparse.ArgumentParser(prog="kingsec-bootstrap", description="Create an admin user (recovery path)")
     parser.add_argument("--version", action="version", version=f"kingsec-bootstrap {__version__}")
     parser.add_argument("--username", required=True, help="Admin username")

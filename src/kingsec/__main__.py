@@ -35,6 +35,7 @@ import uvicorn
 from kingsec import __version__
 from kingsec._cli_messages import migrations_not_applied_message
 from kingsec._data_dir_notice import announce_data_dir
+from kingsec._python_guard import ensure_supported_python
 from kingsec.adapters.inbound.web.app import create_fastapi_app
 from kingsec.bootstrap.composition import create_wired_application
 from kingsec.bootstrap.web import register_middleware
@@ -81,6 +82,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main() -> None:
     """Parse CLI arguments, then either run a subcommand or serve the API."""
+    # Interpreter policy first: a clear one-liner beats a traceback from
+    # deep inside a third-party import on an unsupported Python.
+    ensure_supported_python()
+
     args = _parse_args()
 
     if args.command == "doctor":
