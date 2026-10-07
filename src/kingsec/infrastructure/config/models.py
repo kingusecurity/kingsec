@@ -27,6 +27,7 @@ Immutability (Requirement 7)
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from pydantic import (
@@ -686,6 +687,18 @@ class PerformanceSettings(BaseModel):
     health_check_interval: float = Field(default=60.0, ge=10.0, description="Health check interval in seconds")
 
 
+def _default_report_format() -> str:
+    """Default report deliverable format for this OS.
+
+    WeasyPrint's native libraries (Pango/Cairo via GTK3) are not installed
+    by pip on Windows, so a fresh Windows install cannot generate PDFs
+    until the operator installs the GTK3 runtime separately. Defaulting to
+    the dependency-free HTML report there keeps first-run report
+    generation working; PDF everywhere else.
+    """
+    return "html" if os.name == "nt" else "pdf"
+
+
 class ReportingSettings(BaseModel):
     """Report generation and branding configuration.
 
@@ -701,6 +714,21 @@ class ReportingSettings(BaseModel):
     _FROZEN = ConfigDict(frozen=True, extra="forbid")
 
     brand_name: str = Field(default="KingSec", description="Company/product name shown in generated reports")
+    report_format: str = Field(
+        default_factory=_default_report_format,
+        description="Report deliverable format: 'pdf' (needs WeasyPrint system libs) or 'html' "
+        "(no native dependencies). Defaults to 'pdf', except on Windows where it defaults to "
+        "'html' (pip cannot install the GTK3 runtime WeasyPrint needs there). "
+        "Env: KINGSEC_REPORTING__REPORT_FORMAT",
+    )
+
+    @field_validator("report_format")
+    @classmethod
+    def _validate_report_format(cls, v: str) -> str:
+        fmt = v.lower()
+        if fmt not in ("pdf", "html"):
+            raise ValueError(f"report_format must be 'pdf' or 'html', got {v!r}")
+        return fmt
 
 
 class IntegrationSettings(BaseModel):
