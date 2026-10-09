@@ -2,10 +2,11 @@ import { Link } from 'react-router-dom'
 import { Plus, FileText, Settings, BarChart3 } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
+import { useAuthStore } from '@/store/auth'
 
 const actions = [
   { label: 'New Assessment', description: 'Create a security assessment', href: '/assessments/new', icon: Plus },
-  { label: 'View Reports', description: 'Browse generated reports', href: '/assessments?status=completed', icon: FileText },
+  { label: 'View Reports', description: 'Browse generated reports', href: '/reports', icon: FileText },
   { label: 'Dashboard', description: 'View security overview', href: '/dashboard', icon: BarChart3 },
   { label: 'Settings', description: 'Configure system', href: '/settings', icon: Settings },
 ]
@@ -17,9 +18,11 @@ interface QuickActionsProps {
 }
 
 export function QuickActions({ suggestFirst = false }: QuickActionsProps) {
+  const role = useAuthStore((s) => s.user?.role.toLowerCase())
+  const canCreate = role === 'analyst' || role === 'admin'
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      {actions.map((action) => {
+      {actions.filter((action) => canCreate || action.label !== 'New Assessment').map((action) => {
         const Icon = action.icon
         const isSuggested = suggestFirst && action.label === 'New Assessment'
         return (

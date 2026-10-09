@@ -96,6 +96,31 @@ describe('GrantsPage', () => {
     expect(screen.queryByText('This does not authorize a host scan')).not.toBeInTheDocument()
   })
 
+  it('offers exact grants for domain enumeration, server source paths, and container images', () => {
+    setRole('admin')
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Create Grant' }))
+
+    const targetType = screen.getByLabelText('Target Type *')
+    const targetValue = screen.getByLabelText('Target Value *')
+
+    expect(screen.getByRole('option', { name: 'DNS Domain (enumeration)' })).toHaveValue('domain')
+    expect(screen.getByRole('option', { name: 'Source Path (KingSec server)' })).toHaveValue('source_path')
+    expect(screen.getByRole('option', { name: 'Container Image Reference' })).toHaveValue('container_image')
+
+    fireEvent.change(targetType, { target: { value: 'domain' } })
+    expect(targetValue).toHaveAttribute('placeholder', 'example.com')
+    expect(screen.getByText(/domain-wide enumeration that may discover related subdomains/)).toBeInTheDocument()
+
+    fireEvent.change(targetType, { target: { value: 'source_path' } })
+    expect(targetValue).toHaveAttribute('placeholder', '/srv/customer/source')
+    expect(screen.getByText(/exact absolute file or directory path visible to the KingSec server/)).toBeInTheDocument()
+
+    fireEvent.change(targetType, { target: { value: 'container_image' } })
+    expect(targetValue).toHaveAttribute('placeholder', 'registry.example.com/team/app:v1')
+    expect(screen.getByText(/exact OCI\/Docker image reference/)).toBeInTheDocument()
+  })
+
   it('renders an active grant with its target value and a Revoke control for admins', () => {
     setRole('admin')
     vi.mocked(useGrants).mockReturnValue({

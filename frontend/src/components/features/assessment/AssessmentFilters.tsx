@@ -35,6 +35,7 @@ export const AssessmentFilters = memo(function AssessmentFilters({
         <Input
           placeholder="Search assessments..."
           value={search}
+          maxLength={256}
           onChange={(e) => onSearchChange(e.target.value)}
           prefix={<Search className="h-4 w-4 text-text-muted" />}
           aria-label="Search assessments"
@@ -46,9 +47,10 @@ export const AssessmentFilters = memo(function AssessmentFilters({
         options={[
           { value: '', label: 'All Status' },
           { value: 'draft', label: 'Draft' },
-          { value: 'pending', label: 'Pending' },
+          { value: 'authorized', label: 'Authorized' },
           { value: 'running', label: 'Running' },
           { value: 'completed', label: 'Completed' },
+          { value: 'completed_with_gaps', label: 'Completed with gaps' },
           { value: 'failed', label: 'Failed' },
           { value: 'cancelled', label: 'Cancelled' },
         ]}
@@ -71,8 +73,22 @@ export const AssessmentFilters = memo(function AssessmentFilters({
         value={sortOrder}
         onChange={(e) => onSortOrderChange(e.target.value)}
         options={[
-          { value: 'desc', label: 'Newest' },
-          { value: 'asc', label: 'Oldest' },
+          {
+            value: 'desc',
+            label: sortBy === 'created_at'
+              ? 'Newest'
+              : sortBy === 'findings_count'
+                ? 'Most first'
+                : 'Z to A',
+          },
+          {
+            value: 'asc',
+            label: sortBy === 'created_at'
+              ? 'Oldest'
+              : sortBy === 'findings_count'
+                ? 'Fewest first'
+                : 'A to Z',
+          },
         ]}
         className="w-28"
         aria-label="Sort order"

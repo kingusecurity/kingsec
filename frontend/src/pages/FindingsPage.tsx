@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, TrendingUp, ShieldAlert, Search } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { PageContainer, PageHeader, StatGrid } from '@/components/layout/PageContainer'
 import { StatCard } from '@/components/features/dashboard/StatCard'
 import { Card } from '@/components/ui/Card'
@@ -25,10 +26,10 @@ const SEVERITY_COLORS: Record<string, string> = {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  OPEN: 'text-yellow-400 bg-yellow-500/10',
-  IN_PROGRESS: 'text-blue-400 bg-blue-500/10',
-  RESOLVED: 'text-emerald-400 bg-emerald-500/10',
-  FALSE_POSITIVE: 'text-gray-400 bg-gray-500/10',
+  open: 'text-yellow-400 bg-yellow-500/10',
+  confirmed: 'text-blue-400 bg-blue-500/10',
+  remediated: 'text-emerald-400 bg-emerald-500/10',
+  false_positive: 'text-gray-400 bg-gray-500/10',
 }
 
 function RecentFindingsCard() {
@@ -96,10 +97,10 @@ function FindingsList() {
         </select>
         <select value={status} onChange={(e) => { setStatus(e.target.value); setOffset(0) }} className="rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm text-text-primary">
           <option value="">All Statuses</option>
-          <option value="OPEN">Open</option>
-          <option value="IN_PROGRESS">In Progress</option>
-          <option value="RESOLVED">Resolved</option>
-          <option value="FALSE_POSITIVE">False Positive</option>
+          <option value="open">Open</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="remediated">Remediated</option>
+          <option value="false_positive">False Positive</option>
         </select>
       </div>
 
@@ -124,7 +125,7 @@ function FindingsList() {
                       {f.severity}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-text-primary max-w-xs truncate">{f.title}</td>
+                  <td className="px-4 py-3 text-text-primary max-w-xs truncate"><Link to={`/assessments/${encodeURIComponent(f.assessment_id)}/findings/${encodeURIComponent(f.finding_id)}`} className="text-accent hover:underline">{f.title}</Link></td>
                   <td className="px-4 py-3 text-text-muted">{f.target}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-block rounded px-2 py-0.5 text-xs ${STATUS_COLORS[f.status] || 'text-text-muted bg-surface-tertiary'}`}>

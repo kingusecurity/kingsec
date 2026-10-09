@@ -46,6 +46,21 @@ const TARGET_TYPE_INFO: Record<TargetSpecificationType, TargetTypeInfo> = {
     example: 'https://app.example.com/',
     description: 'A specific web address. Authorizes scanning the web application at that URL.',
   },
+  domain: {
+    label: 'DNS Domain (enumeration)',
+    example: 'example.com',
+    description: 'One explicit DNS domain. Authorizes domain-wide enumeration that may discover related subdomains.',
+  },
+  source_path: {
+    label: 'Source Path (KingSec server)',
+    example: '/srv/customer/source',
+    description: 'One exact absolute file or directory path visible to the KingSec server.',
+  },
+  container_image: {
+    label: 'Container Image Reference',
+    example: 'registry.example.com/team/app:v1',
+    description: 'One exact OCI/Docker image reference for container image scanning.',
+  },
 }
 
 const TARGET_TYPES = Object.keys(TARGET_TYPE_INFO) as TargetSpecificationType[]
@@ -187,7 +202,11 @@ export function GrantsPage() {
               id="target-type"
               value={form.target_specification_type}
               onChange={(e) =>
-                setForm({ ...form, target_specification_type: e.target.value as TargetSpecificationType })
+                setForm({
+                  ...form,
+                  target_specification_type: e.target.value as TargetSpecificationType,
+                  target_specification_value: '',
+                })
               }
               className="flex h-10 w-full rounded-lg border border-border-light bg-surface px-3 py-2 text-sm text-text-primary"
             >

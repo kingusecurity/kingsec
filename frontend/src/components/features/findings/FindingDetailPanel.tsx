@@ -34,7 +34,9 @@ export function FindingDetailPanel({ finding, loading }: FindingDetailPanelProps
         <div className="flex items-start justify-between gap-4">
           <div>
             <CardTitle>{finding.title}</CardTitle>
-            {finding.target && <CardDescription>Asset: {finding.target}</CardDescription>}
+            {(finding.affected_asset ?? finding.target) && (
+              <CardDescription>Asset: {finding.affected_asset ?? finding.target}</CardDescription>
+            )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <AssessmentSeverityBadge severity={finding.severity} />

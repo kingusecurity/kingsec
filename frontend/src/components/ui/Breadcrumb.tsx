@@ -1,4 +1,5 @@
 import { ChevronRight } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 
 interface BreadcrumbProps {
@@ -34,8 +35,8 @@ export function BreadcrumbItem({
   isCurrent,
 }: BreadcrumbItemProps) {
   const content = href ? (
-    <a
-      href={href}
+    <Link
+      to={href}
       className={cn(
         'transition-colors hover:text-text-primary',
         isCurrent && 'text-text-primary font-medium',
@@ -44,7 +45,7 @@ export function BreadcrumbItem({
       aria-current={isCurrent ? 'page' : undefined}
     >
       {children}
-    </a>
+    </Link>
   ) : (
     <span
       className={cn(

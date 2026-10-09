@@ -7,6 +7,11 @@ describe('AssessmentStatusBadge', () => {
     expect(screen.getByText('completed')).toBeInTheDocument()
   })
 
+  it('renders completed-with-gaps status', () => {
+    render(<AssessmentStatusBadge status="completed_with_gaps" />)
+    expect(screen.getByText('completed with gaps')).toBeInTheDocument()
+  })
+
   it('renders running status', () => {
     render(<AssessmentStatusBadge status="running" />)
     expect(screen.getByText('running')).toBeInTheDocument()

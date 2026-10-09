@@ -1,4 +1,4 @@
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, FileText, Download, RotateCw, CheckCircle2, XCircle, SkipForward, Clock } from 'lucide-react'
 import { PageContainer } from '@/components/layout/PageContainer'
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/Card'
@@ -15,10 +15,14 @@ import { useReportDetail } from '@/hooks/use-reports'
 import { adminApi } from '@/api/admin'
 import { ApiError } from '@/api/client'
 import { toast } from '@/components/ui/Toast'
+import { useAuthStore } from '@/store/auth'
 import { formatDate, cn } from '@/lib/utils'
 import type { ScannerSummaryResponse } from '@/types/api'
 
 export function AssessmentDetailPage() {
+  const navigate = useNavigate()
+  const role = useAuthStore((s) => s.user?.role.toLowerCase())
+  const canManage = role === 'analyst' || role === 'admin'
   const { id } = useParams<{ id: string }>()
   const { data: assessment, isLoading, error, refetch } = useAssessment(id ?? '')
   const startMutation = useStartAssessment()
@@ -29,7 +33,8 @@ export function AssessmentDetailPage() {
   const isRunning = assessment?.status?.toLowerCase() === 'running'
   const isPending = assessment?.status?.toLowerCase() === 'pending'
   const isDraft = assessment?.status?.toLowerCase() === 'draft'
-  const isCompleted = assessment?.status?.toLowerCase() === 'completed'
+  const isCompletedWithGaps = assessment?.status?.toLowerCase() === 'completed_with_gaps'
+  const isCompleted = assessment?.status?.toLowerCase() === 'completed' || isCompletedWithGaps
 
   function stepStatus(active: boolean, done: boolean): 'completed' | 'current' | 'upcoming' {
     if (done) return 'completed'
@@ -41,7 +46,7 @@ export function AssessmentDetailPage() {
     { label: 'Draft', status: stepStatus(isDraft, true), timestamp: assessment?.created_at },
     { label: 'Authorized', status: stepStatus(false, !!assessment?.is_authorized) },
     { label: 'Running', status: stepStatus(isRunning, isCompleted) },
-    { label: 'Completed', status: stepStatus(false, isCompleted) },
+    { label: isCompletedWithGaps ? 'Completed with gaps' : 'Completed', status: stepStatus(false, isCompleted) },
   ]
 
   if (error) {
@@ -78,10 +83,10 @@ export function AssessmentDetailPage() {
             </div>
             <AssessmentActions
               status={assessment.status}
-              onStart={() => startMutation.mutate(assessment.assessment_id)}
-              onCancel={() => cancelMutation.mutate(assessment.assessment_id)}
-              onDelete={() => deleteMutation.mutate(assessment.assessment_id)}
-              onGenerateReport={() => reportMutation.mutate(assessment.assessment_id)}
+              onStart={canManage ? () => startMutation.mutate(assessment.assessment_id) : undefined}
+              onCancel={canManage ? () => cancelMutation.mutate(assessment.assessment_id) : undefined}
+              onDelete={canManage ? () => deleteMutation.mutate(assessment.assessment_id, { onSuccess: () => navigate('/assessments', { replace: true }) }) : undefined}
+              onGenerateReport={canManage ? () => reportMutation.mutate(assessment.assessment_id) : undefined}
               startLoading={startMutation.isPending}
               cancelLoading={cancelMutation.isPending}
               deleteLoading={deleteMutation.isPending}
@@ -116,6 +121,7 @@ export function AssessmentDetailPage() {
                   <AssessmentReportSection
                     assessmentId={assessment.assessment_id}
                     reportMutation={reportMutation}
+                    canGenerate={canManage}
                   />
                 ) : isRunning || isPending ? (
                   <p className="text-sm text-text-muted">Report will be available after completion.</p>
@@ -136,7 +142,7 @@ export function AssessmentDetailPage() {
               <CardDescription>Security issues discovered during assessment</CardDescription>
             </CardHeader>
             <div className="px-5 pb-5">
-              <FindingsSummaryTable findings={assessment.findings} />
+              <FindingsSummaryTable findings={assessment.findings} assessmentId={assessment.assessment_id} />
             </div>
           </Card>
 
@@ -251,9 +257,11 @@ function scoreBgColor(score: number): string {
 function AssessmentReportSection({
   assessmentId,
   reportMutation,
+  canGenerate,
 }: {
   assessmentId: string
   reportMutation: { mutate: (id: string) => void; isPending: boolean }
+  canGenerate: boolean
 }) {
   const { data: report, isLoading, error } = useReportDetail(assessmentId)
   const reportNotFound = error && (error as ApiError).status === 404
@@ -268,6 +276,7 @@ function AssessmentReportSection({
   }
 
   if (reportNotFound || !report) {
+    if (!canGenerate) return <p className="text-sm text-text-muted">An analyst or administrator can generate this report.</p>
     return (
       <Button
         variant="outline"
@@ -336,16 +345,18 @@ function AssessmentReportSection({
         >
           Download
         </Button>
-        <Button
-          variant="outline"
-          size="xs"
-          className="flex-1"
-          onClick={() => reportMutation.mutate(assessmentId)}
-          loading={reportMutation.isPending}
-          iconLeft={<RotateCw className="h-3.5 w-3.5" />}
-        >
-          Regenerate
-        </Button>
+        {canGenerate && (
+          <Button
+            variant="outline"
+            size="xs"
+            className="flex-1"
+            onClick={() => reportMutation.mutate(assessmentId)}
+            loading={reportMutation.isPending}
+            iconLeft={<RotateCw className="h-3.5 w-3.5" />}
+          >
+            Regenerate
+          </Button>
+        )}
       </div>
     </div>
   )

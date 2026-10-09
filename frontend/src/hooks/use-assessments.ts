@@ -81,6 +81,7 @@ export function useGenerateReport() {
     mutationFn: (id: string) => assessmentsApi.report(id),
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ['assessments', id] })
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
       toast.success('Report generated', 'Report is ready for download')
     },
     onError: (err: Error) => {
@@ -94,8 +95,11 @@ export function useDeleteAssessment() {
 
   return useMutation({
     mutationFn: (id: string) => assessmentsApi.delete(id),
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
+      queryClient.removeQueries({ queryKey: ['assessments', id], exact: true })
+      queryClient.removeQueries({ queryKey: ['reports', 'detail', id], exact: true })
       queryClient.invalidateQueries({ queryKey: ASSESSMENTS_KEY })
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
       toast.success('Assessment deleted', 'The assessment has been deleted')
     },
     onError: (err: Error) => {

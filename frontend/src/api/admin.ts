@@ -57,6 +57,33 @@ export type ReportsParams = Record<string, string | number | boolean | undefined
   order_dir?: string
 }
 
+function reportDownloadFilename(response: Response, assessmentId: string): string {
+  const disposition = response.headers.get('Content-Disposition')
+  if (disposition) {
+    const encoded = disposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i)?.[1]
+    const basic = disposition.match(/filename\s*=\s*(?:"([^"]+)"|([^;]+))/i)
+    let decoded: string | undefined
+    if (encoded) {
+      try {
+        decoded = decodeURIComponent(encoded.trim())
+      } catch {
+        decoded = undefined
+      }
+    }
+    const raw = decoded ?? (basic?.[1] ?? basic?.[2])?.trim()
+    const filename = raw?.split(/[\\/]/).pop()
+    if (filename) return filename
+  }
+
+  const contentType = response.headers.get('Content-Type')?.toLowerCase() ?? ''
+  const extension = contentType.includes('text/html')
+    ? 'html'
+    : contentType.includes('application/pdf')
+      ? 'pdf'
+      : 'bin'
+  return `kingsec-report-${assessmentId}.${extension}`
+}
+
 export const adminApi = {
   users: (params?: { limit?: number; offset?: number }) =>
     apiRequest<ListUsersResponse>('/users', { params }),
@@ -82,11 +109,12 @@ export const adminApi = {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
     if (!res.ok) throw new Error('Download failed')
+    const filename = reportDownloadFilename(res, assessmentId)
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `report-${assessmentId}.pdf`
+    a.download = filename
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)

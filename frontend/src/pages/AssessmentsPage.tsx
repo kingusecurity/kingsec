@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { Plus, ArrowRight } from 'lucide-react'
 import { PageContainer, PageHeader } from '@/components/layout/PageContainer'
@@ -7,14 +7,24 @@ import { Pagination } from '@/components/ui/Pagination'
 import { TableSkeleton } from '@/components/ui/Skeleton'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { Alert } from '@/components/ui/Alert'
 import { AssessmentStatusBadge } from '@/components/features/assessment/AssessmentStatusBadge'
 import { AssessmentFilters } from '@/components/features/assessment/AssessmentFilters'
 import { useAssessments } from '@/hooks/use-assessments'
 import { useAuthStore } from '@/store/auth'
 import { formatRelativeTime } from '@/lib/utils'
-import type { AssessmentListParams } from '@/types/api'
+import type { AssessmentListParams, AssessmentSortField } from '@/types/api'
 
 const PAGE_SIZE = 20
+const VALID_STATUS_FILTERS = new Set([
+  'draft',
+  'authorized',
+  'running',
+  'completed',
+  'completed_with_gaps',
+  'failed',
+  'cancelled',
+])
 
 export function AssessmentsPage() {
   const navigate = useNavigate()
@@ -22,16 +32,23 @@ export function AssessmentsPage() {
   const canCreate = user && ['analyst', 'admin'].includes(user.role.toLowerCase())
   const [searchParams, setSearchParams] = useSearchParams()
 
-  const search = searchParams.get('search') ?? ''
-  const statusFilter = searchParams.get('status') ?? ''
-  const sortBy = searchParams.get('sort_by') ?? 'created_at'
-  const sortOrder = searchParams.get('sort_order') ?? 'desc'
-  const page = parseInt(searchParams.get('page') ?? '1', 10)
+  const search = (searchParams.get('search') ?? '').slice(0, 256)
+  const requestedStatus = searchParams.get('status') ?? ''
+  const statusFilter = VALID_STATUS_FILTERS.has(requestedStatus) ? requestedStatus : ''
+  const requestedSort = searchParams.get('sort_by') ?? 'created_at'
+  const sortBy = (['created_at', 'status', 'target', 'findings_count'].includes(requestedSort)
+    ? requestedSort : 'created_at') as AssessmentSortField
+  const sortOrder = searchParams.get('sort_order') === 'asc' ? 'asc' : 'desc'
+  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1)
   const offset = (page - 1) * PAGE_SIZE
 
   const params: AssessmentListParams = {
     limit: PAGE_SIZE,
     offset,
+    search: search || undefined,
+    status: statusFilter || undefined,
+    order_by: sortBy,
+    order_dir: sortOrder,
   }
 
   const { data, isLoading, error, refetch } = useAssessments(params)
@@ -67,9 +84,22 @@ export function AssessmentsPage() {
     setSearchParams(new URLSearchParams())
   }, [setSearchParams])
 
-  const hasFilters = !!(search || statusFilter)
+  const hasFilters = !!(search || statusFilter || sortBy !== 'created_at' || sortOrder !== 'desc')
 
   const totalPages = data ? Math.ceil(data.total / data.limit) : 0
+  const hasUnreadablePage = !!data
+    && data.items.length === 0
+    && data.total > 0
+    && data.unreadable_ids.length > 0
+
+  useEffect(() => {
+    if (!data) return
+
+    const lastPage = Math.max(1, totalPages)
+    if (page > lastPage) {
+      updateParams({ page: String(lastPage) })
+    }
+  }, [data, page, totalPages, updateParams])
 
   if (error) {
     return (
@@ -106,6 +136,19 @@ export function AssessmentsPage() {
         onClear={handleClear}
         hasFilters={hasFilters}
       />
+
+      {data && data.unreadable_ids.length > 0 && (
+        <Alert variant="warning" title="Some assessments could not be displayed">
+          <p>
+            {data.unreadable_ids.length} assessment {data.unreadable_ids.length === 1 ? 'record was' : 'records were'}
+            {' '}omitted because {data.unreadable_ids.length === 1 ? 'it could' : 'they could'} not be read. Contact an
+            {' '}administrator for help.
+          </p>
+          <p className="break-all font-mono text-xs" aria-label="Unreadable assessment IDs">
+            {data.unreadable_ids.join(', ')}
+          </p>
+        </Alert>
+      )}
 
       {isLoading ? (
         <div className="rounded-xl border border-border bg-surface-secondary p-5">
@@ -162,10 +205,27 @@ export function AssessmentsPage() {
       ) : (
         <div className="rounded-xl border border-border bg-surface-secondary">
           <EmptyState
-            title="No assessments found"
-            description={hasFilters ? 'Try adjusting your search or filters.' : 'Create your first assessment to get started.'}
-            action={!hasFilters && canCreate ? { label: 'New Assessment', onClick: () => window.location.href = '/assessments/new' } : undefined}
+            title={hasUnreadablePage ? 'Assessment records unavailable' : 'No assessments found'}
+            description={
+              hasUnreadablePage
+                ? 'The assessment records on this page could not be read. Review the warning above, retry, or contact an administrator.'
+                : hasFilters
+                ? 'Try adjusting your search or filters.'
+                : canCreate
+                  ? 'Create your first assessment to get started.'
+                  : 'An analyst or administrator can create an assessment. It will appear here once created.'
+            }
+            action={!hasUnreadablePage && !hasFilters && canCreate ? { label: 'New Assessment', onClick: () => navigate('/assessments/new') } : undefined}
           />
+          {totalPages > 1 && (
+            <div className="flex justify-center border-t border-border px-5 py-4">
+              <Pagination
+                currentPage={page}
+                totalPages={totalPages}
+                onPageChange={(p) => updateParams({ page: String(p) })}
+              />
+            </div>
+          )}
         </div>
       )}
     </PageContainer>

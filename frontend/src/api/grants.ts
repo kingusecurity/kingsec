@@ -6,6 +6,9 @@ export type TargetSpecificationType =
   | 'hostname'
   | 'wildcard_hostname'
   | 'url_prefix'
+  | 'domain'
+  | 'source_path'
+  | 'container_image'
 
 export interface AuthorizationGrant {
   id: string

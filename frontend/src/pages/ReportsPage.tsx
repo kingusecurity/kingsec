@@ -13,6 +13,7 @@ import { Drawer } from '@/components/ui/Drawer'
 import { useReports, useRegenerateReport } from '@/hooks/use-reports'
 import { adminApi } from '@/api/admin'
 import { toast } from '@/components/ui/Toast'
+import { useAuthStore } from '@/store/auth'
 import { formatDate, cn } from '@/lib/utils'
 import type { ReportListEntry } from '@/types/api'
 
@@ -27,8 +28,8 @@ const SEVERITY_OPTIONS = [
 const SORT_OPTIONS = [
   { label: 'Newest', orderBy: 'generated_at', orderDir: 'desc' },
   { label: 'Oldest', orderBy: 'generated_at', orderDir: 'asc' },
-  { label: 'Highest Risk', orderBy: 'executive_score', orderDir: 'asc' },
-  { label: 'Lowest Risk', orderBy: 'executive_score', orderDir: 'desc' },
+  { label: 'Highest Risk', orderBy: 'verdict_highest_severity', orderDir: 'desc' },
+  { label: 'Lowest Risk', orderBy: 'verdict_highest_severity', orderDir: 'asc' },
   { label: 'A-Z', orderBy: 'target', orderDir: 'asc' },
   { label: 'Z-A', orderBy: 'target', orderDir: 'desc' },
 ] as const
@@ -86,12 +87,14 @@ function ReportCard({
   onDownload,
   onRegenerate,
   regenerating,
+  canRegenerate,
 }: {
   report: ReportListEntry
   onPreview: (r: ReportListEntry) => void
   onDownload: (r: ReportListEntry) => void
   onRegenerate: (r: ReportListEntry) => void
   regenerating: boolean
+  canRegenerate: boolean
 }) {
   const score = report.executive_score ?? 0
   return (
@@ -166,15 +169,17 @@ function ReportCard({
           <Download className="h-3.5 w-3.5" />
           Download
         </button>
-        <button
-          onClick={() => onRegenerate(report)}
-          disabled={regenerating}
-          className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs text-text-muted hover:text-text-primary hover:bg-surface-tertiary transition-colors disabled:opacity-40"
-          aria-label={`Regenerate report for ${report.target}`}
-        >
-          <RotateCw className={cn('h-3.5 w-3.5', regenerating && 'animate-spin')} />
-          {regenerating ? 'Generating...' : 'Regenerate'}
-        </button>
+        {canRegenerate && (
+          <button
+            onClick={() => onRegenerate(report)}
+            disabled={regenerating}
+            className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs text-text-muted hover:text-text-primary hover:bg-surface-tertiary transition-colors disabled:opacity-40"
+            aria-label={`Regenerate report for ${report.target}`}
+          >
+            <RotateCw className={cn('h-3.5 w-3.5', regenerating && 'animate-spin')} />
+            {regenerating ? 'Generating...' : 'Regenerate'}
+          </button>
+        )}
       </div>
     </Card>
   )
@@ -212,6 +217,7 @@ function PreviewDrawer({
   onDownload,
   onRegenerate,
   regenerating,
+  canRegenerate,
 }: {
   report: ReportListEntry | null
   open: boolean
@@ -219,6 +225,7 @@ function PreviewDrawer({
   onDownload: (r: ReportListEntry) => void
   onRegenerate: (r: ReportListEntry) => void
   regenerating: boolean
+  canRegenerate: boolean
 }) {
   if (!report) return null
   const score = report.executive_score ?? 0
@@ -341,22 +348,26 @@ function PreviewDrawer({
         >
           Download
         </Button>
-        <Button
-          variant="primary"
-          size="sm"
-          fullWidth
-          onClick={() => onRegenerate(report)}
-          loading={regenerating}
-          iconLeft={<RotateCw className="h-4 w-4" />}
-        >
-          {regenerating ? 'Generating...' : 'Regenerate'}
-        </Button>
+        {canRegenerate && (
+          <Button
+            variant="primary"
+            size="sm"
+            fullWidth
+            onClick={() => onRegenerate(report)}
+            loading={regenerating}
+            iconLeft={<RotateCw className="h-4 w-4" />}
+          >
+            {regenerating ? 'Generating...' : 'Regenerate'}
+          </Button>
+        )}
       </div>
     </Drawer>
   )
 }
 
 export function ReportsPage() {
+  const role = useAuthStore((s) => s.user?.role.toLowerCase())
+  const canRegenerate = role === 'analyst' || role === 'admin'
   const [search, setSearch] = useState('')
   const [severityFilter, setSeverityFilter] = useState('')
   const [sortKey, setSortKey] = useState(0)
@@ -518,7 +529,9 @@ export function ReportsPage() {
             <FileText className="h-10 w-10 text-text-muted" />
             <h3 className="text-base font-semibold text-text-primary">No reports yet</h3>
             <p className="max-w-sm text-sm text-text-muted">
-              Reports are generated when an assessment is completed. Navigate to an assessment and generate a report.
+              {canRegenerate
+                ? 'Reports are generated when an assessment is completed. Navigate to an assessment and generate a report.'
+                : 'An analyst or administrator can generate reports from completed assessments. They will appear here afterward.'}
             </p>
           </div>
         </Card>
@@ -544,6 +557,7 @@ export function ReportsPage() {
                 onDownload={handleDownload}
                 onRegenerate={handleRegenerate}
                 regenerating={regeneratingId === r.assessment_id}
+                canRegenerate={canRegenerate}
               />
             ))}
           </div>
@@ -583,6 +597,7 @@ export function ReportsPage() {
         onDownload={handleDownload}
         onRegenerate={handleRegenerate}
         regenerating={regeneratingId === previewReport?.assessment_id}
+        canRegenerate={canRegenerate}
       />
     </PageContainer>
   )

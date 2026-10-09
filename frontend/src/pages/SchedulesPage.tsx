@@ -19,6 +19,7 @@ import {
 } from '@/hooks/use-schedules'
 import type { Schedule, CreateScheduleBody } from '@/api/schedules'
 import { CalendarCheck, Clock, Power, PowerOff, PauseCircle } from 'lucide-react'
+import { useAuthStore } from '@/store/auth'
 
 const SCHEDULE_TYPES = ['one_time', 'hourly', 'daily', 'weekly', 'monthly', 'cron']
 
@@ -60,6 +61,8 @@ function scheduleToForm(s: Schedule): ScheduleFormState {
 }
 
 export function SchedulesPage() {
+  const role = useAuthStore((state) => state.user?.role.toLowerCase())
+  const canManage = role === 'analyst' || role === 'admin'
   const { data, isLoading, error, refetch } = useSchedules()
   const createSchedule = useCreateSchedule()
   const updateSchedule = useUpdateSchedule()
@@ -142,14 +145,14 @@ export function SchedulesPage() {
       <PageHeader
         title="Schedules"
         description="Scheduled security assessments"
-        actions={
+        actions={canManage ? (
           <Button onClick={showForm ? closeForm : openCreateForm} variant={showForm ? 'outline' : 'primary'}>
             {showForm ? 'Cancel' : 'Create Schedule'}
           </Button>
-        }
+        ) : undefined}
       />
 
-      {showForm && (
+      {canManage && showForm && (
         <Card className="p-4 space-y-3">
           <h3 className="font-medium text-text-primary">{editingId ? 'Edit Schedule' : 'Create Schedule'}</h3>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -201,18 +204,29 @@ export function SchedulesPage() {
                       <CalendarCheck className="h-5 w-5 text-accent" />
                       <h3 className="text-sm font-semibold text-text-primary">{s.name || 'Unnamed'}</h3>
                     </div>
-                    <button
-                      onClick={() => toggleEnabled(s)}
-                      disabled={enableSchedule.isPending || disableSchedule.isPending}
-                      title={s.enabled ? 'Disable schedule' : 'Enable schedule'}
-                      className="rounded p-1 hover:bg-surface-tertiary disabled:opacity-50"
-                    >
+                    {canManage ? (
+                      <button
+                        onClick={() => toggleEnabled(s)}
+                        disabled={enableSchedule.isPending || disableSchedule.isPending}
+                        aria-label={s.enabled ? `Disable ${s.name}` : `Enable ${s.name}`}
+                        title={s.enabled ? 'Disable schedule' : 'Enable schedule'}
+                        className="rounded p-1 hover:bg-surface-tertiary disabled:opacity-50"
+                      >
+                        {s.enabled ? (
+                          <Power className="h-4 w-4 text-emerald-400" />
+                        ) : (
+                          <PowerOff className="h-4 w-4 text-text-muted" />
+                        )}
+                      </button>
+                    ) : (
+                      <span title={s.enabled ? 'Enabled' : 'Disabled'} aria-label={s.enabled ? 'Enabled' : 'Disabled'}>
                       {s.enabled ? (
                         <Power className="h-4 w-4 text-emerald-400" />
                       ) : (
                         <PowerOff className="h-4 w-4 text-text-muted" />
                       )}
-                    </button>
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm text-text-secondary">{s.target || 'No target specified'}</p>
                   {s.cron_expression && (
@@ -226,7 +240,7 @@ export function SchedulesPage() {
                       <PauseCircle className="h-3 w-3 text-text-muted" />
                       <Badge variant={statusVariant[s.status] ?? 'neutral'} size="sm">{s.status}</Badge>
                     </div>
-                    <div className="flex gap-1">
+                    {canManage && <div className="flex flex-wrap justify-end gap-1">
                       <Button
                         onClick={() => togglePaused(s)}
                         disabled={pauseSchedule.isPending || resumeSchedule.isPending}
@@ -238,7 +252,7 @@ export function SchedulesPage() {
                       </Button>
                       <Button onClick={() => openEditForm(s)} variant="outline" size="sm" className="text-xs">Edit</Button>
                       <Button onClick={() => deleteSchedule.mutate(s.id)} variant="outline" size="sm" className="text-xs text-red-500">Delete</Button>
-                    </div>
+                    </div>}
                   </div>
                 </div>
               </Card>
@@ -250,7 +264,9 @@ export function SchedulesPage() {
           <EmptyState
             icon={<CalendarCheck className="h-8 w-8" />}
             title="No schedules configured"
-            description="Create recurring assessment schedules to automate security scanning."
+            description={canManage
+              ? 'Create recurring assessment schedules to automate security scanning.'
+              : 'No assessment schedules are available to view.'}
           />
         </Card>
       )}

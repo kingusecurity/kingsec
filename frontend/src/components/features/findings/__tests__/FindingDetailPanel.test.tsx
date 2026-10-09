@@ -40,6 +40,16 @@ describe('FindingDetailPanel', () => {
     expect(screen.getByText('CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H')).toBeInTheDocument()
   })
 
+  it('prefers the concrete affected asset over the assessment target', () => {
+    render(
+      <FindingDetailPanel
+        finding={{ ...sampleFinding, target: '10.0.0.0/24', affected_asset: '10.0.0.9' }}
+      />,
+    )
+    expect(screen.getByText('Asset: 10.0.0.9')).toBeInTheDocument()
+    expect(screen.queryByText('Asset: 10.0.0.0/24')).not.toBeInTheDocument()
+  })
+
   it('renders loading state', () => {
     const { container } = render(<FindingDetailPanel loading />)
     expect(container.querySelector('.animate-pulse')).toBeInTheDocument()

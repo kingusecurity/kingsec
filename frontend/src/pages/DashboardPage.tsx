@@ -12,11 +12,14 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { useDashboardSummary, useDashboardJobs } from '@/hooks/use-dashboard'
 import { useAssessments } from '@/hooks/use-assessments'
 import { useReports } from '@/hooks/use-reports'
+import { useAuthStore } from '@/store/auth'
 import { formatRelativeTime } from '@/lib/utils'
 import type { ReportListEntry } from '@/types/api'
 
 export function DashboardPage() {
   const navigate = useNavigate()
+  const role = useAuthStore((s) => s.user?.role.toLowerCase())
+  const canCreate = role === 'analyst' || role === 'admin'
   const { data: summary, isLoading: summaryLoading, error: summaryError, refetch: refetchSummary } = useDashboardSummary()
   const { data: jobs, isLoading: jobsLoading, error: jobsError, refetch: refetchJobs } = useDashboardJobs()
   const { data: assessments, isLoading: assessmentsLoading } = useAssessments({ limit: 5 })
@@ -52,8 +55,8 @@ export function DashboardPage() {
           <EmptyState
             icon={<Shield className="h-8 w-8" />}
             title="No assessments yet"
-            description="Run your first security assessment to see findings and reports here."
-            action={{ label: 'New Assessment', onClick: () => navigate('/assessments/new') }}
+            description={canCreate ? 'Run your first security assessment to see findings and reports here.' : 'An analyst or administrator can create an assessment. Findings and reports will appear here afterward.'}
+            action={canCreate ? { label: 'New Assessment', onClick: () => navigate('/assessments/new') } : undefined}
           />
           <p className="pb-6 text-center text-sm text-text-muted">
             <a href="#scanner-health" className="inline-flex items-center gap-1 text-accent hover:underline">

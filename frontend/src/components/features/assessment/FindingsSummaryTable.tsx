@@ -1,11 +1,13 @@
 import { AssessmentSeverityBadge } from './AssessmentSeverityBadge'
+import { Link } from 'react-router-dom'
 import type { FindingResponse } from '@/types/api'
 
 interface FindingsSummaryTableProps {
   findings: FindingResponse[]
+  assessmentId?: string
 }
 
-export function FindingsSummaryTable({ findings }: FindingsSummaryTableProps) {
+export function FindingsSummaryTable({ findings, assessmentId }: FindingsSummaryTableProps) {
   if (findings.length === 0) {
     return <p className="text-sm text-text-muted py-4 text-center">No findings found.</p>
   }
@@ -16,6 +18,7 @@ export function FindingsSummaryTable({ findings }: FindingsSummaryTableProps) {
         <thead>
           <tr className="border-b border-border bg-surface-tertiary">
             <th scope="col" className="px-4 py-3 text-left font-medium text-text-secondary">Title</th>
+            <th scope="col" className="px-4 py-3 text-left font-medium text-text-secondary">Affected Asset</th>
             <th scope="col" className="px-4 py-3 text-left font-medium text-text-secondary">Severity</th>
             <th scope="col" className="px-4 py-3 text-left font-medium text-text-secondary">Status</th>
             <th scope="col" className="px-4 py-3 text-right font-medium text-text-secondary">Evidence</th>
@@ -25,7 +28,10 @@ export function FindingsSummaryTable({ findings }: FindingsSummaryTableProps) {
         <tbody>
           {findings.map((finding) => (
             <tr key={finding.finding_id} className="border-b border-border transition-colors hover:bg-surface-tertiary/50">
-              <td className="px-4 py-3 text-text-primary">{finding.title}</td>
+              <td className="px-4 py-3 text-text-primary">
+                {assessmentId ? <Link to={`/assessments/${encodeURIComponent(assessmentId)}/findings/${encodeURIComponent(finding.finding_id)}`} className="text-accent hover:underline">{finding.title}</Link> : finding.title}
+              </td>
+              <td className="px-4 py-3 font-mono text-xs text-text-secondary">{finding.affected_asset ?? '—'}</td>
               <td className="px-4 py-3">
                 <AssessmentSeverityBadge severity={finding.severity} />
               </td>

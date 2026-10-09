@@ -14,7 +14,8 @@ export interface AssessmentProfile {
 export interface PlanScannerEntry {
   scanner_id: string
   name: string
-  status: string
+  selected: boolean
+  skip_state: string | null
   reason: string
 }
 

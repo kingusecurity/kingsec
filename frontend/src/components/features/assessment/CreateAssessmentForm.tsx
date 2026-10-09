@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import type { ChangeEventHandler } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -13,6 +14,7 @@ import { Textarea } from '@/components/ui/Textarea'
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { Alert } from '@/components/ui/Alert'
 import { cn } from '@/lib/utils'
 import { useProfiles, usePlan } from '@/hooks/use-profiles'
 import { useCheckGrantCoverage } from '@/hooks/use-grants'
@@ -22,9 +24,65 @@ import type { CheckGrantCoverageResponse } from '@/api/grants'
 
 const steps = ['Target', 'Profile', 'Authorization', 'Review'] as const
 
+const targetTypes = [
+  'ip_address',
+  'hostname',
+  'url',
+  'network',
+  'domain',
+  'source_path',
+  'container_image',
+] as const
+
+type AssessmentTargetType = (typeof targetTypes)[number]
+
+interface TargetTypeInfo {
+  label: string
+  example: string
+  description: string
+}
+
+const TARGET_TYPE_INFO: Record<AssessmentTargetType, TargetTypeInfo> = {
+  ip_address: {
+    label: 'IP Address',
+    example: '10.0.0.5',
+    description: 'A single IPv4 or IPv6 address.',
+  },
+  hostname: {
+    label: 'Hostname',
+    example: 'app.example.com',
+    description: 'A single network host by name; this does not request domain-wide enumeration.',
+  },
+  url: {
+    label: 'Web URL',
+    example: 'https://app.example.com/',
+    description: 'An HTTP or HTTPS application URL, including any authorized base path.',
+  },
+  network: {
+    label: 'Network (CIDR)',
+    example: '10.0.0.0/24',
+    description: 'An IPv4 or IPv6 network range in CIDR notation.',
+  },
+  domain: {
+    label: 'DNS Domain (enumeration)',
+    example: 'example.com',
+    description: 'An explicit DNS domain for domain-wide enumeration. Amass may query third-party DNS and certificate-transparency sources.',
+  },
+  source_path: {
+    label: 'Source Path (KingSec server)',
+    example: '/srv/customer/source',
+    description: 'An absolute file or directory path visible to the KingSec server (for example /srv/customer/source or C:\\customer\\source), not a path selected from your browser device.',
+  },
+  container_image: {
+    label: 'Container Image Reference',
+    example: 'registry.example.com/team/app:v1',
+    description: 'An OCI/Docker image reference for Trivy image scanning. Trivy may retrieve image layers and vulnerability data.',
+  },
+}
+
 const createSchema = z.object({
   target_value: z.string().min(1, 'Target is required').max(2048),
-  target_type: z.enum(['ip_address', 'hostname', 'url', 'network']),
+  target_type: z.enum(targetTypes),
   profile_id: z.string().min(1, 'Please select a profile'),
   authorized_by: z.string().min(1, 'Authorized by is required').max(256),
   scope: z.string().min(1, 'Scope is required').max(2048),
@@ -36,13 +94,6 @@ interface CreateAssessmentFormProps {
   onSubmit: (data: CreateAssessmentFormData) => void
   isPending?: boolean
   error?: string | null
-}
-
-const targetTypeLabels: Record<string, string> = {
-  ip_address: 'IP Address',
-  hostname: 'Hostname',
-  url: 'URL',
-  network: 'Network',
 }
 
 function ProfileCard({
@@ -179,7 +230,6 @@ export function CreateAssessmentForm({ onSubmit, isPending, error }: CreateAsses
   const { data: profiles, isLoading: profilesLoading } = useProfiles()
   const planMutation = usePlan()
   const [currentPlan, setCurrentPlan] = useState<ExecutionPlan | null>(null)
-  const [planRequested, setPlanRequested] = useState(false)
   const checkCoverageMutation = useCheckGrantCoverage()
   const [coverage, setCoverage] = useState<CheckGrantCoverageResponse | null>(null)
 
@@ -196,36 +246,43 @@ export function CreateAssessmentForm({ onSubmit, isPending, error }: CreateAsses
 
   const { register, handleSubmit, trigger, watch, setValue, formState: { errors } } = form
   const values = watch()
-
-  // Auto-generate plan, and separately check grant coverage, as soon as
-  // profile is selected and target is set - the same trigger condition,
-  // so the operator sees both "will this run" and "is this authorized"
-  // together, well before the Authorization/Review steps, let alone
-  // submission.
-  useEffect(() => {
-    if (values.profile_id && values.target_value && values.target_type && planRequested) {
-      planMutation.mutate(
-        { profileId: values.profile_id, body: { target: values.target_value, target_type: values.target_type } },
-        { onSuccess: (data) => setCurrentPlan(data) },
-      )
-      checkCoverageMutation.mutate(
-        {
-          target_type: values.target_type,
-          target_value: values.target_value,
-          profile_id: values.profile_id,
-        },
-        { onSuccess: (data) => setCoverage(data) },
-      )
-    }
-  }, [values.profile_id, values.target_value, values.target_type, planRequested])
+  const selectedTargetInfo = TARGET_TYPE_INFO[values.target_type]
+  const targetTypeField = register('target_type')
 
   const handleNext = async () => {
     let valid = false
     if (step === 0) valid = await trigger(['target_value', 'target_type'])
     else if (step === 1) {
       valid = await trigger(['profile_id'])
-      if (valid && !planRequested) {
-        setPlanRequested(true)
+      if (!valid) return
+
+      // Planning and grant coverage are separate backend decisions, but both
+      // must succeed before the operator can continue. Keeping the form on
+      // this step on either error prevents a stale or missing plan from being
+      // mistaken for a ready assessment.
+      setCurrentPlan(null)
+      setCoverage(null)
+      try {
+        const [plan, coverageResult] = await Promise.all([
+          planMutation.mutateAsync({
+            profileId: values.profile_id,
+            body: { target: values.target_value, target_type: values.target_type },
+          }),
+          checkCoverageMutation.mutateAsync({
+            target_type: values.target_type,
+            target_value: values.target_value,
+            profile_id: values.profile_id,
+          }),
+        ])
+        setCurrentPlan(plan)
+        setCoverage(coverageResult)
+        if (!plan.can_proceed || (coverageResult.enforced && !coverageResult.fully_covered)) {
+          return
+        }
+      } catch {
+        // React Query exposes the actionable API error below. Stay on this
+        // step so the operator can correct the target/profile and retry.
+        return
       }
     } else if (step === 2) valid = await trigger(['authorized_by', 'scope'])
     if (valid) setStep((s) => Math.min(s + 1, steps.length - 1))
@@ -235,9 +292,25 @@ export function CreateAssessmentForm({ onSubmit, isPending, error }: CreateAsses
     setStep((s) => Math.max(s - 1, 0))
   }
 
+  const handleTargetTypeChange: ChangeEventHandler<HTMLSelectElement> = (event) => {
+    targetTypeField.onChange(event)
+    setValue('target_value', '')
+    setValue('profile_id', '')
+    resetPlan()
+  }
+
+  const resetPlan = () => {
+    planMutation.reset()
+    checkCoverageMutation.reset()
+    setCurrentPlan(null)
+    setCoverage(null)
+  }
+
   const compatibleProfiles = (profiles ?? []).filter((p) =>
     p.supported_target_types.includes(values.target_type),
   )
+  const planningError = planMutation.error ?? checkCoverageMutation.error
+  const planningPending = planMutation.isPending || checkCoverageMutation.isPending
 
   const onFormSubmit = handleSubmit(onSubmit)
 
@@ -275,23 +348,24 @@ export function CreateAssessmentForm({ onSubmit, isPending, error }: CreateAsses
         <div className="px-5 py-4 space-y-4">
           {step === 0 && (
             <>
-              <div>
-                <label className="block text-sm font-medium text-text-primary mb-1.5">Target</label>
-                <Input {...register('target_value')} placeholder="10.0.0.5" />
-                {errors.target_value && <p className="mt-1 text-xs text-red-400">{errors.target_value.message}</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-text-primary mb-1.5">Target Type</label>
-                <Select
-                  {...register('target_type')}
-                  options={[
-                    { value: 'ip_address', label: 'IP Address' },
-                    { value: 'hostname', label: 'Hostname' },
-                    { value: 'url', label: 'URL' },
-                    { value: 'network', label: 'Network' },
-                  ]}
-                />
-              </div>
+              <Select
+                id="assessment-target-type"
+                label="Target Type"
+                {...targetTypeField}
+                onChange={handleTargetTypeChange}
+                options={targetTypes.map((type) => ({
+                  value: type,
+                  label: TARGET_TYPE_INFO[type].label,
+                }))}
+              />
+              <Input
+                id="assessment-target"
+                label="Target"
+                {...register('target_value', { onChange: resetPlan })}
+                placeholder={selectedTargetInfo.example}
+                helperText={selectedTargetInfo.description}
+                error={errors.target_value?.message}
+              />
             </>
           )}
 
@@ -305,7 +379,7 @@ export function CreateAssessmentForm({ onSubmit, isPending, error }: CreateAsses
                 </div>
               ) : compatibleProfiles.length === 0 ? (
                 <p className="text-sm text-text-muted py-4 text-center">
-                  No profiles available for target type "{targetTypeLabels[values.target_type ?? ''] ?? values.target_type}"
+                  No profiles available for target type "{TARGET_TYPE_INFO[values.target_type].label}"
                 </p>
               ) : (
                 <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
@@ -316,9 +390,7 @@ export function CreateAssessmentForm({ onSubmit, isPending, error }: CreateAsses
                       selected={values.profile_id === profile.id}
                       onClick={() => {
                         setValue('profile_id', profile.id, { shouldValidate: true })
-                        setPlanRequested(false)
-                        setCurrentPlan(null)
-                        setCoverage(null)
+                        resetPlan()
                       }}
                     />
                   ))}
@@ -337,11 +409,19 @@ export function CreateAssessmentForm({ onSubmit, isPending, error }: CreateAsses
                 </div>
               )}
 
-              {values.profile_id && planMutation.isPending && (
+              {values.profile_id && planningPending && (
                 <div className="flex items-center gap-2 text-sm text-text-muted py-2">
                   <Skeleton className="h-4 w-4 rounded-full" />
                   Generating plan...
                 </div>
+              )}
+
+              {(planMutation.isError || checkCoverageMutation.isError) && (
+                <Alert variant="error" title="Unable to review this assessment">
+                  {planningError instanceof Error
+                    ? planningError.message
+                    : 'KingSec could not validate the execution plan and authorization coverage. Check the target and try again.'}
+                </Alert>
               )}
             </>
           )}
@@ -383,7 +463,7 @@ export function CreateAssessmentForm({ onSubmit, isPending, error }: CreateAsses
                   Exactly what was authorized: the specific target or range. Scanning outside
                   this exceeds your authorization, even mid-engagement.
                 </p>
-                <Textarea {...register('scope')} placeholder="10.0.0.0/24" rows={3} />
+                <Textarea {...register('scope')} placeholder={selectedTargetInfo.example} rows={3} />
                 {errors.scope && <p className="mt-1 text-xs text-red-400">{errors.scope.message}</p>}
               </div>
             </>
@@ -393,7 +473,7 @@ export function CreateAssessmentForm({ onSubmit, isPending, error }: CreateAsses
             <div className="space-y-4">
               <div className="space-y-3 rounded-lg bg-surface-tertiary/50 p-4">
                 <Row label="Target" value={values.target_value} />
-                <Row label="Type" value={targetTypeLabels[values.target_type ?? ''] ?? values.target_type} />
+                <Row label="Type" value={TARGET_TYPE_INFO[values.target_type].label} />
                 {currentPlan && (
                   <Row
                     label="Profile"
@@ -410,6 +490,12 @@ export function CreateAssessmentForm({ onSubmit, isPending, error }: CreateAsses
                 <div className="rounded-lg bg-surface-tertiary/50 p-4">
                   <PlanSummary plan={currentPlan} />
                 </div>
+              )}
+
+              {currentPlan && !currentPlan.can_proceed && (
+                <Alert variant="error" title="Execution plan is blocked">
+                  Install or configure the required scanners named above, then go back and review the plan again.
+                </Alert>
               )}
 
               <div className="flex items-start gap-2 text-xs text-text-muted">
@@ -435,11 +521,26 @@ export function CreateAssessmentForm({ onSubmit, isPending, error }: CreateAsses
           )}
           <div className="flex-1" />
           {step < steps.length - 1 ? (
-            <Button type="button" onClick={handleNext} iconRight={<ArrowRight className="h-4 w-4" />}>
+            <Button
+              type="button"
+              onClick={handleNext}
+              loading={step === 1 && planningPending}
+              iconRight={<ArrowRight className="h-4 w-4" />}
+            >
               {step === 1 ? 'Review Plan' : 'Next'}
             </Button>
           ) : (
-            <Button type="submit" loading={isPending} iconRight={<Check className="h-4 w-4" />}>
+            <Button
+              type="submit"
+              loading={isPending}
+              disabled={
+                !currentPlan
+                || !currentPlan.can_proceed
+                || !coverage
+                || (coverage.enforced && !coverage.fully_covered)
+              }
+              iconRight={<Check className="h-4 w-4" />}
+            >
               Create Assessment
             </Button>
           )}

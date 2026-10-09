@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Header } from '../layout/Header'
@@ -23,9 +23,9 @@ describe('Header', () => {
     useUIStore.setState({ sidebarCollapsed: false, sidebarMobileOpen: false })
   })
 
-  it('renders search input', () => {
+  it('does not advertise unavailable global search', () => {
     renderHeader()
-    expect(screen.getByLabelText('Global search (coming soon)')).toBeInTheDocument()
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
   })
 
   it('renders notification bell', () => {
@@ -40,6 +40,22 @@ describe('Header', () => {
     })
     renderHeader()
     expect(screen.getByText('testuser')).toBeInTheDocument()
+  })
+
+  it('links documentation to the repository README', () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    renderHeader()
+
+    fireEvent.click(screen.getByRole('button', { name: 'User menu' }))
+    expect(screen.getAllByText(/settings/i)).toHaveLength(1)
+    fireEvent.click(screen.getByRole('menuitem', { name: /documentation/i }))
+
+    expect(open).toHaveBeenCalledWith(
+      'https://github.com/kingusecurity/kingsec#readme',
+      '_blank',
+      'noopener,noreferrer',
+    )
+    open.mockRestore()
   })
 
   it('shows mobile menu button', () => {

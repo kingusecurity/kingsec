@@ -171,39 +171,39 @@ export const router = createBrowserRouter([
       },
       {
         path: 'assets',
-        element: <Suspense fallback={<PageLoader />}><AssetInventoryPage /></Suspense>,
+        element: <RoleGuard roles={['analyst', 'admin']}><Suspense fallback={<PageLoader />}><AssetInventoryPage /></Suspense></RoleGuard>,
       },
       {
         path: 'assets/:id',
-        element: <Suspense fallback={<PageLoader />}><AssetDetailPage /></Suspense>,
+        element: <RoleGuard roles={['analyst', 'admin']}><Suspense fallback={<PageLoader />}><AssetDetailPage /></Suspense></RoleGuard>,
       },
       {
         path: 'attack-surface',
-        element: <Suspense fallback={<PageLoader />}><AttackSurfacePage /></Suspense>,
+        element: <RoleGuard roles={['analyst', 'admin']}><Suspense fallback={<PageLoader />}><AttackSurfacePage /></Suspense></RoleGuard>,
       },
       {
         path: 'attack-surface/:id',
-        element: <Suspense fallback={<PageLoader />}><AttackSurfaceDetailPage /></Suspense>,
+        element: <RoleGuard roles={['analyst', 'admin']}><Suspense fallback={<PageLoader />}><AttackSurfaceDetailPage /></Suspense></RoleGuard>,
       },
       {
         path: 'monitoring',
-        element: <Suspense fallback={<PageLoader />}><SecurityOperationsPage /></Suspense>,
+        element: <RoleGuard roles={['analyst', 'admin']}><Suspense fallback={<PageLoader />}><SecurityOperationsPage /></Suspense></RoleGuard>,
       },
       {
         path: 'monitoring/alerts',
-        element: <Suspense fallback={<PageLoader />}><AlertsPage /></Suspense>,
+        element: <RoleGuard roles={['analyst', 'admin']}><Suspense fallback={<PageLoader />}><AlertsPage /></Suspense></RoleGuard>,
       },
       {
         path: 'monitoring/alerts/:id',
-        element: <Suspense fallback={<PageLoader />}><AlertDetailPage /></Suspense>,
+        element: <RoleGuard roles={['analyst', 'admin']}><Suspense fallback={<PageLoader />}><AlertDetailPage /></Suspense></RoleGuard>,
       },
       {
         path: 'monitoring/rules',
-        element: <Suspense fallback={<PageLoader />}><MonitoringRulesPage /></Suspense>,
+        element: <RoleGuard roles={['analyst', 'admin']}><Suspense fallback={<PageLoader />}><MonitoringRulesPage /></Suspense></RoleGuard>,
       },
       {
         path: 'monitoring/timeline',
-        element: <Suspense fallback={<PageLoader />}><MonitoringTimelinePage /></Suspense>,
+        element: <RoleGuard roles={['analyst', 'admin']}><Suspense fallback={<PageLoader />}><MonitoringTimelinePage /></Suspense></RoleGuard>,
       },
       {
         path: 'copilot',
@@ -247,19 +247,19 @@ export const router = createBrowserRouter([
       },
       {
         path: 'workers',
-        element: <Suspense fallback={<PageLoader />}><WorkersPage /></Suspense>,
+        element: <RoleGuard roles={['admin']}><Suspense fallback={<PageLoader />}><WorkersPage /></Suspense></RoleGuard>,
       },
       {
         path: 'workers/:id',
-        element: <Suspense fallback={<PageLoader />}><WorkerDetailPage /></Suspense>,
+        element: <RoleGuard roles={['admin']}><Suspense fallback={<PageLoader />}><WorkerDetailPage /></Suspense></RoleGuard>,
       },
       {
         path: 'queue',
-        element: <Suspense fallback={<PageLoader />}><QueuePage /></Suspense>,
+        element: <RoleGuard roles={['admin']}><Suspense fallback={<PageLoader />}><QueuePage /></Suspense></RoleGuard>,
       },
       {
         path: 'queue/:id',
-        element: <Suspense fallback={<PageLoader />}><JobDetailPage /></Suspense>,
+        element: <RoleGuard roles={['admin']}><Suspense fallback={<PageLoader />}><JobDetailPage /></Suspense></RoleGuard>,
       },
       {
         path: 'identity',

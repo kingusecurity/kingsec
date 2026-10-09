@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
-import { Search, Menu, User, Settings, BookOpen, LogOut } from 'lucide-react'
+import { Menu, Settings, BookOpen, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Input, Badge } from '@/components/ui'
+import { Badge } from '@/components/ui'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/DropdownMenu'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbSeparator } from '@/components/ui/Breadcrumb'
 import { NotificationBadge } from '@/components/features/monitoring/NotificationBadge'
@@ -50,15 +50,6 @@ export function Header() {
 
       <div className="flex-1" />
 
-      <div className="hidden sm:block w-64" title="Global search is not available yet">
-        <Input
-          placeholder="Search coming soon..."
-          prefix={<Search className="h-4 w-4" />}
-          aria-label="Global search (coming soon)"
-          disabled
-        />
-      </div>
-
       <NotificationBadge onClick={() => navigate('/notifications')} />
 
       <div className="flex items-center gap-2">
@@ -83,14 +74,10 @@ export function Header() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-[180px]">
             <DropdownMenuItem onClick={() => navigate('/settings')}>
-              <User className="h-4 w-4" />
-              Profile
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate('/settings')}>
               <Settings className="h-4 w-4" />
-              Settings
+              Account &amp; Settings
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => window.open('https://kingsec.readme.io', '_blank', 'noopener,noreferrer')}>
+            <DropdownMenuItem onClick={() => window.open('https://github.com/kingusecurity/kingsec#readme', '_blank', 'noopener,noreferrer')}>
               <BookOpen className="h-4 w-4" />
               Documentation
             </DropdownMenuItem>

@@ -1,9 +1,14 @@
 import { render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbSeparator } from '../Breadcrumb'
+
+function renderBreadcrumb(children: React.ReactNode) {
+  return render(<MemoryRouter>{children}</MemoryRouter>)
+}
 
 describe('Breadcrumb', () => {
   it('renders items', () => {
-    render(
+    renderBreadcrumb(
       <Breadcrumb>
         <BreadcrumbItem href="/">Home</BreadcrumbItem>
         <BreadcrumbSeparator />
@@ -18,7 +23,7 @@ describe('Breadcrumb', () => {
   })
 
   it('renders last item without href as non-link', () => {
-    render(
+    renderBreadcrumb(
       <Breadcrumb>
         <BreadcrumbItem href="/">Home</BreadcrumbItem>
         <BreadcrumbSeparator />

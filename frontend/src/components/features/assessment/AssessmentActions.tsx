@@ -41,7 +41,7 @@ export function AssessmentActions({
           Cancel
         </Button>
       )}
-      {s === 'completed' && onGenerateReport && (
+      {(s === 'completed' || s === 'completed_with_gaps') && onGenerateReport && (
         <Button size="sm" variant="secondary" onClick={onGenerateReport} loading={reportLoading} iconLeft={<FileText className="h-4 w-4" />}>
           Generate Report
         </Button>

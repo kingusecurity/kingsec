@@ -93,6 +93,7 @@ export interface ListAssessmentsResponse {
   total: number
   limit: number
   offset: number
+  unreadable_ids: string[]
 }
 
 export interface FindingResponse {
@@ -134,7 +135,7 @@ export interface CreateAssessmentBody {
   target_type: string
   authorized_by: string
   scope: string
-  profile_id?: string
+  profile_id: string
 }
 
 export interface CreateAssessmentResponse {
@@ -176,6 +177,10 @@ export type SortOrder = 'asc' | 'desc'
 export interface AssessmentListParams {
   limit?: number
   offset?: number
+  search?: string
+  status?: string
+  order_by?: AssessmentSortField
+  order_dir?: SortOrder
 }
 
 export interface RecentAssessmentItem {
