@@ -239,7 +239,7 @@ def create_wired_application(
     app.logger.info(
         "application composed",
         provider=app.settings.ai.provider,
-        report_format=report_format,
+        report_format=resolved_report_format,
     )
     return app
 

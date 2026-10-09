@@ -86,7 +86,12 @@ export const adminApi = {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `report-${assessmentId}.pdf`
+    // Use the filename the API sends via Content-Disposition — the backend
+    // renders HTML on machines without WeasyPrint's GTK3 runtime, and a
+    // hardcoded .pdf makes browsers choke on an HTML file mislabeled as PDF.
+    const disposition = res.headers.get('Content-Disposition') ?? ''
+    const filenameMatch = /filename="([^"]+)"/.exec(disposition)
+    a.download = filenameMatch ? filenameMatch[1] : `report-${assessmentId}.pdf`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
