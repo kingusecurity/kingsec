@@ -3,8 +3,10 @@
 # KingSec one-shot setup.
 #
 # Creates a virtualenv, installs KingSec, applies the known binary-wheel
-# fixes (cffi / pydantic-core), generates secrets into .env, runs database
-# migrations, and bootstraps the first admin account.
+# fixes (cffi / pydantic-core), generates secrets into .env, provisions
+# every wired scanner (wordlists for ffuf/gobuster, nuclei templates dir,
+# ZAP lock cleanup, nikto clone), runs database migrations, and bootstraps
+# the first admin account.
 #
 # Idempotent: safe to re-run — steps that are already done are skipped.
 #
@@ -136,6 +138,80 @@ ensure_secret "KINGSEC_JWT__SECRET_KEY" \
     "import secrets; print(secrets.token_urlsafe(48))"
 ensure_secret "KINGSEC_SECRETS__API_KEY_PEPPER" \
     "import secrets; print(secrets.token_urlsafe(48))"
+
+# Set a plain (non-secret) config value only if it is not already present.
+# Values are written quoted so paths containing spaces (e.g. Windows home
+# directories like "C:\Users\Laptop Zone by JK") survive .env parsing.
+ensure_env() {
+    local var_name="$1" value="$2"
+    if grep -q "^${var_name}=" "$ENV_FILE" 2>/dev/null; then
+        return 0
+    fi
+    printf '%s="%s"\n' "$var_name" "$value" >> "$ENV_FILE"
+    echo "configured ${var_name} (saved to .env)"
+}
+
+# --- 4b. Scanner prerequisites (wordlists, templates, auxiliary scanners) ---
+# Wires every wired scanner KingSec ships so a fresh customer install can
+# actually use them: ffuf/gobuster need a wordlist, nuclei wants an explicit
+# templates dir, ZAP needs stale locks cleared, nikto needs Perl + a clone.
+# Everything here is idempotent and never touches existing .env values.
+info "Scanner prerequisites..."
+for bin in nmap nuclei zap ffuf gobuster; do
+    if command -v "$bin" >/dev/null 2>&1; then ok "$bin on PATH"; else warn "$bin NOT FOUND on PATH"; fi
+done
+if command -v perl >/dev/null 2>&1; then ok "perl ($(perl -v 2>/dev/null | sed -n '2p' | xargs))"; else warn "perl not found — nikto needs Strawberry Perl (strawberryperl.com)"; fi
+
+WORDLIST_DIR="$HOME/wordlists"
+mkdir -p "$WORDLIST_DIR"
+if [ ! -s "$WORDLIST_DIR/common.txt" ]; then
+    if curl -sL -o "$WORDLIST_DIR/common.txt" \
+        "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt"; then
+        ok "downloaded SecLists common.txt ($(wc -l < "$WORDLIST_DIR/common.txt" | xargs) entries)"
+    else
+        warn "wordlist download failed — check network, then re-run this script"
+    fi
+else
+    ok "wordlist already present"
+fi
+if [ -s "$WORDLIST_DIR/common.txt" ]; then
+    ensure_env "KINGSEC_FFUF__WORDLIST" "$WORDLIST_DIR/common.txt"
+    ensure_env "KINGSEC_GOBUSTER__WORDLIST" "$WORDLIST_DIR/common.txt"
+fi
+
+if [ -d "$HOME/nuclei-templates" ]; then
+    ensure_env "KINGSEC_SCANNER__TEMPLATES_DIR" "$HOME/nuclei-templates"
+    ok "nuclei templates dir wired"
+else
+    warn "~/nuclei-templates not found — run 'nuclei' once to fetch templates, then re-run this script"
+fi
+
+# ZAP leaves a stale lock after a crash/kill; clear it (Windows/Git Bash only).
+case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*)
+        taskkill //F //IM java.exe 2>/dev/null || true
+        rm -f "$HOME/ZAP/.lock" "$HOME/ZAP/zap.lock" 2>/dev/null || true
+        ok "cleared stale ZAP locks"
+        ;;
+esac
+
+if command -v perl >/dev/null 2>&1; then
+    if [ ! -f "$HOME/nikto/program/nikto.pl" ]; then
+        if git clone -q "https://github.com/sullo/nikto" "$HOME/nikto" 2>/dev/null; then
+            ok "cloned nikto"
+        else
+            warn "nikto clone failed — check network/git, then re-run this script"
+        fi
+    else
+        ok "nikto already present"
+    fi
+    if [ -f "$HOME/nikto/program/nikto.pl" ]; then
+        ensure_env "KINGSEC_NIKTO__BINARY_PATH" "$HOME/nikto/program/nikto.pl"
+    fi
+    warn "nikto needs a Windows Defender exclusion for $HOME/nikto (Defender quarantines it on sight)"
+else
+    warn "skipping nikto: install Strawberry Perl first, then re-run this script"
+fi
 
 # --- 5. Database migrations ---------------------------------------------------
 info "Database migrations..."
