@@ -133,35 +133,44 @@ _DEFAULT_PROFILES: dict[str, AssessmentProfile] = {
         required_scanners=(),
         tags=("api", "vulnerability"),
     ),
-    # Phase 2B Decision 1: code-review and container-scan are DELETED, not
-    # fixed. semgrep and trivy cannot take any input KingSec's current
-    # target model (IP_ADDRESS/HOSTNAME/NETWORK/URL) expresses - both need
-    # a source checkout, image reference, or filesystem path, none of
-    # which exist as a target type yet. Both profiles were structurally
-    # incoherent (a required scanner incompatible with IP_ADDRESS, one of
-    # the profile's own declared supported types) - see
-    # docs/STATUS.md's Phase 2B roadmap item: source/supply-chain
-    # scanning needs real `repository`/`image`/`path` target types before
-    # semgrep/trivy can be wired to anything again. The adapters and their
-    # tests are kept, not deleted - see the module docstrings in
-    # infrastructure/scanner/plugins/semgrep/adapter.py and
-    # infrastructure/scanner/plugins/trivy/adapter.py.
+    "code-review": AssessmentProfile(
+        id="code-review",
+        name="Source Code Assessment",
+        description="Scans an absolute source path visible to the KingSec server. Semgrep performs static analysis, while Trivy scans the filesystem for vulnerable dependencies and misconfigurations.",
+        supported_target_types=(TargetType.SOURCE_PATH,),
+        scanners=("semgrep", "trivy"),
+        estimated_duration_minutes=20,
+        required_scanners=("semgrep", "trivy"),
+        tags=("code", "static-analysis", "dependencies"),
+    ),
+    "container-scan": AssessmentProfile(
+        id="container-scan",
+        name="Container Image Assessment",
+        description="Scans an OCI/Docker container image reference with Trivy in image mode for known vulnerabilities and misconfigurations.",
+        supported_target_types=(TargetType.CONTAINER_IMAGE,),
+        scanners=("trivy",),
+        estimated_duration_minutes=10,
+        required_scanners=("trivy",),
+        tags=("container", "vulnerability", "cve"),
+    ),
+    "domain-enumeration": AssessmentProfile(
+        id="domain-enumeration",
+        name="Domain Enumeration",
+        description="Enumerates subdomains for an explicitly authorized DNS domain with OWASP Amass in passive mode. May query third-party DNS and certificate-transparency sources.",
+        supported_target_types=(TargetType.DOMAIN,),
+        scanners=("amass",),
+        estimated_duration_minutes=15,
+        required_scanners=("amass",),
+        tags=("domain", "discovery", "reconnaissance"),
+    ),
     "external-footprint": AssessmentProfile(
         id="external-footprint",
         name="External Footprint Mapping",
         description="Discovers the external attack surface using Nmap for service discovery.",
         supported_target_types=(TargetType.HOSTNAME, TargetType.IP_ADDRESS),
-        # Phase 2B Decision 2: amass removed. It only works against a real,
-        # registrable public domain, and KingSec's HOSTNAME target
-        # currently accepts anything syntactically hostname-shaped
-        # (including "localhost") - the target model cannot yet
-        # distinguish the two. It also performs active DNS enumeration and
-        # certificate-transparency lookups against third-party
-        # infrastructure, which is the scanner most likely to reach
-        # outside an authorized scope in a product with no scope
-        # enforcement yet (Phase 4). See
-        # infrastructure/scanner/plugins/amass/adapter.py's module
-        # docstring and docs/STATUS.md's Phase 4 roadmap item.
+        # Domain-wide discovery remains separate: it needs the explicit
+        # DOMAIN target and grant used by domain-enumeration above, never a
+        # generic host/IP target that happens to resemble a public domain.
         scanners=("nmap",),
         estimated_duration_minutes=15,
         required_scanners=("nmap",),
@@ -176,9 +185,9 @@ _DEFAULT_PROFILES: dict[str, AssessmentProfile] = {
             TargetType.HOSTNAME,
             TargetType.URL,
         ),
-        # Phase 2B: semgrep, trivy, and amass removed - see the profile
-        # deletion comment above and Decision 2 above. The honest network
-        # scanner count is now SIX: nmap, nuclei, nikto, ffuf, gobuster, zap.
+        # This remains a network-target profile. Source paths, container
+        # images, and domain enumeration each have a purpose-built profile
+        # above so their scanners are never applied to a lookalike string.
         scanners=("nmap", "nuclei", "gobuster", "ffuf", "zap", "nikto"),
         estimated_duration_minutes=60,
         required_scanners=(),

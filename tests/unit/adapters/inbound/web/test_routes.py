@@ -68,6 +68,7 @@ class StubServiceAPI(ServiceAPI):
         self.submit_called = False
         self.cancel_called = False
         self.list_called = False
+        self.last_list_request: ListAssessmentsRequest | None = None
         self.get_called = False
         self.report_called = False
         self.delete_called = False
@@ -97,6 +98,7 @@ class StubServiceAPI(ServiceAPI):
 
     def list_assessments(self, request: ListAssessmentsRequest) -> ListAssessmentsResponse:
         self.list_called = True
+        self.last_list_request = request
         return ListAssessmentsResponse(
             items=(
                 AssessmentSummary(
@@ -287,6 +289,7 @@ class TestCreateAssessmentEndpoint:
                 "target_type": "ip_address",
                 "authorized_by": "admin@co.com",
                 "scope": "10.0.0.5",
+                "profile_id": "quick-scan",
             },
         )
         assert resp.status_code == 201
@@ -338,6 +341,7 @@ class TestListAssessmentsEndpoint:
         assert body["items"][0]["assessment_id"] == "asmt-test-001"
         assert body["items"][0]["target"] == "10.0.0.5 (ip_address)"
         assert body["items"][0]["findings_count"] == 2
+        assert body["unreadable_ids"] == []
         assert stub_service.list_called
 
     def test_with_pagination_params(self, client: TestClient, stub_service: StubServiceAPI) -> None:
@@ -346,6 +350,99 @@ class TestListAssessmentsEndpoint:
         body = resp.json()
         assert body["limit"] == 10
         assert body["offset"] == 5
+
+    def test_forwards_valid_filters_sort_and_requester_scope(
+        self, client: TestClient, stub_service: StubServiceAPI
+    ) -> None:
+        resp = client.get(
+            "/api/v1/assessments",
+            params={
+                "search": "example.com",
+                "status": "completed_with_gaps",
+                "order_by": "findings_count",
+                "order_dir": "asc",
+            },
+        )
+
+        assert resp.status_code == 200
+        assert stub_service.last_list_request == ListAssessmentsRequest(
+            limit=50,
+            offset=0,
+            search="example.com",
+            status="completed_with_gaps",
+            order_by="findings_count",
+            order_dir="asc",
+            requesting_user="user-001",
+            is_admin=False,
+        )
+
+    @pytest.mark.parametrize(
+        ("name", "value"),
+        [
+            ("limit", "0"),
+            ("limit", "201"),
+            ("offset", "-1"),
+            ("status", "pending"),
+            ("order_by", "target_value desc"),
+            ("order_dir", "sideways"),
+        ],
+    )
+    def test_rejects_invalid_list_query_values(
+        self,
+        client: TestClient,
+        stub_service: StubServiceAPI,
+        name: str,
+        value: str,
+    ) -> None:
+        resp = client.get("/api/v1/assessments", params={name: value})
+
+        assert resp.status_code == 422
+        assert stub_service.list_called is False
+
+    def test_rejects_overlong_search(self, client: TestClient, stub_service: StubServiceAPI) -> None:
+        resp = client.get("/api/v1/assessments", params={"search": "x" * 257})
+
+        assert resp.status_code == 422
+        assert stub_service.list_called is False
+
+
+class TestListFindingsQueryValidation:
+    @pytest.mark.parametrize(
+        ("name", "value"),
+        [
+            ("limit", "0"),
+            ("limit", "201"),
+            ("offset", "-1"),
+            ("severity", "URGENT"),
+            ("status", "resolved"),
+            ("order_by", "assessment_id desc"),
+            ("order_dir", "sideways"),
+        ],
+    )
+    def test_rejects_invalid_values(self, client: TestClient, name: str, value: str) -> None:
+        resp = client.get("/api/v1/findings", params={name: value})
+
+        assert resp.status_code == 422
+
+
+class TestListReportsQueryValidation:
+    @pytest.mark.parametrize(
+        ("name", "value"),
+        [
+            ("limit", "0"),
+            ("limit", "201"),
+            ("offset", "-1"),
+            ("severity", "URGENT"),
+            ("order_by", "assessment_id desc"),
+            ("order_dir", "sideways"),
+            ("search", "x" * 257),
+            ("target", "x" * 254),
+        ],
+    )
+    def test_rejects_invalid_values(self, client: TestClient, name: str, value: str) -> None:
+        resp = client.get("/api/v1/reports", params={name: value})
+
+        assert resp.status_code == 422
 
 
 class TestDeleteAssessmentEndpoint:

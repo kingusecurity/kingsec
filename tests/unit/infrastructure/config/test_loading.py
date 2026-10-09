@@ -6,8 +6,9 @@ import os
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
-from kingsec.infrastructure.config import Environment, LogLevel, load_settings
+from kingsec.infrastructure.config import ConfigError, Environment, LogLevel, load_settings
 
 
 def _clean_kingsec_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -54,11 +55,26 @@ class TestEnvironmentOverrides:
     def test_nested_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("KINGSEC_SERVER__PORT", "9000")
         monkeypatch.setenv("KINGSEC_LOGGING__LEVEL", "DEBUG")
+        monkeypatch.setenv("KINGSEC_REPORTING__REPORT_FORMAT", "html")
 
         settings = load_settings()
 
         assert settings.server.port == 9000
         assert settings.logging.level is LogLevel.DEBUG
+        assert settings.reporting.report_format == "html"
+
+    def test_invalid_report_format_is_rejected(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("KINGSEC_REPORTING__REPORT_FORMAT", "docx")
+
+        with pytest.raises(ConfigError, match="KINGSEC_REPORTING__REPORT_FORMAT"):
+            load_settings()
+
+    def test_reporting_settings_are_frozen(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _clean_kingsec_env(monkeypatch)
+        settings = load_settings()
+
+        with pytest.raises(ValidationError, match="frozen"):
+            settings.reporting.report_format = "html"  # type: ignore[misc]
 
     def test_names_are_case_insensitive(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("kingsec_server__port", "7000")

@@ -50,13 +50,15 @@ class TestEnforceAuthorizationScopeFlag:
         assert isinstance(create_assessment._grants, AuthorizationGrantRepository)
         assert isinstance(create_assessment._registry, ScannerPluginRegistry)
 
-    def test_false_reproduces_pre_phase4_construction(self, tmp_path, monkeypatch) -> None:
+    def test_false_disables_grant_enforcement_but_keeps_profile_validation(
+        self, tmp_path, monkeypatch
+    ) -> None:
         app = _build_app(tmp_path, monkeypatch, enforce=False)
         create_assessment = app.container.resolve(CreateAssessment)
 
         assert create_assessment._grants is None
         assert create_assessment._registry is None
-        assert create_assessment._planner is None
+        assert create_assessment._planner is not None
 
     def test_authorization_grant_repository_itself_is_always_registered(self, tmp_path, monkeypatch) -> None:
         """Registered unconditionally by provisioning.py regardless of the

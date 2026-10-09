@@ -21,6 +21,7 @@ from sqlalchemy.orm import sessionmaker
 
 from kingsec.adapters.inbound.web.app import create_fastapi_app
 from kingsec.adapters.inbound.web.auth import CurrentUser, get_current_user
+from kingsec.application import SubmitAssessment
 from kingsec.application.assessment_execution_ledger import AssessmentExecutionStatus
 from kingsec.application.ports import ScannerPort, TokenClaims
 from kingsec.application.ports.outbound.audit_publisher import AuditPublisher
@@ -49,6 +50,14 @@ class _CountingScanner(ScannerPort):
 
     def compatible_scanners(self, target: Target) -> dict[str, str]:
         return {"stub": "Stub Scanner"}
+
+
+def _use_test_scanner(app: Application, scanner: ScannerPort) -> None:
+    app.container.register_instance(ScannerPort, scanner)
+    submit = app.resolve(SubmitAssessment)
+    submit._scanner = scanner
+    submit._planner = None
+    submit._scanner_executor = None
 
 
 def _make_user(role: Role, user_id: str = "user-001") -> CurrentUser:
@@ -80,11 +89,12 @@ def wired_app(tmp_path, monkeypatch, scanner_spy: _CountingScanner) -> Applicati
     monkeypatch.setenv("KINGSEC_SECRETS__ENCRYPTION_KEY", _TEST_FERNET_KEY)
     monkeypatch.setenv("KINGSEC_JWT__SECRET_KEY", _TEST_JWT_SECRET)
     monkeypatch.setenv("KINGSEC_SECRETS__API_KEY_PEPPER", _TEST_PEPPER)
+    monkeypatch.setenv("KINGSEC_SECURITY__ENFORCE_AUTHORIZATION_SCOPE", "false")
     app = create_wired_application(log_stream=io.StringIO(), ensure_directories=False, validate_migrations=False)
     engine = create_database_engine(settings=app.settings)
     create_schema(engine)
     engine.dispose()
-    app.container.register_instance(ScannerPort, scanner_spy)
+    _use_test_scanner(app, scanner_spy)
     return app
 
 
@@ -507,6 +517,7 @@ class TestRealDomainModelEndToEnd:
                 json={
                     "target_value": "10.0.0.9",
                     "target_type": "ip_address",
+                    "profile_id": "quick-scan",
                     "authorized_by": "pentester@kingusecurity.com",
                     "scope": "10.0.0.9",
                 },

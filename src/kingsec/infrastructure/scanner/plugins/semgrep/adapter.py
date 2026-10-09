@@ -6,12 +6,8 @@ delegated to the already-tested adapter — this class adds only the metadata,
 capability declaration, and availability check that the plugin framework
 requires.
 
-Phase 2B Decision 1: NOT WIRED TO ANY PROFILE. Semgrep is a static
-source-code analyzer — it genuinely needs a local filesystem path to a
-source checkout, not a network-reachable target (IP/hostname/URL), which
-is the only kind of target KingSec's current model expresses. Kept
-registered and tested so it is ready the moment a real ``repository`` or
-``path`` target type exists (see docs/STATUS.md's Phase 2B roadmap item).
+Semgrep is compatible only with KingSec's explicit ``source_path`` target.
+It is never selected for a host, URL, network, domain, or container image.
 """
 
 from __future__ import annotations
@@ -74,14 +70,10 @@ class SemgrepPlugin(ScannerPluginPort):
         """Declare Semgrep scanning capabilities."""
         return (
             ScannerCapability(
-                requirement=ScannerRequirement.REACHABLE_HOST,
+                requirement=ScannerRequirement.SOURCE_PATH,
                 scan_categories=frozenset({ScanCategory.VULNERABILITY, ScanCategory.INFORMATION}),
                 output_format=OutputFormat.STRUCTURED_JSON,
-                # Phase 4: NOT WIRED TO ANY PROFILE (see module docstring) -
-                # no live enforcement effect today. Narrowest tier assigned
-                # as the honest placeholder: a static source-code analyzer
-                # touches no network surface at all.
-                surface_tier=ScannerSurfaceTier.HOST_PORT_PATH,
+                surface_tier=ScannerSurfaceTier.LOCAL_RESOURCE,
             ),
         )
 

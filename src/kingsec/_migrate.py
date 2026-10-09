@@ -14,7 +14,6 @@ import argparse
 import importlib.resources
 import subprocess  # nosec B404 — Alembic migration subprocess uses sys.executable, no shell, fixed argv
 import sys
-from pathlib import Path
 
 from kingsec import __version__
 
@@ -32,11 +31,9 @@ def run_migrations() -> int:
     # (deployment_routes.py), so it must not import kingsec.infrastructure
     # itself (hexagonal layering contract) - env.py is a separate
     # subprocess, outside that import graph entirely.
-    config_path: str | Path = str(importlib.resources.files("kingsec.alembic").joinpath("alembic.ini"))
-    alembic_dir = Path(config_path).parent
+    config_path = str(importlib.resources.files("kingsec.alembic").joinpath("alembic.ini"))
     return subprocess.call(  # nosec B603 — fixed argv from sys.executable, no shell=True, no user-controlled args
         [sys.executable, "-m", "alembic", "-c", str(config_path), "upgrade", "head"],
-        cwd=str(alembic_dir),
     )
 
 

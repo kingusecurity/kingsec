@@ -15,7 +15,7 @@ import logging
 from kingsec.application._support import check_assessment_access, to_assessment_id
 from kingsec.application.dto import DeleteAssessmentRequest, DeleteAssessmentResponse
 from kingsec.application.events import EVENT_ASSESSMENT_DELETED, AssessmentEvent
-from kingsec.application.ports import AssessmentRepository, AuditPublisher, EventPublisher
+from kingsec.application.ports import AssessmentRepository, AuditPublisher, EventPublisher, ReportArtifactCachePort
 from kingsec.domain.audit import AuditAction, AuditEntry
 
 
@@ -27,10 +27,12 @@ class DeleteAssessment:
         assessments: AssessmentRepository,
         events: EventPublisher | None = None,
         audit: AuditPublisher | None = None,
+        report_artifacts: ReportArtifactCachePort | None = None,
     ) -> None:
         self._assessments = assessments
         self._events = events
         self._audit = audit
+        self._report_artifacts = report_artifacts
 
     def execute(self, request: DeleteAssessmentRequest) -> DeleteAssessmentResponse:
         assessment_id = to_assessment_id(request.assessment_id)
@@ -39,7 +41,13 @@ class DeleteAssessment:
         assessment = self._assessments.get(assessment_id)
         check_assessment_access(assessment, request.requesting_user, request.is_admin)
 
-        # Delete the assessment and all children via cascade.
+        # Report bytes live outside the database cascade. Remove them first;
+        # if storage refuses the operation, leave the database record intact
+        # so a successful response can never conceal retained artifacts.
+        if self._report_artifacts is not None:
+            self._report_artifacts.delete_for_assessment(str(assessment.id))
+
+        # Delete the assessment and all database children via cascade.
         self._assessments.delete(assessment_id)
 
         self._publish_event(

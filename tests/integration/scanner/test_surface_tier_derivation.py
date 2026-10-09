@@ -14,11 +14,14 @@ guards against it silently reopening for any new scanner wired in later.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from kingsec.application.assessment_profiles import ExecutionPlanner
 from kingsec.application.ports.scanner_registry import ScannerPluginRegistry
 from kingsec.bootstrap.container import Container
 from kingsec.domain import ScannerId, ScannerSurfaceTier, Target, TargetType
 from kingsec.infrastructure.config import Settings
+from kingsec.infrastructure.config.models import StorageSettings
 from kingsec.infrastructure.scanner.provisioning import register_scanner
 
 # A URL target with a distinctive, non-default port and a distinctive path -
@@ -26,6 +29,10 @@ from kingsec.infrastructure.scanner.provisioning import register_scanner
 # the probe?" are unambiguous in the resulting argv.
 _URL_TARGET = Target("https://example.com:9443/very/distinctive/path123", TargetType.URL)
 _DISTINCTIVE_PATH = "/very/distinctive/path123"
+_DOMAIN_TARGET = Target("example.com", TargetType.DOMAIN)
+_SOURCE_PATH_VALUE = str(Path(__file__).resolve().parent)
+_SOURCE_PATH_TARGET = Target(_SOURCE_PATH_VALUE, TargetType.SOURCE_PATH)
+_CONTAINER_IMAGE_TARGET = Target("registry.example.com/team/app:v1", TargetType.CONTAINER_IMAGE)
 
 # Flags that would restrict a HOST_PORT_ANY_PATH scanner's own crawl/probe
 # to a sub-path - the tier's own docstring claim (scanner.py) is "none pass
@@ -46,10 +53,12 @@ _PATH_RESTRICTING_FLAGS = frozenset(
 # The scanners this file has a dedicated TestXDerivedTier class for below -
 # every scanner a real assessment profile wires in must appear here (see
 # TestDerivedTierCoverageIsComplete), or this suite has gone stale.
-_TIER_VERIFIED_SCANNER_IDS = frozenset({"nmap", "nuclei", "nikto", "ffuf", "gobuster", "zap"})
+_TIER_VERIFIED_SCANNER_IDS = frozenset(
+    {"nmap", "nuclei", "nikto", "ffuf", "gobuster", "zap", "amass", "semgrep", "trivy"}
+)
 
 
-def _real_registry() -> ScannerPluginRegistry:
+def _real_registry(*, data_dir: Path | None = None) -> ScannerPluginRegistry:
     """The REAL scanner plugin registry, wired exactly as
     infrastructure.scanner.provisioning.register_scanner() does (same
     function, default Settings()) - never a stub. Matches the precedent in
@@ -58,7 +67,8 @@ def _real_registry() -> ScannerPluginRegistry:
     fabricated registry would prove nothing about the real adapters.
     """
     container = Container()
-    register_scanner(container, Settings())
+    settings = Settings(storage=StorageSettings(data_dir=data_dir)) if data_dir is not None else Settings()
+    register_scanner(container, settings)
     return container.resolve(ScannerPluginRegistry)  # type: ignore[return-value]
 
 
@@ -168,11 +178,11 @@ class TestZapDerivedTier:
         registry = _real_registry()
         assert _declared_tier(registry, "zap") == ScannerSurfaceTier.HOST_PORT_ANY_PATH
 
-    def test_built_args_carry_no_path_restricting_flag(self) -> None:
+    def test_built_args_carry_no_path_restricting_flag(self, tmp_path: Path) -> None:
         """ZAP's quick-scan mode spiders from the given URL (path
         included, via -quickurl) but takes no flag restricting that spider
         to the given path."""
-        registry = _real_registry()
+        registry = _real_registry(data_dir=tmp_path)
         adapter = registry.get(ScannerId("zap"))._adapter  # type: ignore[attr-defined]
         args, _cwd, _output_path = adapter._build_args(_URL_TARGET)
         assert not (_PATH_RESTRICTING_FLAGS & set(args))
@@ -220,6 +230,70 @@ class TestGobusterDerivedTier:
 
 
 # ---------------------------------------------------------------------------
+# amass - DOMAIN_ENUMERATION
+# ---------------------------------------------------------------------------
+
+
+class TestAmassDerivedTier:
+    def test_declared_tier_is_domain_enumeration(self) -> None:
+        registry = _real_registry()
+        assert _declared_tier(registry, "amass") == ScannerSurfaceTier.DOMAIN_ENUMERATION
+
+    def test_built_args_explicitly_enumerate_the_authorized_domain(self) -> None:
+        registry = _real_registry()
+        adapter = registry.get(ScannerId("amass"))._adapter  # type: ignore[attr-defined]
+        args = adapter._build_args(_DOMAIN_TARGET)
+
+        assert "-passive" in args
+        assert args[-2:] == ["-d", "example.com"]
+
+
+# ---------------------------------------------------------------------------
+# semgrep - LOCAL_RESOURCE
+# ---------------------------------------------------------------------------
+
+
+class TestSemgrepDerivedTier:
+    def test_declared_tier_is_local_resource(self) -> None:
+        registry = _real_registry()
+        assert _declared_tier(registry, "semgrep") == ScannerSurfaceTier.LOCAL_RESOURCE
+
+    def test_built_args_scan_only_the_explicit_server_path(self) -> None:
+        registry = _real_registry()
+        adapter = registry.get(ScannerId("semgrep"))._adapter  # type: ignore[attr-defined]
+        args = adapter._build_args(_SOURCE_PATH_TARGET)
+
+        assert args[-2:] == ["--", _SOURCE_PATH_VALUE]
+
+
+# ---------------------------------------------------------------------------
+# trivy - LOCAL_RESOURCE
+# ---------------------------------------------------------------------------
+
+
+class TestTrivyDerivedTier:
+    def test_declared_tier_is_local_resource(self) -> None:
+        registry = _real_registry()
+        assert _declared_tier(registry, "trivy") == ScannerSurfaceTier.LOCAL_RESOURCE
+
+    def test_source_path_uses_filesystem_mode(self) -> None:
+        registry = _real_registry()
+        adapter = registry.get(ScannerId("trivy"))._adapter  # type: ignore[attr-defined]
+        args = adapter._build_args(_SOURCE_PATH_TARGET)
+
+        assert args[1] == "fs"
+        assert args[-2:] == ["--", _SOURCE_PATH_VALUE]
+
+    def test_container_reference_uses_image_mode(self) -> None:
+        registry = _real_registry()
+        adapter = registry.get(ScannerId("trivy"))._adapter  # type: ignore[attr-defined]
+        args = adapter._build_args(_CONTAINER_IMAGE_TARGET)
+
+        assert args[1] == "image"
+        assert args[-2:] == ["--", "registry.example.com/team/app:v1"]
+
+
+# ---------------------------------------------------------------------------
 # Coverage: this suite itself must never go stale
 # ---------------------------------------------------------------------------
 
@@ -236,8 +310,7 @@ class TestDerivedTierCoverageIsComplete:
         assert not untested, f"scanner(s) {untested} are wired into a real profile but have no derived-tier test"
 
     def test_every_registered_plugin_declares_a_valid_surface_tier(self) -> None:
-        """Even unwired scanners (amass, semgrep, trivy) must declare
-        SOME ScannerSurfaceTier - enforced structurally by
+        """Every registered scanner must declare a ScannerSurfaceTier - enforced structurally by
         ScannerCapability's required field, checked here against the real
         registry as a belt-and-braces regression guard."""
         registry = _real_registry()

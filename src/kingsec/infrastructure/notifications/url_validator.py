@@ -271,7 +271,10 @@ class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
         raise SSRFError(f"refusing to follow redirect to {newurl!r} (from {req.full_url!r})")
 
 
-_NO_REDIRECT_OPENER = urllib.request.build_opener(_NoRedirectHandler)
+_NO_REDIRECT_OPENER = urllib.request.build_opener(
+    urllib.request.ProxyHandler({}),
+    _NoRedirectHandler,
+)
 
 
 def _build_opener(pinned_ip: str | None) -> urllib.request.OpenerDirector:
@@ -286,7 +289,17 @@ def _build_opener(pinned_ip: str | None) -> urllib.request.OpenerDirector:
     """
     if pinned_ip is None:
         return _NO_REDIRECT_OPENER
-    return urllib.request.build_opener(_PinnedHTTPHandler(pinned_ip), _PinnedHTTPSHandler(pinned_ip), _NoRedirectHandler)
+    # Do not inherit HTTP(S)_PROXY from the service environment. A proxy
+    # replaces the destination host/port after validation, which defeats the
+    # guarantee this opener exists to provide and can make the pinned IP use
+    # the proxy's port. Integrations that need a proxy require an explicit,
+    # separately validated product setting rather than ambient process state.
+    return urllib.request.build_opener(
+        urllib.request.ProxyHandler({}),
+        _PinnedHTTPHandler(pinned_ip),
+        _PinnedHTTPSHandler(pinned_ip),
+        _NoRedirectHandler,
+    )
 
 
 def open_validated(

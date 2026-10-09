@@ -28,14 +28,20 @@ class CreateAssessmentBody(BaseModel):
         ...,
         min_length=1,
         max_length=2048,
-        description="The target to assess (IP, hostname, or URL).",
+        description=(
+            "The target to assess: an IP address, hostname, URL, network, DNS domain, "
+            "server-visible source path, or container image reference."
+        ),
         examples=["10.0.0.5"],
     )
     target_type: str = Field(
         ...,
         min_length=1,
         max_length=50,
-        description="Target type: ip_address, hostname, url, or network.",
+        description=(
+            "Target type: ip_address, hostname, url, network, domain, source_path, "
+            "or container_image."
+        ),
         examples=["ip_address"],
     )
 
@@ -65,10 +71,12 @@ class CreateAssessmentBody(BaseModel):
         description="Scope of authorization (audit trail).",
         examples=["10.0.0.5"],
     )
-    profile_id: str | None = Field(
-        default=None,
+    profile_id: str = Field(
+        ...,
+        min_length=1,
         max_length=128,
-        description="Assessment profile to plan this scan against. Omit to run every target-compatible scanner (the pre-profile default behavior).",
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        description="Explicit assessment profile used for execution planning and authorization scope checks.",
         examples=["quick-scan"],
     )
     override_scope_check: bool = Field(
@@ -98,7 +106,10 @@ class CreateAuthorizationGrantBody(BaseModel):
     )
     target_specification_type: str = Field(
         ...,
-        description="ip_address, network, hostname, wildcard_hostname, or url_prefix.",
+        description=(
+            "ip_address, network, hostname, wildcard_hostname, url_prefix, domain, "
+            "source_path, or container_image."
+        ),
         examples=["ip_address"],
     )
     target_specification_value: str = Field(
@@ -330,10 +341,10 @@ class ListAssessmentsResponse(BaseModel):
     limit: int
     offset: int
     # Phase 2B Task 2 Condition 1: ids of rows that exist but could not be
-    # loaded - admin-only. Empty for a non-admin caller or when nothing
-    # was unreadable, never omitted, so the frontend can rely on the key
-    # always being present.
-    unreadable_ids: list[str] = []
+    # loaded. Ownership is applied before reconstruction, so non-admin
+    # callers receive only ids for their own rows. Never omitted, so the
+    # frontend can rely on the key always being present.
+    unreadable_ids: list[str] = Field(default_factory=list)
 
 
 # ── Auth schemas ─────────────────────────────────────────────────────────────

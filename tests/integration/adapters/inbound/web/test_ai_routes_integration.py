@@ -57,8 +57,19 @@ class _EmptyAssessmentRepository(AssessmentRepository):
     def get(self, assessment_id: AssessmentId) -> Assessment:
         raise AssertionError("not expected to be called in this test")
 
-    def list(self, *, limit: int = 50, offset: int = 0) -> AssessmentPage:
-        return AssessmentPage(items=())
+    def list(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        search: str | None = None,
+        status: str | None = None,
+        order_by: str = "created_at",
+        order_dir: str = "desc",
+        requesting_user: str = "",
+        is_admin: bool = True,
+    ) -> AssessmentPage:
+        return AssessmentPage(items=(), total=0)
 
     def find_by_schedule_occurrence_id(self, occurrence_id: str) -> list[Assessment]:
         return []

@@ -70,6 +70,7 @@ def wired_app(tmp_path, monkeypatch) -> Application:
     monkeypatch.setenv("KINGSEC_SECRETS__ENCRYPTION_KEY", _TEST_FERNET_KEY)
     monkeypatch.setenv("KINGSEC_JWT__SECRET_KEY", _TEST_JWT_SECRET)
     monkeypatch.setenv("KINGSEC_SECRETS__API_KEY_PEPPER", _TEST_PEPPER)
+    monkeypatch.setenv("KINGSEC_SECURITY__ENFORCE_AUTHORIZATION_SCOPE", "false")
     engine = create_database_engine(url=f"sqlite:///{tmp_path / 'kingsec.db'}")
     create_schema(engine)
     engine.dispose()

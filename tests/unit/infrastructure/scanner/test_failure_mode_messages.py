@@ -167,12 +167,28 @@ class TestNonZeroExitMessage:
         ],
     )
     def test_all_9_adapters_share_identical_message(
-        self, adapter_cls: type, settings_cls: type, settings_kwargs: dict[str, str]
+        self,
+        adapter_cls: type,
+        settings_cls: type,
+        settings_kwargs: dict[str, str],
+        tmp_path: Path,
     ) -> None:
         runner = FakeRunner(CommandResult(returncode=2, stdout="", stderr="", duration_seconds=0.1))
-        adapter = adapter_cls(settings_cls(**settings_kwargs), runner=runner)
+        settings = settings_cls(**settings_kwargs)
+        if adapter_cls is ZapScannerAdapter:
+            adapter = adapter_cls(settings, runner=runner, data_dir=tmp_path)
+        else:
+            adapter = adapter_cls(settings, runner=runner)
+
+        target = _TARGET
+        if adapter_cls is AmassScannerAdapter:
+            target = Target("example.com", TargetType.DOMAIN)
+        elif adapter_cls is TrivyScannerAdapter:
+            target = Target("registry.example.com/team/app:test", TargetType.CONTAINER_IMAGE)
+        elif adapter_cls is SemgrepScannerAdapter:
+            target = Target(str(tmp_path), TargetType.SOURCE_PATH)
         with pytest.raises(ScannerExecutionError) as exc_ctx:
-            adapter.scan(_TARGET)
+            adapter.scan(target)
         assert _user_message(exc_ctx) == NONZERO_EXIT_USER_MESSAGE
 
 

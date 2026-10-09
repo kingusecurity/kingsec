@@ -58,6 +58,9 @@ class TargetSpecificationType(Enum):
     HOSTNAME = "hostname"
     WILDCARD_HOSTNAME = "wildcard_hostname"
     URL_PREFIX = "url_prefix"
+    DOMAIN = "domain"
+    SOURCE_PATH = "source_path"
+    CONTAINER_IMAGE = "container_image"
 
 
 def _validate_hostname_text(value: str) -> None:
@@ -72,7 +75,7 @@ def _validate_hostname_text(value: str) -> None:
 
 @dataclass(frozen=True, slots=True)
 class TargetSpecification:
-    """What an AuthorizationGrant covers: one of five shapes.
+    """What an AuthorizationGrant covers.
 
     ``value``'s expected format is driven entirely by ``type``:
         IP_ADDRESS         a single IP literal ("203.0.113.5")
@@ -85,6 +88,9 @@ class TargetSpecification:
                             example.com/app/" covers that path and
                             everything beneath it; a path of "/" covers the
                             whole host:port)
+        DOMAIN              one explicit DNS domain and its enumeration run
+        SOURCE_PATH         one absolute path visible to the KingSec server
+        CONTAINER_IMAGE     one OCI/Docker image reference
     """
 
     type: TargetSpecificationType
@@ -110,6 +116,12 @@ class TargetSpecification:
             _validate_hostname_text(self.value[2:])
         elif tp == TargetSpecificationType.URL_PREFIX:
             Target(self.value, TargetType.URL)
+        elif tp == TargetSpecificationType.DOMAIN:
+            Target(self.value, TargetType.DOMAIN)
+        elif tp == TargetSpecificationType.SOURCE_PATH:
+            Target(self.value, TargetType.SOURCE_PATH)
+        elif tp == TargetSpecificationType.CONTAINER_IMAGE:
+            Target(self.value, TargetType.CONTAINER_IMAGE)
 
 
 # ---------------------------------------------------------------------------
@@ -215,11 +227,39 @@ def covers_target(spec: TargetSpecification, target: Target) -> ScopeCheckResult
         return _hostname_spec_covers(spec, target, wildcard=True)
     if spec.type == TargetSpecificationType.URL_PREFIX:
         return _url_spec_covers(spec, target)
+    if spec.type == TargetSpecificationType.DOMAIN:
+        return _exact_resource_spec_covers(spec, target, TargetType.DOMAIN, case_insensitive=True)
+    if spec.type == TargetSpecificationType.SOURCE_PATH:
+        return _exact_resource_spec_covers(spec, target, TargetType.SOURCE_PATH)
+    if spec.type == TargetSpecificationType.CONTAINER_IMAGE:
+        return _exact_resource_spec_covers(spec, target, TargetType.CONTAINER_IMAGE)
     raise InvariantViolation(f"Unhandled TargetSpecificationType: {spec.type!r}")
 
 
 def _normalize_ip(value: str) -> str:
     return str(ipaddress.ip_address(value))
+
+
+def _exact_resource_spec_covers(
+    spec: TargetSpecification,
+    target: Target,
+    expected_type: TargetType,
+    *,
+    case_insensitive: bool = False,
+) -> ScopeCheckResult:
+    if target.type is not expected_type:
+        return ScopeCheckResult(
+            ScopeCheckOutcome.TYPE_MISMATCH,
+            f"grant covers {expected_type.value}, target is {target.type.value}",
+        )
+    granted = spec.value.casefold() if case_insensitive else spec.value
+    candidate = target.value.casefold() if case_insensitive else target.value
+    if granted == candidate:
+        return ScopeCheckResult(ScopeCheckOutcome.COVERED)
+    return ScopeCheckResult(
+        ScopeCheckOutcome.HOST_MISMATCH,
+        f"{target.value!r} does not exactly match the granted {expected_type.value}",
+    )
 
 
 def _ip_spec_covers(spec: TargetSpecification, target: Target) -> ScopeCheckResult:
@@ -389,6 +429,25 @@ def satisfies_tier(
     if required_tier == ScannerSurfaceTier.HOST_PORT_PATH:
         # The scanner respects the target's own path, so ordinary strict
         # coverage is exactly the right question.
+        return covers_target(spec, target)
+
+    if required_tier == ScannerSurfaceTier.DOMAIN_ENUMERATION:
+        if spec.type is not TargetSpecificationType.DOMAIN:
+            return ScopeCheckResult(
+                ScopeCheckOutcome.TYPE_MISMATCH,
+                "domain enumeration requires an explicit domain authorization grant",
+            )
+        return covers_target(spec, target)
+
+    if required_tier == ScannerSurfaceTier.LOCAL_RESOURCE:
+        if spec.type not in {
+            TargetSpecificationType.SOURCE_PATH,
+            TargetSpecificationType.CONTAINER_IMAGE,
+        }:
+            return ScopeCheckResult(
+                ScopeCheckOutcome.TYPE_MISMATCH,
+                "local source or image scanning requires a matching resource authorization grant",
+            )
         return covers_target(spec, target)
 
     if required_tier == ScannerSurfaceTier.HOST_ANY_PORT:

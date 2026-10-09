@@ -63,6 +63,26 @@ class TestValidation:
         with pytest.raises(InputValidationError):
             CreateAssessment(assessments).execute(_request(target_value="  "))
 
+    def test_unknown_profile_is_rejected_before_persistence(
+        self, assessments: InMemoryAssessmentRepository
+    ) -> None:
+        with pytest.raises(InputValidationError, match="Unknown profile"):
+            CreateAssessment(assessments).execute(_request(profile_id="not-a-real-profile"))
+        assert assessments.list().items == ()
+
+    def test_profile_target_mismatch_is_rejected_before_persistence(
+        self, assessments: InMemoryAssessmentRepository
+    ) -> None:
+        with pytest.raises(InputValidationError, match="does not support target type"):
+            CreateAssessment(assessments).execute(
+                _request(
+                    target_value="https://example.com",
+                    target_type="url",
+                    profile_id="quick-scan",
+                )
+            )
+        assert assessments.list().items == ()
+
 
 # ---------------------------------------------------------------------------
 # Phase 4: authorization scope enforcement
@@ -128,6 +148,59 @@ class TestAuthorizationScopeEnforcementConfigured:
         response = use_case.execute(_request(profile_id="quick-scan"))
         assert response.status == AssessmentStatus.AUTHORIZED.value
 
+    @pytest.mark.parametrize(
+        ("profile_id", "target_type", "target_value", "specification_type"),
+        [
+            (
+                "code-review",
+                "source_path",
+                "/srv/customer/source",
+                TargetSpecificationType.SOURCE_PATH,
+            ),
+            (
+                "container-scan",
+                "container_image",
+                "registry.example.com/team/app:v1",
+                TargetSpecificationType.CONTAINER_IMAGE,
+            ),
+            (
+                "domain-enumeration",
+                "domain",
+                "example.com",
+                TargetSpecificationType.DOMAIN,
+            ),
+        ],
+    )
+    def test_purpose_built_profile_requires_and_records_its_exact_resource_grant(
+        self,
+        assessments: InMemoryAssessmentRepository,
+        authorization_grants: InMemoryAuthorizationGrantRepository,
+        profile_id: str,
+        target_type: str,
+        target_value: str,
+        specification_type: TargetSpecificationType,
+    ) -> None:
+        grant = _grant(TargetSpecification(specification_type, target_value))
+        authorization_grants.save(grant)
+        use_case = CreateAssessment(
+            assessments,
+            grants=authorization_grants,
+            registry=_real_registry(),
+            planner=ExecutionPlanner(),
+        )
+
+        response = use_case.execute(
+            _request(
+                target_value=target_value,
+                target_type=target_type,
+                profile_id=profile_id,
+                scope=target_value,
+            )
+        )
+
+        stored = assessments.get(AssessmentId(response.assessment_id))
+        assert stored.authorization_id == str(grant.id)
+
     def test_refuses_and_persists_nothing_when_no_covering_grant_exists(
         self,
         assessments: InMemoryAssessmentRepository,
@@ -157,22 +230,36 @@ class TestAuthorizationScopeEnforcementConfigured:
         with pytest.raises(AuthorizationScopeError):
             use_case.execute(_request(profile_id="quick-scan"))
 
-    def test_creates_assessment_when_no_profile_id_is_given(
+    def test_no_profile_is_refused_when_no_grant_covers_its_real_scan_surface(
         self,
         assessments: InMemoryAssessmentRepository,
         authorization_grants: InMemoryAuthorizationGrantRepository,
     ) -> None:
-        """No profile means nothing to check a scan surface against - a
-        different validity concern, not this check's job."""
+        """No profile executes every compatible scanner; it must never
+        bypass the authorization gate merely because there is no profile
+        object from which to start the surface derivation."""
         use_case = CreateAssessment(
             assessments, grants=authorization_grants, registry=_real_registry(), planner=ExecutionPlanner()
         )
+        with pytest.raises(AuthorizationScopeError):
+            use_case.execute(_request())
+        assert assessments.list().items == ()
+
+    def test_no_profile_records_grant_covering_every_compatible_scanner(
+        self,
+        assessments: InMemoryAssessmentRepository,
+        authorization_grants: InMemoryAuthorizationGrantRepository,
+    ) -> None:
+        grant = _grant(TargetSpecification(TargetSpecificationType.IP_ADDRESS, "10.0.0.5"))
+        authorization_grants.save(grant)
+        use_case = CreateAssessment(
+            assessments, grants=authorization_grants, registry=_real_registry(), planner=ExecutionPlanner()
+        )
+
         response = use_case.execute(_request())
-        assert response.status == AssessmentStatus.AUTHORIZED.value
-        # Nothing was checked, so nothing is recorded - see
-        # Assessment.authorization_id's own field comment for why this is
-        # honest, not just "pre-enforcement".
-        assert assessments.get(AssessmentId(response.assessment_id)).authorization_id is None
+
+        stored = assessments.get(AssessmentId(response.assessment_id))
+        assert stored.authorization_id == str(grant.id)
 
     def test_persisted_assessment_carries_the_covering_grants_id_and_it_is_retrievable(
         self,

@@ -24,9 +24,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from kingsec.application.ports.inbound.service_api import ServiceAPI
 
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("kingsec.adapters.inbound.web.routes")
 from kingsec.application.auth import Permission
-from kingsec.domain import RateLimitGroup, Role
+from kingsec.domain import AssessmentStatus, RateLimitGroup, Role
 
 from .auth import (
     CurrentApiKey,
@@ -344,17 +344,27 @@ async def change_own_password(
     },
 )
 async def list_assessments(
-    limit: int = 50,
-    offset: int = 0,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    search: Annotated[str | None, Query(max_length=256)] = None,
+    status: Annotated[AssessmentStatus | None, Query()] = None,
+    order_by: Annotated[
+        Literal["created_at", "status", "target", "findings_count"],
+        Query(),
+    ] = "created_at",
+    order_dir: Annotated[Literal["asc", "desc"], Query()] = "desc",
     current_user: CurrentUser = Depends(require_viewer),
     service: ServiceAPI = Depends(get_service),
 ) -> schemas.ListAssessmentsResponse:
     from kingsec.application.dto import ListAssessmentsRequest
 
-    limit = max(1, min(limit, 200))
     request = ListAssessmentsRequest(
         limit=limit,
         offset=offset,
+        search=search,
+        status=status.value if status is not None else None,
+        order_by=order_by,
+        order_dir=order_dir,
         requesting_user=current_user.user_id,
         is_admin=_is_admin(current_user),
     )
@@ -960,20 +970,28 @@ def _get_list_findings_uc(request: Request) -> Any:
     description="Returns paginated findings with optional filters.",
 )
 async def list_findings(
-    limit: int = 50,
-    offset: int = 0,
-    severity: str | None = None,
-    status: str | None = None,
-    assessment_id: str | None = None,
-    search: str | None = None,
-    order_by: str = "discovered_at",
-    order_dir: str = "desc",
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    severity: Annotated[
+        Literal["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFORMATIONAL"] | None,
+        Query(),
+    ] = None,
+    status: Annotated[
+        Literal["open", "confirmed", "false_positive", "remediated"] | None,
+        Query(),
+    ] = None,
+    assessment_id: Annotated[str | None, Query(max_length=128)] = None,
+    search: Annotated[str | None, Query(max_length=256)] = None,
+    order_by: Annotated[
+        Literal["discovered_at", "severity", "status", "title"],
+        Query(),
+    ] = "discovered_at",
+    order_dir: Annotated[Literal["asc", "desc"], Query()] = "desc",
     current_user: CurrentUser = Depends(require_viewer),
     list_uc: Any = Depends(_get_list_findings_uc),
 ) -> schemas.ListFindingsResponse:
     from kingsec.application.use_cases.list_findings import ListFindingsRequest
 
-    limit = max(1, min(limit, 200))
     request = ListFindingsRequest(
         limit=limit,
         offset=offset,
@@ -1058,19 +1076,23 @@ def _get_list_reports_uc(request: Request) -> Any:
     description="Returns paginated list of generated reports with search, filter, and sort.",
 )
 async def list_reports(
-    limit: int = 50,
-    offset: int = 0,
-    order_by: str = "generated_at",
-    order_dir: str = "desc",
-    search: str | None = None,
-    severity: str | None = None,
-    target: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    order_by: Literal[
+        "generated_at", "target", "verdict_highest_severity", "total_findings"
+    ] = "generated_at",
+    order_dir: Literal["asc", "desc"] = "desc",
+    search: Annotated[str | None, Query(max_length=256)] = None,
+    severity: Annotated[
+        Literal["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFORMATIONAL"] | None,
+        Query(),
+    ] = None,
+    target: Annotated[str | None, Query(max_length=253)] = None,
     current_user: CurrentUser = Depends(require_viewer),
     list_uc: Any = Depends(_get_list_reports_uc),
 ) -> schemas.ListReportsResponse:
     from kingsec.application.use_cases.list_reports import ListReportsRequest
 
-    limit = max(1, min(limit, 200))
     request = ListReportsRequest(
         limit=limit,
         offset=offset,

@@ -72,9 +72,25 @@ class _SessionBoundAssessmentRepository(AssessmentRepository):
         *,
         limit: int = 50,
         offset: int = 0,
+        search: str | None = None,
+        status: str | None = None,
+        order_by: str = "created_at",
+        order_dir: str = "desc",
+        requesting_user: str = "",
+        is_admin: bool = True,
     ) -> AssessmentPage:
         try:
-            return ops.list_assessments(self._session, limit=min(max(limit, 1), 200), offset=max(offset, 0))
+            return ops.list_assessments(
+                self._session,
+                limit=min(max(limit, 1), 200),
+                offset=max(offset, 0),
+                search=search,
+                status=status,
+                order_by=order_by,
+                order_dir=order_dir,
+                requesting_user=requesting_user,
+                is_admin=is_admin,
+            )
         except SQLAlchemyError as exc:
             ops.raise_persistence_error("failed to list assessments", exc, "-")
 

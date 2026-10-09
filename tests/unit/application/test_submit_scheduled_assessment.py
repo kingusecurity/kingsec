@@ -12,16 +12,20 @@ RecordingJobRunner shape already established in test_submit_assessment.py.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from tests.unit.application.conftest import InMemoryAuthorizationGrantRepository
 
 from kingsec.application._support import check_assessment_access
+from kingsec.application.assessment_profiles import ExecutionPlanner
 from kingsec.application.dto import CreateAssessmentRequest, SubmitAssessmentRequest
-from kingsec.application.errors import AssessmentNotFoundError
+from kingsec.application.errors import AssessmentNotFoundError, AuthorizationScopeError
+from kingsec.application.ports.scanner_registry import ScannerPluginRegistry
 from kingsec.application.submit_assessment import SubmitAssessment
 from kingsec.application.use_cases.create_assessment import CreateAssessment
 from kingsec.application.use_cases.create_schedule import CreateSchedule
@@ -34,13 +38,23 @@ from kingsec.application.use_cases.submit_scheduled_assessment import (
     _detect_target_type,
     derive_occurrence_key,
 )
-from kingsec.domain import Assessment, AssessmentId
+from kingsec.bootstrap.container import Container
+from kingsec.domain import (
+    Assessment,
+    AssessmentId,
+    AuthorizationGrant,
+    TargetSpecification,
+    TargetSpecificationType,
+)
 from kingsec.domain.audit import AuditEntry
+from kingsec.domain.identifiers import AuthorizationGrantId
 from kingsec.domain.schedule import ScanSchedule
+from kingsec.infrastructure.config import Settings
 from kingsec.infrastructure.persistence.models import Base
 from kingsec.infrastructure.persistence.repositories.schedule_occurrence import (
     SqlAlchemyScheduleOccurrenceRepository,
 )
+from kingsec.infrastructure.scanner.provisioning import register_scanner
 from kingsec.infrastructure.scheduler.sqlalchemy_schedule_repository import SqlAlchemyScheduleRepository
 
 
@@ -143,18 +157,31 @@ def session_factory(engine):
     return sessionmaker(bind=engine, expire_on_commit=False, future=True)
 
 
-def _make_schedule(session_factory, owner: str = "real-human-user") -> ScanSchedule:
+def _make_schedule(
+    session_factory,
+    owner: str = "real-human-user",
+    *,
+    target: str = "10.0.0.50",
+    scanner_ids: list[str] | None = None,
+) -> ScanSchedule:
     repo = SqlAlchemyScheduleRepository(session_factory)
     result = CreateSchedule(repo, _FakeAuditPublisher()).execute(
         CreateScheduleRequest(
             name="Nightly external scan",
             owner_user_id=owner,
-            target="10.0.0.50",
+            target=target,
+            scanner_ids=scanner_ids or [],
             cron_expression="0 2 * * *",
             schedule_type="cron",
         )
     )
     return result.schedule
+
+
+def _real_registry() -> ScannerPluginRegistry:
+    container = Container()
+    register_scanner(container, Settings())
+    return container.resolve(ScannerPluginRegistry)  # type: ignore[return-value]
 
 
 def _build_orchestrator(session_factory) -> tuple[SubmitScheduledAssessment, FakeAssessmentRepository]:
@@ -265,6 +292,64 @@ class TestSchedulerIdentity:
 
         with pytest.raises(AssessmentNotFoundError):
             check_assessment_access(assessment, "mallory", is_admin=False)
+
+
+class TestScheduledAuthorizationScope:
+    def test_no_profile_schedule_is_checked_against_all_scanners_that_really_execute(
+        self, session_factory
+    ) -> None:
+        """Schedules currently do not carry ``scanner_ids`` into the
+        Assessment execution model.  Even when a schedule requests only
+        ffuf, its real no-profile path executes every URL-compatible plugin.
+        A URL-prefix grant covers ffuf, but not nmap's host-wide sweep, so
+        creation must be refused rather than authorized against the narrower
+        intended selection.
+
+        Preserving the requested scanner subset is a separate persisted-model
+        gap; this test pins the safer rule that authorization follows actual
+        execution until that gap is fixed.
+        """
+        schedule = _make_schedule(
+            session_factory,
+            target="https://scan.example.com/app/",
+            scanner_ids=["ffuf"],
+        )
+        occurrences = SqlAlchemyScheduleOccurrenceRepository(session_factory)
+        assessments = FakeAssessmentRepository()
+        grants = InMemoryAuthorizationGrantRepository()
+        grants.save(
+            AuthorizationGrant(
+                id=AuthorizationGrantId.generate(),
+                authorized_by="ciso@example.com",
+                authorizing_organization="Example Corp",
+                target_specification=TargetSpecification(
+                    TargetSpecificationType.URL_PREFIX,
+                    "https://scan.example.com/app/",
+                ),
+                valid_from=datetime(2020, 1, 1, tzinfo=UTC),
+                valid_until=datetime(2099, 1, 1, tzinfo=UTC),
+                created_by="admin@example.com",
+            )
+        )
+        create_assessment = CreateAssessment(
+            assessments,
+            grants=grants,
+            registry=_real_registry(),
+            planner=ExecutionPlanner(),
+        )
+        submit_assessment = SubmitAssessment(assessments, FakeScanner(), RecordingJobRunner())
+        orchestrator = SubmitScheduledAssessment(
+            occurrences,
+            create_assessment,
+            submit_assessment,
+            assessments,
+        )
+
+        with pytest.raises(AuthorizationScopeError) as exc_info:
+            orchestrator.execute(schedule)
+
+        assert exc_info.value.required_tier == "host_any_port"
+        assert assessments.list() == []
 
 
 class TestFailureSemantics:

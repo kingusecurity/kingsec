@@ -66,6 +66,18 @@ class TestRendererErrorTranslation:
         except Exception:  # pragma: no cover
             pytest.fail("a non-translated exception escaped the renderer")
 
+    def test_html_does_not_import_weasyprint(self, monkeypatch) -> None:
+        renderer = ReportRenderer()
+        real_import = __import__
+
+        def reject_weasyprint(name, *args, **kwargs):
+            if name == "weasyprint" or name.startswith("weasyprint."):
+                raise OSError("native libraries unavailable")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr("builtins.__import__", reject_weasyprint)
+        assert renderer.to_html(build_report()).startswith("<!DOCTYPE html>")
+
 
 class TestAdapter:
     def test_html_format_metadata(self) -> None:

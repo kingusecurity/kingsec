@@ -8,9 +8,11 @@ ever handles ``bytes`` and metadata — no rendering-library object is exposed.
 from __future__ import annotations
 
 import hashlib
+import threading
 from pathlib import Path
 
 from kingsec.application import RenderedReport, ReportGeneratorPort
+from kingsec.application.ports import ReportArtifactCachePort
 from kingsec.domain import Report
 from kingsec.infrastructure.logging import get_logger
 
@@ -25,7 +27,7 @@ _FORMATS = {
 }
 
 
-class ReportGeneratorAdapter(ReportGeneratorPort):
+class ReportGeneratorAdapter(ReportGeneratorPort, ReportArtifactCachePort):
     """Renders assessment reports as downloadable PDF or HTML artifacts."""
 
     def __init__(
@@ -59,6 +61,14 @@ class ReportGeneratorAdapter(ReportGeneratorPort):
         self._format = fmt
         self._renderer = renderer or ReportRenderer(brand_name=brand_name)
         self._cache_dir = cache_dir
+        # Rendering happens on request threads while assessment deletion can
+        # run concurrently.  A render that started before deletion must not
+        # recreate an artifact after cleanup has completed.  The tombstone
+        # set closes that race for this application instance; after restart,
+        # the deleted database row prevents the report from being loaded at
+        # all.  The lock protects only short cache I/O, never PDF rendering.
+        self._cache_lock = threading.RLock()
+        self._cache_disabled_assessment_ids: set[str] = set()
 
     def render(self, report: Report, *, format: str | None = None) -> RenderedReport:
         """Render the report into a deliverable artifact.
@@ -85,16 +95,20 @@ class ReportGeneratorAdapter(ReportGeneratorPort):
         media_type, extension = _FORMATS[fmt]
         filename = f"kingsec-report-{report.assessment_id}.{extension}"
 
-        cache_path = self._cache_path(report, fmt) if self._cache_dir is not None else None
-        if cache_path is not None and cache_path.is_file():
-            content = cache_path.read_bytes()
-            _logger.info(
-                "report served from cache",
-                assessment_id=report.assessment_id,
-                format=fmt,
-                bytes=len(content),
-            )
-            return RenderedReport(content=content, media_type=media_type, filename=filename)
+        cache_path: Path | None = None
+        if self._cache_dir is not None:
+            with self._cache_lock:
+                if report.assessment_id not in self._cache_disabled_assessment_ids:
+                    cache_path = self._cache_path(report, fmt)
+                    if cache_path.is_file():
+                        content = cache_path.read_bytes()
+                        _logger.info(
+                            "report served from cache",
+                            assessment_id=report.assessment_id,
+                            format=fmt,
+                            bytes=len(content),
+                        )
+                        return RenderedReport(content=content, media_type=media_type, filename=filename)
 
         if fmt == "pdf":
             content = self._renderer.to_pdf(report)
@@ -102,8 +116,14 @@ class ReportGeneratorAdapter(ReportGeneratorPort):
             content = self._renderer.to_html(report).encode("utf-8")
 
         if cache_path is not None:
-            cache_path.parent.mkdir(parents=True, exist_ok=True)
-            cache_path.write_bytes(content)
+            with self._cache_lock:
+                # Deletion may have completed while the renderer was doing
+                # expensive work outside the lock.  In that case return the
+                # already-rendered response to its in-flight caller, but do
+                # not resurrect bytes for the deleted assessment on disk.
+                if report.assessment_id not in self._cache_disabled_assessment_ids:
+                    cache_path.parent.mkdir(parents=True, exist_ok=True)
+                    cache_path.write_bytes(content)
 
         _logger.info(
             "report generated",
@@ -127,3 +147,55 @@ class ReportGeneratorAdapter(ReportGeneratorPort):
         raw_key = f"{report.assessment_id}:{report.generated_at.isoformat()}:{fmt}"
         digest = hashlib.sha256(raw_key.encode("utf-8")).hexdigest()[:16]
         return self._cache_dir / f"{report.assessment_id}-{digest}.{fmt}"
+
+    def delete_for_assessment(self, assessment_id: str) -> int:
+        """Remove cached snapshots and prevent an in-flight render recreating them.
+
+        The tombstone is deliberately retained if filesystem cleanup raises.
+        ``DeleteAssessment`` leaves the database aggregate intact in that
+        case, so report downloads remain possible (rendered uncached), while
+        a concurrent request cannot make the failed cleanup situation worse.
+        A later deletion retry can still remove the remaining files.
+        """
+        if self._cache_dir is None:
+            return 0
+
+        with self._cache_lock:
+            self._cache_disabled_assessment_ids.add(assessment_id)
+            prefix = f"{assessment_id}-"
+            deleted = 0
+            try:
+                for candidate in self._cache_dir.iterdir():
+                    if not candidate.name.startswith(prefix) or candidate.suffix not in {".html", ".pdf"}:
+                        continue
+                    # Cache paths always end in a 16-character lowercase SHA-256
+                    # fragment (see _cache_path()). Checking the complete shape,
+                    # rather than only the assessment-id prefix, is security-
+                    # relevant: ``asmt-1`` must never match and delete an artifact
+                    # belonging to ``asmt-1-other``.
+                    digest = candidate.stem[len(prefix) :]
+                    if len(digest) != 16 or any(char not in "0123456789abcdef" for char in digest):
+                        continue
+                    if candidate.is_file() or candidate.is_symlink():
+                        candidate.unlink()
+                        deleted += 1
+            except (FileNotFoundError, NotADirectoryError):
+                # An absent cache directory (including one removed by an
+                # external cleanup between calls) contains no retained
+                # artifacts.  Do not use Path.is_dir() here: it suppresses
+                # permission errors and could turn an unreadable directory
+                # containing artifacts into a false successful deletion.
+                return 0
+            except OSError as exc:
+                raise ReportGenerationError(
+                    "cached report artifact cleanup failed",
+                    context={"assessment_id": assessment_id, "error_type": type(exc).__name__},
+                    user_message=(
+                        "The assessment could not be deleted because its cached report artifacts "
+                        "could not be removed. Check storage permissions and try again."
+                    ),
+                ) from exc
+
+        if deleted:
+            _logger.info("cached report artifacts deleted", assessment_id=assessment_id, artifacts=deleted)
+        return deleted

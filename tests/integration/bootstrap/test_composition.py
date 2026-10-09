@@ -30,6 +30,7 @@ from kingsec.application import (
     SubmitAssessmentRequest,
     UnitOfWorkFactory,
 )
+from kingsec.application.ports import ReportArtifactCachePort
 from kingsec.bootstrap import Application
 from kingsec.bootstrap.composition import create_wired_application
 from kingsec.domain import Finding, Severity, Target
@@ -58,6 +59,7 @@ def wired_app(tmp_path, monkeypatch) -> Application:
     monkeypatch.setenv("KINGSEC_SECRETS__ENCRYPTION_KEY", _TEST_FERNET_KEY)
     monkeypatch.setenv("KINGSEC_JWT__SECRET_KEY", _TEST_JWT_SECRET)
     monkeypatch.setenv("KINGSEC_SECRETS__API_KEY_PEPPER", _TEST_PEPPER)
+    monkeypatch.setenv("KINGSEC_SECURITY__ENFORCE_AUTHORIZATION_SCOPE", "false")
     # Create the schema so the app can operate without Alembic migrations.
     engine = create_database_engine(url=f"sqlite:///{tmp_path / 'kingsec.db'}")
     create_schema(engine)
@@ -117,6 +119,7 @@ class TestStartup:
             assert isinstance(app.resolve(ScannerPort), ScannerOrchestrator)
             assert isinstance(app.resolve(AIPort), AIProviderAdapter)
             assert isinstance(app.resolve(ReportGeneratorPort), ReportGeneratorAdapter)
+            assert app.resolve(ReportArtifactCachePort) is app.resolve(ReportGeneratorPort)
 
     def test_use_cases_resolve_from_di(self, wired_app: Application) -> None:
         with wired_app as app:
@@ -134,8 +137,14 @@ class TestDependencyGraph:
             # runner (keeps this test synchronous/deterministic instead of
             # waiting on a real background thread); everything else is the
             # real wired adapter (real SQLite, real PDF renderer).
-            app.container.register_instance(ScannerPort, _StubScanner())
+            scanner = _StubScanner()
+            app.container.register_instance(ScannerPort, scanner)
             app.container.register_instance(JobRunner, _InlineJobRunner())
+
+            submit = app.resolve(SubmitAssessment)
+            submit._scanner = scanner
+            submit._planner = None
+            submit._scanner_executor = None
 
             created = app.resolve(CreateAssessment).execute(
                 CreateAssessmentRequest("10.0.0.5", "ip_address", "tester", "10.0.0.5")

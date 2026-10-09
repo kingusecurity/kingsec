@@ -415,6 +415,7 @@ class TestRBACProtectedEndpoints:
             json={
                 "target_value": "10.0.0.1",
                 "target_type": "ip_address",
+                "profile_id": "quick-scan",
                 "authorized_by": "admin",
                 "scope": "10.0.0.0/24",
             },
@@ -486,6 +487,7 @@ class TestRBACProtectedEndpoints:
             json={
                 "target_value": "10.0.0.1",
                 "target_type": "ip_address",
+                "profile_id": "quick-scan",
                 "authorized_by": "admin",
                 "scope": "10.0.0.0/24",
             },
@@ -518,6 +520,7 @@ class TestRBACProtectedEndpoints:
             json={
                 "target_value": "10.0.0.1",
                 "target_type": "ip_address",
+                "profile_id": "quick-scan",
                 "authorized_by": "admin",
                 "scope": "10.0.0.0/24",
             },

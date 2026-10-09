@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from kingsec.domain import Severity
+from kingsec.infrastructure.scanner.errors import ScannerOutputError
 from kingsec.infrastructure.scanner.trivy_parser import parse_trivy_json
 
 # ---------------------------------------------------------------------------
@@ -136,17 +139,28 @@ _MALFORMED_JSON = "this is not json"
 class TestParseTrivyJson:
     """Core parser behaviour."""
 
-    def test_empty_output(self) -> None:
-        assert parse_trivy_json("") == []
+    def test_empty_output_is_not_a_valid_trivy_report(self) -> None:
+        with pytest.raises(ScannerOutputError):
+            parse_trivy_json(_EMPTY_OUTPUT)
 
-    def test_malformed_json(self) -> None:
-        assert parse_trivy_json(_MALFORMED_JSON) == []
+    def test_malformed_json_raises_output_error(self) -> None:
+        with pytest.raises(ScannerOutputError):
+            parse_trivy_json(_MALFORMED_JSON)
 
     def test_empty_results(self) -> None:
         assert parse_trivy_json(_EMPTY_RESULTS) == []
 
-    def test_no_results_key(self) -> None:
-        assert parse_trivy_json(_NO_RESULTS_KEY) == []
+    def test_no_results_key_raises_output_error(self) -> None:
+        with pytest.raises(ScannerOutputError):
+            parse_trivy_json(_NO_RESULTS_KEY)
+
+    def test_non_object_report_raises_output_error(self) -> None:
+        with pytest.raises(ScannerOutputError):
+            parse_trivy_json(json.dumps([]))
+
+    def test_non_array_results_raises_output_error(self) -> None:
+        with pytest.raises(ScannerOutputError):
+            parse_trivy_json(json.dumps({"Results": {}}))
 
     def test_single_vulnerability(self) -> None:
         output = json.dumps({"Results": [_make_vuln_result("/app", [_VULN_RECORD])]})
@@ -173,10 +187,20 @@ class TestParseTrivyJson:
         findings = parse_trivy_json(_FULL_MIXED_OUTPUT)
         assert len(findings) == 2
 
-    def test_non_dict_results_skipped(self) -> None:
+    def test_non_dict_results_raise_output_error(self) -> None:
         output = json.dumps({"Results": ["not a dict", 123]})
-        findings = parse_trivy_json(output)
-        assert len(findings) == 0
+        with pytest.raises(ScannerOutputError):
+            parse_trivy_json(output)
+
+    def test_result_without_target_raises_output_error(self) -> None:
+        output = json.dumps({"Results": [{"Vulnerabilities": [], "Misconfigurations": []}]})
+        with pytest.raises(ScannerOutputError):
+            parse_trivy_json(output)
+
+    def test_non_array_finding_collection_raises_output_error(self) -> None:
+        output = json.dumps({"Results": [{"Target": "/app", "Vulnerabilities": {}}]})
+        with pytest.raises(ScannerOutputError):
+            parse_trivy_json(output)
 
     def test_empty_vulns_and_misconfigs(self) -> None:
         output = json.dumps({"Results": [{"Target": "/app", "Vulnerabilities": [], "Misconfigurations": []}]})
@@ -345,11 +369,11 @@ class TestCveCvss:
         assert findings[0].cvss_score is None
         assert findings[0].cvss_vector is None
 
-    def test_malformed_cvss_shape_does_not_raise(self) -> None:
+    def test_malformed_cvss_shape_raises_output_error(self) -> None:
         record = {**_VULN_RECORD, "CVSS": "not a dict"}
         output = json.dumps({"Results": [_make_vuln_result("/app", [record])]})
-        findings = parse_trivy_json(output)
-        assert findings[0].cvss_score is None
+        with pytest.raises(ScannerOutputError):
+            parse_trivy_json(output)
 
 
 class TestRecommendations:

@@ -127,6 +127,7 @@ from kingsec.application import (
     ValidateSession,
     VerifyMfaCode,
 )
+from kingsec.application.ports import ReportArtifactCachePort
 from kingsec.infrastructure.ai import register_ai
 from kingsec.infrastructure.audit.provisioning import register_audit, register_enterprise_audit
 from kingsec.infrastructure.auth.provisioning import (
@@ -158,7 +159,7 @@ def create_wired_application(
     env_file: str | Path | None = None,
     log_stream: Any | None = None,
     ensure_directories: bool = True,
-    report_format: str = "pdf",
+    report_format: str | None = None,
     brand_name: str | None = None,
     validate_migrations: bool = True,
 ) -> Application:
@@ -173,7 +174,9 @@ def create_wired_application(
         env_file: Optional ``.env`` path forwarded to configuration loading.
         log_stream: Optional stream for logs (defaults to stdout).
         ensure_directories: Whether ``start()`` should create the data directory.
-        report_format: Report deliverable format, ``"pdf"`` (default) or ``"html"``.
+        report_format: Optional report deliverable override, ``"pdf"`` or
+            ``"html"``. ``None`` resolves from
+            ``settings.reporting.report_format``.
         brand_name: Company-branding placeholder used in reports. ``None``
             (the default) resolves from ``settings.reporting.brand_name``
             (Phase 6 Task 6) - an explicit value here still overrides,
@@ -194,9 +197,10 @@ def create_wired_application(
         ensure_directories=ensure_directories,
     )
     resolved_brand_name = brand_name if brand_name is not None else app.settings.reporting.brand_name
+    resolved_report_format = report_format if report_format is not None else app.settings.reporting.report_format
     _register_adapters(
         app,
-        report_format=report_format,
+        report_format=resolved_report_format,
         brand_name=resolved_brand_name,
         validate_migrations=validate_migrations,
     )
@@ -221,7 +225,7 @@ def create_wired_application(
     app.logger.info(
         "application composed",
         provider=app.settings.ai.provider,
-        report_format=report_format,
+        report_format=resolved_report_format,
     )
     return app
 
@@ -261,6 +265,7 @@ def build_execution_planner(container: Container, settings: Settings) -> Executi
         discovery=ScannerDiscoveryService(
             ffuf_wordlist=settings.ffuf.wordlist,
             gobuster_wordlist=settings.gobuster.wordlist,
+            nuclei_templates_dir=settings.scanner.templates_dir,
             # Task 5 Addition 2: the operator's actually-configured
             # binary_path per scanner, so doctor's find_executable() call
             # resolves the SAME value the real scan adapters use (e.g.
@@ -742,6 +747,7 @@ def _register_use_cases(app: Application) -> None:
             c.resolve(AssessmentRepository),
             c.resolve(EventPublisher),
             c.resolve(AuditPublisher),
+            planner=c.resolve(ExecutionPlanner),
         )
 
     container.register_factory(CreateAssessment, _create_assessment_factory)
@@ -852,6 +858,7 @@ def _register_use_cases(app: Application) -> None:
             c.resolve(AssessmentRepository),
             c.resolve(EventPublisher),
             c.resolve(AuditPublisher),
+            c.resolve(ReportArtifactCachePort),
         ),
     )
     container.register_factory(

@@ -28,6 +28,7 @@ Immutability (Requirement 7)
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import (
     BaseModel,
@@ -358,7 +359,10 @@ class TrivySettings(BaseModel):
 
     binary_path: str = "trivy"
     timeout_seconds: float = Field(default=600.0, gt=0)
-    # Scan type: "fs" for filesystem, "image" for container images.
+    # Deprecated compatibility setting. The target type now selects ``fs``
+    # versus ``image`` for each assessment, so this value is intentionally
+    # ignored by TrivyScannerAdapter. Keep accepting it so an existing .env
+    # does not make the whole application fail during the transition.
     scan_type: str = "fs"
     # Scan arguments. The adapter appends --format json <target>.
     scan_args: tuple[str, ...] = ()
@@ -698,9 +702,13 @@ class ReportingSettings(BaseModel):
     bootstrap/composition.py's own comment on why.
     """
 
-    _FROZEN = ConfigDict(frozen=True, extra="forbid")
+    model_config = _FROZEN
 
     brand_name: str = Field(default="KingSec", description="Company/product name shown in generated reports")
+    report_format: Literal["pdf", "html"] = Field(
+        default="pdf",
+        description="Default downloadable report format; use html where PDF native libraries are unavailable",
+    )
 
 
 class IntegrationSettings(BaseModel):

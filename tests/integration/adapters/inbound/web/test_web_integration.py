@@ -17,6 +17,7 @@ from kingsec.adapters.inbound.web.auth import (
     require_analyst,
     require_viewer,
 )
+from kingsec.application import SubmitAssessment
 from kingsec.application.ports import ScannerPort, TokenClaims
 from kingsec.bootstrap.application import Application
 from kingsec.bootstrap.composition import create_wired_application
@@ -66,12 +67,18 @@ def wired_app(tmp_path, monkeypatch) -> Application:
     monkeypatch.setenv("KINGSEC_SECRETS__ENCRYPTION_KEY", _TEST_FERNET_KEY)
     monkeypatch.setenv("KINGSEC_JWT__SECRET_KEY", _TEST_JWT_SECRET)
     monkeypatch.setenv("KINGSEC_SECRETS__API_KEY_PEPPER", _TEST_PEPPER)
+    monkeypatch.setenv("KINGSEC_SECURITY__ENFORCE_AUTHORIZATION_SCOPE", "false")
     app = create_wired_application(log_stream=io.StringIO(), ensure_directories=False, validate_migrations=False)
     # Create schema on a separate engine so tables exist for the app's engine.
     engine = create_database_engine(settings=app.settings)
     create_schema(engine)
     engine.dispose()
-    app.container.register_instance(ScannerPort, _StubScanner())
+    scanner = _StubScanner()
+    app.container.register_instance(ScannerPort, scanner)
+    submit = app.resolve(SubmitAssessment)
+    submit._scanner = scanner
+    submit._planner = None
+    submit._scanner_executor = None
     return app
 
 
@@ -95,6 +102,7 @@ class TestFullHTTPFlow:
             json={
                 "target_value": "10.0.0.5",
                 "target_type": "ip_address",
+                "profile_id": "quick-scan",
                 "authorized_by": "pentester@kingusecurity.com",
                 "scope": "10.0.0.5",
             },
@@ -156,6 +164,7 @@ class TestFullHTTPFlow:
             json={
                 "target_value": "10.0.0.5",
                 "target_type": "ip_address",
+                "profile_id": "quick-scan",
                 "authorized_by": "admin",
                 "scope": "10.0.0.5",
             },
@@ -185,6 +194,7 @@ class TestFullHTTPFlow:
             json={
                 "target_value": "10.0.0.5",
                 "target_type": "ip_address",
+                "profile_id": "quick-scan",
                 "authorized_by": "admin",
                 "scope": "10.0.0.5",
             },

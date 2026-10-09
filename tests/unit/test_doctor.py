@@ -52,6 +52,16 @@ def _all_usable_statuses() -> dict[str, ScannerStatus]:
 
 
 class TestExitCode:
+    def test_wired_scanner_inventory_matches_all_default_profiles(self) -> None:
+        planner = ExecutionPlanner()
+        profile_scanners = {
+            scanner_id
+            for profile in planner.list_profiles()
+            for scanner_id in profile.scanners
+        }
+
+        assert set(WIRED_SCANNERS) == profile_scanners
+
     def test_zero_when_every_default_profile_scanner_is_usable(self) -> None:
         planner = ExecutionPlanner(discovery=_FakeDiscovery(_all_usable_statuses()), registry=_FakeRegistry())
         stream = io.StringIO()
@@ -85,6 +95,19 @@ class TestExitCode:
         exit_code = _run(planner, "quick-scan", stream)
 
         assert exit_code == 0
+
+    def test_unusable_scanner_in_a_purpose_built_profile_fails_the_gate(self) -> None:
+        statuses = _all_usable_statuses()
+        statuses["semgrep"] = _status("semgrep", installed=False, usable=False)
+        planner = ExecutionPlanner(discovery=_FakeDiscovery(statuses), registry=_FakeRegistry())
+        stream = io.StringIO()
+
+        exit_code = _run(planner, "code-review", stream)
+
+        assert exit_code == 1
+        output = stream.getvalue()
+        assert "semgrep" in output
+        assert "UNUSABLE in this profile: semgrep" in output
 
     def test_fails_closed_for_an_unknown_profile(self) -> None:
         planner = ExecutionPlanner(discovery=_FakeDiscovery(_all_usable_statuses()), registry=_FakeRegistry())

@@ -173,6 +173,7 @@ class TestBackgroundExecutionIntegration:
             json={
                 "target_value": "10.0.0.5",
                 "target_type": "ip_address",
+                "profile_id": "quick-scan",
                 "authorized_by": "admin@co.com",
                 "scope": "10.0.0.5",
             },

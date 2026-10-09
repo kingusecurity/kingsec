@@ -6,16 +6,9 @@ delegated to the already-tested adapter — this class adds only the metadata,
 capability declaration, and availability check that the plugin framework
 requires.
 
-Phase 2B Decision 2: NOT WIRED TO ANY PROFILE. Amass only produces useful
-results against a real, registrable public domain — KingSec's HOSTNAME
-target today accepts anything syntactically hostname-shaped (including
-"localhost"), which the target model cannot yet distinguish from a real
-domain. Amass also performs active DNS enumeration and certificate-
-transparency lookups against third-party infrastructure, making it the
-scanner most likely to reach outside an authorized scope in a product
-with no scope enforcement yet (Phase 4). Kept registered and tested so it
-is ready once a real ``registrable_domain`` target type with public-suffix
-validation exists (see docs/STATUS.md's Phase 4 roadmap item).
+Amass is compatible only with KingSec's explicit ``domain`` target. The
+profile and authorization surface make domain-wide enumeration visible; it
+is never inferred from a generic hostname.
 """
 
 from __future__ import annotations
@@ -78,20 +71,10 @@ class AmassPlugin(ScannerPluginPort):
         """Declare Amass scanning capabilities."""
         return (
             ScannerCapability(
-                requirement=ScannerRequirement.REACHABLE_HOST,
+                requirement=ScannerRequirement.DNS_DOMAIN,
                 scan_categories=frozenset({ScanCategory.DISCOVERY, ScanCategory.INFORMATION}),
                 output_format=OutputFormat.STRUCTURED_JSON,
-                # Phase 4: NOT WIRED TO ANY PROFILE (see module docstring) -
-                # this value has no live enforcement effect today. Assigned
-                # the widest available tier (HOST_ANY_PORT) rather than
-                # left undeclared: amass performs active DNS/certificate-
-                # transparency enumeration that can surface OTHER, related
-                # hosts beyond the one given - arguably broader than even
-                # nmap's single-host sweep, but HOST_ANY_PORT is the
-                # closest fit this enum expresses. Revisit when amass is
-                # ever wired to a real profile (Phase 4 roadmap item,
-                # registrable_domain target type).
-                surface_tier=ScannerSurfaceTier.HOST_ANY_PORT,
+                surface_tier=ScannerSurfaceTier.DOMAIN_ENUMERATION,
             ),
         )
 

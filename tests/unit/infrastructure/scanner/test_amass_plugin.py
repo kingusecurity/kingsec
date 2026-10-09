@@ -17,12 +17,16 @@ from kingsec.domain import (
     TargetType,
 )
 from kingsec.infrastructure.config.models import AmassSettings
-from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE, ScannerExecutionError
+from kingsec.infrastructure.scanner.errors import (
+    BINARY_ABSENT_USER_MESSAGE,
+    ScannerExecutionError,
+    ScannerOutputError,
+)
 from kingsec.infrastructure.scanner.plugins.amass import AmassPlugin
 from kingsec.infrastructure.scanner.runner import CommandResult
 from tests.unit.infrastructure.scanner.conftest import FakeRunner
 
-_TARGET = Target("example.com", TargetType.HOSTNAME)
+_TARGET = Target("example.com", TargetType.DOMAIN)
 
 _SAMPLE_JSONL = "\n".join(
     [
@@ -102,10 +106,10 @@ class TestMetadata:
 
 
 class TestCapabilities:
-    def test_declares_reachable_host(self) -> None:
+    def test_declares_dns_domain(self) -> None:
         caps = _make_plugin().capabilities()
         assert len(caps) == 1
-        assert caps[0].requirement is ScannerRequirement.REACHABLE_HOST
+        assert caps[0].requirement is ScannerRequirement.DNS_DOMAIN
 
     def test_discovery_category(self) -> None:
         caps = _make_plugin().capabilities()
@@ -177,6 +181,12 @@ class TestScan:
         plugin = _make_plugin(runner=runner)
         result = plugin.scan(_TARGET, PluginConfig())
         assert result.findings == ()
+
+    def test_malformed_nonblank_output_raises_output_error(self) -> None:
+        runner = FakeRunner(CommandResult(0, "not amass jsonl", "", 0.0))
+        plugin = _make_plugin(runner=runner)
+        with pytest.raises(ScannerOutputError):
+            plugin.scan(_TARGET, PluginConfig())
 
     def test_build_args_includes_enum_subcommand(self) -> None:
         runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))

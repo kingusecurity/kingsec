@@ -33,6 +33,7 @@ from .plugin_repository import PluginRepositoryPort
 from .plugin_validator import PluginValidatorPort
 from .queue_repository import QueueRepositoryPort
 from .rate_limiter import RateLimiterPort
+from .report_artifact_cache import ReportArtifactCachePort
 from .schedule_occurrence_repository import ScheduleOccurrenceRepositoryPort
 from .schedule_repository import ScheduleRepositoryPort
 from .scheduler_policy import SchedulerPolicyPort
@@ -84,6 +85,7 @@ __all__ = [
     "PluginValidatorPort",
     "QueueRepositoryPort",
     "RateLimiterPort",
+    "ReportArtifactCachePort",
     "SIEMExportPort",
     "ScheduleOccurrenceRepositoryPort",
     "ScheduleRepositoryPort",

@@ -1,8 +1,10 @@
 """Parse Semgrep JSON output into domain ``Finding`` objects.
 
 Pure and side-effect-free: given raw stdout JSON from Semgrep, produce
-domain findings. Uses only the standard library (``json``). Malformed or
-incomplete records are logged and skipped rather than failing the whole parse.
+domain findings. Uses only the standard library (``json``). A successful
+Semgrep invocation always emits a JSON report, including for a clean scan, so
+missing or structurally invalid report data is a scanner-output failure rather
+than an apparent zero-finding success.
 
 Semgrep JSON output structure:
     Top-level dict with ``results`` array. Each result contains:
@@ -21,9 +23,12 @@ import json
 from datetime import UTC, datetime
 
 from kingsec.domain import Evidence, Finding, Recommendation, Severity
-from kingsec.infrastructure.logging import get_logger
+from kingsec.infrastructure.scanner.errors import ScannerOutputError
 
-_logger = get_logger("kingsec.infrastructure.scanner")
+_OUTPUT_USER_MESSAGE = (
+    "Semgrep returned output in an unexpected format. Check the configured "
+    "Semgrep version and scan settings, then try again."
+)
 
 _SEVERITY_MAP = {
     "ERROR": Severity.HIGH,
@@ -46,6 +51,16 @@ def _extract_str_list(value: object) -> list[str]:
     return []
 
 
+def _invalid_output(reason: str, *, cause: BaseException | None = None) -> ScannerOutputError:
+    """Build a safe, consistently contextualized Semgrep output error."""
+    return ScannerOutputError(
+        f"semgrep output {reason}",
+        context={"scanner": "semgrep", "check_failed": reason},
+        cause=cause,
+        user_message=_OUTPUT_USER_MESSAGE,
+    )
+
+
 def parse_semgrep_json(output: str) -> list[Finding]:
     """Parse Semgrep stdout JSON into domain findings.
 
@@ -55,39 +70,62 @@ def parse_semgrep_json(output: str) -> list[Finding]:
     Returns:
         The findings parsed from the output (empty if there were none).
     """
+    if not output.strip():
+        raise _invalid_output("was empty")
+
     try:
         data = json.loads(output)
-    except (json.JSONDecodeError, ValueError):
-        _logger.debug("failed to parse semgrep JSON output")
-        return []
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise _invalid_output("was not valid JSON", cause=exc) from exc
 
     if not isinstance(data, dict):
-        return []
+        raise _invalid_output("did not contain a JSON object")
 
-    results = data.get("results", [])
+    if "results" not in data:
+        raise _invalid_output("was missing the 'results' field")
+
+    results = data["results"]
     if not isinstance(results, list):
-        return []
+        raise _invalid_output("field 'results' was not an array")
 
     findings: list[Finding] = []
 
-    for result in results:
+    for index, result in enumerate(results):
         if not isinstance(result, dict):
-            continue
+            raise _invalid_output(f"result at index {index} was not an object")
 
-        check_id = result.get("check_id", "")
-        path = result.get("path", "")
-        start = result.get("start", {})
-        end = result.get("end", {})
-        extra = result.get("extra", {})
+        check_id = result.get("check_id")
+        path = result.get("path")
+        start = result.get("start")
+        end = result.get("end")
+        extra = result.get("extra")
+
+        if not isinstance(check_id, str) or not check_id:
+            raise _invalid_output(f"result at index {index} had no valid 'check_id'")
+        if not isinstance(path, str) or not path:
+            raise _invalid_output(f"result at index {index} had no valid 'path'")
+        if not isinstance(start, dict) or not isinstance(start.get("line"), int):
+            raise _invalid_output(f"result at index {index} had no valid start line")
+        if not isinstance(end, dict) or not isinstance(end.get("line"), int):
+            raise _invalid_output(f"result at index {index} had no valid end line")
+        if not isinstance(extra, dict):
+            raise _invalid_output(f"result at index {index} had no valid 'extra' object")
 
         message = extra.get("message", "")
         severity_str = extra.get("severity", "INFO")
         metadata = extra.get("metadata", {})
 
+        if not isinstance(message, str):
+            raise _invalid_output(f"result at index {index} had a non-string message")
+        if not isinstance(severity_str, str):
+            raise _invalid_output(f"result at index {index} had a non-string severity")
+        if not isinstance(metadata, dict):
+            raise _invalid_output(f"result at index {index} had a non-object metadata field")
+
         severity = _map_severity(severity_str)
 
-        start_line = start.get("line", "?") if isinstance(start, dict) else "?"
-        end_line = end.get("line", "?") if isinstance(end, dict) else "?"
+        start_line = start["line"]
+        end_line = end["line"]
 
         title = f"{check_id} — {path}"
         description_parts = [
@@ -101,13 +139,13 @@ def parse_semgrep_json(output: str) -> list[Finding]:
         description = " | ".join(description_parts)
 
         # Extract metadata fields
-        category = metadata.get("category", "") if isinstance(metadata, dict) else ""
-        confidence = metadata.get("confidence", "") if isinstance(metadata, dict) else ""
+        category = metadata.get("category", "")
+        confidence = metadata.get("confidence", "")
 
         # Extract CVE / CWE / references from metadata
-        cve_ids = _extract_str_list(metadata.get("cve", "")) if isinstance(metadata, dict) else []
-        cwe_ids = _extract_str_list(metadata.get("cwe", "")) if isinstance(metadata, dict) else []
-        refs = _extract_str_list(metadata.get("references", "")) if isinstance(metadata, dict) else []
+        cve_ids = _extract_str_list(metadata.get("cve", ""))
+        cwe_ids = _extract_str_list(metadata.get("cwe", ""))
+        refs = _extract_str_list(metadata.get("references", ""))
 
         # Append CVE/CWE to description
         extra_desc = []
@@ -145,7 +183,9 @@ def parse_semgrep_json(output: str) -> list[Finding]:
         )
 
         # Optional fix → Recommendation
-        fix = extra.get("fix", "") if isinstance(extra, dict) else ""
+        fix = extra.get("fix", "")
+        if not isinstance(fix, str):
+            raise _invalid_output(f"result at index {index} had a non-string fix")
         if fix:
             finding.add_recommendation(
                 Recommendation(

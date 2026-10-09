@@ -11,7 +11,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from kingsec.application import ScannerPort
-from kingsec.domain import Finding, Target
+from kingsec.domain import Finding, Target, TargetType
 from kingsec.infrastructure.logging import get_logger
 
 from .amass_parser import parse_amass_json
@@ -78,6 +78,12 @@ class AmassScannerAdapter(ScannerPort):
         Amass uses ``amass enum -passive -json - -d <target>`` for
         passive subdomain enumeration.
         """
+        if target.type is not TargetType.DOMAIN:
+            raise ScannerExecutionError(
+                f"amass requires a domain target, got {target.type.value!r}",
+                context={"target_type": target.type.value},
+                user_message="OWASP Amass requires an explicit DNS domain target.",
+            )
         settings = self._settings
         args: list[str] = [
             settings.binary_path,

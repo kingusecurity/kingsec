@@ -230,6 +230,7 @@ class TestList:
     def test_list_empty(self, repo: SQLAlchemyAssessmentRepository) -> None:
         result = repo.list()
         assert result.items == ()
+        assert result.total == 0
         assert result.unreadable_ids == ()
 
     def test_list_returns_all(self, repo: SQLAlchemyAssessmentRepository, session: Session) -> None:
@@ -241,6 +242,7 @@ class TestList:
 
         result = repo.list()
         assert len(result.items) == 2
+        assert result.total == 2
 
     def test_list_ordered_by_created_at_desc(self, repo: SQLAlchemyAssessmentRepository, session: Session) -> None:
         now = datetime.now(UTC)
@@ -288,6 +290,177 @@ class TestList:
 
         result = repo.list(limit=10, offset=-1)
         assert len(result.items) == 1
+
+    def test_ownership_is_applied_before_pagination(
+        self, repo: SQLAlchemyAssessmentRepository, session: Session
+    ) -> None:
+        alice_old = make_assessment(
+            target=Target("alice-old.example", TargetType.HOSTNAME),
+            created_at=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+        alice_old.set_ownership("alice")
+        bob_middle = make_assessment(
+            target=Target("bob-middle.example", TargetType.HOSTNAME),
+            created_at=datetime(2026, 1, 3, tzinfo=UTC),
+        )
+        bob_middle.set_ownership("bob")
+        alice_new = make_assessment(
+            target=Target("alice-new.example", TargetType.HOSTNAME),
+            created_at=datetime(2026, 1, 2, tzinfo=UTC),
+        )
+        alice_new.set_ownership("alice")
+        bob_newest = make_assessment(
+            target=Target("bob-newest.example", TargetType.HOSTNAME),
+            created_at=datetime(2026, 1, 4, tzinfo=UTC),
+        )
+        bob_newest.set_ownership("bob")
+        for assessment in (alice_old, bob_middle, alice_new, bob_newest):
+            repo.save(assessment)
+        session.flush()
+
+        result = repo.list(
+            limit=1,
+            offset=1,
+            requesting_user="alice",
+            is_admin=False,
+        )
+
+        assert result.total == 2
+        assert tuple(assessment.id for assessment in result.items) == (alice_old.id,)
+
+    def test_combined_filters_and_total_are_applied_before_pagination(
+        self, repo: SQLAlchemyAssessmentRepository, session: Session
+    ) -> None:
+        alpha = make_assessment(target=Target("alpha-acme.example", TargetType.HOSTNAME))
+        alpha.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=UTC), scope="*"))
+        alpha.set_ownership("alice")
+        beta = make_assessment(target=Target("beta-acme.example", TargetType.HOSTNAME))
+        beta.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=UTC), scope="*"))
+        beta.set_ownership("alice")
+        wrong_status = make_assessment(target=Target("draft-acme.example", TargetType.HOSTNAME))
+        wrong_status.set_ownership("alice")
+        wrong_search = make_assessment(target=Target("outside.example", TargetType.HOSTNAME))
+        wrong_search.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=UTC), scope="*"))
+        wrong_search.set_ownership("alice")
+        wrong_owner = make_assessment(target=Target("other-acme.example", TargetType.HOSTNAME))
+        wrong_owner.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=UTC), scope="*"))
+        wrong_owner.set_ownership("bob")
+        for assessment in (alpha, beta, wrong_status, wrong_search, wrong_owner):
+            repo.save(assessment)
+        session.flush()
+
+        first_page = repo.list(
+            limit=1,
+            search="ACME",
+            status="authorized",
+            order_by="target",
+            order_dir="asc",
+            requesting_user="alice",
+            is_admin=False,
+        )
+        second_page = repo.list(
+            limit=1,
+            offset=1,
+            search="ACME",
+            status="authorized",
+            order_by="target",
+            order_dir="asc",
+            requesting_user="alice",
+            is_admin=False,
+        )
+
+        assert first_page.total == 2
+        assert second_page.total == 2
+        assert tuple(assessment.id for assessment in first_page.items) == (alpha.id,)
+        assert tuple(assessment.id for assessment in second_page.items) == (beta.id,)
+
+    def test_search_treats_sql_wildcards_as_literal_text(
+        self, repo: SQLAlchemyAssessmentRepository, session: Session
+    ) -> None:
+        literal = make_assessment(
+            target=Target("/srv/customer/100%_real", TargetType.SOURCE_PATH)
+        )
+        wildcard_match_without_escaping = make_assessment(
+            target=Target("/srv/customer/100XXreal", TargetType.SOURCE_PATH)
+        )
+        repo.save(literal)
+        repo.save(wildcard_match_without_escaping)
+        session.flush()
+
+        result = repo.list(search="%_")
+
+        assert result.total == 1
+        assert tuple(assessment.id for assessment in result.items) == (literal.id,)
+
+    def test_findings_count_sort_uses_persisted_child_rows(
+        self, repo: SQLAlchemyAssessmentRepository, session: Session
+    ) -> None:
+        none = make_assessment(target=Target("none.example", TargetType.HOSTNAME))
+        two = make_assessment(target=Target("two.example", TargetType.HOSTNAME))
+        two.authorize(Authorization("tester", datetime(2026, 1, 1, tzinfo=UTC), scope="*"))
+        two.start()
+        two.record_finding(Finding.create("First", "First finding", Severity.LOW))
+        two.record_finding(Finding.create("Second", "Second finding", Severity.HIGH))
+        two.complete()
+        repo.save(none)
+        repo.save(two)
+        session.flush()
+
+        result = repo.list(order_by="findings_count", order_dir="desc")
+
+        assert result.total == 2
+        assert tuple(assessment.id for assessment in result.items) == (two.id, none.id)
+
+    def test_unknown_sort_field_falls_back_to_created_at(
+        self, repo: SQLAlchemyAssessmentRepository, session: Session
+    ) -> None:
+        old = make_assessment(
+            target=Target("zulu.example", TargetType.HOSTNAME),
+            created_at=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+        new = make_assessment(
+            target=Target("alpha.example", TargetType.HOSTNAME),
+            created_at=datetime(2026, 1, 2, tzinfo=UTC),
+        )
+        repo.save(old)
+        repo.save(new)
+        session.flush()
+
+        result = repo.list(order_by="target_value desc; drop table assessments")
+
+        assert tuple(assessment.id for assessment in result.items) == (new.id, old.id)
+        assert repo.get(old.id).id == old.id
+
+    def test_unreadable_ids_and_total_respect_owner_scope(
+        self, repo: SQLAlchemyAssessmentRepository, session: Session
+    ) -> None:
+        from kingsec.infrastructure.persistence.models import AssessmentORM
+
+        mine = make_assessment(target=Target("mine.example", TargetType.HOSTNAME))
+        mine.set_ownership("alice")
+        theirs = make_assessment(target=Target("theirs.example", TargetType.HOSTNAME))
+        theirs.set_ownership("bob")
+        repo.save(mine)
+        repo.save(theirs)
+        session.flush()
+
+        mine_orm = session.get(AssessmentORM, str(mine.id))
+        theirs_orm = session.get(AssessmentORM, str(theirs.id))
+        assert mine_orm is not None
+        assert theirs_orm is not None
+        mine_orm.target_type = "NOT_A_TARGET_TYPE"
+        theirs_orm.target_type = "NOT_A_TARGET_TYPE"
+        session.flush()
+
+        alice_page = repo.list(requesting_user="alice", is_admin=False)
+        admin_page = repo.list(is_admin=True)
+
+        assert alice_page.items == ()
+        assert alice_page.total == 1
+        assert alice_page.unreadable_ids == (str(mine.id),)
+        assert admin_page.items == ()
+        assert admin_page.total == 2
+        assert set(admin_page.unreadable_ids) == {str(mine.id), str(theirs.id)}
 
 
 # ===========================================================================

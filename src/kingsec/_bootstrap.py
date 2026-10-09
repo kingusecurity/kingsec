@@ -20,10 +20,10 @@ Refuses to run if migrations have not been applied.
 from __future__ import annotations
 
 import argparse
+import getpass
 import importlib.resources
 import sys
 import uuid
-from pathlib import Path
 
 from kingsec import __version__
 from kingsec._cli_messages import migrations_not_applied_message
@@ -64,14 +64,7 @@ def _migration_chain_status(settings: Settings) -> tuple[bool, str]:
     from alembic.script import ScriptDirectory
 
     config_path = str(importlib.resources.files("kingsec.alembic").joinpath("alembic.ini"))
-    alembic_dir = Path(config_path).parent
-
     config = Config(config_path)
-    # The packaged ini's `script_location = .` is relative to the process
-    # CWD, not to the ini file itself - making it absolute here removes
-    # that dependency entirely instead of relying on a subprocess `cwd=`
-    # to paper over it.
-    config.set_main_option("script_location", str(alembic_dir))
     script = ScriptDirectory.from_config(config)
     script_heads = set(script.get_heads())
 
@@ -160,10 +153,24 @@ def main() -> int:
     parser = argparse.ArgumentParser(prog="kingsec-bootstrap", description="Create an admin user (recovery path)")
     parser.add_argument("--version", action="version", version=f"kingsec-bootstrap {__version__}")
     parser.add_argument("--username", required=True, help="Admin username")
-    parser.add_argument("--password", required=True, help="Admin password")
+    parser.add_argument(
+        "--password",
+        help="Admin password (omit to enter it securely at an interactive prompt)",
+    )
     parser.add_argument("--email", default="", help="Admin email (optional)")
     args = parser.parse_args()
-    return _bootstrap_admin(args.username, args.password, args.email)
+
+    password = args.password
+    if password is None:
+        if not sys.stdin.isatty():
+            parser.error("--password is required when no interactive terminal is available")
+        password = getpass.getpass("Admin password: ")
+        confirmation = getpass.getpass("Confirm admin password: ")
+        if password != confirmation:
+            print("ERROR: passwords do not match", file=sys.stderr)
+            return 1
+
+    return _bootstrap_admin(args.username, password, args.email)
 
 
 if __name__ == "__main__":

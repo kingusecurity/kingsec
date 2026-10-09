@@ -87,8 +87,14 @@ class LegacyAssessmentRepository(AssessmentRepository):
         *,
         limit: int = 50,
         offset: int = 0,
+        search: str | None = None,
+        status: str | None = None,
+        order_by: str = "created_at",
+        order_dir: str = "desc",
+        requesting_user: str = "",
+        is_admin: bool = True,
     ) -> AssessmentPage:
-        """Return one page of assessments ordered by created_at DESC.
+        """Return one filtered, ownership-scoped page of assessments.
 
         Args:
             limit: Maximum number of results (clamped to 200).
@@ -101,7 +107,17 @@ class LegacyAssessmentRepository(AssessmentRepository):
         clamped_limit = min(max(limit, 1), 200)
         try:
             with self._session_factory() as session:
-                return ops.list_assessments(session, limit=clamped_limit, offset=max(offset, 0))
+                return ops.list_assessments(
+                    session,
+                    limit=clamped_limit,
+                    offset=max(offset, 0),
+                    search=search,
+                    status=status,
+                    order_by=order_by,
+                    order_dir=order_dir,
+                    requesting_user=requesting_user,
+                    is_admin=is_admin,
+                )
         except SQLAlchemyError as exc:
             ops.raise_persistence_error("failed to list assessments", exc, "-")
 

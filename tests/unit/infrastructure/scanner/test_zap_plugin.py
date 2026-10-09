@@ -26,6 +26,12 @@ from tests.unit.infrastructure.scanner.conftest import FakeRunner
 
 _TARGET = Target("http://example.com", TargetType.URL)
 
+
+@pytest.fixture(autouse=True)
+def _writable_default_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Direct-construction tests must never write to the runner account's home."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+
 _SAMPLE_ZAP_REPORT = json.dumps(
     {
         "site": [

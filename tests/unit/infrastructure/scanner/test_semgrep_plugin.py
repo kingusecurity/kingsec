@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -17,12 +18,16 @@ from kingsec.domain import (
     TargetType,
 )
 from kingsec.infrastructure.config.models import SemgrepSettings
-from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE, ScannerExecutionError
+from kingsec.infrastructure.scanner.errors import (
+    BINARY_ABSENT_USER_MESSAGE,
+    ScannerExecutionError,
+    ScannerOutputError,
+)
 from kingsec.infrastructure.scanner.plugins.semgrep import SemgrepPlugin
 from kingsec.infrastructure.scanner.runner import CommandResult
 from tests.unit.infrastructure.scanner.conftest import FakeRunner
 
-_TARGET = Target("example.com", TargetType.HOSTNAME)
+_TARGET = Target(str(Path(__file__).resolve().parent), TargetType.SOURCE_PATH)
 
 _SAMPLE_JSONL = json.dumps(
     {
@@ -111,10 +116,10 @@ class TestMetadata:
 
 
 class TestCapabilities:
-    def test_declares_reachable_host(self) -> None:
+    def test_declares_source_path(self) -> None:
         caps = _make_plugin().capabilities()
         assert len(caps) == 1
-        assert caps[0].requirement is ScannerRequirement.REACHABLE_HOST
+        assert caps[0].requirement is ScannerRequirement.SOURCE_PATH
 
     def test_vulnerability_category(self) -> None:
         caps = _make_plugin().capabilities()
@@ -181,11 +186,47 @@ class TestScan:
         assert isinstance(result, ScannerResult)
         assert result.scanner_id == ScannerId("semgrep")
 
-    def test_empty_output_returns_empty_findings(self) -> None:
+    def test_empty_output_raises_output_error(self) -> None:
         runner = FakeRunner(CommandResult(0, "", "", 0.0))
+        plugin = _make_plugin(runner=runner)
+        with pytest.raises(ScannerOutputError):
+            plugin.scan(_TARGET, PluginConfig())
+
+    def test_valid_empty_report_returns_empty_findings(self) -> None:
+        runner = FakeRunner(CommandResult(0, json.dumps({"results": []}), "", 0.0))
         plugin = _make_plugin(runner=runner)
         result = plugin.scan(_TARGET, PluginConfig())
         assert result.findings == ()
+
+    def test_malformed_nonempty_output_raises_output_error(self) -> None:
+        runner = FakeRunner(CommandResult(0, "not semgrep json", "", 0.0))
+        plugin = _make_plugin(runner=runner)
+        with pytest.raises(ScannerOutputError):
+            plugin.scan(_TARGET, PluginConfig())
+
+    def test_missing_source_path_fails_before_execution(self, tmp_path: Path) -> None:
+        target = Target(str(tmp_path / "missing"), TargetType.SOURCE_PATH)
+        runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))
+        plugin = _make_plugin(runner=runner)
+
+        with pytest.raises(ScannerExecutionError) as exc_info:
+            plugin.scan(target, PluginConfig())
+
+        assert runner.calls == []
+        assert "exists" in exc_info.value.user_message
+        assert target.value not in exc_info.value.user_message
+
+    def test_unreadable_source_path_fails_before_execution(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))
+        plugin = _make_plugin(runner=runner)
+        monkeypatch.setattr("kingsec.infrastructure.scanner.semgrep.os.access", lambda *_args: False)
+
+        with pytest.raises(ScannerExecutionError) as exc_info:
+            plugin.scan(_TARGET, PluginConfig())
+
+        assert runner.calls == []
+        assert "readable" in exc_info.value.user_message
+        assert _TARGET.value not in exc_info.value.user_message
 
     def test_build_args_includes_scan_subcommand(self) -> None:
         runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))
@@ -206,7 +247,7 @@ class TestScan:
         plugin = _make_plugin(runner=runner)
         plugin.scan(_TARGET, PluginConfig())
         args = runner.calls[0][0]
-        assert "example.com" in args
+        assert _TARGET.value in args
 
     def test_build_args_includes_config_when_rules_set(self) -> None:
         runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))

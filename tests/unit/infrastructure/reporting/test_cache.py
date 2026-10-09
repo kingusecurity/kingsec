@@ -9,9 +9,13 @@ invocations rather than real WeasyPrint, so a cache hit is provable directly
 from __future__ import annotations
 
 import dataclasses
+import threading
 from pathlib import Path
 
+import pytest
+
 from kingsec.infrastructure.reporting import ReportGeneratorAdapter
+from kingsec.infrastructure.reporting.errors import ReportGenerationError
 from tests.unit.infrastructure.reporting.conftest import build_report
 
 
@@ -92,3 +96,105 @@ class TestReportCache:
 
         assert renderer.html_calls == 1
         assert renderer.pdf_calls == 1
+
+    def test_delete_for_assessment_removes_all_formats_and_snapshots_only_for_that_assessment(
+        self, tmp_path: Path
+    ) -> None:
+        renderer = _CountingRenderer()
+        adapter = ReportGeneratorAdapter(renderer, output_format="html", cache_dir=tmp_path)  # type: ignore[arg-type]
+        report = build_report()
+        regenerated = dataclasses.replace(report, generated_at=report.generated_at.replace(year=2027))
+
+        adapter.render(report, format="html")
+        adapter.render(regenerated, format="html")
+        unrelated = tmp_path / "asmt-unrelated-1234567890abcdef.html"
+        unrelated.write_bytes(b"keep")
+
+        assert adapter.delete_for_assessment(report.assessment_id) == 2
+        assert list(tmp_path.glob(f"{report.assessment_id}-*")) == []
+        assert unrelated.read_bytes() == b"keep"
+
+    def test_delete_for_assessment_does_not_match_a_longer_assessment_id(self, tmp_path: Path) -> None:
+        renderer = _CountingRenderer()
+        adapter = ReportGeneratorAdapter(renderer, output_format="html", cache_dir=tmp_path)  # type: ignore[arg-type]
+        report = build_report()
+        longer_id_report = dataclasses.replace(report, assessment_id=f"{report.assessment_id}-other")
+
+        adapter.render(report, format="html")
+        longer = adapter.render(longer_id_report, format="html")
+
+        assert adapter.delete_for_assessment(report.assessment_id) == 1
+        assert list(tmp_path.glob(f"{report.assessment_id}-*.html"))
+        longer_cache = list(tmp_path.glob(f"{longer_id_report.assessment_id}-*.html"))
+        assert len(longer_cache) == 1
+        assert longer_cache[0].read_bytes() == longer.content
+
+    def test_delete_for_assessment_wraps_unlink_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        adapter = ReportGeneratorAdapter(
+            _CountingRenderer(), output_format="html", cache_dir=tmp_path  # type: ignore[arg-type]
+        )
+        report = build_report()
+        adapter.render(report, format="html")
+        cached = next(tmp_path.glob(f"{report.assessment_id}-*.html"))
+        real_unlink = Path.unlink
+
+        def refuse_unlink(path: Path, missing_ok: bool = False) -> None:
+            if path == cached:
+                raise PermissionError("simulated cache permission failure")
+            real_unlink(path, missing_ok=missing_ok)
+
+        monkeypatch.setattr(Path, "unlink", refuse_unlink)
+
+        with pytest.raises(ReportGenerationError) as exc_info:
+            adapter.delete_for_assessment(report.assessment_id)
+
+        assert exc_info.value.context == {
+            "assessment_id": report.assessment_id,
+            "error_type": "PermissionError",
+        }
+        assert "permission" not in str(exc_info.value).lower()
+        assert cached.exists()
+
+    def test_delete_for_assessment_without_cache_is_a_noop(self) -> None:
+        adapter = ReportGeneratorAdapter(_CountingRenderer(), output_format="html")  # type: ignore[arg-type]
+        assert adapter.delete_for_assessment("asmt-example") == 0
+
+    def test_in_flight_render_cannot_recreate_cache_after_deletion(self, tmp_path: Path) -> None:
+        started = threading.Event()
+        release = threading.Event()
+        failures: list[BaseException] = []
+
+        class _BlockingRenderer(_CountingRenderer):
+            def to_html(self, report) -> str:  # type: ignore[no-untyped-def]
+                started.set()
+                if not release.wait(timeout=5):
+                    raise TimeoutError("test did not release renderer")
+                return super().to_html(report)
+
+        adapter = ReportGeneratorAdapter(
+            _BlockingRenderer(), output_format="html", cache_dir=tmp_path  # type: ignore[arg-type]
+        )
+        report = build_report()
+
+        def render() -> None:
+            try:
+                adapter.render(report, format="html")
+            except BaseException as exc:  # pragma: no cover - asserted below
+                failures.append(exc)
+
+        worker = threading.Thread(target=render)
+        worker.start()
+        assert started.wait(timeout=5), "render did not reach the controlled in-flight point"
+
+        # No artifact exists yet, but deletion must still tombstone the id:
+        # the renderer already holds a valid Report snapshot and will finish
+        # only after cleanup returns.
+        assert adapter.delete_for_assessment(report.assessment_id) == 0
+        release.set()
+        worker.join(timeout=5)
+
+        assert not worker.is_alive()
+        assert failures == []
+        assert list(tmp_path.glob(f"{report.assessment_id}-*")) == []

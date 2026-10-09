@@ -12,7 +12,11 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from kingsec.application.assessment_profiles import AssessmentProfile, ExecutionPlanner
-from kingsec.application.authorization_scope import effective_scan_surface, find_covering
+from kingsec.application.authorization_scope import (
+    effective_scan_surface,
+    effective_unprofiled_scan_surface,
+    find_covering,
+)
 from kingsec.application.ports.scanner_registry import ScannerPluginRegistry
 from kingsec.bootstrap.container import Container
 from kingsec.domain import (
@@ -109,6 +113,23 @@ class TestEffectiveScanSurface:
         profile = _profile("external-footprint")
         tiers = effective_scan_surface(profile, registry, TargetType.HOSTNAME)
         assert tiers == frozenset({ScannerSurfaceTier.HOST_ANY_PORT})
+
+    def test_no_profile_url_surface_matches_every_compatible_plugin(self) -> None:
+        """The no-profile execution path is broader than any implied
+        default profile: it resolves every compatible plugin.  Its grant
+        surface must therefore include nmap's host sweep, web path fuzzing,
+        and host:port-wide web scanners together."""
+        tiers = effective_unprofiled_scan_surface(
+            _real_registry(),
+            Target("https://scan.example.com/app/", TargetType.URL),
+        )
+        assert tiers == frozenset(
+            {
+                ScannerSurfaceTier.HOST_ANY_PORT,
+                ScannerSurfaceTier.HOST_PORT_PATH,
+                ScannerSurfaceTier.HOST_PORT_ANY_PATH,
+            }
+        )
 
 
 # ---------------------------------------------------------------------------

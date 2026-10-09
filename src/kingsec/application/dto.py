@@ -281,10 +281,14 @@ class CreateAssessmentResponse:
 
 @dataclass(frozen=True)
 class ListAssessmentsRequest:
-    """Request to list assessments with pagination."""
+    """Request to list assessments with filtering, sorting, and pagination."""
 
     limit: int = 50
     offset: int = 0
+    search: str | None = None
+    status: str | None = None
+    order_by: str = "created_at"
+    order_dir: str = "desc"
     requesting_user: str = ""
     is_admin: bool = False
 
@@ -329,8 +333,8 @@ class ListAssessmentsResponse:
     total: int
     limit: int
     offset: int
-    # Phase 2B Task 2 Condition 1: ids of rows that exist but could not be
-    # reconstructed - admin-only, see list_assessments.py's execute().
+    # Phase 2B Task 2 Condition 1: ids of ownership-scoped rows that exist
+    # but could not be reconstructed.
     unreadable_ids: tuple[str, ...] = ()
 
 

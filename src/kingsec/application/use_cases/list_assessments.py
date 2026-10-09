@@ -1,12 +1,12 @@
-"""Use case: list assessments with pagination.
+"""Use case: list assessments with filtering, sorting, and pagination.
 
 Powers the Home screen. Returns a lightweight summary of each assessment
 (excludes findings to keep payload small). Ordered by created_at DESC
 (most recent first).
 
-The total count for pagination metadata comes from the repository's list
-method. A future optimization could add a ``count()`` method to the repository
-port if the database grows large enough to warrant it.
+The repository applies ownership and filters before pagination and returns the
+matching total alongside the page. This keeps non-admin pagination both secure
+and complete (a page cannot be consumed by another user's rows).
 """
 
 from __future__ import annotations
@@ -30,25 +30,27 @@ class ListAssessments:
         limit = min(max(request.limit, 1), 200)
         offset = max(request.offset, 0)
 
-        page = self._assessments.list(limit=limit, offset=offset)
-        assessments = page.items
-        if not request.is_admin:
-            assessments = tuple(
-                a for a in assessments if a.owner_id and a.owner_id == request.requesting_user
-            )
-
-        items = tuple(AssessmentSummary.from_domain(a) for a in assessments)
+        page = self._assessments.list(
+            limit=limit,
+            offset=offset,
+            search=request.search,
+            status=request.status,
+            order_by=request.order_by,
+            order_dir=request.order_dir,
+            requesting_user=request.requesting_user,
+            is_admin=request.is_admin,
+        )
+        items = tuple(AssessmentSummary.from_domain(a) for a in page.items)
 
         return ListAssessmentsResponse(
             items=items,
-            total=len(items),
+            total=page.total,
             limit=limit,
             offset=offset,
             # Phase 2B Task 2 Condition 1: a row that exists but couldn't be
             # reconstructed must be visible, not only logged - "9 of 10
-            # assessments shown" is a real fact the UI can render. Admin-only:
-            # a corrupted row has no domain Assessment to check ownership
-            # against, so a non-admin caller cannot be shown even that it
-            # exists without risking exposing another tenant's assessment id.
-            unreadable_ids=page.unreadable_ids if request.is_admin else (),
+            # assessments shown" is a real fact the UI can render. The
+            # repository scopes ownership before reconstruction, so these ids
+            # are safe and relevant for non-admin callers too.
+            unreadable_ids=page.unreadable_ids,
         )

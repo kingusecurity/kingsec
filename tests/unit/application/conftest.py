@@ -64,9 +64,45 @@ class InMemoryAssessmentRepository(AssessmentRepository):
         *,
         limit: int = 50,
         offset: int = 0,
+        search: str | None = None,
+        status: str | None = None,
+        order_by: str = "created_at",
+        order_dir: str = "desc",
+        requesting_user: str = "",
+        is_admin: bool = True,
     ) -> AssessmentPage:
-        ordered = sorted(self._store.values(), key=lambda a: a.created_at, reverse=True)
-        return AssessmentPage(items=tuple(ordered[offset : offset + limit]))
+        visible = list(self._store.values())
+        if not is_admin:
+            visible = [a for a in visible if a.owner_id and a.owner_id == requesting_user]
+        if search and search.strip():
+            needle = search.strip().casefold()
+            visible = [
+                a
+                for a in visible
+                if needle in str(a.id).casefold()
+                or needle in a.target.value.casefold()
+                or needle in a.target.type.value.casefold()
+            ]
+        if status and status.strip():
+            status_value = status.strip().casefold()
+            visible = [a for a in visible if a.status.value.casefold() == status_value]
+
+        sort_field = order_by if order_by in {"created_at", "status", "target", "findings_count"} else "created_at"
+        sort_value = {
+            "created_at": lambda a: a.created_at,
+            "status": lambda a: a.status.value,
+            "target": lambda a: a.target.value.casefold(),
+            "findings_count": lambda a: len(a.findings),
+        }[sort_field]
+        ordered = sorted(
+            visible,
+            key=lambda a: (sort_value(a), str(a.id)),
+            reverse=order_dir.casefold() != "asc",
+        )
+        return AssessmentPage(
+            items=tuple(ordered[offset : offset + limit]),
+            total=len(ordered),
+        )
 
     def find_by_schedule_occurrence_id(self, occurrence_id: str) -> list[Assessment]:
         return [a for a in self._store.values() if a.schedule_occurrence_id == occurrence_id]

@@ -11,6 +11,7 @@ from kingsec.application import (
     DeleteAssessmentRequest,
     DeleteAssessmentResponse,
 )
+from kingsec.application.ports import ReportArtifactCachePort
 from kingsec.domain import (
     Assessment,
     AssessmentStatus,
@@ -79,6 +80,50 @@ class TestDeleteExistingAssessment:
 
         loaded = assessments.get(assessment2.id)
         assert loaded.status == AssessmentStatus.AUTHORIZED
+
+    def test_removes_cached_report_artifacts_before_database_record(
+        self, assessments: InMemoryAssessmentRepository
+    ) -> None:
+        assessment = _make_assessment()
+        assessments.save(assessment)
+
+        class _RecordingArtifactCache(ReportArtifactCachePort):
+            def __init__(self) -> None:
+                self.deleted: list[str] = []
+
+            def delete_for_assessment(self, assessment_id: str) -> int:
+                # The aggregate must still exist while external artifacts
+                # are removed, so a cleanup failure cannot leave a false
+                # successful deletion with bytes retained on disk.
+                assert assessments.get(assessment.id) is assessment
+                self.deleted.append(assessment_id)
+                return 2
+
+        artifacts = _RecordingArtifactCache()
+        DeleteAssessment(assessments, report_artifacts=artifacts).execute(
+            DeleteAssessmentRequest(str(assessment.id), is_admin=True)
+        )
+
+        assert artifacts.deleted == [str(assessment.id)]
+        with pytest.raises(AssessmentNotFoundError):
+            assessments.get(assessment.id)
+
+    def test_artifact_cleanup_failure_leaves_database_record_intact(
+        self, assessments: InMemoryAssessmentRepository
+    ) -> None:
+        assessment = _make_assessment()
+        assessments.save(assessment)
+
+        class _FailingArtifactCache(ReportArtifactCachePort):
+            def delete_for_assessment(self, assessment_id: str) -> int:
+                raise PermissionError(f"cannot remove artifacts for {assessment_id}")
+
+        with pytest.raises(PermissionError, match="cannot remove artifacts"):
+            DeleteAssessment(assessments, report_artifacts=_FailingArtifactCache()).execute(
+                DeleteAssessmentRequest(str(assessment.id), is_admin=True)
+            )
+
+        assert assessments.get(assessment.id) is assessment
 
 
 class TestDeleteMissingAssessment:

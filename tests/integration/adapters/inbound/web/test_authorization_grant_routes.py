@@ -303,3 +303,19 @@ class TestCheckGrantCoverageRoute:
             params={**self._CHECK_PARAMS, "target_type": "not_a_real_type"},
         )
         assert resp.status_code == 400
+
+    def test_profile_target_mismatch_is_400_instead_of_false_full_coverage(
+        self, wired_app: Application
+    ) -> None:
+        client = _client_as(wired_app, role=Role.ANALYST)
+        resp = client.get(
+            "/api/v1/authorization-grants/check",
+            params={
+                **self._CHECK_PARAMS,
+                "profile_id": "domain-enumeration",
+                "target_type": "ip_address",
+            },
+        )
+
+        assert resp.status_code == 400
+        assert "does not support target type" in resp.json()["detail"]

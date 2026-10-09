@@ -9,6 +9,7 @@ the domain layer remains pure.
 from __future__ import annotations
 
 import ipaddress
+import ntpath
 import re
 import urllib.parse
 from dataclasses import dataclass
@@ -25,10 +26,23 @@ class TargetType(Enum):
     IP_ADDRESS = "ip_address"
     URL = "url"
     NETWORK = "network"  # e.g. a CIDR range
+    DOMAIN = "domain"  # DNS domain used for domain-wide enumeration
+    SOURCE_PATH = "source_path"  # absolute path visible to the KingSec server
+    CONTAINER_IMAGE = "container_image"  # OCI/Docker image reference
 
 
 # RFC 1034 / RFC 1123 hostname label: alphanumeric + hyphen, no leading/trailing hyphen.
 _HOSTNAME_LABEL = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$")
+_CONTAINER_IMAGE = re.compile(
+    r"^(?:[a-z0-9][a-z0-9.-]*(?::[0-9]{1,5})?/)?"
+    r"(?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*"
+    r"[a-z0-9]+(?:[._-][a-z0-9]+)*"
+    r"(?::[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})?"
+    r"(?:@sha256:[a-fA-F0-9]{64})?$"
+)
+_NON_PUBLIC_DOMAIN_SUFFIXES = frozenset(
+    {"alt", "arpa", "example", "home", "internal", "invalid", "lan", "local", "localhost", "onion", "test"}
+)
 
 
 def _validate_hostname(value: str) -> None:
@@ -40,6 +54,65 @@ def _validate_hostname(value: str) -> None:
             raise InvariantViolation("hostname contains an empty label")
         if not _HOSTNAME_LABEL.match(label):
             raise InvariantViolation(f"invalid hostname label: {label!r}")
+
+
+def _validate_domain(value: str) -> None:
+    """Validate a DNS domain suitable for domain-wide enumeration.
+
+    The domain layer deliberately has no public-suffix data-file or network
+    dependency.  It still rejects single-label names, numeric/private/special
+    suffixes, and malformed DNS labels, without claiming full PSL validation.
+    """
+    candidate = value.rstrip(".")
+    if candidate != value:
+        raise InvariantViolation("domain must not end with a trailing dot")
+    _validate_hostname(candidate)
+    labels = candidate.split(".")
+    if len(labels) < 2:
+        raise InvariantViolation("domain must contain at least two DNS labels")
+    suffix = labels[-1].lower()
+    if suffix in _NON_PUBLIC_DOMAIN_SUFFIXES:
+        raise InvariantViolation(f"domain uses a non-public or special-use suffix: {suffix!r}")
+    if len(suffix) < 2 or not suffix.isascii() or not suffix.isalpha():
+        raise InvariantViolation("domain suffix must contain at least two ASCII letters")
+
+
+def _validate_source_path(value: str) -> None:
+    """Validate a cross-platform absolute source path without touching disk."""
+    if any(ord(char) < 32 for char in value):
+        raise InvariantViolation("source path must not contain control characters")
+    # UNC/device paths can trigger remote filesystem access on Windows and
+    # therefore are not a LOCAL_RESOURCE, even though ntpath.isabs() calls
+    # them absolute. A single leading backslash is also drive-relative, not
+    # an unambiguous absolute path. Accept only a POSIX root or an explicit
+    # Windows drive root.
+    if value.startswith(("//", "\\\\")):
+        raise InvariantViolation("source path must not be a network share or device path")
+    drive, tail = ntpath.splitdrive(value)
+    is_posix_absolute = value.startswith("/")
+    is_windows_drive_absolute = bool(re.fullmatch(r"[A-Za-z]:", drive)) and tail.startswith(("\\", "/"))
+    if not (is_posix_absolute or is_windows_drive_absolute):
+        raise InvariantViolation("source path must be absolute on the KingSec server")
+    if ".." in re.split(r"[\\/]", value):
+        raise InvariantViolation("source path must not contain parent-directory segments")
+
+
+def _validate_container_image(value: str) -> None:
+    """Validate a conservative OCI/Docker image reference."""
+    if len(value) > 512:
+        raise InvariantViolation("container image reference is too long (max 512 characters)")
+    if value != value.strip() or any(char.isspace() or ord(char) < 32 for char in value):
+        raise InvariantViolation("container image reference must not contain whitespace or control characters")
+    if "://" in value or not _CONTAINER_IMAGE.fullmatch(value):
+        raise InvariantViolation(
+            "invalid container image reference; expected a name such as 'alpine:3.20' "
+            "or 'registry.example.com/team/app:tag'"
+        )
+    first_component = value.split("/", 1)[0]
+    if "/" in value and ":" in first_component:
+        raw_port = first_component.rsplit(":", 1)[1]
+        if raw_port.isdigit() and not (1 <= int(raw_port) <= 65535):
+            raise InvariantViolation(f"container registry port {raw_port} is out of range (1-65535)")
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +164,12 @@ class Target:
                 raise InvariantViolation(f"URL port {raw_port} is out of range (1-65535)")
             if not parsed.hostname:
                 raise InvariantViolation("URL has no usable host")
+        elif tp == TargetType.DOMAIN:
+            _validate_domain(self.value)
+        elif tp == TargetType.SOURCE_PATH:
+            _validate_source_path(self.value)
+        elif tp == TargetType.CONTAINER_IMAGE:
+            _validate_container_image(self.value)
 
     def __str__(self) -> str:
         return f"{self.value} ({self.type.value})"

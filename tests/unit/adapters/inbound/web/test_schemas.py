@@ -28,9 +28,11 @@ class TestCreateAssessmentBody:
             target_type="ip_address",
             authorized_by="admin@co.com",
             scope="10.0.0.5",
+            profile_id="quick-scan",
         )
         assert body.target_value == "10.0.0.5"
         assert body.target_type == "ip_address"
+        assert body.profile_id == "quick-scan"
 
     def test_empty_target_value_rejected(self) -> None:
         with pytest.raises(ValidationError, match="string_too_short"):
@@ -39,6 +41,7 @@ class TestCreateAssessmentBody:
                 target_type="ip_address",
                 authorized_by="admin",
                 scope="10.0.0.5",
+                profile_id="quick-scan",
             )
 
     def test_empty_target_type_rejected(self) -> None:
@@ -48,6 +51,7 @@ class TestCreateAssessmentBody:
                 target_type="",
                 authorized_by="admin",
                 scope="10.0.0.5",
+                profile_id="quick-scan",
             )
 
     def test_empty_authorized_by_rejected(self) -> None:
@@ -57,6 +61,7 @@ class TestCreateAssessmentBody:
                 target_type="ip_address",
                 authorized_by="",
                 scope="10.0.0.5",
+                profile_id="quick-scan",
             )
 
     def test_empty_scope_rejected(self) -> None:
@@ -66,6 +71,7 @@ class TestCreateAssessmentBody:
                 target_type="ip_address",
                 authorized_by="admin",
                 scope="",
+                profile_id="quick-scan",
             )
 
     def test_extra_fields_rejected(self) -> None:
@@ -75,6 +81,7 @@ class TestCreateAssessmentBody:
                 target_type="ip_address",
                 authorized_by="admin",
                 scope="10.0.0.5",
+                profile_id="quick-scan",
                 sneaky_field="should fail",
             )
 
@@ -91,6 +98,7 @@ class TestCreateAssessmentBody:
             target_type="ip_address",
             authorized_by="admin",
             scope="10.0.0.5",
+            profile_id="quick-scan",
         )
         defaults.update(overrides)
         return CreateAssessmentBody(**defaults)
@@ -106,6 +114,20 @@ class TestCreateAssessmentBody:
     def test_profile_id_above_limit_rejected(self) -> None:
         with pytest.raises(ValidationError, match="string_too_long"):
             self._make(profile_id="x" * 129)
+
+    def test_profile_id_is_required(self) -> None:
+        with pytest.raises(ValidationError, match="Field required"):
+            CreateAssessmentBody(
+                target_value="10.0.0.5",
+                target_type="ip_address",
+                authorized_by="admin",
+                scope="10.0.0.5",
+            )
+
+    @pytest.mark.parametrize("profile_id", ["", "Quick-Scan", "quick_scan", "quick scan", "-quick-scan"])
+    def test_malformed_profile_id_rejected(self, profile_id: str) -> None:
+        with pytest.raises(ValidationError):
+            self._make(profile_id=profile_id)
 
 
 class TestRefreshTokenBody:

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Any, NoReturn, cast
 
-from sqlalchemy import CursorResult, delete, update
+from sqlalchemy import CursorResult, and_, delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -37,9 +37,18 @@ from .mappers import (
     report_to_orm,
     try_assessment_to_domain,
 )
-from .models import AssessmentORM, ReportORM
+from .models import AssessmentORM, FindingORM, ReportORM
 
 _logger = get_logger("kingsec.infrastructure.persistence")
+
+_ALLOWED_ASSESSMENT_ORDER_COLS = frozenset(
+    {
+        "created_at",
+        "status",
+        "target",
+        "findings_count",
+    }
+)
 
 
 def raise_persistence_error(message: str, cause: SQLAlchemyError, reference: str) -> NoReturn:
@@ -221,21 +230,91 @@ def list_assessments(
     *,
     limit: int = 50,
     offset: int = 0,
+    search: str | None = None,
+    status: str | None = None,
+    order_by: str = "created_at",
+    order_dir: str = "desc",
+    requesting_user: str = "",
+    is_admin: bool = True,
 ) -> AssessmentPage:
-    """Load assessments ordered by created_at DESC with pagination.
+    """Load a filtered, ownership-scoped page of assessments.
 
     Args:
         session: The active session.
         limit: Maximum number of results.
         offset: Number of results to skip.
+        search: Case-insensitive target or assessment-id substring.
+        status: Assessment status value (for example ``completed``).
+        order_by: Allowlisted sort field.
+        order_dir: ``asc`` or ``desc`` (invalid values fall back to ``desc``).
+        requesting_user: Authenticated user id used for non-admin scoping.
+        is_admin: Whether the caller may see assessments owned by any user.
 
     Returns:
-        A page of assessments, most recent first (may be empty), plus the
-        ids of any rows that exist but could not be reconstructed
+        A page of assessments (possibly empty), the full filtered total, and
+        the ids of any rows on this page that could not be reconstructed
         (Phase 2B Task 2 Condition 1) - one corrupted row must not fail
         every other assessment in the list.
     """
-    orms = session.query(AssessmentORM).order_by(AssessmentORM.created_at.desc()).offset(offset).limit(limit).all()
+    clamped_limit = min(max(limit, 1), 200)
+    clamped_offset = max(offset, 0)
+    filters = []
+
+    search_term = search.strip() if search else ""
+    if search_term:
+        # Treat wildcard characters as text: this is a substring search, not
+        # a caller-controlled SQL LIKE pattern.
+        escaped = search_term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        like = f"%{escaped}%"
+        filters.append(
+            or_(
+                AssessmentORM.id.ilike(like, escape="\\"),
+                AssessmentORM.target_value.ilike(like, escape="\\"),
+                AssessmentORM.target_type.ilike(like, escape="\\"),
+            )
+        )
+
+    status_value = status.strip().upper() if status else ""
+    if status_value:
+        filters.append(AssessmentORM.status == status_value)
+
+    if not is_admin:
+        # Fail closed and establish ownership before offset/limit. Legacy
+        # unowned rows are excluded, matching single-assessment access rules.
+        filters.append(
+            and_(
+                AssessmentORM.owner_id.isnot(None),
+                AssessmentORM.owner_id != "",
+                AssessmentORM.owner_id == requesting_user,
+            )
+        )
+
+    stmt = select(AssessmentORM)
+    count_stmt = select(func.count()).select_from(AssessmentORM)
+    if filters:
+        stmt = stmt.where(*filters)
+        count_stmt = count_stmt.where(*filters)
+
+    findings_count = (
+        select(func.count(FindingORM.id))
+        .where(FindingORM.assessment_id == AssessmentORM.id)
+        .correlate(AssessmentORM)
+        .scalar_subquery()
+    )
+    sort_field = order_by if order_by in _ALLOWED_ASSESSMENT_ORDER_COLS else "created_at"
+    sort_expression = {
+        "created_at": AssessmentORM.created_at,
+        "status": func.lower(AssessmentORM.status),
+        "target": func.lower(AssessmentORM.target_value),
+        "findings_count": findings_count,
+    }[sort_field]
+    ascending = order_dir.lower() == "asc"
+    primary_order = sort_expression.asc() if ascending else sort_expression.desc()
+    id_order = AssessmentORM.id.asc() if ascending else AssessmentORM.id.desc()
+    stmt = stmt.order_by(primary_order, id_order).offset(clamped_offset).limit(clamped_limit)
+
+    total = session.execute(count_stmt).scalar_one()
+    orms = session.execute(stmt).scalars().all()
     items: list[Assessment] = []
     unreadable_ids: list[str] = []
     for orm in orms:
@@ -245,7 +324,7 @@ def list_assessments(
             _logger.warning("assessment row could not be reconstructed, skipped from list", assessment_id=orm.id)
         else:
             items.append(assessment)
-    return AssessmentPage(items=tuple(items), unreadable_ids=tuple(unreadable_ids))
+    return AssessmentPage(items=tuple(items), total=total, unreadable_ids=tuple(unreadable_ids))
 
 
 def find_running_assessments(session: Session) -> list[Assessment]:

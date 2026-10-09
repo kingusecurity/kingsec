@@ -41,6 +41,12 @@ _REPO_ROOT = Path(__file__).resolve().parents[4]
 # not something that should pass silently.
 _DOCUMENTED_NON_SETTINGS_VARS = frozenset({"KINGSEC_STORAGE__DATABASE_URL"})
 
+# Cross-platform one-shot installer inputs. The installer translates these
+# into real Settings fields in the generated .env/launcher; the application
+# itself may ignore them, so they are intentionally distinct from the
+# migration-only variables above that must be rejected by Settings.
+_DOCUMENTED_INSTALLER_VARS = frozenset({"KINGSEC_DATA_DIR"})
+
 _KINGSEC_VAR_PATTERN = re.compile(r"KINGSEC_[A-Z0-9_]+")
 
 
@@ -68,7 +74,7 @@ def _documented_vars(text: str) -> set[str]:
 
 def _undocumented_field_mismatches(documented: set[str], real_fields: set[str]) -> set[str]:
     """Documented names that are neither a real field nor a known exception."""
-    return documented - real_fields - _DOCUMENTED_NON_SETTINGS_VARS
+    return documented - real_fields - _DOCUMENTED_NON_SETTINGS_VARS - _DOCUMENTED_INSTALLER_VARS
 
 
 class TestDetectionLogicCatchesTheHistoricalDefectShape:

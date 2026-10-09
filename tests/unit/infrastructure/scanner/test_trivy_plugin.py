@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -17,12 +18,17 @@ from kingsec.domain import (
     TargetType,
 )
 from kingsec.infrastructure.config.models import TrivySettings
-from kingsec.infrastructure.scanner.errors import BINARY_ABSENT_USER_MESSAGE, ScannerExecutionError
+from kingsec.infrastructure.scanner.errors import (
+    BINARY_ABSENT_USER_MESSAGE,
+    ScannerExecutionError,
+    ScannerOutputError,
+)
 from kingsec.infrastructure.scanner.plugins.trivy import TrivyPlugin
 from kingsec.infrastructure.scanner.runner import CommandResult
 from tests.unit.infrastructure.scanner.conftest import FakeRunner
 
-_TARGET = Target("example.com", TargetType.HOSTNAME)
+_SOURCE_TARGET = Target(str(Path(__file__).resolve().parent), TargetType.SOURCE_PATH)
+_IMAGE_TARGET = Target("alpine:3.20", TargetType.CONTAINER_IMAGE)
 
 _SAMPLE_JSONL = json.dumps(
     {
@@ -115,10 +121,13 @@ class TestMetadata:
 
 
 class TestCapabilities:
-    def test_declares_reachable_host(self) -> None:
+    def test_declares_source_path_and_container_image(self) -> None:
         caps = _make_plugin().capabilities()
-        assert len(caps) == 1
-        assert caps[0].requirement is ScannerRequirement.REACHABLE_HOST
+        assert len(caps) == 2
+        assert {cap.requirement for cap in caps} == {
+            ScannerRequirement.SOURCE_PATH,
+            ScannerRequirement.CONTAINER_IMAGE,
+        }
 
     def test_vulnerability_category(self) -> None:
         caps = _make_plugin().capabilities()
@@ -167,7 +176,7 @@ class TestScan:
     def test_delegates_to_adapter(self) -> None:
         runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.5))
         plugin = _make_plugin(runner=runner)
-        result = plugin.scan(_TARGET, PluginConfig())
+        result = plugin.scan(_SOURCE_TARGET, PluginConfig())
         assert isinstance(result, ScannerResult)
         assert result.scanner_id == ScannerId("trivy")
         assert len(result.findings) == 3
@@ -176,39 +185,75 @@ class TestScan:
         runner = FakeRunner(CommandResult(1, "", "error", 0.1))
         plugin = _make_plugin(runner=runner)
         with pytest.raises(ScannerExecutionError):
-            plugin.scan(_TARGET, PluginConfig())
+            plugin.scan(_SOURCE_TARGET, PluginConfig())
 
     def test_scanner_result_returned_unchanged(self) -> None:
         runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.3))
         plugin = _make_plugin(runner=runner)
-        result = plugin.scan(_TARGET, PluginConfig())
+        result = plugin.scan(_SOURCE_TARGET, PluginConfig())
         assert isinstance(result, ScannerResult)
         assert result.scanner_id == ScannerId("trivy")
 
-    def test_empty_output_returns_empty_findings(self) -> None:
+    def test_empty_output_raises_output_error(self) -> None:
         runner = FakeRunner(CommandResult(0, "", "", 0.0))
         plugin = _make_plugin(runner=runner)
-        result = plugin.scan(_TARGET, PluginConfig())
+        with pytest.raises(ScannerOutputError):
+            plugin.scan(_SOURCE_TARGET, PluginConfig())
+
+    def test_valid_empty_report_returns_empty_findings(self) -> None:
+        runner = FakeRunner(CommandResult(0, json.dumps({"Results": []}), "", 0.0))
+        plugin = _make_plugin(runner=runner)
+        result = plugin.scan(_SOURCE_TARGET, PluginConfig())
         assert result.findings == ()
 
-    def test_build_args_includes_fs_subcommand(self) -> None:
+    def test_malformed_nonempty_output_raises_output_error(self) -> None:
+        runner = FakeRunner(CommandResult(0, "not trivy json", "", 0.0))
+        plugin = _make_plugin(runner=runner)
+        with pytest.raises(ScannerOutputError):
+            plugin.scan(_SOURCE_TARGET, PluginConfig())
+
+    def test_missing_source_path_fails_before_execution(self, tmp_path: Path) -> None:
+        target = Target(str(tmp_path / "missing"), TargetType.SOURCE_PATH)
         runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))
         plugin = _make_plugin(runner=runner)
-        plugin.scan(_TARGET, PluginConfig())
-        args = runner.calls[0][0]
-        assert "fs" in args
 
-    def test_build_args_includes_image_subcommand(self) -> None:
+        with pytest.raises(ScannerExecutionError) as exc_info:
+            plugin.scan(target, PluginConfig())
+
+        assert runner.calls == []
+        assert "exists" in exc_info.value.user_message
+        assert target.value not in exc_info.value.user_message
+
+    def test_unreadable_source_path_fails_before_execution(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))
+        plugin = _make_plugin(runner=runner)
+        monkeypatch.setattr("kingsec.infrastructure.scanner.trivy.os.access", lambda *_args: False)
+
+        with pytest.raises(ScannerExecutionError) as exc_info:
+            plugin.scan(_SOURCE_TARGET, PluginConfig())
+
+        assert runner.calls == []
+        assert "readable" in exc_info.value.user_message
+        assert _SOURCE_TARGET.value not in exc_info.value.user_message
+
+    def test_source_target_selects_fs_even_when_setting_requests_image(self) -> None:
         runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))
         plugin = _make_plugin(scan_type="image", runner=runner)
-        plugin.scan(_TARGET, PluginConfig())
+        plugin.scan(_SOURCE_TARGET, PluginConfig())
         args = runner.calls[0][0]
-        assert "image" in args
+        assert args[1] == "fs"
+
+    def test_container_image_target_selects_image_even_when_setting_requests_fs(self) -> None:
+        runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))
+        plugin = _make_plugin(scan_type="fs", runner=runner)
+        plugin.scan(_IMAGE_TARGET, PluginConfig())
+        args = runner.calls[0][0]
+        assert args[1] == "image"
 
     def test_build_args_includes_format_json(self) -> None:
         runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))
         plugin = _make_plugin(runner=runner)
-        plugin.scan(_TARGET, PluginConfig())
+        plugin.scan(_SOURCE_TARGET, PluginConfig())
         args = runner.calls[0][0]
         assert "--format" in args
         fmt_idx = args.index("--format")
@@ -217,9 +262,9 @@ class TestScan:
     def test_build_args_includes_target(self) -> None:
         runner = FakeRunner(CommandResult(0, _SAMPLE_JSONL, "", 0.1))
         plugin = _make_plugin(runner=runner)
-        plugin.scan(_TARGET, PluginConfig())
+        plugin.scan(_SOURCE_TARGET, PluginConfig())
         args = runner.calls[0][0]
-        assert "example.com" in args
+        assert _SOURCE_TARGET.value in args
 
 
 # ===========================================================================
@@ -266,5 +311,5 @@ class TestProvisioning:
         container.register_instance(ScannerPort, orchestrator)
 
         scanner = container.resolve(ScannerPort)
-        findings = scanner.scan(_TARGET)
+        findings = scanner.scan(_SOURCE_TARGET)
         assert len(findings) == 3

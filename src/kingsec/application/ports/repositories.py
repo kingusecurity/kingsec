@@ -69,6 +69,7 @@ class AssessmentPage:
     """
 
     items: tuple[Assessment, ...]
+    total: int
     unreadable_ids: tuple[str, ...] = ()
 
 
@@ -97,8 +98,24 @@ class AssessmentRepository(ABC):
         *,
         limit: int = 50,
         offset: int = 0,
+        search: str | None = None,
+        status: str | None = None,
+        order_by: str = "created_at",
+        order_dir: str = "desc",
+        requesting_user: str = "",
+        is_admin: bool = True,
     ) -> AssessmentPage:
-        """Return one page of assessments ordered by created_at DESC.
+        """Return one filtered, ordered page of assessments.
+
+        Ownership and all filters are applied before pagination. ``total`` is
+        the number of matching persisted rows before the page limit/offset.
+        Implementations must allowlist ``order_by`` rather than interpolating
+        caller-provided column names.
+
+        Direct repository callers retain the historical unscoped listing by
+        default. User-facing callers must always pass ``requesting_user`` and
+        ``is_admin`` explicitly; ``ListAssessments`` does so before this
+        boundary is reached.
 
         A row that cannot be reconstructed is excluded from ``items`` and
         its id is reported in ``unreadable_ids`` instead of failing the

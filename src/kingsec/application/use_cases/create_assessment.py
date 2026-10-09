@@ -14,9 +14,13 @@ from datetime import UTC, datetime
 
 from kingsec.application._support import build_target
 from kingsec.application.assessment_profiles import ExecutionPlanner
-from kingsec.application.authorization_scope import effective_scan_surface, find_covering
+from kingsec.application.authorization_scope import (
+    effective_scan_surface,
+    effective_unprofiled_scan_surface,
+    find_covering,
+)
 from kingsec.application.dto import CreateAssessmentRequest, CreateAssessmentResponse
-from kingsec.application.errors import AuthorizationScopeError
+from kingsec.application.errors import AuthorizationScopeError, InputValidationError
 from kingsec.application.events import EVENT_ASSESSMENT_CREATED, AssessmentEvent
 from kingsec.application.ports import (
     AssessmentRepository,
@@ -53,24 +57,34 @@ class CreateAssessment:
         self._assessments = assessments
         self._events = events
         self._audit = audit
-        # Phase 4 (authorization scope enforcement): all three optional
-        # until the composition root is updated to supply the real
-        # AuthorizationGrantRepository adapter (pending the migration this
-        # feature's own approval process gates - see docs/STATUS.md). Not
-        # a silent gap: _enforce_authorization_scope() logs a warning on
-        # every call while unconfigured, and this comment plus that log
-        # line are the record of why - never leave a security check able
-        # to no-op without a trace (the exact failure mode a now-deleted
-        # phantom setting, require_authorization, described in its own
-        # docstring while enforcing nothing).
+        # Phase 4 (authorization scope enforcement): grants and registry
+        # remain optional so explicitly disabling scope enforcement keeps
+        # its documented rollback behaviour. Profile validation is a
+        # separate input-validity concern, however, so every construction
+        # gets a planner: production injects the configured DI instance and
+        # direct/unit callers fall back to the canonical built-in catalogue.
+        # This prevents an unknown profile id from bypassing scope checks
+        # and being persisted merely because enforcement is disabled.
         self._grants = grants
         self._registry = registry
-        self._planner = planner
+        self._planner = planner or ExecutionPlanner()
 
     def execute(self, request: CreateAssessmentRequest) -> CreateAssessmentResponse:
         # Translate raw primitives into a validated domain Target (raises
         # InputValidationError on bad input).
         target = build_target(request.target_value, request.target_type)
+
+        profile_id = request.profile_id
+        if profile_id is not None:
+            profile = self._planner.get_profile(profile_id)
+            if profile is None:
+                raise InputValidationError(f"Unknown profile: {profile_id!r}")
+            if target.type not in profile.supported_target_types:
+                supported = ", ".join(target_type.value for target_type in profile.supported_target_types)
+                raise InputValidationError(
+                    f"profile {profile_id!r} does not support target type {target.type.value!r}; "
+                    f"expected one of: {supported}"
+                )
 
         authorization_id = self._enforce_authorization_scope(target, request)
 
@@ -121,11 +135,14 @@ class CreateAssessment:
         profile would actually touch, by an active AuthorizationGrant.
 
         Returns the value to persist as Assessment.authorization_id:
-          - None: enforcement not configured, no profile, unknown profile,
-            or no ScannerSurfaceTier actually required a grant - nothing
-            was checked, so nothing is recorded (see the field's own
-            docstring in domain/assessment.py for why None is honest here,
-            not just "pre-enforcement").
+          - None: enforcement not configured, or no compatible scanner
+            actually requires a ScannerSurfaceTier - nothing was checked,
+            so nothing is recorded (see the field's own docstring in
+            domain/assessment.py for why None is honest here, not just
+            "pre-enforcement"). A missing profile does NOT take this branch:
+            execution runs every compatible scanner, so its real aggregate
+            surface is derived and enforced below. Unknown profiles are
+            rejected before this method is called.
           - a single grant id, or several comma-joined: every required
             tier was covered, by find_covering()'s actual match(es). More
             than one distinct grant can legitimately be needed - e.g. a
@@ -141,7 +158,7 @@ class CreateAssessment:
         then blocks; it refuses to create the unauthorized work at all.
 
         Fails OPEN (logs a warning, does not enforce) only while grants/
-        registry/planner are not yet wired at the composition root - see
+        registry are not wired at the composition root - see
         __init__'s docstring comment for why this is a deliberate,
         explicitly-logged transitional state, not a silent gap.
 
@@ -153,7 +170,7 @@ class CreateAssessment:
         the check is exactly as visible in the audit trail as being
         refused by it (SCOPE_CHECK_REFUSED) - never a silent bypass.
         """
-        if self._grants is None or self._registry is None or self._planner is None:
+        if self._grants is None or self._registry is None:
             logging.getLogger(__name__).warning(
                 "authorization scope enforcement is not configured - assessment created for %r without a scope check",
                 target.value,
@@ -162,17 +179,19 @@ class CreateAssessment:
 
         profile_id = request.profile_id
         if profile_id is None:
-            # No profile chosen yet is a different validity concern,
-            # handled elsewhere (e.g. execution planning) - nothing to
-            # enforce a scan surface against here.
-            return None
-        profile = self._planner.get_profile(profile_id)
-        if profile is None:
-            # An unknown profile_id is likewise a different validity
-            # concern, handled elsewhere.
-            return None
-
-        required_tiers = effective_scan_surface(profile, self._registry, target.type)
+            # This is the real execution contract, not a fallback guess:
+            # SubmitAssessment passes scanner_ids=None and the orchestrator
+            # resolves every target-compatible plugin. Scheduled assessments
+            # currently arrive here without a profile as well.
+            required_tiers = effective_unprofiled_scan_surface(self._registry, target)
+        else:
+            profile = self._planner.get_profile(profile_id)
+            # execute() validates this before scope enforcement. Keep the
+            # guard local too so a future refactor cannot silently restore
+            # the former unknown-profile fail-open path.
+            if profile is None:
+                raise InputValidationError(f"Unknown profile: {profile_id!r}")
+            required_tiers = effective_scan_surface(profile, self._registry, target.type)
         if not required_tiers:
             return None
 
@@ -194,6 +213,7 @@ class CreateAssessment:
         audit_metadata: dict[str, object] = {
             "target": target.value,
             "profile_id": profile_id,
+            "scan_selection": profile_id or "all-compatible",
             "missing_tiers": ",".join(missing_tiers),
         }
 

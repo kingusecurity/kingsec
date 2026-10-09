@@ -11,8 +11,8 @@ authorized is not the same privilege as deciding what's authorized).
     GET    /api/v1/authorization-grants        - list   (ANALYST+)
     DELETE /api/v1/authorization-grants/{id}   - revoke (ADMIN)
 
-Frontend is out of scope this round (see CHANGELOG.md) - this route plus
-documented curl usage is the deliverable; a UI is logged as a follow-up.
+The frontend's Authorization Grants page consumes these same routes; role
+checks remain authoritative here at the HTTP boundary.
 """
 
 from __future__ import annotations
@@ -185,26 +185,20 @@ async def revoke_authorization_grant(
 )
 async def check_grant_coverage(
     request: Request,
-    target_type: Annotated[str, Query(description="One of: ip_address, hostname, url, network")],
+    target_type: Annotated[
+        str,
+        Query(
+            description=(
+                "One of: ip_address, hostname, url, network, domain, source_path, "
+                "container_image"
+            )
+        ),
+    ],
     target_value: Annotated[str, Query(min_length=1, max_length=2048)],
     profile_id: Annotated[str, Query(...)],
     _user: CurrentUser = Depends(require_analyst),
 ) -> schemas.CheckGrantCoverageResponse:
     app: Application = request.app.state.kingsec_app
-
-    if not app.settings.security.enforce_authorization_scope:
-        # Mirrors CreateAssessment's own rollback lever (Phase 4):
-        # enforcement off means nothing would ever be checked or refused,
-        # so there is nothing to warn about - never a stale "missing
-        # grant" message the real submission would not actually produce.
-        return schemas.CheckGrantCoverageResponse(
-            enforced=False,
-            target_type=target_type,
-            target_value=target_value,
-            profile_id=profile_id,
-            required_tiers=[],
-            fully_covered=True,
-        )
 
     try:
         target = Target(value=target_value, type=TargetType(target_type))
@@ -215,6 +209,30 @@ async def check_grant_coverage(
     profile = planner.get_profile(profile_id)
     if profile is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Unknown profile: {profile_id!r}")
+    if target.type not in profile.supported_target_types:
+        supported = ", ".join(item.value for item in profile.supported_target_types)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"profile {profile_id!r} does not support target type {target.type.value!r}; "
+                f"expected one of: {supported}"
+            ),
+        )
+
+    if not app.settings.security.enforce_authorization_scope:
+        # Mirrors CreateAssessment's own rollback lever (Phase 4):
+        # enforcement off means nothing would be checked or refused, so
+        # there is nothing to warn about. Input validity is still checked
+        # above: disabling grant enforcement must not make an impossible
+        # profile/target combination look valid.
+        return schemas.CheckGrantCoverageResponse(
+            enforced=False,
+            target_type=target_type,
+            target_value=target_value,
+            profile_id=profile_id,
+            required_tiers=[],
+            fully_covered=True,
+        )
 
     registry = cast(ScannerPluginRegistry, app.resolve(ScannerPluginRegistry))
     required_tiers = effective_scan_surface(profile, registry, target.type)

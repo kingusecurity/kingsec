@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from kingsec.application import ReportGeneratorPort
+from kingsec.application.ports import ReportArtifactCachePort
 from kingsec.infrastructure._container import ContainerProtocol
 from kingsec.infrastructure.logging import get_logger
 
@@ -41,5 +42,6 @@ def register_reporting(
     adapter = ReportGeneratorAdapter(output_format=output_format, brand_name=brand_name, cache_dir=cache_dir)
     register = container.register_instance
     register(ReportGeneratorPort, adapter)
+    register(ReportArtifactCachePort, adapter)
     _logger.info("reporting registered", format=output_format, cached=cache_dir is not None)
     return adapter

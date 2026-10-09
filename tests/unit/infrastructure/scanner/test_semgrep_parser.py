@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from kingsec.domain import Severity
+from kingsec.infrastructure.scanner.errors import ScannerOutputError
 from kingsec.infrastructure.scanner.semgrep_parser import parse_semgrep_json
 
 # ---------------------------------------------------------------------------
@@ -115,17 +118,28 @@ _MALFORMED_JSON = "this is not json"
 class TestParseSemgrepJson:
     """Core parser behaviour."""
 
-    def test_empty_output(self) -> None:
-        assert parse_semgrep_json("") == []
+    def test_empty_output_is_not_a_valid_semgrep_report(self) -> None:
+        with pytest.raises(ScannerOutputError):
+            parse_semgrep_json(_EMPTY_OUTPUT)
 
-    def test_malformed_json(self) -> None:
-        assert parse_semgrep_json(_MALFORMED_JSON) == []
+    def test_malformed_json_raises_output_error(self) -> None:
+        with pytest.raises(ScannerOutputError):
+            parse_semgrep_json(_MALFORMED_JSON)
 
     def test_empty_results(self) -> None:
         assert parse_semgrep_json(_EMPTY_RESULTS) == []
 
-    def test_no_results_key(self) -> None:
-        assert parse_semgrep_json(_NO_RESULTS_KEY) == []
+    def test_no_results_key_raises_output_error(self) -> None:
+        with pytest.raises(ScannerOutputError):
+            parse_semgrep_json(_NO_RESULTS_KEY)
+
+    def test_non_object_report_raises_output_error(self) -> None:
+        with pytest.raises(ScannerOutputError):
+            parse_semgrep_json(json.dumps([]))
+
+    def test_non_array_results_raises_output_error(self) -> None:
+        with pytest.raises(ScannerOutputError):
+            parse_semgrep_json(json.dumps({"results": {}}))
 
     def test_single_result(self) -> None:
         findings = parse_semgrep_json(_SINGLE_RESULT_OUTPUT)
@@ -136,10 +150,14 @@ class TestParseSemgrepJson:
         findings = parse_semgrep_json(_FULL_OUTPUT)
         assert len(findings) == 3
 
-    def test_non_dict_results_skipped(self) -> None:
+    def test_non_dict_results_raise_output_error(self) -> None:
         output = json.dumps({"results": ["not a dict", 123]})
-        findings = parse_semgrep_json(output)
-        assert len(findings) == 0
+        with pytest.raises(ScannerOutputError):
+            parse_semgrep_json(output)
+
+    def test_incomplete_result_raises_output_error(self) -> None:
+        with pytest.raises(ScannerOutputError):
+            parse_semgrep_json(json.dumps({"results": [{}]}))
 
     def test_empty_results_array(self) -> None:
         output = json.dumps({"results": []})

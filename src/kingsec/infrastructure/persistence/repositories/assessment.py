@@ -18,12 +18,9 @@ from sqlalchemy.orm import Session
 from kingsec.application import AssessmentDataCorruptedError, AssessmentNotFoundError, AssessmentRepository
 from kingsec.application.ports.repositories import AssessmentPage, FindingProjection
 from kingsec.domain import Assessment, AssessmentId
-from kingsec.infrastructure.logging import get_logger
 from kingsec.infrastructure.persistence import _operations as ops
 from kingsec.infrastructure.persistence.mappers import assessment_to_domain, try_assessment_to_domain
 from kingsec.infrastructure.persistence.models import AssessmentORM, FindingORM
-
-_logger = get_logger("kingsec.infrastructure.persistence")
 
 _ALLOWED_FINDING_ORDER_COLS = frozenset({
     "discovered_at",
@@ -68,19 +65,24 @@ class SQLAlchemyAssessmentRepository(AssessmentRepository):
         *,
         limit: int = 50,
         offset: int = 0,
+        search: str | None = None,
+        status: str | None = None,
+        order_by: str = "created_at",
+        order_dir: str = "desc",
+        requesting_user: str = "",
+        is_admin: bool = True,
     ) -> AssessmentPage:
-        stmt = select(AssessmentORM).order_by(AssessmentORM.created_at.desc()).offset(offset).limit(limit)
-        orms = self._session.execute(stmt).scalars().all()
-        items: list[Assessment] = []
-        unreadable_ids: list[str] = []
-        for o in orms:
-            assessment = try_assessment_to_domain(o)
-            if assessment is None:
-                unreadable_ids.append(o.id)
-                _logger.warning("assessment row could not be reconstructed, skipped from list", assessment_id=o.id)
-            else:
-                items.append(assessment)
-        return AssessmentPage(items=tuple(items), unreadable_ids=tuple(unreadable_ids))
+        return ops.list_assessments(
+            self._session,
+            limit=limit,
+            offset=offset,
+            search=search,
+            status=status,
+            order_by=order_by,
+            order_dir=order_dir,
+            requesting_user=requesting_user,
+            is_admin=is_admin,
+        )
 
     def find_by_schedule_occurrence_id(self, occurrence_id: str) -> builtins.list[Assessment]:
         """Return every assessment linked to a schedule occurrence (KSEC-100-01)."""

@@ -593,12 +593,10 @@ class ScannerDiscoveryService:
 
     Phase 2A Correction 4: ``ffuf_wordlist``/``gobuster_wordlist`` are the
     operator's actual configured ``FfufSettings.wordlist`` /
-    ``GobusterSettings.wordlist`` values. Without them, discovery has no
-    way to know whether a real wordlist is configured and correctly
-    reports the asset as missing on every platform — including Windows,
-    where the old hardcoded ``/usr/share/wordlists`` check would have
-    reported "missing" unconditionally regardless of configuration the
-    moment this requirement became non-optional.
+    ``GobusterSettings.wordlist`` values. ``nuclei_templates_dir`` follows
+    the same rule for the adapter's explicit ``-t`` path. Without these,
+    discovery can report a scanner unusable while the real adapter has a
+    valid configured asset, or usable while the configured path is broken.
     """
 
     def __init__(
@@ -606,10 +604,12 @@ class ScannerDiscoveryService:
         *,
         ffuf_wordlist: str = "",
         gobuster_wordlist: str = "",
+        nuclei_templates_dir: Path | None = None,
         binary_paths: dict[str, str] | None = None,
     ) -> None:
         self._ffuf_wordlist = ffuf_wordlist
         self._gobuster_wordlist = gobuster_wordlist
+        self._nuclei_templates_dir = nuclei_templates_dir
         # Task 5 Addition 2: the operator's actually-configured binary_path
         # per scanner (e.g. Settings.zap.binary_path), keyed by scanner_id.
         # Without this, doctor always resolved the manifest's hardcoded
@@ -665,6 +665,24 @@ class ScannerDiscoveryService:
                     install_hint=_wordlist_setup_command("KINGSEC_GOBUSTER__WORDLIST"),
                     optional=assets[0].optional,
                 )
+            ]
+        elif scanner_id == "nuclei" and self._nuclei_templates_dir is not None:
+            # A configured -t path overrides Nuclei's default. Checking
+            # ~/nuclei-templates instead could select a broken scan or
+            # reject a valid one, so inspect the path the adapter uses.
+            assets = [
+                AssetRequirement(
+                    name=asset.name,
+                    kind=asset.kind,
+                    path=(
+                        str(self._nuclei_templates_dir)
+                        if asset.name == "Nuclei templates"
+                        else asset.path
+                    ),
+                    install_hint=asset.install_hint,
+                    optional=asset.optional,
+                )
+                for asset in assets
             ]
 
         path = find_executable(binary)
@@ -764,9 +782,15 @@ class ScannerDiscoveryService:
 
         permissions_ok = _check_permissions(path)
 
-        has_templates = bool(
-            Path.home().joinpath("nuclei-templates").is_dir()
-        ) if scanner_id == "nuclei" else False
+        # Derive this convenience flag from the SAME asset decision above.
+        # Re-checking ~/nuclei-templates here would reintroduce drift for an
+        # explicitly configured -t path and could add a false setup
+        # recommendation even while status.usable is True.
+        has_templates = (
+            "Nuclei templates" not in missing_assets
+            if scanner_id == "nuclei"
+            else False
+        )
         has_perl = shutil.which("perl") is not None if scanner_id == "nikto" else False
         has_java = _check_java() if scanner_id == "zap" else False
         # Phase 2A Correction 4: reflects the same real, configured

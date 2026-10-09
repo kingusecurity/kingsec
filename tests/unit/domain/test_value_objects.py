@@ -50,6 +50,55 @@ class TestTarget:
         with pytest.raises(InvariantViolation):
             Target("host", "url")  # type: ignore[arg-type]
 
+    @pytest.mark.parametrize("value", ["example.com", "security.example.pk"])
+    def test_accepts_domain_enumeration_targets(self, value: str) -> None:
+        assert Target(value, TargetType.DOMAIN).value == value
+
+    @pytest.mark.parametrize(
+        "value", ["localhost", "example.test", "home.arpa", "example.alt", "example.123", "example.com."]
+    )
+    def test_rejects_non_public_domain_enumeration_targets(self, value: str) -> None:
+        with pytest.raises(InvariantViolation):
+            Target(value, TargetType.DOMAIN)
+
+    @pytest.mark.parametrize("value", ["/srv/customer/source", r"C:\customer\source"])
+    def test_accepts_absolute_source_paths_for_linux_and_windows(self, value: str) -> None:
+        assert Target(value, TargetType.SOURCE_PATH).value == value
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "relative/source",
+            r"\root-relative",
+            r"\\server\share\source",
+            "//server/share/source",
+            "/srv/customer/../secret",
+            "C:\\source\nother",
+        ],
+    )
+    def test_rejects_ambiguous_source_paths(self, value: str) -> None:
+        with pytest.raises(InvariantViolation):
+            Target(value, TargetType.SOURCE_PATH)
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "alpine:3.20",
+            "ghcr.io/example/application:v1.2.3",
+            "registry.example.com:5000/team/application@sha256:" + "a" * 64,
+        ],
+    )
+    def test_accepts_container_image_references(self, value: str) -> None:
+        assert Target(value, TargetType.CONTAINER_IMAGE).value == value
+
+    @pytest.mark.parametrize(
+        "value",
+        ["https://registry.example.com/image", "-malicious", "Uppercase/Repository:tag", "registry:70000/app"],
+    )
+    def test_rejects_invalid_container_image_references(self, value: str) -> None:
+        with pytest.raises(InvariantViolation):
+            Target(value, TargetType.CONTAINER_IMAGE)
+
 
 class TestAuthorization:
     def test_valid_authorization(self) -> None:

@@ -6,11 +6,9 @@ Usage::
     kingsec doctor --profile web-scan
     python -m kingsec._doctor
 
-For each of the six wired scanners (nmap, nuclei, nikto, ffuf, gobuster,
-zap — semgrep/trivy/amass are unwired, out of scope here, see
-docs/STATUS.md's Phase 2B roadmap item), reports: whether the binary is
-found (and where, and its version), whether its required assets are
-present, which target types it can serve, and — if unusable — the exact
+For each scanner wired into an assessment profile, reports whether the
+binary is found (and where, and its version), whether its required assets
+are present, which target types it can serve, and — if unusable — the exact
 command or config setting that fixes it.
 
 Read-only by design: never installs, downloads, or writes anything. Does
@@ -60,16 +58,24 @@ if TYPE_CHECKING:
     from kingsec.application.assessment_profiles import ExecutionPlanner
     from kingsec.application.scanner_discovery import ScannerStatus
 
-# The six wired scanners (Phase 2B Task 1 Decisions 1/2 — the honest
-# network scanner count). semgrep/trivy/amass are registered plugins but
-# unwired from every profile; reporting on them here would contradict
-# that decision, so they are deliberately excluded.
-WIRED_SCANNERS: tuple[str, ...] = ("nmap", "nuclei", "nikto", "ffuf", "gobuster", "zap")
+# Every scanner referenced by at least one built-in assessment profile.
+# The default full-assessment remains network-only; the source, image, and
+# domain scanners are wired through their own purpose-built profiles.
+WIRED_SCANNERS: tuple[str, ...] = (
+    "nmap",
+    "nuclei",
+    "nikto",
+    "ffuf",
+    "gobuster",
+    "zap",
+    "semgrep",
+    "trivy",
+    "amass",
+)
 
 # "the default profile" (task 3a's exit-code gate): full-assessment is
-# the profile that runs every wired scanner — no profile is literally
-# named "default", and this is the one whose scope matches doctor's own
-# ("for each of the six wired scanners") exactly.
+# the network profile used when the caller does not select a specialized
+# source, image, or domain profile.
 DEFAULT_PROFILE_ID = "full-assessment"
 
 
@@ -174,7 +180,7 @@ def _run(planner: ExecutionPlanner, profile_id: str, stream: TextIO) -> int:
     lines.append("-" * 42)
     lines.append(f"{len(WIRED_SCANNERS)} scanners checked: {usable_count} usable, {len(WIRED_SCANNERS) - usable_count} not usable")
     if profile is not None:
-        lines.append(f"Default profile {profile_id!r} scanners: {', '.join(profile.scanners)}")
+        lines.append(f"Selected profile {profile_id!r} scanners: {', '.join(profile.scanners)}")
         if unusable_in_profile:
             lines.append(f"  UNUSABLE in this profile: {', '.join(unusable_in_profile)}")
         else:

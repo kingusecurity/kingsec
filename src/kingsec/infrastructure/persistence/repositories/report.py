@@ -3,7 +3,7 @@ from __future__ import annotations
 import builtins
 from typing import Any
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session
 
 from kingsec.application import ReportNotFoundError, ReportRepository
@@ -61,9 +61,15 @@ class SQLAlchemyReportRepository(ReportRepository):
         count_stmt = select(func.count()).select_from(ReportORM)
 
         if search:
-            pattern = f"%{search}%"
-            stmt = stmt.where(ReportORM.target.ilike(pattern))
-            count_stmt = count_stmt.where(ReportORM.target.ilike(pattern))
+            escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            pattern = f"%{escaped}%"
+            search_filter = or_(
+                ReportORM.target.ilike(pattern, escape="\\"),
+                ReportORM.assessment_id.ilike(pattern, escape="\\"),
+                ReportORM.verdict_headline.ilike(pattern, escape="\\"),
+            )
+            stmt = stmt.where(search_filter)
+            count_stmt = count_stmt.where(search_filter)
         if severity:
             stmt = stmt.where(ReportORM.verdict_highest_severity == severity.upper())
             count_stmt = count_stmt.where(ReportORM.verdict_highest_severity == severity.upper())
@@ -89,12 +95,13 @@ class SQLAlchemyReportRepository(ReportRepository):
         order_col = getattr(ReportORM, col, ReportORM.generated_at)
 
         if col == "verdict_highest_severity":
+            severity_rank = case(
+                _SEVERITY_ORDER,
+                value=ReportORM.verdict_highest_severity,
+                else_=-1,
+            )
             stmt = stmt.order_by(
-                func.coalesce(
-                    func.nullif(ReportORM.verdict_highest_severity, ""), ""
-                ).desc() if order_dir == "desc" else func.coalesce(
-                    func.nullif(ReportORM.verdict_highest_severity, ""), ""
-                ).asc()
+                severity_rank.desc() if order_dir == "desc" else severity_rank.asc()
             )
         elif order_dir == "desc":
             stmt = stmt.order_by(order_col.desc())

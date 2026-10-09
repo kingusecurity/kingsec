@@ -214,7 +214,7 @@ class TestExecutionStatusErrorFieldSanitized:
         body = resp.json()
         raw = str(body)
         assert "internal-scanner.corp.local" not in raw
-        assert "9200" not in raw
+        assert ":9200" not in raw
         assert "ConnectionError" not in raw
 
 

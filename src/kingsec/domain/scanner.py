@@ -93,6 +93,8 @@ class ScannerSurfaceTier(Enum):
     HOST_ANY_PORT = "host_any_port"
     HOST_PORT_ANY_PATH = "host_port_any_path"
     HOST_PORT_PATH = "host_port_path"
+    DOMAIN_ENUMERATION = "domain_enumeration"
+    LOCAL_RESOURCE = "local_resource"
 
 
 class ScannerRequirement(Enum):
@@ -105,14 +107,18 @@ class ScannerRequirement(Enum):
     infrastructure/scanner/registry.py's is_compatible() for how the two
     sides are matched.
 
-    REGISTRABLE_DOMAIN is intentionally not a member yet - it needs a
-    registrable_domain TargetType first (Phase 2B Task 1's amass roadmap
-    item, still Phase 4 work).
+    Non-network scanners have explicit requirements too. A source path,
+    container image, and DNS domain are not interchangeable with a reachable
+    host; keeping them distinct prevents a planner from selecting a scanner
+    whose command would interpret the same string with different semantics.
     """
 
     REACHABLE_HOST = "reachable_host"  # a resolvable host; port optional
     HTTP_BASE_URL = "http_base_url"    # scheme + host + port, ready for an HTTP request
     NETWORK_RANGE = "network_range"    # a CIDR block
+    DNS_DOMAIN = "dns_domain"          # a domain suitable for enumeration
+    SOURCE_PATH = "source_path"        # an absolute local file/directory path
+    CONTAINER_IMAGE = "container_image"  # an OCI/Docker image reference
 
 
 def provided_requirements(target_type: TargetType) -> frozenset[ScannerRequirement]:
@@ -133,6 +139,9 @@ def provided_requirements(target_type: TargetType) -> frozenset[ScannerRequireme
         TargetType.HOSTNAME: frozenset({ScannerRequirement.REACHABLE_HOST}),
         TargetType.URL: frozenset({ScannerRequirement.REACHABLE_HOST, ScannerRequirement.HTTP_BASE_URL}),
         TargetType.NETWORK: frozenset({ScannerRequirement.NETWORK_RANGE}),
+        TargetType.DOMAIN: frozenset({ScannerRequirement.DNS_DOMAIN}),
+        TargetType.SOURCE_PATH: frozenset({ScannerRequirement.SOURCE_PATH}),
+        TargetType.CONTAINER_IMAGE: frozenset({ScannerRequirement.CONTAINER_IMAGE}),
     }
     return mapping[target_type]
 

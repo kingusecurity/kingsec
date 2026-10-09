@@ -24,6 +24,7 @@ from fastapi.testclient import TestClient
 
 from kingsec.adapters.inbound.web.app import create_fastapi_app
 from kingsec.adapters.inbound.web.auth import CurrentUser, get_current_user
+from kingsec.application import SubmitAssessment
 from kingsec.application.ports import ScannerPort, TokenClaims
 from kingsec.bootstrap.application import Application
 from kingsec.bootstrap.composition import create_wired_application
@@ -47,6 +48,15 @@ class _CountingScanner(ScannerPort):
 
     def compatible_scanners(self, target: Target) -> dict[str, str]:
         return {"stub": "Stub Scanner"}
+
+
+def _use_test_scanner(app: Application, scanner: ScannerPort) -> None:
+    """Keep these HTTP lifecycle tests independent of host scanner binaries."""
+    app.container.register_instance(ScannerPort, scanner)
+    submit = app.resolve(SubmitAssessment)
+    submit._scanner = scanner
+    submit._planner = None
+    submit._scanner_executor = None
 
 
 def _make_user(role: Role, user_id: str = "user-001") -> CurrentUser:
@@ -78,11 +88,12 @@ def wired_app(tmp_path, monkeypatch, scanner_spy: _CountingScanner) -> Applicati
     monkeypatch.setenv("KINGSEC_SECRETS__ENCRYPTION_KEY", _TEST_FERNET_KEY)
     monkeypatch.setenv("KINGSEC_JWT__SECRET_KEY", _TEST_JWT_SECRET)
     monkeypatch.setenv("KINGSEC_SECRETS__API_KEY_PEPPER", _TEST_PEPPER)
+    monkeypatch.setenv("KINGSEC_SECURITY__ENFORCE_AUTHORIZATION_SCOPE", "false")
     app = create_wired_application(log_stream=io.StringIO(), ensure_directories=False, validate_migrations=False)
     engine = create_database_engine(settings=app.settings)
     create_schema(engine)
     engine.dispose()
-    app.container.register_instance(ScannerPort, scanner_spy)
+    _use_test_scanner(app, scanner_spy)
     return app
 
 
@@ -96,6 +107,7 @@ def _client_as(app: Application, role: Role | None, user_id: str = "user-001") -
 _CREATE_BODY = {
     "target_value": "10.0.0.9",
     "target_type": "ip_address",
+    "profile_id": "quick-scan",
     "authorized_by": "pentester@kingusecurity.com",
     "scope": "10.0.0.9",
 }
@@ -186,7 +198,7 @@ class TestHttpSubmitAfterTerminal:
 
         for _ in range(50):
             poll = client.get(f"/api/v1/assessments/{assessment_id}")
-            if poll.json()["status"] == "completed":
+            if poll.json()["status"] in {"completed", "completed_with_gaps"}:
                 break
             time.sleep(0.1)
         else:
@@ -282,7 +294,7 @@ class TestHttpAdminCancelRacesLiveSubmission:
                 return {"stub": "Stub Scanner"}
 
         gated_scanner = _GatedScanner()
-        wired_app.container.register_instance(ScannerPort, gated_scanner)
+        _use_test_scanner(wired_app, gated_scanner)
 
         analyst_client = _client_as(wired_app, role=Role.ANALYST, user_id="owner-user")
         create_resp = analyst_client.post("/api/v1/assessments", json=_CREATE_BODY)

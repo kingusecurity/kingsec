@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from kingsec.domain import Severity
 from kingsec.infrastructure.scanner.amass_parser import parse_amass_json
+from kingsec.infrastructure.scanner.errors import ScannerOutputError
 
 # ---------------------------------------------------------------------------
 # Fixtures: sample Amass JSON outputs
@@ -98,19 +101,24 @@ class TestParseAmassJson:
         findings = parse_amass_json(_FULL_ENUM_OUTPUT)
         assert len(findings) == 8
 
-    def test_malformed_lines_skipped(self) -> None:
+    def test_malformed_nonblank_line_raises_output_error(self) -> None:
         output = f"{_SINGLE_RECORD_OUTPUT}\n{_MALFORMED_LINE}\n"
-        findings = parse_amass_json(output)
-        assert len(findings) == 1
+        with pytest.raises(ScannerOutputError):
+            parse_amass_json(output)
 
-    def test_no_name_record_skipped(self) -> None:
-        findings = parse_amass_json(_NO_NAME_RECORD)
-        assert len(findings) == 0
+    def test_no_name_record_raises_output_error(self) -> None:
+        with pytest.raises(ScannerOutputError):
+            parse_amass_json(_NO_NAME_RECORD)
 
-    def test_non_dict_records_skipped(self) -> None:
+    def test_non_dict_records_raise_output_error(self) -> None:
         output = '"just a string"\n123\n'
-        findings = parse_amass_json(output)
-        assert len(findings) == 0
+        with pytest.raises(ScannerOutputError):
+            parse_amass_json(output)
+
+    def test_invalid_addresses_shape_raises_output_error(self) -> None:
+        output = json.dumps({"name": "www.example.com", "addresses": "10.0.0.1"})
+        with pytest.raises(ScannerOutputError):
+            parse_amass_json(output)
 
 
 class TestSeverityClassification:

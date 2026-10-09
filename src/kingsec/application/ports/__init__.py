@@ -29,6 +29,7 @@ from .outbound.password_hasher import PasswordHasher
 from .outbound.plugin_installer import PluginInstallerPort
 from .outbound.rate_limiter import RateLimiterPort
 from .outbound.recovery_code_repository import RecoveryCodeRepository
+from .outbound.report_artifact_cache import ReportArtifactCachePort
 from .outbound.schedule_occurrence_repository import ScheduleOccurrenceRepositoryPort
 from .outbound.schedule_repository import ScheduleRepositoryPort
 from .outbound.scheduler_service import SchedulerServicePort
@@ -101,6 +102,7 @@ __all__ = [
     "ProductionServicePort",
     "RateLimiterPort",
     "RecoveryCodeRepository",
+    "ReportArtifactCachePort",
     "ReportGenerationResult",
     "ReportGeneratorPort",
     "ReportRepository",

@@ -1,8 +1,10 @@
 """Parse OWASP Amass JSON output into domain ``Finding`` objects.
 
-Pure and side-effect-free: given raw stdout text from Amass, produce
-domain findings. Uses only the standard library (``json``). Malformed or
-incomplete lines are logged and skipped rather than failing the whole parse.
+Pure and side-effect-free: given raw stdout text from Amass, produce domain
+findings. Uses only the standard library (``json``). Blank output is a valid
+clean enumeration; once a nonblank JSONL record is present, malformed or
+structurally invalid data is a scanner-output failure rather than something to
+silently discard.
 
 Amass JSON output format (``amass enum -json -``):
     Each line is a separate JSON object representing a discovered asset.
@@ -20,9 +22,12 @@ import json
 from datetime import UTC, datetime
 
 from kingsec.domain import Evidence, Finding, Severity
-from kingsec.infrastructure.logging import get_logger
+from kingsec.infrastructure.scanner.errors import ScannerOutputError
 
-_logger = get_logger("kingsec.infrastructure.scanner")
+_OUTPUT_USER_MESSAGE = (
+    "Amass returned output in an unexpected format. Check the configured "
+    "Amass version and scan settings, then try again."
+)
 
 # Cloud / infrastructure hostnames → LOW
 _LOW_NAMES = frozenset(
@@ -101,6 +106,16 @@ def _classify_severity(name: str) -> Severity:
     return Severity.INFORMATIONAL
 
 
+def _invalid_output(reason: str, *, cause: BaseException | None = None) -> ScannerOutputError:
+    """Build a safe, consistently contextualized Amass output error."""
+    return ScannerOutputError(
+        f"amass output {reason}",
+        context={"scanner": "amass", "check_failed": reason},
+        cause=cause,
+        user_message=_OUTPUT_USER_MESSAGE,
+    )
+
+
 def parse_amass_json(output: str) -> list[Finding]:
     """Parse Amass stdout text (line-delimited JSON) into domain findings.
 
@@ -112,36 +127,51 @@ def parse_amass_json(output: str) -> list[Finding]:
     """
     findings: list[Finding] = []
 
-    for raw_line in output.splitlines():
+    for line_number, raw_line in enumerate(output.splitlines(), start=1):
         line = raw_line.strip()
         if not line:
             continue
 
         try:
             record = json.loads(line)
-        except (json.JSONDecodeError, ValueError):
-            _logger.debug("skipping malformed amass JSON line", line=line[:200])
-            continue
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise _invalid_output(f"line {line_number} was not valid JSON", cause=exc) from exc
 
         if not isinstance(record, dict):
-            continue
+            raise _invalid_output(f"line {line_number} was not a JSON object")
 
-        name = record.get("name", "")
+        name = record.get("name")
         domain = record.get("domain", "")
         addresses = record.get("addresses", [])
         sources = record.get("sources", [])
         tag = record.get("tag", "")
 
-        if not name:
-            continue
+        if not isinstance(name, str) or not name:
+            raise _invalid_output(f"line {line_number} had no valid 'name'")
+        if not isinstance(domain, str):
+            raise _invalid_output(f"line {line_number} had a non-string 'domain'")
+        if not isinstance(addresses, list):
+            raise _invalid_output(f"line {line_number} had a non-array 'addresses' field")
+        if not isinstance(sources, list) or any(not isinstance(source, str) for source in sources):
+            raise _invalid_output(f"line {line_number} had an invalid 'sources' field")
+        if not isinstance(tag, str):
+            raise _invalid_output(f"line {line_number} had a non-string 'tag'")
 
         severity = _classify_severity(name)
 
         # Build address summary
         addr_parts = []
-        for addr in addresses:
+        for address_index, addr in enumerate(addresses):
+            if not isinstance(addr, dict):
+                raise _invalid_output(
+                    f"line {line_number} address at index {address_index} was not an object"
+                )
             ip = addr.get("ip", "")
             cidr = addr.get("cidr", "")
+            if not isinstance(ip, str) or not isinstance(cidr, str):
+                raise _invalid_output(
+                    f"line {line_number} address at index {address_index} had invalid fields"
+                )
             if ip:
                 addr_parts.append(ip)
             elif cidr:

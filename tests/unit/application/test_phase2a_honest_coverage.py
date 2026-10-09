@@ -66,8 +66,20 @@ class _FakeAssessmentRepository(AssessmentRepository):
         self._assessments[str(assessment.id)] = assessment
         self.saved.append(assessment)
 
-    def list(self, *, limit: int = 50, offset: int = 0) -> AssessmentPage:
-        return AssessmentPage(items=tuple(list(self._assessments.values())[offset : offset + limit]))
+    def list(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        search: str | None = None,
+        status: str | None = None,
+        order_by: str = "created_at",
+        order_dir: str = "desc",
+        requesting_user: str = "",
+        is_admin: bool = True,
+    ) -> AssessmentPage:
+        items = tuple(list(self._assessments.values())[offset : offset + limit])
+        return AssessmentPage(items=items, total=len(self._assessments))
 
     def find_by_schedule_occurrence_id(self, occurrence_id: str) -> list[Assessment]:
         return []
@@ -169,6 +181,9 @@ _TARGET_VALUE_BY_TYPE: dict[TargetType, str] = {
     TargetType.NETWORK: "10.0.0.0/24",
     TargetType.HOSTNAME: "example.com",
     TargetType.URL: "http://example.com",
+    TargetType.DOMAIN: "example.com",
+    TargetType.SOURCE_PATH: "/srv/customer/source",
+    TargetType.CONTAINER_IMAGE: "registry.example.com/team/app:v1",
 }
 
 
@@ -187,9 +202,10 @@ def _authorized_assessment(*, profile_id: str, target_type: TargetType = TargetT
 
 # Phase 2A migration review (item 2): the previous version of this fixture
 # used a FAKE registry that reported trivy/nuclei as compatible and
-# "succeeding" against an ip_address target. Under the REAL registry, trivy
-# only declares HOSTNAME support - it can never run against ip_address, so
-# "3 of 9 succeed" was fabricated, not a real possible outcome. Rebuilt
+# "succeeding" against an ip_address target. Trivy historically declared
+# HOSTNAME and now correctly declares SOURCE_PATH/CONTAINER_IMAGE; neither
+# contract permits it to run against ip_address, so "3 of 9 succeed" was
+# fabricated, not a real possible outcome. Rebuilt
 # against the REAL registry (_real_registry(), defined below) with discovery
 # statuses matching Phase 1's OWN actually-recorded environment exactly
 # (docs/E2E-EVIDENCE.md): nmap installed and usable (it ran and found 9
@@ -206,11 +222,14 @@ def _authorized_assessment(*, profile_id: str, target_type: TargetType = TargetT
 # and completed with 9 real findings" while every other scanner was either
 # stuck pending or correctly skipped, never succeeded) AND this phase's own
 # live DVWA re-verification (docs/STATUS.md: "1 of 9 (Nmap)"). Phase 1's
-# real full-assessment run scheduled 9 scanners; Phase 2B Decision 1/2
-# removed semgrep, trivy, and amass from the profile (they cannot take any
-# target type KingSec's current model expresses - see
-# assessment_profiles.py), so this fixture now only needs discovery
-# statuses for full-assessment's current 6 scanners.
+# real full-assessment run scheduled 9 scanners; Phase 2B removed semgrep,
+# trivy, and amass from that network profile because the target model could
+# not then express their inputs. They now live in purpose-built source,
+# image, and domain profiles and deliberately remain outside the network
+# full-assessment, so the reference case itself still consults only those 6.
+# The dynamic profile/doctor matrix below also exercises the
+# purpose-built source, image, and domain profiles, so this shared fixture
+# carries a status for all 9 profile-wired scanners.
 _STATUSES = {
     "nmap": _status("nmap", "Nmap", installed=True, usable=True),
     "nuclei": _status("nuclei", "Nuclei", installed=True, usable=False),
@@ -218,6 +237,9 @@ _STATUSES = {
     "ffuf": _status("ffuf", "FFUF", installed=True, usable=True),
     "zap": _status("zap", "OWASP ZAP", installed=True, usable=True),
     "nikto": _status("nikto", "Nikto", installed=False, usable=False),
+    "semgrep": _status("semgrep", "Semgrep", installed=True, usable=True),
+    "trivy": _status("trivy", "Trivy", installed=True, usable=True),
+    "amass": _status("amass", "OWASP Amass", installed=True, usable=True),
 }
 
 
@@ -247,9 +269,10 @@ class TestReferenceCaseRun4Reproduction:
     and a verdict naming every non-running scanner) and passes against
     the fixed code.
 
-    Phase 2B Decision 1/2 note: ``full-assessment`` now schedules 6
-    scanners, not the original 9 (semgrep, trivy, and amass were removed
-    from the profile — see assessment_profiles.py). The fixture below
+    ``full-assessment`` now schedules 6 network scanners, not the original
+    9. Semgrep, Trivy, and Amass are available only through their explicit
+    source, image, and domain profiles (see assessment_profiles.py). The
+    fixture below
     still models Phase 1's real 9-scanner environment via ``_STATUSES``
     for historical accuracy, but the planner only ever consults the
     scanners actually listed in the profile, so the assertions here
@@ -361,8 +384,9 @@ class TestProfileRequiredScannersAreTargetTypeCompatible:
     """Phase 2B Task 1 review: the original spec here was wrong. "Compatible
     with at least one supported target type" lets a profile declare support
     for a target type under which its required scanner can NEVER run - the
-    exact shape of the code-review/container-scan defect (semgrep/trivy
-    declare HOSTNAME only, but both profiles also claim IP_ADDRESS support).
+    exact shape of the historical code-review/container-scan defect
+    (semgrep/trivy declared HOSTNAME only, while both profiles also claimed
+    IP_ADDRESS support).
     A profile that "can proceed" for HOSTNAME but silently can never proceed
     for one of its OTHER declared types is exactly the web-scan/nmap defect
     class, just confined to a subset of the profile's targets instead of
@@ -400,8 +424,8 @@ class TestPlannerOrchestratorInvariantAcrossFullMatrix:
     """Correction 2(d): the executed set must equal the SELECTED set, across
     EVERY profile x every target_type that profile supports - not just one
     hand-picked combination. Built from ExecutionPlanner.list_profiles()
-    itself (8 profiles x 1-3 supported target types each = 16 combinations
-    at the time this was written), so a new profile is automatically
+    itself (9 profiles / 15 combinations at the time this was updated),
+    so a new profile is automatically
     covered without anyone remembering to extend this test.
 
     Uses the REAL plugin registry (_real_registry()) for compatibility, so

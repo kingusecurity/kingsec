@@ -62,6 +62,17 @@ class TestTargetSpecificationValidation:
     def test_accepts_url_prefix(self) -> None:
         spec(TargetSpecificationType.URL_PREFIX, "https://example.com/app/")
 
+    @pytest.mark.parametrize(
+        ("type_", "value"),
+        [
+            (TargetSpecificationType.DOMAIN, "example.com"),
+            (TargetSpecificationType.SOURCE_PATH, "/srv/customer/source"),
+            (TargetSpecificationType.CONTAINER_IMAGE, "registry.example.com/team/app:v1"),
+        ],
+    )
+    def test_accepts_non_network_resource_specs(self, type_: TargetSpecificationType, value: str) -> None:
+        spec(type_, value)
+
     def test_rejects_invalid_type(self) -> None:
         with pytest.raises(InvariantViolation):
             TargetSpecification(type="ip_address", value="203.0.113.5")  # type: ignore[arg-type]
@@ -473,6 +484,52 @@ class TestSatisfiesTierValidation:
                 target("203.0.113.5", TargetType.IP_ADDRESS),
                 "host_any_port",  # type: ignore[arg-type]
             )
+
+
+class TestSatisfiesNonNetworkTiers:
+    def test_explicit_domain_grant_covers_domain_enumeration(self) -> None:
+        result = satisfies_tier(
+            spec(TargetSpecificationType.DOMAIN, "example.com"),
+            target("EXAMPLE.com", TargetType.DOMAIN),
+            ScannerSurfaceTier.DOMAIN_ENUMERATION,
+        )
+        assert result.covered
+
+    def test_hostname_grant_does_not_silently_authorize_domain_enumeration(self) -> None:
+        result = satisfies_tier(
+            spec(TargetSpecificationType.HOSTNAME, "example.com"),
+            target("example.com", TargetType.DOMAIN),
+            ScannerSurfaceTier.DOMAIN_ENUMERATION,
+        )
+        assert result.outcome == ScopeCheckOutcome.TYPE_MISMATCH
+
+    @pytest.mark.parametrize(
+        ("spec_type", "target_type", "value"),
+        [
+            (TargetSpecificationType.SOURCE_PATH, TargetType.SOURCE_PATH, "/srv/customer/source"),
+            (TargetSpecificationType.CONTAINER_IMAGE, TargetType.CONTAINER_IMAGE, "alpine:3.20"),
+        ],
+    )
+    def test_matching_resource_grant_covers_local_scan(
+        self,
+        spec_type: TargetSpecificationType,
+        target_type: TargetType,
+        value: str,
+    ) -> None:
+        result = satisfies_tier(
+            spec(spec_type, value),
+            target(value, target_type),
+            ScannerSurfaceTier.LOCAL_RESOURCE,
+        )
+        assert result.covered
+
+    def test_source_grant_does_not_cover_a_different_path(self) -> None:
+        result = satisfies_tier(
+            spec(TargetSpecificationType.SOURCE_PATH, "/srv/customer/source"),
+            target("/srv/customer/other", TargetType.SOURCE_PATH),
+            ScannerSurfaceTier.LOCAL_RESOURCE,
+        )
+        assert not result.covered
 
 
 # ---------------------------------------------------------------------------

@@ -402,3 +402,53 @@ class TestEdgeCases:
     def test_empty_database_raises_on_get(self, repo: SQLAlchemyReportRepository) -> None:
         with pytest.raises(ReportNotFoundError):
             repo.get(AssessmentId("does-not-exist"))
+
+
+class TestListReports:
+    def test_searches_target_assessment_id_and_verdict(
+        self, repo: SQLAlchemyReportRepository, session: Session
+    ) -> None:
+        report = make_report(session)
+        report = dataclasses.replace(
+            report,
+            target="search-target.example.com",
+            verdict=dataclasses.replace(report.verdict, headline="Distinct verdict phrase"),
+        )
+        repo.save(report)
+        session.flush()
+
+        for query in ("search-target", report.assessment_id[-8:], "distinct VERDICT"):
+            items, total = repo.list(search=query, is_admin=True)
+            assert total == 1
+            assert [item.assessment_id for item in items] == [report.assessment_id]
+
+    def test_search_treats_sql_wildcards_as_literal(
+        self, repo: SQLAlchemyReportRepository, session: Session
+    ) -> None:
+        report = make_report(session)
+        repo.save(report)
+        session.flush()
+
+        assert repo.list(search="%", is_admin=True)[1] == 0
+        assert repo.list(search="_", is_admin=True)[1] == 0
+
+    def test_orders_severity_by_risk_not_alphabetically(
+        self, repo: SQLAlchemyReportRepository, session: Session
+    ) -> None:
+        high = make_report(session)
+        low = dataclasses.replace(
+            make_report(session),
+            verdict=dataclasses.replace(
+                high.verdict,
+                highest_severity=Severity.LOW,
+                headline="Low-risk issues found — review advised.",
+            ),
+        )
+        repo.save(low)
+        repo.save(high)
+        session.flush()
+
+        items, _ = repo.list(
+            order_by="verdict_highest_severity", order_dir="desc", is_admin=True
+        )
+        assert [item.verdict_highest_severity for item in items] == ["HIGH", "LOW"]

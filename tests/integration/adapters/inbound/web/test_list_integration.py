@@ -189,6 +189,7 @@ class TestListAssessmentsIntegration:
                 json={
                     "target_value": f"10.0.0.{i + 1}",
                     "target_type": "ip_address",
+                    "profile_id": "quick-scan",
                     "authorized_by": "admin@co.com",
                     "scope": f"10.0.0.{i + 1}",
                 },
@@ -215,6 +216,7 @@ class TestListAssessmentsIntegration:
                 json={
                     "target_value": f"10.0.0.{i + 1}",
                     "target_type": "ip_address",
+                    "profile_id": "quick-scan",
                     "authorized_by": "admin@co.com",
                     "scope": f"10.0.0.{i + 1}",
                 },
