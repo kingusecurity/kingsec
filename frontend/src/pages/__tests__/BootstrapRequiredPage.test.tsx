@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { BootstrapRequiredPage } from '../BootstrapRequiredPage'
 
 vi.mock('@/hooks/use-settings', () => ({
@@ -10,11 +11,21 @@ import { useHealth } from '@/hooks/use-settings'
 
 const queryClient = new QueryClient()
 
+function LocationDisplay() {
+  const location = useLocation()
+  return <div data-testid="location-display">{location.pathname}</div>
+}
+
 function renderPage() {
   return render(
-    <QueryClientProvider client={queryClient}>
-      <BootstrapRequiredPage />
-    </QueryClientProvider>,
+    <MemoryRouter initialEntries={['/bootstrap-required']}>
+      <QueryClientProvider client={queryClient}>
+        <Routes>
+          <Route path="/bootstrap-required" element={<BootstrapRequiredPage />} />
+          <Route path="*" element={<LocationDisplay />} />
+        </Routes>
+      </QueryClientProvider>
+    </MemoryRouter>,
   )
 }
 
@@ -41,5 +52,28 @@ describe('BootstrapRequiredPage', () => {
     renderPage()
     const button = screen.getByRole('button', { name: "I've run it - check again" })
     expect(button).toHaveAttribute('type', 'button')
+  })
+
+  it('redirects to /login when health shows an admin already exists', async () => {
+    vi.mocked(useHealth).mockReturnValue({
+      data: { status: 'ok', bootstrap_required: false },
+      refetch: vi.fn(),
+      isFetching: false,
+    } as any)
+    renderPage()
+    await waitFor(() => {
+      expect(screen.getByTestId('location-display')).toHaveTextContent('/login')
+    })
+  })
+
+  it('stays on the bootstrap screen while no admin exists', () => {
+    vi.mocked(useHealth).mockReturnValue({
+      data: { status: 'ok', bootstrap_required: true },
+      refetch: vi.fn(),
+      isFetching: false,
+    } as any)
+    renderPage()
+    expect(screen.getByText('Instance needs initializing')).toBeInTheDocument()
+    expect(screen.queryByTestId('location-display')).not.toBeInTheDocument()
   })
 })
