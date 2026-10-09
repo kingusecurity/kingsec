@@ -1,5 +1,11 @@
 # KingSec v1.1.0 — Home
 
+> **RETIRED DRAFT — DO NOT PUBLISH.** This document contains obsolete product,
+> packaging, scanner/profile, distribution, and availability claims from an
+> earlier concept. It is retained only as historical messaging input. Use the
+> current `README.md`, `docs/QUICK_START.md`, and a separately approved
+> VantriqSec commercial offer as sources of truth.
+
 ---
 
 ## Hero Section

@@ -1,187 +1,235 @@
-# KingSec API Reference
+# KingSec Core API Reference
 
-**Version:** 1.1.0  
-**Last Updated:** 2026-07-27  
-**Base URL:** `http://127.0.0.1:8765/api/v1`
+Base URL: `http://127.0.0.1:8765/api/v1`
 
-## Authentication
+This document covers the core assessment workflow. The generated OpenAPI
+document and Swagger UI at `/openapi.json` and `/docs` are authoritative for
+the complete route set, request schemas, response schemas, and role
+requirements of the running build.
 
-Most endpoints require a Bearer token in the Authorization header:
+## Verification boundary
 
-```
+- **INFERRED (2026-10-07):** paths, request fields, enums, and permissions in
+  this guide were cross-checked against the current FastAPI routes, Pydantic
+  schemas, domain enums, and assessment-profile registry.
+- **NOT TESTED (2026-10-07):** the current working tree has not been started
+  and its generated OpenAPI document has not been compared byte-for-byte with
+  this guide.
+
+## Authentication and bootstrap
+
+Most endpoints require either a JWT bearer token or a permitted API key. JWT
+requests use:
+
+```http
 Authorization: Bearer <access_token>
 ```
 
-Obtain a token via `POST /auth/login` or `POST /auth/register`.
+`POST /auth/register` creates a Viewer account. It never creates the first
+administrator. An operator must create the initial administrator with
+`kingsec-bootstrap`; `GET /health` exposes the public boolean
+`bootstrap_required` so deployment automation can detect that state.
 
-### Headers
+Core authentication routes:
 
-| Header | Value | Required |
-|--------|-------|----------|
-| `Authorization` | `Bearer <token>` | For authenticated endpoints |
-| `Content-Type` | `application/json` | For POST/PUT bodies |
+| Method | Path | Authentication | Purpose |
+|---|---|---|---|
+| `GET` | `/health` | Public | Basic status and `bootstrap_required` |
+| `POST` | `/auth/register` | Public, subject to registration policy | Create a Viewer |
+| `POST` | `/auth/login` | Public | Exchange credentials for JWTs, or begin MFA completion |
+| `POST` | `/auth/refresh` | Refresh token | Rotate an access token |
+| `GET` | `/auth/me` | Viewer+ | Current user profile |
+| `POST` | `/auth/change-password` | JWT Viewer+ | Change the caller's password |
 
-### Rate Limiting
+A login response has one of two shapes: access and refresh tokens are present,
+or `mfa_required` is true and a `pending_token` must be completed through an
+MFA verification/recovery endpoint.
 
-Rate limit headers are returned on all endpoints:
+## Errors
 
-- `X-RateLimit-Limit`
-- `X-RateLimit-Remaining`
-- `X-RateLimit-Reset`
-
-### Error Response Format
+Handled KingSec errors normally use:
 
 ```json
 {
-  "detail": "Human-readable error message"
+  "error_code": "KS-VAL-001",
+  "message": "Safe client-facing message"
 }
 ```
 
-HTTP status codes: 200 (success), 201 (created), 400 (bad request), 401 (unauthorized), 403 (forbidden), 404 (not found), 422 (validation error), 429 (rate limited), 500 (server error).
+FastAPI validation errors and route-local `HTTPException` responses use a
+`detail` field instead. Clients must branch on HTTP status first and tolerate
+both documented error envelopes.
 
-## Endpoints
+## Target types
 
-### Authentication
+Assessment target values are validated according to `target_type`:
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | /auth/register | No | Register a new user (first user becomes ADMIN) |
-| POST | /auth/login | No | Login with username/password |
-| POST | /auth/refresh | No | Refresh access token using refresh token |
-| GET | /auth/me | Yes | Get current user info |
-| POST | /auth/logout | Yes | Logout (revoke session) |
+| Value | Expected target |
+|---|---|
+| `ip_address` | One IPv4 or IPv6 address |
+| `hostname` | One DNS hostname |
+| `url` | An `http` or `https` URL without embedded credentials |
+| `network` | An IPv4 or IPv6 CIDR network |
+| `domain` | A public-style, multi-label DNS domain for domain enumeration |
+| `source_path` | An absolute path visible to the KingSec server |
+| `container_image` | An OCI/Docker image reference |
 
-### Multi-Factor Authentication (MFA)
+Do not send a source path or container image as a `hostname`. The explicit
+types decide both scanner compatibility and authorization coverage.
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | /auth/mfa/status | Yes | Check MFA enrollment status |
-| POST | /auth/mfa/enable | Yes | Enable MFA (returns TOTP secret + QR code) |
-| POST | /auth/mfa/verify | No | Verify MFA code during login |
-| POST | /auth/mfa/recovery | No | Use recovery code during login |
-| POST | /auth/mfa/disable | Yes | Disable MFA |
-| POST | /auth/mfa/recovery-codes | Yes | Generate new recovery codes |
+## Assessment profiles
 
-### Assessments
+| Profile ID | Target types | Scanner plan |
+|---|---|---|
+| `quick-scan` | `ip_address`, `hostname` | Nmap (required) |
+| `network-scan` | `network`, `ip_address`, `hostname` | Nmap (required), Nuclei |
+| `web-scan` | `url` | Nmap, Gobuster, FFUF, Nuclei, ZAP |
+| `api-scan` | `url` | FFUF, Nuclei, ZAP |
+| `external-footprint` | `hostname`, `ip_address` | Nmap (required) |
+| `full-assessment` | `ip_address`, `hostname`, `url` | Nmap, Nuclei, Gobuster, FFUF, ZAP, Nikto |
+| `code-review` | `source_path` | Semgrep and Trivy (both required) |
+| `container-scan` | `container_image` | Trivy (required) |
+| `domain-enumeration` | `domain` | Amass (required) |
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | /assessments | Yes | List assessments (paginated) |
-| POST | /assessments | Yes | Create a new assessment |
-| GET | /assessments/{id} | Yes | Get assessment details |
-| POST | /assessments/{id}/start | Yes | Start assessment execution |
-| POST | /assessments/{id}/cancel | Yes | Cancel running assessment |
-| POST | /assessments/{id}/report | Yes | Generate/regenerate report |
-| DELETE | /assessments/{id} | Yes | Delete assessment |
+The planner, rather than this table, is the runtime source of truth. Query it
+before submission:
 
-**List parameters:** `limit` (1-200, default 50), `offset` (default 0), `order_by`, `order_dir`.
+| Method | Path | Minimum role | Purpose |
+|---|---|---|---|
+| `GET` | `/profiles` | Viewer | List profiles |
+| `GET` | `/profiles/{profile_id}` | Viewer | Get one profile |
+| `POST` | `/profiles/{profile_id}/plan` | Viewer | Check target compatibility and scanner readiness |
 
-### Execution
+Plan request:
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | /assessments/{id}/execution/status | Yes | Phase + per-scanner progress |
-| GET | /assessments/{id}/execution/events | Yes | Ordered lifecycle event log |
-| GET | /assessments/{id}/execution/progress | Yes | Overall progress percentage |
-| POST | /assessments/{id}/execution/cancel | Yes | Cancel running execution |
-
-### Findings
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | /findings | Yes | List findings with filters |
-
-**Filter parameters:** `severity`, `status`, `assessment_id`, `search`, `order_by`, `order_dir`, `limit`, `offset`.
-
-### Reports
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | /reports | Yes | List reports (paginated) |
-| GET | /reports?assessment_id={id} | Yes | Get specific report |
-| GET | /assessments/{id}/report | Yes | Download report file |
-| POST | /assessments/{id}/report | Yes | Regenerate report |
-
-**List parameters:** `search`, `severity`, `target`, `order_by`, `order_dir`, `limit`, `offset`.
-
-### Profiles
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | /profiles | Yes | List all assessment profiles |
-| GET | /profiles/{profile_id} | Yes | Single profile details |
-| POST | /profiles/{profile_id}/plan | Yes | Generate an execution plan |
-
-**Plan request body:**
 ```json
 {
-  "target": "10.0.0.5",
+  "target": "127.0.0.1",
   "target_type": "ip_address"
 }
 ```
 
-### Scanners
+## Authorization grants
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | /scanners | Yes | List all scanners with status |
-| GET | /scanners/health | Yes | Aggregate health score |
-| GET | /scanners/{scanner_id} | Yes | Detailed scanner status |
+Scope enforcement is enabled by default. Creating an assessment requires an
+active grant that covers every effective scan-surface tier in its chosen
+profile. An Admin can explicitly override the check for an individual request,
+but the override is an emergency control rather than the normal workflow.
 
-### Admin
+Grant specification types are:
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | /admin/users | Admin | List users |
-| PUT | /admin/users/{id}/role | Admin | Assign user role |
-| GET | /admin/users/search | Admin | Search users with filters |
-| POST | /admin/users/{id}/deactivate | Admin | Deactivate user |
-| POST | /admin/users/{id}/activate | Admin | Activate user |
-| POST | /admin/users/{id}/reset-password | Admin | Reset user password |
-| GET | /admin/roles | Admin | List all roles |
-| GET | /admin/audit | Admin | Search audit log |
+`ip_address`, `network`, `hostname`, `wildcard_hostname`, `url_prefix`,
+`domain`, `source_path`, and `container_image`.
 
-### API Keys
+The last three are exact-resource grants. In particular, domain enumeration
+requires an explicit `domain` grant; a hostname or wildcard-hostname grant
+does not authorize domain-wide enumeration.
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | /apikeys | Yes | List user's API keys |
-| POST | /apikeys | Yes | Create a new API key |
-| GET | /apikeys/me | No | Get current API key info |
-| POST | /apikeys/{id}/revoke | Yes | Revoke an API key |
-| POST | /apikeys/{id}/rotate | Yes | Rotate an API key |
+| Method | Path | Minimum role | Purpose |
+|---|---|---|---|
+| `POST` | `/authorization-grants` | Admin | Create a time-bounded grant |
+| `GET` | `/authorization-grants` | Analyst | List grants |
+| `GET` | `/authorization-grants/check` | Analyst | Dry-run the same coverage logic used at assessment creation |
+| `DELETE` | `/authorization-grants/{grant_id}` | Admin | Revoke a grant |
 
-### Dashboard
+Example grant request:
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | /dashboard | Yes | Combined dashboard data |
-| GET | /dashboard/summary | Yes | Summary statistics |
-| GET | /dashboard/severity | Yes | Severity breakdown |
-| GET | /dashboard/trends | Yes | Finding trends over time |
-| GET | /dashboard/scanners | Yes | Scanner status summary |
-| GET | /dashboard/workers | Yes | Worker status |
-| GET | /dashboard/jobs | Yes | Job statistics |
-| GET | /dashboard/activity | Yes | Recent activity |
-| GET | /dashboard/schedules | Yes | Schedule statistics |
-| GET | /dashboard/notifications | Yes | Notification statistics |
+```json
+{
+  "authorized_by": "Security owner / ticket SEC-123",
+  "authorizing_organization": "Example Corp",
+  "target_specification_type": "ip_address",
+  "target_specification_value": "127.0.0.1",
+  "valid_from": "2026-10-07T09:00:00Z",
+  "valid_until": "2026-10-08T09:00:00Z"
+}
+```
 
-### Settings
+Coverage check query:
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | /settings/health | Yes | System health check |
-| GET | /settings/healthz | No | Simple health check (no auth) |
-| GET | /settings/sessions | Yes | List active sessions |
-| POST | /settings/sessions/{id}/revoke | Yes | Revoke a session |
+```text
+GET /authorization-grants/check?target_type=ip_address&target_value=127.0.0.1&profile_id=quick-scan
+```
 
-## Pagination
+## Assessment lifecycle
 
-All list endpoints support pagination:
+Creating and starting are intentionally separate operations.
 
-| Parameter | Type | Default | Range |
-|-----------|------|---------|-------|
-| `limit` | integer | 50 | 1-200 |
-| `offset` | integer | 0 | 0+ |
+| Method | Path | Minimum role | Purpose |
+|---|---|---|---|
+| `GET` | `/assessments` | Viewer | Paginated assessments visible to the caller |
+| `POST` | `/assessments` | Analyst | Validate and save an authorized assessment |
+| `GET` | `/assessments/{assessment_id}` | Viewer | Assessment, findings, and scanner outcomes |
+| `POST` | `/assessments/{assessment_id}/start` | Analyst | Submit the saved assessment for execution |
+| `POST` | `/assessments/{assessment_id}/cancel` | Analyst | Request cancellation |
+| `DELETE` | `/assessments/{assessment_id}` | Analyst | Delete an assessment and its owned data/artifacts |
 
-Response includes `total` (total matching records), `limit`, and `offset`.
+Create request:
+
+```json
+{
+  "target_value": "127.0.0.1",
+  "target_type": "ip_address",
+  "authorized_by": "Security owner / ticket SEC-123",
+  "scope": "Loopback host only",
+  "profile_id": "quick-scan",
+  "override_scope_check": false
+}
+```
+
+`profile_id` is required. Unknown profiles, mismatched profile/target types,
+and uncovered surfaces are rejected before persistence. Creating the record
+does not begin scanner execution.
+
+Assessment terminal states include:
+
+- `completed`: every planned scanner succeeded.
+- `completed_with_gaps`: one or more scanners were skipped, failed, or timed
+  out, but at least one scanner succeeded.
+- `failed`: the run did not produce a successful scanner result.
+- `cancelled`: execution was cancelled.
+
+List parameters include `limit`, `offset`, `search`, `status`, `order_by`, and
+`order_dir`. The OpenAPI schema defines the current bounds and sort values.
+
+Execution detail routes:
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/assessments/{assessment_id}/execution/status` | Phase and per-scanner state |
+| `GET` | `/assessments/{assessment_id}/execution/events` | Ordered lifecycle events |
+| `GET` | `/assessments/{assessment_id}/execution/progress` | Overall progress |
+| `POST` | `/assessments/{assessment_id}/execution/cancel` | Execution-layer cancellation |
+
+## Findings and reports
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/findings` | Paginated findings with filters |
+| `POST` | `/assessments/{assessment_id}/report` | Generate or regenerate report data/artifact |
+| `GET` | `/reports` | Paginated report metadata |
+| `GET` | `/reports/{assessment_id}` | One report's metadata |
+| `GET` | `/reports/{assessment_id}/download` | Download PDF by default; use `?format=html` for HTML |
+
+A report is a scoped assessment result, not a penetration-test attestation.
+Read its scanner outcomes and coverage limitations together with its findings
+and executive score.
+
+## Scanner readiness
+
+These routes report status; they do not install or mutate scanner software:
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/scanners` | Every known scanner and its discovery status |
+| `GET` | `/scanners/health` | Aggregate and per-scanner readiness |
+| `GET` | `/scanners/{scanner_id}` | One scanner's status |
+| `GET` | `/scanners/{scanner_id}/diagnostics` | Detailed diagnostics |
+| `GET` | `/scanners/{scanner_id}/install` | Platform-specific installation guidance |
+
+## Pagination and ownership
+
+List endpoints generally accept `limit` and `offset`, with endpoint-specific
+filters and sort keys documented by OpenAPI. Non-admin users only receive
+resources they are permitted to view; Admin access does not change the
+authorization-grant requirement for normal assessment creation.

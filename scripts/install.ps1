@@ -1,158 +1,201 @@
-# KingSec Installer Script for Windows
-# Supports Windows 10/11 and Windows Server 2019+
-# Usage: powershell -ExecutionPolicy Bypass -File scripts\install.ps1
-
+# KingSec source installer for Windows PowerShell.
+# Run from a checkout: powershell -ExecutionPolicy Bypass -File scripts\install.ps1
 param(
     [string]$InstallDir = "$env:LOCALAPPDATA\KingSec",
-    [switch]$SkipDocker,
     [switch]$DevMode
 )
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
+$KingSecRepoDir = Split-Path -Parent $PSScriptRoot
+$KingSecEnvFile = Join-Path $KingSecRepoDir ".env"
+$KingSecVenvDir = Join-Path $KingSecRepoDir ".venv"
+$KingSecVenvPython = Join-Path $KingSecVenvDir "Scripts\python.exe"
 
-# --- Helpers ---
-function Write-Step($msg) { Write-Host "`n>> $msg" -ForegroundColor Cyan }
-function Write-OK($msg) { Write-Host "   [OK] $msg" -ForegroundColor Green }
-function Write-Warn($msg) { Write-Host "   [WARN] $msg" -ForegroundColor Yellow }
-function Write-Fail($msg) { Write-Host "   [FAIL] $msg" -ForegroundColor Red }
-
-function Test-Command($cmd) {
-    try { Get-Command $cmd -ErrorAction Stop | Out-Null; return $true }
-    catch { return $false }
+function Write-Step($Message) { Write-Host "`n>> $Message" -ForegroundColor Cyan }
+function Write-OK($Message) { Write-Host "   [OK] $Message" -ForegroundColor Green }
+function Write-Warn($Message) { Write-Host "   [WARN] $Message" -ForegroundColor Yellow }
+function Stop-Install($Message) { Write-Host "   [FAIL] $Message" -ForegroundColor Red; exit 1 }
+function Test-Command($Command) { return [bool](Get-Command $Command -ErrorAction SilentlyContinue) }
+function ConvertTo-PSSingleQuotedLiteral($Value) { return "'" + ([string]$Value).Replace("'", "''") + "'" }
+function Write-Utf8NoBom($Path, $Content) {
+    $KingSecUtf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($Path, ($Content -join [Environment]::NewLine) + [Environment]::NewLine, $KingSecUtf8NoBom)
 }
 
-# --- Banner ---
-Write-Host @"
+Write-Step "Checking required toolchain"
+if (-not (Test-Command "python")) {
+    Stop-Install "Python is missing. Install 64-bit CPython 3.11, 3.12, or 3.13 and rerun this script."
+}
+$KingSecPythonVersion = python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+$KingSecPythonParts = $KingSecPythonVersion.Split('.')
+$KingSecPythonMinor = [int]$KingSecPythonParts[1]
+if ([int]$KingSecPythonParts[0] -ne 3 -or $KingSecPythonMinor -lt 11 -or $KingSecPythonMinor -gt 13) {
+    Stop-Install "KingSec supports Python 3.11-3.13. Found Python $KingSecPythonVersion."
+}
+Write-OK "Found Python $KingSecPythonVersion"
 
-  _  __          __  __
- | |/ /___ _   _|  \/  | ___  _ __ ___   ___  __ _| |_ ___
- | ' // _ \ | | | |\/| |/ _ \| '_ ` _ \ / _ \/ _` | __/ _ \
- | . \  __/ |_| | |  | | (_) | | | | | |  __/ (_| | ||  __/
- |_|\_\___|\__, |_|  |_|\___/|_| |_| |_|\___|\__,_|\__\___|
-           |___/
-  Security Assessment Platform — Installer
+if (-not (Test-Command "node") -or -not (Test-Command "npm")) {
+    Stop-Install "Node.js/npm is missing. Install Node.js 20 or newer to build the browser UI."
+}
+$KingSecNodeMajor = [int](node -p "process.versions.node.split('.')[0]")
+if ($KingSecNodeMajor -lt 20) { Stop-Install "Node.js 20 or newer is required. Found $(node --version)." }
+Write-OK "Found Node.js $(node --version) and npm $(npm --version)"
 
-"@ -ForegroundColor DarkCyan
+Write-Step "Creating the isolated Python environment"
+python -m venv $KingSecVenvDir
+if ($LASTEXITCODE -ne 0) { Stop-Install "Virtual environment creation failed." }
+if (-not (Test-Path $KingSecVenvPython)) { Stop-Install "Virtual environment creation failed." }
+& $KingSecVenvPython -m pip install --upgrade pip
+if ($LASTEXITCODE -ne 0) { Stop-Install "pip upgrade failed." }
+Write-OK "Virtual environment ready at $KingSecVenvDir"
 
-# --- Step 1: Check Python ---
-Write-Step "Checking Python..."
-if (Test-Command "python") {
-    $pyVer = python --version 2>&1
-    Write-OK "Found: $pyVer"
-    $verMatch = [regex]::Match($pyVer, '(\d+)\.(\d+)')
-    if ([int]$verMatch.Groups[1].Value -lt 3 -or ([int]$verMatch.Groups[1].Value -eq 3 -and [int]$verMatch.Groups[2].Value -lt 12)) {
-        Write-Fail "Python 3.12+ required. Found: $pyVer"
-        exit 1
+Write-Step "Building the browser UI"
+& npm --prefix (Join-Path $KingSecRepoDir "frontend") ci
+if ($LASTEXITCODE -ne 0) { Stop-Install "npm ci failed." }
+& npm --prefix (Join-Path $KingSecRepoDir "frontend") run build
+if ($LASTEXITCODE -ne 0) { Stop-Install "Frontend build failed." }
+$KingSecStaticDir = Join-Path $KingSecRepoDir "src\kingsec\adapters\inbound\web\static"
+if (Test-Path -LiteralPath $KingSecStaticDir) {
+    Remove-Item -LiteralPath $KingSecStaticDir -Recurse -Force
+}
+New-Item -ItemType Directory -Path $KingSecStaticDir -Force | Out-Null
+Copy-Item -Path (Join-Path $KingSecRepoDir "frontend\dist\*") -Destination $KingSecStaticDir -Recurse -Force
+Write-OK "Browser UI built for same-origin serving"
+
+Write-Step "Installing KingSec with binary wheels for Windows-native dependencies"
+Push-Location $KingSecRepoDir
+try {
+    if ($DevMode) {
+        & $KingSecVenvPython -m pip install "--only-binary=cffi,pydantic-core" -e ".[dev]"
+    } else {
+        & $KingSecVenvPython -m pip install "--only-binary=cffi,pydantic-core" .
     }
-} else {
-    Write-Fail "Python not found. Install Python 3.12+ from https://python.org"
-    exit 1
+    if ($LASTEXITCODE -ne 0) { Stop-Install "KingSec installation failed." }
+} finally {
+    Pop-Location
 }
+Write-OK "KingSec installed"
 
-# --- Step 2: Check Git ---
-Write-Step "Checking Git..."
-if (Test-Command "git") {
-    $gitVer = git --version
-    Write-OK "Found: $gitVer"
-} else {
-    Write-Warn "Git not found. Some features may be limited."
-}
-
-# --- Step 3: Create directories ---
-Write-Step "Creating directories..."
-$dirs = @($InstallDir, "$InstallDir\logs", "$InstallDir\backups", "$InstallDir\plugins", "$InstallDir\telemetry")
-foreach ($dir in $dirs) {
-    if (-not (Test-Path $dir)) {
-        New-Item -ItemType Directory -Path $dir -Force | Out-Null
-    }
-}
-Write-OK "Directories created at $InstallDir"
-
-# --- Step 4: Create .env if missing ---
-Write-Step "Checking configuration..."
-$envFile = "$InstallDir\.env"
-if (-not (Test-Path $envFile)) {
-    $jwtSecret = [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
-    $apiPepper = [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
-    $encKey = [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
-
-    $envContent = @"
-# KingSec Environment Configuration
-KINGSEC_ENVIRONMENT=production
-KINGSEC_DEBUG=false
+Write-Step "Preparing local configuration"
+New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+$InstallDir = (Resolve-Path -LiteralPath $InstallDir).Path
+if (-not (Test-Path $KingSecEnvFile)) {
+    $KingSecJwtSecret = & $KingSecVenvPython -c "import secrets; print(secrets.token_urlsafe(48))"
+    $KingSecApiPepper = & $KingSecVenvPython -c "import secrets; print(secrets.token_urlsafe(48))"
+    $KingSecEncryptionKey = & $KingSecVenvPython -c "import base64,secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"
+    $KingSecDataDirEnv = & $KingSecVenvPython -c "import json,sys; print(json.dumps(sys.argv[1]))" $InstallDir
+    $KingSecEnvContent = @"
+# Generated by scripts/install.ps1. Keep this file private.
+KINGSEC_APP__ENVIRONMENT=production
 KINGSEC_LOGGING__LEVEL=INFO
-
-# Security (auto-generated secrets — do not share)
-KINGSEC_JWT__SECRET_KEY=$jwtSecret
-KINGSEC_SECRETS__API_KEY_PEPPER=$apiPepper
-KINGSEC_SECRETS__ENCRYPTION_KEY=$encKey
-
-# Server
+KINGSEC_JWT__SECRET_KEY=$KingSecJwtSecret
+KINGSEC_SECRETS__API_KEY_PEPPER=$KingSecApiPepper
+KINGSEC_SECRETS__ENCRYPTION_KEY=$KingSecEncryptionKey
 KINGSEC_SERVER__HOST=127.0.0.1
 KINGSEC_SERVER__PORT=8765
-
-# Storage
-KINGSEC_STORAGE__DATA_DIR=$InstallDir
+KINGSEC_STORAGE__DATA_DIR=$KingSecDataDirEnv
+# HTML works without GTK3. Change to pdf after installing the GTK runtime.
+KINGSEC_REPORTING__REPORT_FORMAT=html
 "@
-    Set-Content -Path $envFile -Value $envContent
-    Write-OK "Created .env with auto-generated secrets"
+    # Windows PowerShell 5.1's `-Encoding utf8` writes a BOM.  python-dotenv
+    # reads `.env` as plain UTF-8, so write explicitly without a BOM.
+    Write-Utf8NoBom $KingSecEnvFile $KingSecEnvContent
+    $KingSecIdentity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    & icacls.exe $KingSecEnvFile "/inheritance:r" "/grant:r" "${KingSecIdentity}:(F)" | Out-Null
+    if ($LASTEXITCODE -ne 0) { Stop-Install "Could not restrict access to $KingSecEnvFile." }
+    Write-OK "Created $KingSecEnvFile with unique secrets"
 } else {
-    Write-OK ".env already exists"
+    Write-OK "Preserved existing $KingSecEnvFile"
+    Write-Warn "The installer and generated launcher explicitly use data directory $InstallDir"
 }
 
-# --- Step 5: Install Python package ---
-Write-Step "Installing KingSec package..."
-if ($DevMode) {
-    pip install -e ".[dev]" --quiet
-} else {
-    pip install . --quiet
-}
-if ($LASTEXITCODE -ne 0) { Write-Fail "pip install failed"; exit 1 }
-Write-OK "KingSec package installed"
+Write-Step "Validating configuration, applying migrations, and checking scanners"
+$KingSecHadDataDir = Test-Path Env:KINGSEC_STORAGE__DATA_DIR
+$KingSecPreviousDataDir = $env:KINGSEC_STORAGE__DATA_DIR
+$KingSecHadAlembicUrl = Test-Path Env:ALEMBIC_DATABASE_URL
+$KingSecPreviousAlembicUrl = $env:ALEMBIC_DATABASE_URL
+$KingSecHadStorageDatabaseUrl = Test-Path Env:KINGSEC_STORAGE__DATABASE_URL
+$KingSecPreviousStorageDatabaseUrl = $env:KINGSEC_STORAGE__DATABASE_URL
+$KingSecLocationPushed = $false
+try {
+    # Keep migrations and the running server on the same explicitly selected
+    # SQLite data directory. These two variables are migration-only overrides.
+    Remove-Item Env:ALEMBIC_DATABASE_URL -ErrorAction SilentlyContinue
+    Remove-Item Env:KINGSEC_STORAGE__DATABASE_URL -ErrorAction SilentlyContinue
+    $env:KINGSEC_STORAGE__DATA_DIR = $InstallDir
+    Push-Location $KingSecRepoDir
+    $KingSecLocationPushed = $true
+    & $KingSecVenvPython -c 'from kingsec.bootstrap.container import Container; from kingsec.infrastructure.auth.provisioning import register_api_key_auth, register_auth; from kingsec.infrastructure.config import load_settings; from kingsec.infrastructure.secrets.provisioning import register_secrets; settings = load_settings(); container = Container(); register_auth(container, settings); register_api_key_auth(container, lambda: None, settings); register_secrets(container, settings, str(settings.storage.data_dir / "secrets.json"))'
+    if ($LASTEXITCODE -ne 0) { Stop-Install "Configuration or cryptographic-secret validation failed. Review $KingSecEnvFile." }
+    Write-OK "Configuration and cryptographic secrets are valid"
 
-# --- Step 6: Run migrations ---
-Write-Step "Running database migrations..."
-$env:KINGSEC_STORAGE__DATA_DIR = $InstallDir
-kingsec-migrate 2>&1 | Out-Null
-Write-OK "Database migrations complete"
+    $KingSecDatabasePath = Join-Path $InstallDir "kingsec.db"
+    if (Test-Path -LiteralPath $KingSecDatabasePath) {
+        Write-Step "Creating a consistent SQLite snapshot before migration"
+        $KingSecBackupDir = Join-Path $InstallDir "backups"
+        New-Item -ItemType Directory -Path $KingSecBackupDir -Force | Out-Null
+        $KingSecBackupStamp = [DateTime]::UtcNow.ToString("yyyyMMddTHHmmssfffffffZ")
+        $KingSecBackupPath = Join-Path $KingSecBackupDir "kingsec-pre-install-$KingSecBackupStamp.db"
+        & $KingSecVenvPython -c 'import sqlite3,sys; source=sqlite3.connect(sys.argv[1]); destination=sqlite3.connect(sys.argv[2]); source.backup(destination); destination.close(); source.close()' $KingSecDatabasePath $KingSecBackupPath
+        if ($LASTEXITCODE -ne 0) { Stop-Install "Database snapshot failed; migrations were not attempted." }
+        Write-OK "Database snapshot saved to $KingSecBackupPath"
+    }
 
-# --- Step 7: Docker (optional) ---
-if (-not $SkipDocker) {
-    Write-Step "Checking Docker..."
-    if (Test-Command "docker") {
-        Write-OK "Docker available"
-        Write-Host "   Run 'docker compose up -d' to start with Docker"
+    & $KingSecVenvPython -m kingsec._migrate
+    if ($LASTEXITCODE -ne 0) { Stop-Install "Database migration failed." }
+    Write-OK "Database is ready"
+
+    & $KingSecVenvPython -m kingsec doctor
+    if ($LASTEXITCODE -eq 0) {
+        Write-OK "All scanners in the default doctor profile are usable"
     } else {
-        Write-Warn "Docker not found. Install Docker Desktop for containerized deployment."
+        Write-Warn "One or more scanners in the default doctor profile are unavailable; review the output above"
+    }
+
+    if (-not [Console]::IsInputRedirected) {
+        $KingSecBootstrapReply = Read-Host "Create the first admin now? [y/N]"
+        if ($KingSecBootstrapReply -match '^[Yy]$') {
+            $KingSecAdminUsername = Read-Host "Admin username"
+            & $KingSecVenvPython -m kingsec._bootstrap --username $KingSecAdminUsername
+            if ($LASTEXITCODE -ne 0) { Stop-Install "Admin bootstrap failed." }
+        }
+    }
+} finally {
+    if ($KingSecLocationPushed) { Pop-Location }
+    if ($KingSecHadDataDir) {
+        $env:KINGSEC_STORAGE__DATA_DIR = $KingSecPreviousDataDir
+    } else {
+        Remove-Item Env:KINGSEC_STORAGE__DATA_DIR -ErrorAction SilentlyContinue
+    }
+    if ($KingSecHadAlembicUrl) {
+        $env:ALEMBIC_DATABASE_URL = $KingSecPreviousAlembicUrl
+    } else {
+        Remove-Item Env:ALEMBIC_DATABASE_URL -ErrorAction SilentlyContinue
+    }
+    if ($KingSecHadStorageDatabaseUrl) {
+        $env:KINGSEC_STORAGE__DATABASE_URL = $KingSecPreviousStorageDatabaseUrl
+    } else {
+        Remove-Item Env:KINGSEC_STORAGE__DATABASE_URL -ErrorAction SilentlyContinue
     }
 }
 
-# --- Step 8: Create Start shortcut ---
-Write-Step "Creating start script..."
-$startScript = @"
-@echo off
-echo Starting KingSec...
-cd /d "%~dp0"
-set KINGSEC_STORAGE__DATA_DIR=$InstallDir
-python -m kingsec
-"@
-Set-Content -Path "$InstallDir\start.cmd" -Value $startScript
-Write-OK "Created start.cmd"
+$KingSecRepoLiteral = ConvertTo-PSSingleQuotedLiteral $KingSecRepoDir
+$KingSecDataLiteral = ConvertTo-PSSingleQuotedLiteral $InstallDir
+$KingSecPythonLiteral = ConvertTo-PSSingleQuotedLiteral $KingSecVenvPython
+$KingSecStartScript = @(
+    '$ErrorActionPreference = "Stop"',
+    "Set-Location -LiteralPath $KingSecRepoLiteral",
+    'Remove-Item Env:ALEMBIC_DATABASE_URL -ErrorAction SilentlyContinue',
+    'Remove-Item Env:KINGSEC_STORAGE__DATABASE_URL -ErrorAction SilentlyContinue',
+    "`$env:KINGSEC_STORAGE__DATA_DIR = $KingSecDataLiteral",
+    "& $KingSecPythonLiteral -m kingsec"
+)
+$KingSecStartPath = Join-Path $InstallDir "start.ps1"
+Write-Utf8NoBom $KingSecStartPath $KingSecStartScript
 
-# --- Done ---
-Write-Host @"
-
-=====================================
-  Installation Complete!
-=====================================
-
-  Location:  $InstallDir
-  Config:    $InstallDir\.env
-  Start:     $InstallDir\start.cmd
-  Or run:    python -m kingsec
-
-  Default: http://127.0.0.1:8765
-  Health:  http://127.0.0.1:8765/api/v1/health
-
-"@ -ForegroundColor Green
+Write-OK "Installation complete"
+Write-Host "Start KingSec with: powershell -ExecutionPolicy Bypass -File `"$KingSecStartPath`""
+Write-Host "Create/recover the admin later from the repository root with:"
+Write-Host "  `$env:KINGSEC_STORAGE__DATA_DIR = `"$InstallDir`"; & `"$KingSecVenvPython`" -m kingsec._bootstrap --username admin"
+Write-Host "Then open: http://127.0.0.1:8765/"

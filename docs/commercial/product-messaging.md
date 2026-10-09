@@ -1,5 +1,11 @@
 # KingSec v1.1.0 — Product Messaging Artifacts
 
+> **RETIRED DRAFT — DO NOT PUBLISH.** This file contains obsolete and
+> unverified positioning, pricing, distribution, scanner/profile, privacy, and
+> performance claims. It is retained only as historical messaging input. Use
+> the current `README.md`, maintained guides, and a separately approved
+> VantriqSec commercial brief for external communication.
+
 ---
 
 ## 30-Second Elevator Pitch

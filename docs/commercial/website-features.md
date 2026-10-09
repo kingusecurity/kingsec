@@ -1,5 +1,10 @@
 # KingSec v1.1.0 — Features
 
+> **RETIRED DRAFT — DO NOT PUBLISH.** This document contains obsolete and
+> unverified feature, scanner/profile, packaging, and deployment claims. It is
+> retained only as historical messaging input. Use the current `README.md`,
+> `docs/USER_GUIDE.md`, and running OpenAPI document as sources of truth.
+
 ---
 
 ## Assessment Engine

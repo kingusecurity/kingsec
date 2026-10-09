@@ -1,42 +1,39 @@
 # KingSec
 
-Local-first, AI-augmented **Attack Surface Management (ASM)** and **Vulnerability Management (VM)** for small and mid-sized businesses.
+Local-first security assessment orchestration and professional reporting for small and mid-sized businesses.
 
-> **Status:** v2.0.0 — assessment engine complete: 6 wired scanners, honest coverage reporting, authorization-gated scans, PDF/HTML reports with executive scoring.
+> **Status:** v2.0.0 — authorization-gated assessment profiles, honest coverage reporting, and PDF/HTML reports with executive scoring.
 
 ## Why KingSec?
 
-- **Local-first & private.** Assessment data never leaves your machine unless you configure an integration; findings and reports are stored in a local SQLite database protected by filesystem permissions.
+- **Local-first storage.** Findings and reports stay in a local SQLite database by default. Scanners still contact the authorized target, Amass may query public DNS/certificate-transparency sources, and configured AI providers or integrations receive the data their features require.
 - **Unauthenticated external assessment.** KingSec examines what's reachable without logging in — it has no mechanism to authenticate to your application, so anything behind a login screen is out of scope. See "What KingSec Assesses," below.
 - **Bring-your-own-AI-key.** AI credentials are user-supplied and stored encrypted at rest.
 - **Professional frontend.** Built-in React SPA with Dashboard, Assessments, Findings, Reports, Settings, and Administration pages.
-- **6 pluggable scanners.** Nmap, Nuclei, Nikto, FFUF, Gobuster, OWASP ZAP — reachable through every assessment profile, auto-detected and orchestrated. (Trivy, Semgrep, and Amass are also registered scanner plugins in the codebase but aren't wired into any current profile.)
+- **9 purpose-wired scanners.** Nmap, Nuclei, Nikto, FFUF, Gobuster, OWASP ZAP, Semgrep, Trivy, and Amass are selected only by profiles with compatible target types. Missing binaries are reported as unavailable, never as zero findings.
 - **Reports.** HTML and PDF, with executive scoring.
 - **Honest by design.** No fake progress, no fear-selling, no paywalled critical findings.
 - **Safe by default.** Authorization gate enabled by default. Server binds to 127.0.0.1.
 
 ## What KingSec Assesses
 
-KingSec performs **unauthenticated** external security assessment: open ports and services, missing security headers, outdated software versions, and application-layer issues an unauthenticated visitor could find. It does not have a mechanism to log in to your application, so business-logic flaws, authorization bugs between user roles, and anything else reachable only once signed in are **not** examined by any assessment. A clean report means no unauthenticated issues were found — it says nothing about what sits behind your login screen.
+KingSec's network and web profiles perform **unauthenticated** external security assessment: open ports and services, missing security headers, outdated software versions, and application-layer issues an unauthenticated visitor could find. Separate, explicit profiles can analyze a server-visible source path, a container image, or an authorized DNS domain. KingSec does not log in to applications, so business-logic flaws, authorization bugs between user roles, and anything reachable only after authentication remain out of scope. A clean report only speaks to the scanners and coverage shown in that report.
 
 ## Quick Start
 
 ```bash
-# Docker (recommended) — zero to first assessment in 5 minutes
-docker build -t kingsec:2.0.0 .
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"  # copy the output
-docker run -d --name kingsec -p 8765:8765 \
-  -e KINGSEC_SECRETS__ENCRYPTION_KEY="<paste-the-generated-key>" \
-  -v kingsec-data:/home/kingsec/.kingsec kingsec:2.0.0
-# The API + Swagger UI are now at http://127.0.0.1:8765/docs
+# Docker (recommended)
+cp .env.example .env
+# Set all three required secrets in .env before continuing:
+# KINGSEC_JWT__SECRET_KEY, KINGSEC_SECRETS__API_KEY_PEPPER,
+# and KINGSEC_SECRETS__ENCRYPTION_KEY.
+docker compose up -d --build
+# Browser UI: http://127.0.0.1:8765/
+# API docs:   http://127.0.0.1:8765/docs
 ```
 
-> **The web UI is a separate app.** This container serves the REST API
-> only — there is no built-in frontend hosting yet. To use the browser UI,
-> run the frontend separately: `cd frontend && npm install && npm run dev`,
-> then open http://localhost:5173 (it proxies API calls to port 8765).
-> `KINGSEC_SECRETS__ENCRYPTION_KEY` is mandatory — the server refuses to
-> start without it, in every environment.
+> The Docker build bundles the React UI and the backend serves it same-origin.
+> All three secrets named above are required for a production configuration.
 
 See [docs/QUICK_START.md](docs/QUICK_START.md) for the complete walkthrough.
 
@@ -45,7 +42,7 @@ See [docs/QUICK_START.md](docs/QUICK_START.md) for the complete walkthrough.
 | Guide | Description |
 |-------|-------------|
 | [docs/INSTALL.md](docs/INSTALL.md) | System requirements and installation (Docker, pip, Windows, Linux, macOS) |
-| [docs/QUICK_START.md](docs/QUICK_START.md) | First assessment in under 15 minutes |
+| [docs/QUICK_START.md](docs/QUICK_START.md) | Installation, administrator bootstrap, and first authorized assessment |
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | End-user guide: assessments, findings, reports, settings |
 | [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md) | Administration: users, roles, backup, security hardening |
 | [docs/SCANNER_GUIDE.md](docs/SCANNER_GUIDE.md) | Scanner installation, discovery, and troubleshooting |
@@ -66,16 +63,20 @@ See [docs/QUICK_START.md](docs/QUICK_START.md) for the complete walkthrough.
 ```bash
 docker build -t kingsec:2.0.0 .
 cp .env.example .env
-# Edit .env and uncomment/set KINGSEC_SECRETS__ENCRYPTION_KEY (required —
-# the server refuses to start without it) plus the other ⚠️ REQUIRED values.
-docker run -d --name kingsec --env-file .env -p 8765:8765 -v kingsec-data:/home/kingsec/.kingsec kingsec:2.0.0
+# Set all three required secrets, then run the container with the explicit
+# container-only bind opt-in:
+docker run -d --name kingsec --env-file .env \
+  -e KINGSEC_SERVER__HOST=0.0.0.0 \
+  -e KINGSEC_SERVER__ALLOW_EXTERNAL_BIND=true \
+  -p 127.0.0.1:8765:8765 \
+  -v kingsec-data:/home/kingsec/.kingsec kingsec:2.0.0
 ```
 
 ### Docker Compose
 ```bash
 cp .env.example .env
 # Edit .env as above before starting.
-docker compose up -d
+docker compose up -d --build
 ```
 
 ### From source (pip)
@@ -83,11 +84,8 @@ KingSec is not (yet) published on PyPI — install from a repository checkout:
 ```bash
 git clone https://github.com/kingusecurity/kingsec.git
 cd kingsec
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\Activate.ps1
-pip install .
-export KINGSEC_SECRETS__ENCRYPTION_KEY="$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
-kingsec-migrate
-kingsec
+./scripts/install.sh
+# Windows PowerShell: powershell -ExecutionPolicy Bypass -File scripts\install.ps1
 ```
 
 See [docs/INSTALL.md](docs/INSTALL.md) for complete instructions including Windows, macOS, and scanner dependencies.
@@ -96,8 +94,9 @@ See [docs/INSTALL.md](docs/INSTALL.md) for complete instructions including Windo
 
 - **API:** http://127.0.0.1:8765/api/v1
 - **Swagger UI:** http://127.0.0.1:8765/docs
-- **Frontend (dev server, run separately — see above):** http://localhost:5173
-- **Health check:** http://127.0.0.1:8765/api/v1/healthz/live
+- **Bundled browser UI:** http://127.0.0.1:8765/
+- **Frontend dev server (development only):** http://localhost:5173
+- **Health and bootstrap state:** http://127.0.0.1:8765/api/v1/health
 
 ## Assessment Profiles
 
@@ -111,17 +110,21 @@ a profile — KingSec handles the rest.
 |---|---|---|---|---|
 | **Quick Host Scan** | Nmap | IP, Hostname | ~5 min | Fast port check on a single host |
 | **Network Assessment** | Nmap, Nuclei | Network, IP, Hostname | ~30 min | Network range vulnerability sweep |
-| **Web Application Scan** | Gobuster, FFUF, Nuclei, ZAP | URL | ~60 min | Comprehensive web app assessment |
+| **Web Application Scan** | Nmap, Gobuster, FFUF, Nuclei, ZAP | URL | ~60 min | Comprehensive web app assessment |
 | **API Assessment** | FFUF, Nuclei, ZAP | URL | ~45 min | REST/HTTP API security testing |
-| **External Footprint** | Nmap | Hostname, IP | ~15 min | Attack surface discovery |
-| **Full Assessment** | Nmap, Nuclei, Gobuster, FFUF, ZAP, Nikto | IP, Hostname, URL | ~60 min | Maximum coverage across all 6 reachable scanners |
+| **External Footprint Mapping** | Nmap | Hostname, IP | ~15 min | Attack surface discovery |
+| **Full Assessment** | Nmap, Nuclei, Gobuster, FFUF, ZAP, Nikto | IP, Hostname, URL | ~60 min | Broad network/web coverage; actual scanner selection depends on target type |
+| **Source Code Assessment** | Semgrep, Trivy | Absolute source path | ~20 min | Static analysis and dependency/configuration checks |
+| **Container Image Assessment** | Trivy | Container image | ~10 min | Image packages and configuration |
+| **Domain Enumeration** | Amass | DNS domain | ~15 min | Authorized subdomain discovery |
 
-> Nmap is also listed in the Web Application Scan profile but is always
-> skipped for URL targets today (nmap's registered capabilities don't
-> include `url`) — this is reported honestly as a coverage gap, not
-> silently dropped. Semgrep, Trivy, and Amass were removed from every
-> profile: KingSec's target model has no `repository`/`image`/`path`
-> target type for them to run against yet.
+> Profiles declare whether a scanner is required or optional. A missing
+> required binary or asset blocks that profile; an unavailable optional scanner
+> is recorded as a coverage gap. Nmap is currently listed in the URL-only Web
+> Application profile but is reported as incompatible and skipped for that
+> target type.
+> Source paths are paths on the machine running KingSec, not paths on a remote
+> browser workstation.
 
 ### How profiles work
 
@@ -161,10 +164,13 @@ and a `can_proceed` flag.
 
 | Target Type | Compatible Profiles |
 |---|---|
-| `ip_address` | Quick Scan, Network Scan, External Footprint, Full |
-| `hostname` | Quick Scan, Network Scan, External Footprint, Full |
-| `url` | Web Scan, API Scan, Full |
-| `network` | Network Scan |
+| `ip_address` | Quick Host Scan, Network Assessment, External Footprint Mapping, Full Assessment |
+| `hostname` | Quick Host Scan, Network Assessment, External Footprint Mapping, Full Assessment |
+| `url` | Web Application Scan, API Assessment, Full Assessment |
+| `network` | Network Assessment |
+| `domain` | Domain Enumeration |
+| `source_path` | Source Code Assessment |
+| `container_image` | Container Image Assessment |
 
 ## Execution Progress Monitoring
 
@@ -178,7 +184,7 @@ phases** and **per-scanner progress**:
 | `running_scanners` | Executing scanners (each tracked individually) | 5–85% |
 | `correlating` | Combining and correlating findings | 85% |
 | `reporting` | Generating report | 95% |
-| `completed` / `failed` / `cancelled` | Terminal states | 100% |
+| `completed` / `completed_with_gaps` / `failed` / `cancelled` | Terminal states | 100% |
 
 ### API endpoints
 
@@ -195,13 +201,12 @@ collapsible event log. Running assessments auto-refresh every 3 seconds.
 
 ## Scanner Environment
 
-KingSec has 9 scanner plugins registered in the codebase; 6 of them (Nmap,
-Nuclei, Nikto, FFUF, Gobuster, OWASP ZAP) are reachable through the
-assessment profiles above (Trivy, Semgrep, and Amass are registered but not
-currently wired into any profile — see "Available profiles," above). The
-**Scanner Discovery** system automatically detects which are installed,
-validates their executables and required assets, and reports readiness
-through the API and UI.
+KingSec has 9 scanner plugins registered in the codebase. All 9 are reachable
+through an explicit compatible profile: the network/web profiles use Nmap,
+Nuclei, Nikto, FFUF, Gobuster, and OWASP ZAP; the purpose-built source,
+container, and domain profiles use Semgrep, Trivy, and Amass. The **Scanner
+Discovery** system automatically detects which are installed, validates their
+executables and required assets, and reports readiness through the API and UI.
 
 ### Quick check
 
@@ -220,15 +225,23 @@ Health panel — install status, version, warnings, and health score at a glance
 | Nmap | `nmap` | `choco install nmap` | `apt install nmap` | — |
 | Nuclei | `nuclei` | [GitHub Releases](https://github.com/projectdiscovery/nuclei/releases) | `go install ...` | Nuclei templates (`nuclei -update-templates`) |
 | Nikto | `nikto` | [GitHub Releases](https://github.com/sullo/nikto/releases) | `apt install nikto` | — |
-| FFUF | `ffuf` | [GitHub Releases](https://github.com/ffuf/ffuf/releases) | `go install ...` | — |
-| Gobuster | `gobuster` | [GitHub Releases](https://github.com/OJ/gobuster/releases) | `go install ...` | — |
-| Trivy | `trivy` | `choco install trivy` | `apt install trivy` | Vulnerability DB (`trivy image --download-db-only`) |
+| FFUF | `ffuf` | [GitHub Releases](https://github.com/ffuf/ffuf/releases) | `go install ...` | Configured wordlist |
+| Gobuster | `gobuster` | [GitHub Releases](https://github.com/OJ/gobuster/releases) | `go install ...` | Configured wordlist |
+| Trivy | `trivy` | `choco install trivy` | `apt install trivy` | Vulnerability DB recommended (`trivy image --download-db-only`) |
 | Semgrep | `semgrep` | `pip install semgrep` | `pip install semgrep` | — |
 | Amass | `amass` | [GitHub Releases](https://github.com/owasp-amass/amass/releases) | `go install ...` | — |
-| OWASP ZAP | `zap` | [Download](https://www.zaproxy.org/download/) | `docker run ...` | — |
+| OWASP ZAP | `zap` / `ZAP.exe` | [Official installer](https://www.zaproxy.org/download/) | Native package or official installer | Java runtime |
 
-> **Note:** Scanners not installed are simply skipped during scans. KingSec
-> remains fully operational with whatever subset is available.
+> **Note:** an unavailable required scanner blocks that profile at planning
+> time. An unavailable optional scanner is recorded as a coverage gap; it is
+> never presented as a successful zero-finding run.
+
+For a source install, run `kingsec doctor` to check all nine scanners using the
+same discovery and compatibility logic as the assessment planner. The base
+Docker image does not bundle the external scanner executables, and binaries
+installed only on the Docker host are not visible inside the container. Extend
+the image with the scanners you are authorized to use, then run
+`docker exec kingsec kingsec doctor` to verify that container environment.
 
 ### Auto-discovery
 
@@ -260,41 +273,22 @@ The health score is computed as:
 
     health_score = (usable_scanners / total_scanners) × 100
 
-| Score | Interpretation |
-|---|---|
-| 80–100% | All critical scanners operational |
-| 50–79% | Some scanners need attention |
-| < 50% | Most scanners not ready |
+This percentage is an inventory summary, not a readiness decision for a
+specific assessment. Always review the execution plan for the chosen profile:
+a high aggregate score can still coexist with a missing required scanner.
 
-### Direct installation
+### Source-install scanner check
+
+The one-shot installers above run the read-only scanner preflight automatically.
+Run it again after adding or reconfiguring a scanner:
+
 ```bash
-# 1. Install from a repository checkout (not yet published on PyPI)
-git clone https://github.com/kingusecurity/kingsec.git && cd kingsec
-pip install .
-
-# 2. Set required environment variables
-export KINGSEC_JWT__SECRET_KEY="your-production-secret"
-export KINGSEC_SECRETS__ENCRYPTION_KEY="your-base64-32byte-key"   # mandatory — see .env.example
-
-# 3. Run database migrations
-kingsec-migrate
-
-# 4. Start the server
-kingsec
-
-# The REST API + Swagger UI are now available at http://127.0.0.1:8765/docs
+kingsec doctor
+# Or without activating the installer-created virtual environment:
+./.venv/bin/python -m kingsec doctor
 ```
 
-On Windows (PowerShell):
-```powershell
-git clone https://github.com/kingusecurity/kingsec.git
-cd kingsec
-pip install .
-$env:KINGSEC_JWT__SECRET_KEY = "your-production-secret"
-$env:KINGSEC_SECRETS__ENCRYPTION_KEY = "your-base64-32byte-key"   # mandatory
-kingsec-migrate
-kingsec
-```
+On Windows, use `.\.venv\Scripts\python.exe -m kingsec doctor`.
 
 ## Database Migrations (Alembic)
 
@@ -302,6 +296,7 @@ KingSec uses Alembic for versioned database migrations. The migration chain is t
 
 ### First-time setup
 ```bash
+# Back up an existing SQLite database and stop the running service first.
 # From a repository checkout (alembic.ini is in the project root):
 alembic upgrade head
 
@@ -315,12 +310,6 @@ kingsec-migrate
 ```bash
 # Apply all pending migrations
 alembic upgrade head
-
-# Roll back one migration
-alembic downgrade -1
-
-# Roll back to the beginning
-alembic downgrade base
 
 # Show current migration version
 alembic current

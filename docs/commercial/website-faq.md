@@ -1,5 +1,10 @@
 # KingSec v1.1.0 — Frequently Asked Questions (Website Edition)
 
+> **RETIRED DRAFT — DO NOT PUBLISH.** This document contains obsolete and
+> unapproved product, tier, scanner/profile, platform, and availability claims.
+> It is retained only as historical messaging input. The maintained FAQ is
+> `docs/FAQ.md`.
+
 ---
 
 ### 1. What is KingSec?

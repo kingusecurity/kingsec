@@ -1,5 +1,10 @@
 # KingSec v1.1.0 — Pricing
 
+> **RETIRED DRAFT — DO NOT QUOTE OR PUBLISH.** No prices, tiers, entitlements,
+> SLAs, or availability statements in this file are approved commercial terms.
+> VantriqSec is pre-revenue and is developing a services-led assessment offer;
+> a current offer requires separate founder and legal approval.
+
 > **Note:** The prices below are placeholders for demonstration and planning purposes. They do not represent final or current pricing. Contact kingusecurity@gmail.com for the latest information.
 
 **KingSec performs unauthenticated external assessment.** It scans what's reachable without logging in — it does not authenticate to your application, so functionality and logic flaws that only exist behind a login are not examined by any tier. A clean result says nothing about what sits behind authentication. See "What KingSec Assesses" below before you buy.

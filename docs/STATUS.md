@@ -4,6 +4,42 @@ Tracks progress against `docs/REMEDIATION-PLAN.md`. Updated at the end of every 
 
 ---
 
+## Product-readiness completion pass — 2026-10-09
+
+**Status:** implementation complete and locally verified; not pushed.
+
+### Shipped in this pass
+
+- Made assessment creation profile-driven at the HTTP/UI boundary, restored honest source-code, container-image, and DNS-domain profiles, and made Semgrep, Trivy, and Amass reject incompatible targets before execution.
+- Closed the authorization-scope bypass for unprofiled and scheduled assessments by deriving the exact scanner surface that the execution path will use.
+- Made structured-output parsers fail closed: malformed or unexpectedly blank Semgrep/Trivy output is an execution failure, while a valid empty result envelope remains a legitimate zero-finding scan.
+- Added report-artifact cache deletion with in-flight render protection, format-correct report downloads, HTML/PDF configuration, and honest coverage/status handling.
+- Added server-side assessment search/filter/sort/pagination and ownership scoping; corrected report search and risk sorting; connected the matching UI filters, finding drill-down, breadcrumbs, empty states, and role-aware actions.
+- Completed the compliance dashboard workflow against real API endpoints. Finding mapping now loads every page of assessment evidence before calculating coverage; it does not silently calculate from the first 200 findings.
+- Hardened bootstrap behavior, removed misleading/unavailable UI controls, and verified every administrator sidebar destination renders through the installed, bundled application.
+- Added source installers for Bash and PowerShell. The Bash installer now creates a repo-local environment, uses a writable repo-local npm cache, builds and bundles the UI, generates secrets without overwriting an existing `.env`, validates configuration, migrates an explicitly selected data directory, reports missing scanners, and writes a launcher.
+- Updated public installation, quick-start, API, user, FAQ, README, and commercial-draft copy to match implemented behavior and to distinguish assessment evidence from penetration testing or certified compliance.
+- Updated locked dependencies for current PyJWT, urllib3, virtualenv, and React Router security advisories.
+- Disabled ambient `HTTP_PROXY`/`HTTPS_PROXY` use in SSRF-validated notification requests. A proxy can replace the validated destination host/port; proxy support must be an explicit, separately validated product setting before it is allowed on this path.
+
+### Verification
+
+- **TESTED:** full Python suite; Ruff; mypy; all three import-linter architecture contracts; Bandit; Python dependency audit.
+- **TESTED:** full frontend unit suite, TypeScript production build, lint command, and production dependency audit. The lint command exits successfully with existing warnings still reported.
+- **TESTED:** Linux one-shot installation against an isolated `/tmp` data directory, including a fresh migration chain and generated launcher.
+- **TESTED:** installed server health/bootstrap signal, admin bootstrap, UI login, and headless Chromium navigation across every administrator sidebar route without a blank page, application error boundary, or browser page exception.
+- **TESTED:** Git remote reachability for `kingusecurity/kingsec` at the checkout's original `main` revision.
+
+### Explicit remaining limits
+
+- **NOT TESTED:** Windows/PowerShell installer runtime; PowerShell is unavailable in this environment. The script was reviewed, but it still needs a real Windows installation run.
+- **NOT TESTED:** live execution of nmap, nuclei, nikto, ffuf, gobuster, OWASP ZAP, Semgrep, Trivy, or Amass. None of those binaries is installed in this environment; `kingsec doctor` reports all nine unavailable. Unit/integration behavior is covered with deterministic adapters, but this is not a substitute for a licensed, authorized customer walkthrough.
+- **MISSING:** scheduled assessments persist and expose `scanner_ids`, but the real scheduled-assessment path currently executes all scanners compatible with the detected target because an assessment does not persist an arbitrary scanner selection. The current web form does not offer a scanner subset, but API clients must not assume `scanner_ids` narrows execution until this is redesigned and migrated.
+- **MISSING:** the two previously identified report fixes—network finding asset attribution and evidence-based port severity—remain open. Reports disclose coverage gaps, but those finding-quality issues still block treating the product as customer-ready.
+- **MISSING:** the planned Attack Path Intelligence Platform remains a separate future product; no attack-path capability is claimed here.
+
+---
+
 ## Phase 0 — Green baseline
 
 **Branch:** `fix/phase-0-green-baseline`
@@ -1749,6 +1785,62 @@ kingu: nmap licensing + lawyer are his; asked for remaining bugs checked and fix
 2. `GET /api/v1/reports/{id}` metadata now includes `profile_id` (assessment endpoint already had it; report detail didn't). Live-verified: returns `"quick-scan"`.
 
 **Live-verified on the walkthrough server:** findings API returns `affected_asset: 127.0.0.1` on the port-80 finding; report metadata returns `profile_id: quick-scan`; downloaded report names the profile.
+
+## Product-readiness documentation truth pass (2026-10-07)
+
+**Scope:** current operator-facing setup, API, assessment/profile,
+authorization, and product-positioning documentation. Working tree only; not
+committed.
+
+**Status:** IMPLEMENTED for the documentation named below. Runtime validation
+of this working tree remains outstanding.
+
+- **TESTED (static):** `docs/QUICK_START.md`, `docs/API_REFERENCE.md`,
+  `docs/USER_GUIDE.md`, `docs/FAQ.md`, and the affected `README.md` sections
+  were cross-checked against the current Docker composition, bootstrap CLI,
+  FastAPI routes and schemas, target/grant enums, assessment-profile registry,
+  and frontend assessment/grant routes. `git diff --check` passes for the
+  documentation changes.
+- **FIXED:** removed the unsafe false instruction that the first registered
+  account becomes Admin. The maintained guides now use `kingsec-bootstrap`,
+  explain that self-registration is disabled by default, and state that any
+  enabled self-registration creates a Viewer.
+- **FIXED:** the quick start now describes the bundled same-origin UI, all
+  required production secrets, explicit Docker bootstrap, authorization-grant
+  creation, execution-plan review, the separate create/start actions, and
+  honest interpretation of `completed_with_gaps`.
+- **FIXED:** target/profile/grant documentation now includes the explicit
+  `domain`, `source_path`, and `container_image` types and their purpose-built
+  profiles. Domain enumeration requires a `domain` grant; source paths and
+  container images require exact-resource grants.
+- **FIXED:** maintained user/API/FAQ guidance now describes only HTML and PDF
+  report delivery and no longer advertises JSON/CSV/Markdown exports, a
+  separately-run production UI, a published image/package, or scanners that
+  are not actually available to a profile.
+- **FIXED:** `README.md` no longer contradicts its own profile table by saying
+  Semgrep, Trivy, and Amass are unwired. Its compatibility matrix now covers
+  every current target type, and scanner-unavailability language distinguishes
+  blocking required scanners from optional coverage gaps.
+- **FIXED:** obsolete files under `docs/commercial/` now carry an unambiguous
+  retired-draft/do-not-publish warning. Their historic placeholder prices,
+  entitlements, distribution commands, and availability statements are not
+  approved current offers.
+- **INFERRED:** the documented commands, enum values, and workflow match the
+  current source, but static agreement does not prove that a fresh install or
+  browser workflow succeeds.
+- **NOT TESTED:** no Docker build/start, source install, live scanner run,
+  report download, or end-to-end browser walkthrough was performed during this
+  documentation pass. Historical evidence elsewhere in this file is not being
+  reused as proof for the current uncommitted tree.
+- **NOT TESTED:** the current native Windows installer remains unvalidated on
+  a Windows host.
+- **MISSING:** the base Docker image contains no scanner executables. A derived
+  image (or a source install in the scanner host environment) is required for
+  a real assessment; the quick start now says this before the first-assessment
+  workflow.
+- **MISSING:** a founder- and legal-approved VantriqSec services offer with
+  current prices, terms, support commitments, and availability. Historical
+  placeholder pricing must not be presented as an offer.
 
 **Audited, no bug found:** report artifact cache (keyed on `generated_at` — regeneration can't serve stale bytes); grant coverage dry-run and `CreateAssessment` share the same `effective_scan_surface()`/`find_covering()` functions (can't disagree).
 

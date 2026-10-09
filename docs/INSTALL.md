@@ -8,61 +8,48 @@ GitHub: https://github.com/kingusecurity/kingsec
 
 ## Important: what this guide covers
 
-KingSec ships two independent pieces that are installed and run separately:
+KingSec contains two build components that ship as one application artifact:
 
-1. **The backend** — a FastAPI REST API + SQLite/PostgreSQL database. This
+1. **The backend** — a FastAPI REST API backed by local SQLite storage. This
    is what `docker run`, `kingsec-migrate`, and `kingsec` set up and start.
    It exposes the API and an interactive Swagger UI at `/docs`.
-2. **The frontend** — a React SPA in `frontend/`. It is a separate Node.js
-   project with its own dependencies. There is currently no built-in way
-   for the backend to serve the frontend, and no bundled Docker image that
-   includes it — you always run it separately (`npm run dev` for
-   development, or build it and host `frontend/dist/` with any static
-   file server for production).
+2. **The frontend** — a React SPA in `frontend/`. Docker and the one-shot
+   source installers build it and bundle it into the Python package; the
+   backend then serves it at `/`. `npm run dev` is only the development
+   workflow, where Vite proxies API calls to the backend.
 
-If you only need the API (automation, CI, scripting), you can stop after
-the backend section. If you want the browser UI, do both.
+The supported production paths below prepare both pieces. Advanced API-only
+operators may build a wheel without the generated static directory, in which
+case the API and `/docs` still work but `/` has no SPA.
 
 ---
 
 ## System Requirements
 
-### Minimum Requirements
+### Required toolchain
 
-- CPU: 2 cores, 2.0 GHz or higher
-- RAM: 4 GB
-- Disk: 10 GB free space
-- Python: 3.11, 3.12, or 3.13 (declared-supported range; the project has
-  also been run successfully on 3.14, but that is not yet an officially
-  declared target)
-- Node.js: 20.x or newer (only needed if you plan to run the frontend)
-- Docker: 24.0 or higher (only needed for the Docker installation path)
+- Source install: CPython 3.11, 3.12, or 3.13; Node.js 20 or newer; npm.
+- Docker install: a current Docker Engine or Docker Desktop; Docker Compose v2
+  for the Compose path.
+- Scanner binaries and their assets are separate dependencies. Install only the
+  scanners needed by the profiles you intend to operate.
 
-### Recommended Requirements
-
-- CPU: 4 cores, 2.5 GHz or higher
-- RAM: 8 GB (16 GB if running several scanners concurrently)
-- Disk: 50 GB SSD
-- Python: 3.12
-- Docker: 26.0 or higher with Docker Compose v2
+CPU, memory, disk, and scan duration depend heavily on target size, selected
+scanners, and scanner concurrency. This release has no benchmark-backed minimum
+hardware claim; provision conservatively and monitor the host during a customer
+walkthrough before choosing production capacity.
 
 ### Supported Operating Systems
 
-KingSec has no OS-specific code paths beyond scanner-executable discovery
-(see the Scanner Dependency table in `README.md`); the general requirement
-is any OS with a supported Python (and, for Docker installs, any OS Docker
-Desktop/Engine supports).
+The Bash installer targets Linux and macOS. The PowerShell installer targets
+Windows 10/11. The container path works anywhere supported by Docker's Linux
+container engine.
 
-**Correction — what was actually tested on Windows:** an earlier version of
-this guide claimed Windows 10/11 was "verified in this audit." That
-overstated it. What was actually tested was Docker Desktop's **Linux
-container** running on a Windows 10/11 host (the "Docker Installation"
-section above) — the container itself is Linux; Windows only hosts it. The
-**Direct (non-Docker) Installation** section below, run natively against a
-real Windows Python install with no container involved, remains **NOT
-TESTED**. If you follow the native path on Windows and hit something this
-guide doesn't cover, that is expected, not a sign you did something wrong —
-please report it.
+**Windows verification boundary:** Docker Desktop's Linux-container path has
+been exercised previously. The native PowerShell installer is designed for
+Windows 10/11 and forces binary wheels for `cffi` and `pydantic-core`, but its
+current revision must still be validated on a real Windows host before a
+native-Windows clean-install claim is made.
 
 ---
 
@@ -93,6 +80,9 @@ From the repository root (where `Dockerfile` lives):
 ```bash
 docker build -t kingsec:2.0.0 .
 ```
+The build uses `git archive HEAD` so the image contains committed source only.
+Build from a Git checkout with `.git` present, and commit the exact revision you
+intend to package before building.
 This is a multi-stage build (Python 3.12-slim base, builds a wheel, then
 installs it into a slim runtime image as a non-root user). It takes a few
 minutes on first build.
@@ -102,16 +92,18 @@ minutes on first build.
 ```bash
 cp .env.example .env
 ```
-Open `.env` and uncomment/set at minimum `KINGSEC_SECRETS__ENCRYPTION_KEY`
-— **the server refuses to start without it, with no exceptions** (see
-"Environment Variables" below). Generate one with:
-```bash
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-```
-Also set `KINGSEC_JWT__SECRET_KEY` and `KINGSEC_SECRETS__API_KEY_PEPPER`
-for anything beyond local experimentation — they have insecure built-in
-defaults that let the server start, but must not be used in production.
+Open `.env` and set all three required secrets:
 
+- `KINGSEC_JWT__SECRET_KEY`
+- `KINGSEC_SECRETS__API_KEY_PEPPER`
+- `KINGSEC_SECRETS__ENCRYPTION_KEY`
+
+Generate suitable values with:
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"  # JWT secret
+python -c "import secrets; print(secrets.token_urlsafe(48))"  # API-key pepper
+python -c "import base64,secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"  # encryption key
+```
 ### Step 4: Run the Container
 
 ```bash
@@ -119,6 +111,8 @@ docker run -d \
   --name kingsec \
   --restart unless-stopped \
   --env-file .env \
+  -e KINGSEC_SERVER__HOST=0.0.0.0 \
+  -e KINGSEC_SERVER__ALLOW_EXTERNAL_BIND=true \
   -p 127.0.0.1:8765:8765 \
   -v kingsec-data:/home/kingsec/.kingsec \
   kingsec:2.0.0
@@ -132,18 +126,22 @@ docker run -d `
   --name kingsec `
   --restart unless-stopped `
   --env-file .env `
+  -e KINGSEC_SERVER__HOST=0.0.0.0 `
+  -e KINGSEC_SERVER__ALLOW_EXTERNAL_BIND=true `
   -p 127.0.0.1:8765:8765 `
   -v kingsec-data:/home/kingsec/.kingsec `
   kingsec:2.0.0
 ```
 
-Notes on the exact flags used above (all verified against the real
-`Dockerfile`):
+Notes on the exact flags used above:
 - The named volume `kingsec-data` mounts to `/home/kingsec/.kingsec` —
   this is the container's real data directory (there is no `/app/data`).
 - Binding to `127.0.0.1` on the host keeps the API off your network by
   default even though the container itself listens on `0.0.0.0` inside
   its own isolated network namespace.
+- `KINGSEC_SERVER__ALLOW_EXTERNAL_BIND=true` is the required explicit opt-in
+  for the container's internal wildcard bind. It does not change the safe
+  loopback-only host publication above.
 
 ### Step 5: Verify the Container is Running
 
@@ -152,7 +150,9 @@ docker ps --filter name=kingsec
 docker logs kingsec --tail 50
 curl http://127.0.0.1:8765/api/v1/health
 ```
-Expected health response: `{"status":"ok"}`.
+Before bootstrapping an administrator, the health response is
+`{"status":"ok","bootstrap_required":true}`. After bootstrap, the boolean is
+`false`.
 
 If the container exits immediately, `docker logs kingsec` will show a
 `ConfigError` naming the missing environment variable — this is almost
@@ -167,17 +167,25 @@ not need to write your own.
 
 ```bash
 cp .env.example .env
-# Edit .env: set KINGSEC_SECRETS__ENCRYPTION_KEY (required) and the other
-# ⚠️ REQUIRED values for anything beyond local experimentation.
-docker compose up -d
+# Edit .env: set all three required secret values listed above.
+docker compose up -d --build
 docker compose logs -f      # follow logs
 docker compose ps           # check status
 docker compose down         # stop
 ```
 
-The bundled compose file builds the image from the local `Dockerfile`,
+The bundled compose file builds the image from the committed source tree using
+the local `Dockerfile`,
 binds the API to `127.0.0.1:8765`, and stores data in a named volume —
 you do not need to create one yourself.
+
+The base image bundles the UI and KingSec application, but not the nine external
+scanner executables. Scanner binaries installed on the Docker host are not
+automatically visible inside the container. For scanner-backed assessments,
+extend the image with the specific scanners and assets you are licensed and
+authorized to use, then verify the resulting image with
+`docker exec kingsec kingsec doctor`. Source installation is the simpler path
+when scanners already exist on the host.
 
 ### Before you expose this beyond your own machine
 
@@ -215,7 +223,49 @@ git clone https://github.com/kingusecurity/kingsec.git
 cd kingsec
 ```
 
-### Step 2: Create a Virtual Environment
+### Recommended: one-shot installers
+
+The scripts build the SPA, create `.venv`, install from the checkout, generate
+an access-restricted root `.env` with all three secrets and an absolute data
+directory, validate the cryptographic configuration, run migrations without
+hiding failures, run the read-only `kingsec doctor` scanner preflight, and
+create a launcher that always uses the checkout virtual environment and working
+directory. Before migrating an existing SQLite database, the scripts create a
+consistent snapshot under the selected data directory's `backups/` folder.
+
+Existing `.env` files are preserved and must already contain valid
+configuration. The installer and its launcher deliberately pass the selected
+data directory as an explicit runtime override (`KINGSEC_DATA_DIR` on Bash or
+`-InstallDir` on PowerShell). They also ignore the migration-only
+`ALEMBIC_DATABASE_URL` and `KINGSEC_STORAGE__DATABASE_URL` variables so Alembic
+cannot be redirected to a database the server will not use. Stop a running
+KingSec process before rerunning an installer for an upgrade.
+
+Linux/macOS:
+
+```bash
+./scripts/install.sh
+```
+
+Windows PowerShell (also usable when the checkout was opened from Git Bash):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install.ps1
+```
+
+The default launchers are `./data/start.sh` on Linux/macOS and
+`$env:LOCALAPPDATA\KingSec\start.ps1` on Windows. Each installer prints the
+resolved path; use that printed path when you selected a custom data directory.
+
+The Windows installer defaults reports to HTML so a fresh machine works
+without GTK3. The Bash installer performs an in-memory PDF render preflight and
+chooses PDF only when the native libraries work; otherwise it also defaults to
+HTML. Install the native dependencies and change
+`KINGSEC_REPORTING__REPORT_FORMAT=pdf` when PDF output is required.
+
+### Manual installation
+
+Create a virtual environment:
 
 ```bash
 python3 -m venv .venv
@@ -228,16 +278,30 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1
 ```
 
-### Step 3: Install KingSec
+Build the UI and install KingSec:
 
 ```bash
-pip install .
+cd frontend
+npm ci
+npm run build
+cd ..
+rm -rf src/kingsec/adapters/inbound/web/static
+mkdir -p src/kingsec/adapters/inbound/web/static
+cp -R frontend/dist/. src/kingsec/adapters/inbound/web/static/
+python -m pip install --only-binary=cffi,pydantic-core .
 ```
+
+On Windows PowerShell, replace the three copy commands with:
+
+```powershell
+Remove-Item -Recurse -Force src\kingsec\adapters\inbound\web\static -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force src\kingsec\adapters\inbound\web\static | Out-Null
+Copy-Item -Recurse -Force frontend\dist\* src\kingsec\adapters\inbound\web\static\
+```
+
 This builds and installs the `kingsec` wheel and its runtime dependencies
 (FastAPI, SQLAlchemy, Alembic, WeasyPrint, etc.) and creates three console
 scripts in the venv: `kingsec`, `kingsec-migrate`, `kingsec-bootstrap`.
-Verified in this audit: a clean venv, `pip install .`, and the resulting
-wheel install every dependency correctly with no manual intervention.
 
 For development (linting, type-checking, tests) install the extra dev
 tooling instead:
@@ -245,40 +309,34 @@ tooling instead:
 pip install -e ".[dev]"
 ```
 
-### Step 4: Configure Required Secrets
+Configure all three required secrets in the repository-root `.env`:
 
 ```bash
 cp .env.example .env
 ```
-Edit `.env` and set `KINGSEC_SECRETS__ENCRYPTION_KEY` (mandatory — see
-above). Then load it into your shell, or export the variables directly:
+KingSec auto-loads `.env` from the process working directory. Run migration,
+bootstrap, and server commands from the repository root; do not `source` the
+file. The one-shot launchers enforce the correct working directory.
 
-```bash
-export KINGSEC_SECRETS__ENCRYPTION_KEY="$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
-```
-
-On Windows (PowerShell):
-```powershell
-$env:KINGSEC_SECRETS__ENCRYPTION_KEY = (python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
-```
-
-> **Note:** there is no `kingsec db init` or `kingsec start --host/--port`
-> command. The real CLI has exactly three entry points: `kingsec`
+> **Note:** there is no `kingsec db init` subcommand. The real CLI has
+> three entry points: `kingsec`
 > (starts the server), `kingsec-migrate` (runs Alembic migrations), and
 > `kingsec-bootstrap` (creates a recovery admin account — see
-> "Recovering Admin Access" below). Host/port are configured via
-> `KINGSEC_SERVER__HOST` / `KINGSEC_SERVER__PORT` environment variables,
-> not command-line flags.
+> "Recovering Admin Access" below). `kingsec --host` and `kingsec --port`
+> are supported overrides; environment variables remain the persistent form.
 
 ### Step 5: Initialize the Database
+
+For a fresh database, run:
 
 ```bash
 kingsec-migrate
 ```
-This applies every Alembic migration to a fresh SQLite database at
-`~/.kingsec/kingsec.db` by default (override with
-`KINGSEC_STORAGE__DATA_DIR`). Verified: running this against a brand-new,
-empty data directory applies the entire migration chain cleanly.
+This applies every Alembic migration to the SQLite database at
+`KINGSEC_STORAGE__DATA_DIR/kingsec.db` (default: `~/.kingsec/kingsec.db`).
+For an existing database, stop KingSec and create a SQLite-consistent backup
+before running the command; see "Database Migrations" below. The one-shot
+installers perform that snapshot automatically.
 
 ### Step 6: Start KingSec
 
@@ -289,16 +347,17 @@ The service runs in the foreground, logging to stdout. Stop it with
 Ctrl+C. For a background/production run, use a process manager (systemd,
 supervisord, NSSM on Windows) — see below.
 
-The API is now at `http://127.0.0.1:8765/api/v1`, and interactive Swagger
-docs are at `http://127.0.0.1:8765/docs`. There is no web UI at this URL
-— see "Running the Frontend" below for that.
+The browser UI is now at `http://127.0.0.1:8765/`, the API is at
+`http://127.0.0.1:8765/api/v1`, and interactive Swagger docs are at
+`http://127.0.0.1:8765/docs` when the frontend was bundled by Docker or the
+one-shot installer.
 
 ### systemd Service File (Linux)
 
 Create `/etc/systemd/system/kingsec.service`:
 ```ini
 [Unit]
-Description=KingSec ASM and VM Platform
+Description=KingSec Security Assessment Platform
 After=network.target
 
 [Service]
@@ -308,6 +367,7 @@ WorkingDirectory=/opt/kingsec
 Environment="PATH=/opt/kingsec/.venv/bin"
 Environment="KINGSEC_SECRETS__ENCRYPTION_KEY=<your-generated-key>"
 Environment="KINGSEC_JWT__SECRET_KEY=<your-production-secret>"
+Environment="KINGSEC_SECRETS__API_KEY_PEPPER=<your-production-pepper>"
 ExecStart=/opt/kingsec/.venv/bin/kingsec
 Restart=on-failure
 RestartSec=10
@@ -323,39 +383,36 @@ sudo systemctl enable --now kingsec
 
 ---
 
-## Running the Frontend
+## Frontend Development
 
-The web UI is a separate React app under `frontend/` and is never started
-by the `kingsec` command.
+Production Docker/source installs bundle the React app and `kingsec` serves it
+at `/`. Run Vite separately only while developing the frontend.
 
 ### Development
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 Open **http://localhost:5173**. The Vite dev server proxies every `/api`
 request to `http://127.0.0.1:8765` (hardcoded in `frontend/vite.config.ts`
 — there is no environment variable to change this; edit the file
 directly if you need a different backend port). The backend must already
-be running for the proxy to work. Verified in this audit: `npm run dev`
-starts cleanly and serves the SPA on port 5173.
+be running for the proxy to work.
 
-### Production
+### Manual production bundle
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run build
 ```
-This produces a static SPA in `frontend/dist/`. There is currently no
-built-in server for it — host it with any static file server (nginx, a
-CDN, `npx serve`, etc.) that supports SPA fallback routing (serving
-`index.html` for unmatched routes), and ensure that host can reach the
-backend at the `/api/v1` path (typically via a reverse-proxy rule that
-forwards `/api/*` to the backend process). See `frontend/README.md`'s
-"Production Deployment" section for a worked nginx example.
+This produces `frontend/dist/`. Copy its contents into
+`src/kingsec/adapters/inbound/web/static/` **before** building/installing the
+Python wheel; Hatch includes that generated directory and the backend serves
+the SPA with fallback routing. The one-shot installers and Dockerfile perform
+these steps automatically.
 
 ---
 
@@ -382,21 +439,21 @@ scoop install python
 scoop install docker
 ```
 
-### PDF Report Generation Requires GTK3
+### Report formats and GTK3
 
-Report generation uses WeasyPrint, which needs system-level GTK/Pango/
-Cairo libraries that `pip install` does **not** provide on Windows.
-Without them, generating a PDF report fails with a `500` error
-(`KS-REPORT-001`) and the server log shows "WeasyPrint could not import
-some external libraries." **Verified in this audit**: a fresh, correctly
-migrated, correctly started install reproduces this exact failure until
-the GTK3 runtime is installed.
+PDF generation uses WeasyPrint, which needs system-level GTK/Pango/Cairo
+libraries that `pip install` does **not** provide on Windows. The Windows
+installer therefore writes `KINGSEC_REPORTING__REPORT_FORMAT=html`; valid HTML
+reports work without importing WeasyPrint. Selecting PDF without the native
+runtime fails explicitly with `KS-REPORT-001`, rather than returning a corrupt
+or mislabeled artifact.
 
 Fix: download and run the GTK3 runtime installer from
 https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases,
 then restart your terminal (and KingSec) so the updated `PATH` takes
-effect. This only affects direct/non-Docker installs — the Docker image
-already bundles the required libraries.
+effect, set `KINGSEC_REPORTING__REPORT_FORMAT=pdf`, and restart KingSec. This
+only affects direct/non-Docker installs — the Docker image already bundles the
+required libraries.
 
 ### Windows Firewall
 
@@ -460,10 +517,11 @@ python -c "import secrets; print(secrets.token_urlsafe(64))"                    
 
 KingSec uses pluggable scanners. Install them according to your
 assessment needs — see the table in `README.md`'s "Scanner Environment"
-section for the exact per-OS install commands and required assets. None
-of the 9 scanners are mandatory: KingSec starts and runs fine with zero
-scanners installed, it just skips any assessment that requires one that
-is missing.
+section for the exact per-OS install commands and required assets. KingSec can
+start with no scanners installed, but an assessment profile cannot proceed
+when one of its required scanners or assets is unavailable. Missing optional
+scanners are recorded as coverage gaps rather than successful zero-finding
+runs.
 
 **Note:** After installing a scanner, restart KingSec so scanner
 discovery re-detects it. Run `kingsec doctor` at any point to see
@@ -575,18 +633,32 @@ never calls `create_all()`. There is no automatic migration-on-startup;
 you must run `kingsec-migrate` (or, from a repo checkout, `alembic
 upgrade head`) yourself before first start and after every upgrade.
 
-```bash
-# Apply all pending migrations
-kingsec-migrate                       # pip install (uses the packaged alembic.ini)
-alembic upgrade head                  # repo checkout — run from the repo root; the
-                                       # root-level alembic.ini already points at
-                                       # src/kingsec/alembic, no -c flag needed
+For an existing SQLite installation:
 
+1. Stop the KingSec server so no new writes begin during the upgrade.
+2. Confirm the data directory printed by KingSec is the database you intend to
+   change. Do not set `ALEMBIC_DATABASE_URL` or
+   `KINGSEC_STORAGE__DATABASE_URL` for a normal SQLite deployment; those
+   migration-only overrides can point Alembic somewhere the server never uses.
+3. Create a consistent backup. The one-shot installers use Python's SQLite
+   backup API and save it under `<data-dir>/backups/`. For a manual upgrade,
+   use the application's Backup feature while it is running, then stop the
+   server, or use the same SQLite backup API from an operator-controlled
+   maintenance command.
+4. Inspect the current revision and migration history, then apply the upgrade.
+
+```bash
 # Show current migration version
 alembic current
 
 # Show migration history
 alembic history --verbose
+
+# Apply all pending migrations
+kingsec-migrate                       # pip install (uses the packaged alembic.ini)
+alembic upgrade head                  # repo checkout — run from the repo root; the
+                                      # root-level alembic.ini already points at
+                                      # src/kingsec/alembic, no -c flag needed
 ```
 
 **Startup validation:** the application checks that migrations have been
@@ -594,47 +666,56 @@ applied at startup and raises `RuntimeError` with clear instructions if
 not. If you see this, run the command above before starting the server
 again.
 
-There is no `kingsec db backup/restore/rollback` command. For SQLite,
-back up by copying the database file directly (default:
-`~/.kingsec/kingsec.db`) while the server is stopped, or use the
-application's own Backup feature (`POST /api/v1/backups`) while it is
-running.
+There is no `kingsec db backup/restore/rollback` command. A plain file copy is
+acceptable only while the server is stopped and no process has the SQLite
+database open. While the application is running, use its Backup feature
+(`POST /api/v1/backups`) or SQLite's backup API instead of copying a live file.
 
 ---
 
 ## Recovering Admin Access
 
 `kingsec-bootstrap` is also how you recover if every admin account is
-lost. Same command as "First-Run Setup" below:
-```bash
-kingsec-bootstrap --username <name> --password <secret>
-```
-This refuses to run if an admin already exists, and refuses to run if
-migrations have not been applied. (Deliberately: it checks for an
-existing *admin*, not any user at all — if it required no users to exist
-whatsoever, it would refuse in exactly the recovery scenario it exists
-for, whenever ordinary accounts survive an admin's loss.)
+lost. Run it in the same runtime and against the same data directory as the
+server:
 
----
+```bash
+# Source install, from the repository root
+kingsec-bootstrap --username <name>
+
+# Docker Compose
+docker compose exec kingsec kingsec-bootstrap --username <name>
+
+# Container started with the raw docker run example above
+docker exec -it kingsec kingsec-bootstrap --username <name>
+```
+
+The source-install command above assumes the virtual environment is active. If
+you used a one-shot installer, its completion message prints the exact venv and
+data-directory command to use.
+
+This command refuses to run if an admin already exists, and refuses to run if
+migrations have not been applied. (Deliberately: it checks for an existing
+*admin*, not any user at all — if it required no users to exist whatsoever, it
+would refuse in exactly the recovery scenario it exists for, whenever ordinary
+accounts survive an admin's loss.)
 
 ## First-Run Setup
 
-### Step 1: Access the API
+### Step 1: Create the First Admin Account
 
-Open `http://127.0.0.1:8765/docs` for interactive Swagger UI, or run the
-frontend (see "Running the Frontend" above) and open
-`http://localhost:5173` for the browser UI.
+Self-registration is disabled by default, and the UI's "Register" link will
+not create an admin even when enabled — self-registered accounts are always
+Viewer, never Admin. Use the matching bootstrap command from "Recovering Admin
+Access" above. For example, a source installation with its virtual environment
+active uses:
 
-### Step 2: Create the First Admin Account
-
-Self-registration is disabled by default, and the UI's "Register" link
-will not create an admin even when enabled — self-registered accounts
-are always Viewer, never Admin. The **only** way to create the first
-administrator is `kingsec-bootstrap`, run once against your installed
-instance:
 ```bash
-kingsec-bootstrap --username admin --password "<a strong password>"
+kingsec-bootstrap --username admin
 ```
+The command securely prompts for and confirms the password. `--password` is
+still available for non-interactive automation, but can be visible in process
+arguments and shell history and is not recommended for an interactive setup.
 This requires migrations to already be applied (see "Database
 Migrations" above) and refuses to run if an admin already exists. Log in
 with these credentials at `http://127.0.0.1:8765/docs` or the frontend.
@@ -644,6 +725,13 @@ If you want ordinary users to be able to sign themselves up afterward
 `KINGSEC_SECURITY__ALLOW_SELF_REGISTRATION=true`. It is off by default:
 on a network-reachable instance, an open signup endpoint is worth
 enabling deliberately, not by accident.
+
+### Step 2: Start KingSec and Sign In
+
+Start the service, then open `http://127.0.0.1:8765/` for the bundled browser
+UI or `http://127.0.0.1:8765/docs` for interactive Swagger UI. The public
+`GET /api/v1/health` response should now contain
+`"bootstrap_required": false`.
 
 ### Step 3: Verify Scanner Connectivity
 
@@ -687,8 +775,8 @@ http://0.0.0.0:8765`.
 ## Troubleshooting Common Install Issues
 
 ### Server exits immediately with `ConfigError`
-`KINGSEC_SECRETS__ENCRYPTION_KEY` (or occasionally another `⚠️ REQUIRED`
-variable) is unset. See "Environment Variables" above.
+One of the three required secrets is missing or invalid. See "Environment
+Variables" above; the error names the exact setting.
 
 ### `pip install kingsec` fails / package not found
 There is no published PyPI package. Clone the repository and run `pip
@@ -727,6 +815,7 @@ in `TROUBLESHOOTING.md`.
 - Check `GET /api/v1/scanners/health` for the exact reason (missing
   binary vs. missing required asset).
 
-### Web UI shows nothing / 404 at port 8765
-This is expected — the backend does not serve the frontend. See "Running
-the Frontend" above.
+### Web UI shows a 404 at port 8765
+The installed wheel was built without the generated SPA. Re-run the one-shot
+installer, use the Docker build, or follow "Manual production bundle" before
+reinstalling the wheel. The API and `/docs` remain available independently.

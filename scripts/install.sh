@@ -1,140 +1,162 @@
 #!/usr/bin/env bash
-# KingSec Installer Script for Linux/macOS
-# Usage: curl -sSL https://raw.githubusercontent.com/kingsec/main/scripts/install.sh | bash
+# KingSec source installer for Linux and macOS.
+# Run from a repository checkout: ./scripts/install.sh
 set -euo pipefail
+umask 077
 
-INSTALL_DIR="${KINGSEC_INSTALL_DIR:-$HOME/.kingsec}"
-DEV_MODE="${DEV_MODE:-false}"
+KINGSEC_REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+KINGSEC_DATA_DIR="${KINGSEC_DATA_DIR:-${KINGSEC_REPO_DIR}/data}"
+KINGSEC_DEV_MODE="${KINGSEC_DEV_MODE:-false}"
+KINGSEC_ENV_FILE="${KINGSEC_REPO_DIR}/.env"
+KINGSEC_VENV_DIR="${KINGSEC_REPO_DIR}/.venv"
+KINGSEC_NPM_CACHE_DIR="${KINGSEC_REPO_DIR}/.npm-cache"
 
-# --- Helpers ---
-info()  { printf "\033[0;34m>> %s\033[0m\n" "$1"; }
-ok()    { printf "\033[0;32m   [OK] %s\033[0m\n" "$1"; }
-warn()  { printf "\033[0;33m   [WARN] %s\033[0m\n" "$1"; }
-fail()  { printf "\033[0;31m   [FAIL] %s\033[0m\n" "$1"; exit 1; }
-has()   { command -v "$1" >/dev/null 2>&1; }
+info() { printf '\033[0;34m>> %s\033[0m\n' "$1"; }
+ok() { printf '\033[0;32m   [OK] %s\033[0m\n' "$1"; }
+warn() { printf '\033[0;33m   [WARN] %s\033[0m\n' "$1"; }
+fail() { printf '\033[0;31m   [FAIL] %s\033[0m\n' "$1" >&2; exit 1; }
+has() { command -v "$1" >/dev/null 2>&1; }
 
-# --- Banner ---
-cat <<'BANNER'
+run_kingsec() {
+    (
+        cd "$KINGSEC_REPO_DIR"
+        # Migration-only overrides can otherwise send Alembic to a different
+        # database than the server.  This installer deliberately manages one
+        # SQLite data directory, supplied explicitly for every KingSec command.
+        unset ALEMBIC_DATABASE_URL KINGSEC_STORAGE__DATABASE_URL
+        KINGSEC_STORAGE__DATA_DIR="$KINGSEC_DATA_DIR" "$@"
+    )
+}
 
-  _  __          __  __
- | |/ /___ _   _|  \/  | ___  _ __ ___   ___  __ _| |_ ___
- | ' // _ \ | | | |\/| |/ _ \| '_ ` _ \ / _ \/ _` | __/ _ \
- | . \  __/ |_| | |  | | (_) | | | | | |  __/ (_| | ||  __/
- |_|\_\___|\__, |_|  |_|\___/|_| |_| |_|\___|\__,_|\__\___|
-           |___/
-  Security Assessment Platform — Installer
-
-BANNER
-
-# --- Step 1: Check Python ---
-info "Checking Python..."
+info "Checking required toolchain"
 if has python3; then
-    PY=$(python3 --version 2>&1)
-    ok "Found: $PY"
-    PY_MAJOR=$(echo "$PY" | cut -d' ' -f2 | cut -d'.' -f1)
-    PY_MINOR=$(echo "$PY" | cut -d' ' -f2 | cut -d'.' -f2)
-    if [ "$PY_MAJOR" -lt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 12 ]; }; then
-        fail "Python 3.12+ required. Found: $PY"
-    fi
+    KINGSEC_PYTHON_BIN="$(command -v python3)"
 elif has python; then
-    PY=$(python --version 2>&1)
-    ok "Found: $PY"
+    KINGSEC_PYTHON_BIN="$(command -v python)"
 else
-    fail "Python not found. Install Python 3.12+ first."
+    fail "Python is missing. Install CPython 3.11, 3.12, or 3.13 and rerun this script."
 fi
 
-# --- Step 2: Check pip ---
-info "Checking pip..."
-if has pip3; then PIP=pip3; elif has pip; then PIP=pip; else
-    fail "pip not found. Install pip first."
+if ! "$KINGSEC_PYTHON_BIN" -c 'import sys; raise SystemExit(0 if (3, 11) <= sys.version_info[:2] <= (3, 13) else 1)'; then
+    fail "KingSec supports Python 3.11-3.13. Found: $($KINGSEC_PYTHON_BIN --version 2>&1)"
 fi
-ok "pip available: $($PIP --version)"
+ok "Found $($KINGSEC_PYTHON_BIN --version 2>&1)"
 
-# --- Step 3: Create directories ---
-info "Creating directories..."
-mkdir -p "$INSTALL_DIR"/{logs,backups,plugins,telemetry}
-ok "Directories created at $INSTALL_DIR"
+has node || fail "Node.js is missing. Install Node.js 20 or newer to build the browser UI."
+has npm || fail "npm is missing. Install the npm version bundled with Node.js 20 or newer."
+KINGSEC_NODE_MAJOR="$(node -p "process.versions.node.split('.')[0]")"
+if [ "$KINGSEC_NODE_MAJOR" -lt 20 ]; then
+    fail "Node.js 20 or newer is required. Found: $(node --version)"
+fi
+ok "Found Node.js $(node --version) and npm $(npm --version)"
 
-# --- Step 4: Create .env if missing ---
-info "Checking configuration..."
-ENV_FILE="$INSTALL_DIR/.env"
-if [ ! -f "$ENV_FILE" ]; then
-    JWT_SECRET=$(openssl rand -base64 32 2>/dev/null || head -c 32 /dev/urandom | base64)
-    API_PEPPER=$(openssl rand -base64 32 2>/dev/null || head -c 32 /dev/urandom | base64)
-    ENC_KEY=$(openssl rand -base64 32 2>/dev/null || head -c 32 /dev/urandom | base64)
+info "Creating the isolated Python environment"
+"$KINGSEC_PYTHON_BIN" -m venv "$KINGSEC_VENV_DIR"
+KINGSEC_VENV_PYTHON="${KINGSEC_VENV_DIR}/bin/python"
+"$KINGSEC_VENV_PYTHON" -m pip install --upgrade pip
+ok "Virtual environment ready at $KINGSEC_VENV_DIR"
 
-    cat > "$ENV_FILE" <<EOF
-# KingSec Environment Configuration
-KINGSEC_ENVIRONMENT=production
-KINGSEC_DEBUG=false
+info "Building the browser UI"
+mkdir -p "$KINGSEC_NPM_CACHE_DIR"
+npm --cache "$KINGSEC_NPM_CACHE_DIR" --prefix "${KINGSEC_REPO_DIR}/frontend" ci
+npm --cache "$KINGSEC_NPM_CACHE_DIR" --prefix "${KINGSEC_REPO_DIR}/frontend" run build
+KINGSEC_STATIC_DIR="${KINGSEC_REPO_DIR}/src/kingsec/adapters/inbound/web/static"
+rm -rf -- "$KINGSEC_STATIC_DIR"
+mkdir -p "$KINGSEC_STATIC_DIR"
+cp -R "${KINGSEC_REPO_DIR}/frontend/dist/." "$KINGSEC_STATIC_DIR/"
+ok "Browser UI built for same-origin serving"
+
+info "Installing KingSec into the checkout virtual environment"
+if [ "$KINGSEC_DEV_MODE" = "true" ]; then
+    (cd "$KINGSEC_REPO_DIR" && "$KINGSEC_VENV_PYTHON" -m pip install --only-binary=cffi,pydantic-core -e ".[dev]")
+else
+    (cd "$KINGSEC_REPO_DIR" && "$KINGSEC_VENV_PYTHON" -m pip install --only-binary=cffi,pydantic-core .)
+fi
+ok "KingSec installed"
+
+KINGSEC_REPORT_FORMAT="html"
+if "$KINGSEC_VENV_PYTHON" -c 'from weasyprint import HTML; HTML(string="<p>KingSec PDF preflight</p>").write_pdf()' >/dev/null 2>&1; then
+    KINGSEC_REPORT_FORMAT="pdf"
+    ok "PDF report rendering is available"
+else
+    warn "PDF native libraries are unavailable; defaulting reports to HTML (see docs/INSTALL.md)"
+fi
+
+info "Preparing local configuration"
+mkdir -p "$KINGSEC_DATA_DIR"
+KINGSEC_DATA_DIR="$(cd "$KINGSEC_DATA_DIR" && pwd -P)"
+chmod 700 "$KINGSEC_DATA_DIR"
+if [ ! -f "$KINGSEC_ENV_FILE" ]; then
+    read -r KINGSEC_JWT_SECRET KINGSEC_API_PEPPER KINGSEC_ENCRYPTION_KEY < <(
+        "$KINGSEC_PYTHON_BIN" -c 'import base64, secrets; print(secrets.token_urlsafe(48), secrets.token_urlsafe(48), base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())'
+    )
+    KINGSEC_DATA_DIR_ENV="$("$KINGSEC_PYTHON_BIN" -c 'import json, sys; print(json.dumps(sys.argv[1]))' "$KINGSEC_DATA_DIR")"
+    cat > "$KINGSEC_ENV_FILE" <<EOF
+# Generated by scripts/install.sh. Keep this file private.
+KINGSEC_APP__ENVIRONMENT=production
 KINGSEC_LOGGING__LEVEL=INFO
-
-# Security (auto-generated secrets — do not share)
-KINGSEC_JWT__SECRET_KEY=$JWT_SECRET
-KINGSEC_SECRETS__API_KEY_PEPPER=$API_PEPPER
-KINGSEC_SECRETS__ENCRYPTION_KEY=$ENC_KEY
-
-# Server
+KINGSEC_JWT__SECRET_KEY=$KINGSEC_JWT_SECRET
+KINGSEC_SECRETS__API_KEY_PEPPER=$KINGSEC_API_PEPPER
+KINGSEC_SECRETS__ENCRYPTION_KEY=$KINGSEC_ENCRYPTION_KEY
 KINGSEC_SERVER__HOST=127.0.0.1
 KINGSEC_SERVER__PORT=8765
-
-# Storage
-KINGSEC_STORAGE__DATA_DIR=$INSTALL_DIR
+KINGSEC_STORAGE__DATA_DIR=$KINGSEC_DATA_DIR_ENV
+KINGSEC_REPORTING__REPORT_FORMAT=$KINGSEC_REPORT_FORMAT
 EOF
-    chmod 600 "$ENV_FILE"
-    ok "Created .env with auto-generated secrets"
+    chmod 600 "$KINGSEC_ENV_FILE"
+    ok "Created $KINGSEC_ENV_FILE with unique secrets"
 else
-    ok ".env already exists"
+    ok "Preserved existing $KINGSEC_ENV_FILE"
+    warn "The installer and generated launcher explicitly use data directory $KINGSEC_DATA_DIR"
 fi
 
-# --- Step 5: Install Python package ---
-info "Installing KingSec package..."
-export KINGSEC_STORAGE__DATA_DIR="$INSTALL_DIR"
-if [ "$DEV_MODE" = "true" ]; then
-    $PIP install -e ".[dev]" --quiet
-else
-    $PIP install . --quiet
-fi
-ok "KingSec package installed"
+info "Validating configuration and cryptographic secrets"
+run_kingsec "$KINGSEC_VENV_PYTHON" -c 'from kingsec.bootstrap.container import Container; from kingsec.infrastructure.auth.provisioning import register_api_key_auth, register_auth; from kingsec.infrastructure.config import load_settings; from kingsec.infrastructure.secrets.provisioning import register_secrets; settings = load_settings(); container = Container(); register_auth(container, settings); register_api_key_auth(container, lambda: None, settings); register_secrets(container, settings, str(settings.storage.data_dir / "secrets.json"))'
+ok "Configuration and cryptographic secrets are valid"
 
-# --- Step 6: Run migrations ---
-info "Running database migrations..."
-kingsec-migrate 2>/dev/null || warn "Migration command not found (will run on first start)"
-ok "Database ready"
-
-# --- Step 7: Docker (optional) ---
-if has docker; then
-    info "Docker available"
-    echo "   Run 'docker compose up -d' to start with Docker"
-else
-    warn "Docker not found. Install Docker for containerized deployment."
+KINGSEC_DATABASE_PATH="${KINGSEC_DATA_DIR}/kingsec.db"
+if [ -f "$KINGSEC_DATABASE_PATH" ]; then
+    info "Creating a consistent SQLite snapshot before migration"
+    KINGSEC_BACKUP_DIR="${KINGSEC_DATA_DIR}/backups"
+    mkdir -p "$KINGSEC_BACKUP_DIR"
+    KINGSEC_BACKUP_STAMP="$($KINGSEC_VENV_PYTHON -c 'from datetime import UTC, datetime; print(datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ"))')"
+    KINGSEC_BACKUP_PATH="${KINGSEC_BACKUP_DIR}/kingsec-pre-install-${KINGSEC_BACKUP_STAMP}.db"
+    run_kingsec "$KINGSEC_VENV_PYTHON" -c 'import sqlite3, sys; source = sqlite3.connect(sys.argv[1]); destination = sqlite3.connect(sys.argv[2]); source.backup(destination); destination.close(); source.close()' "$KINGSEC_DATABASE_PATH" "$KINGSEC_BACKUP_PATH"
+    chmod 600 "$KINGSEC_BACKUP_PATH"
+    ok "Database snapshot saved to $KINGSEC_BACKUP_PATH"
 fi
 
-# --- Step 8: Create start script ---
-info "Creating start script..."
-cat > "$INSTALL_DIR/start.sh" <<'STARTEOF'
-#!/usr/bin/env bash
-DIR="$(cd "$(dirname "$0")" && pwd)"
-export KINGSEC_STORAGE__DATA_DIR="$DIR"
-cd "$DIR/.."
-exec python -m kingsec
-STARTEOF
-chmod +x "$INSTALL_DIR/start.sh"
-ok "Created start.sh"
+info "Applying database migrations"
+run_kingsec "$KINGSEC_VENV_PYTHON" -m kingsec._migrate
+ok "Database is ready"
 
-# --- Done ---
-cat <<EOF
+info "Running the read-only scanner preflight"
+if run_kingsec "$KINGSEC_VENV_PYTHON" -m kingsec doctor; then
+    ok "All scanners in the default doctor profile are usable"
+else
+    warn "One or more scanners in the default doctor profile are unavailable; review the output above"
+fi
 
-=====================================
-  Installation Complete!
-=====================================
+{
+    printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail'
+    printf 'cd %q\n' "$KINGSEC_REPO_DIR"
+    printf '%s\n' 'unset ALEMBIC_DATABASE_URL KINGSEC_STORAGE__DATABASE_URL'
+    printf 'KINGSEC_STORAGE__DATA_DIR=%q exec %q -m kingsec\n' "$KINGSEC_DATA_DIR" "$KINGSEC_VENV_PYTHON"
+} > "${KINGSEC_DATA_DIR}/start.sh"
+chmod 700 "${KINGSEC_DATA_DIR}/start.sh"
 
-  Location:  $INSTALL_DIR
-  Config:    $INSTALL_DIR/.env
-  Start:     $INSTALL_DIR/start.sh
-  Or run:    python -m kingsec
+if [ -t 0 ]; then
+    printf 'Create the first admin now? [y/N] '
+    read -r KINGSEC_BOOTSTRAP_REPLY
+    if [[ "$KINGSEC_BOOTSTRAP_REPLY" =~ ^[Yy]$ ]]; then
+        printf 'Admin username: '
+        read -r KINGSEC_ADMIN_USERNAME
+        run_kingsec "$KINGSEC_VENV_PYTHON" -m kingsec._bootstrap --username "$KINGSEC_ADMIN_USERNAME"
+    fi
+fi
 
-  Default: http://127.0.0.1:8765
-  Health:  http://127.0.0.1:8765/api/v1/health
-
-EOF
+ok "Installation complete"
+printf 'Start KingSec with: %s\n' "${KINGSEC_DATA_DIR}/start.sh"
+printf 'Create/recover the admin later with: cd %q && KINGSEC_STORAGE__DATA_DIR=%q %q -m kingsec._bootstrap --username admin\n' \
+    "$KINGSEC_REPO_DIR" "$KINGSEC_DATA_DIR" "$KINGSEC_VENV_PYTHON"
+printf 'Then open: http://127.0.0.1:8765/\n'
