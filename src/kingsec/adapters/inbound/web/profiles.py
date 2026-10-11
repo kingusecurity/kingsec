@@ -9,12 +9,32 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, status
+from typing import cast
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Request, status
 
 from kingsec.application.assessment_profiles import ExecutionPlanner
 from kingsec.domain.target import TargetType
 
+# Fallback for contexts without a wired application (unit tests). Every
+# production endpoint below resolves the settings-aware planner from the
+# app container instead - the module-level instance knows nothing of the
+# operator's .env (binary paths, wordlists), so a plan preview built from
+# it can report "not installed" for scanners `kingsec doctor` (which uses
+# the wired planner) shows as usable.
 _planner = ExecutionPlanner()
+
+
+def _resolve_planner(request: Request) -> ExecutionPlanner:
+    """Return the settings-aware planner from the app container.
+
+    Falls back to the module-level default only when no application is
+    attached (bare-router unit tests) - never in production.
+    """
+    kingsec_app = getattr(request.app.state, "kingsec_app", None)
+    if kingsec_app is not None:
+        return cast(ExecutionPlanner, kingsec_app.resolve(ExecutionPlanner))
+    return _planner
 
 
 def create_profiles_router(
@@ -31,11 +51,13 @@ def create_profiles_router(
 
     @router.get("")
     async def list_profiles(
+        request: Request,
         _user: Any = Depends(get_current_user),
     ) -> list[dict[str, Any]]:
         """Return all available assessment profiles."""
-        profiles = _planner.list_profiles()
-        return [_planner.profile_to_dict(p) for p in profiles]
+        planner = _resolve_planner(request)
+        profiles = planner.list_profiles()
+        return [planner.profile_to_dict(p) for p in profiles]
 
     # ── GET /profiles/{profile_id} ─────────────────────────────────────
 
@@ -48,16 +70,18 @@ def create_profiles_router(
                 pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
             ),
         ],
+        request: Request,
         _user: Any = Depends(get_current_user),
     ) -> dict[str, Any]:
         """Return a single profile's details."""
-        profile = _planner.get_profile(profile_id)
+        planner = _resolve_planner(request)
+        profile = planner.get_profile(profile_id)
         if profile is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Unknown profile: {profile_id!r}",
             )
-        return _planner.profile_to_dict(profile)
+        return planner.profile_to_dict(profile)
 
     # ── POST /profiles/{profile_id}/plan ───────────────────────────────
 
@@ -68,10 +92,12 @@ def create_profiles_router(
             Path(description="Profile identifier"),
         ],
         body: Annotated[dict[str, Any], Body()],
+        request: Request,
         _user: Any = Depends(get_current_user),
     ) -> dict[str, Any]:
         """Generate an execution plan for the given profile and target."""
-        profile = _planner.get_profile(profile_id)
+        planner = _resolve_planner(request)
+        profile = planner.get_profile(profile_id)
         if profile is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -101,13 +127,13 @@ def create_profiles_router(
             ) from None
 
         try:
-            plan = _planner.plan(profile_id, raw_target.strip(), target_type)
+            plan = planner.plan(profile_id, raw_target.strip(), target_type)
         except ValueError as e:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=str(e),
             ) from e
 
-        return _planner.plan_to_dict(plan)
+        return planner.plan_to_dict(plan)
 
     return router

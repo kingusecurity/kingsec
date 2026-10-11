@@ -537,6 +537,43 @@ class TestSatisfiesTierHostAnyPort:
         )
         assert result.covered
 
+    def test_ip_grant_covers_url_targets_underlying_host(self) -> None:
+        """A host-wide scan against a URL target touches the underlying
+        host: an IP grant for that host satisfies HOST_ANY_PORT even
+        though the target itself is typed URL."""
+        result = satisfies_tier(
+            spec(TargetSpecificationType.IP_ADDRESS, "127.0.0.1"),
+            target("http://127.0.0.1:18080/", TargetType.URL),
+            ScannerSurfaceTier.HOST_ANY_PORT,
+        )
+        assert result.covered
+
+    def test_hostname_grant_covers_url_targets_underlying_host(self) -> None:
+        result = satisfies_tier(
+            spec(TargetSpecificationType.HOSTNAME, "example.com"),
+            target("https://example.com/app", TargetType.URL),
+            ScannerSurfaceTier.HOST_ANY_PORT,
+        )
+        assert result.covered
+
+    def test_ip_grant_for_another_host_does_not_cover_url_target(self) -> None:
+        result = satisfies_tier(
+            spec(TargetSpecificationType.IP_ADDRESS, "203.0.113.9"),
+            target("http://127.0.0.1:18080/", TargetType.URL),
+            ScannerSurfaceTier.HOST_ANY_PORT,
+        )
+        assert not result.covered
+
+    def test_hostname_grant_does_not_cover_ip_literal_url_host(self) -> None:
+        """An IP-literal URL host derives an IP_ADDRESS target, which a
+        hostname grant cannot cover - no silent cross-type matching."""
+        result = satisfies_tier(
+            spec(TargetSpecificationType.HOSTNAME, "example.com"),
+            target("http://127.0.0.1:18080/", TargetType.URL),
+            ScannerSurfaceTier.HOST_ANY_PORT,
+        )
+        assert not result.covered
+
 
 # ---------------------------------------------------------------------------
 # satisfies_tier(): HOST_PORT_ANY_PATH - "accidental sufficiency"

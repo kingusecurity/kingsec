@@ -11,15 +11,36 @@ import asyncio
 from collections.abc import Callable
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from typing import cast
+
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from fastapi.responses import PlainTextResponse
 
+from kingsec.application.assessment_profiles import ExecutionPlanner
 from kingsec.application.scanner_discovery import ScannerDiscoveryService
 from kingsec.application.scanner_installer import ScannerInstaller
 
-# Reuse the same discovery instance across requests (stateless + thread-safe).
+# Fallback for contexts without a wired application (unit tests). Every
+# production endpoint below resolves the settings-aware discovery service
+# (via the container's ExecutionPlanner) instead - the module-level
+# instance knows nothing of the operator's .env (binary paths, wordlists),
+# so Scanner Health built from it can report "not installed" for scanners
+# `kingsec doctor` (which uses the wired planner) shows as usable.
 _discovery = ScannerDiscoveryService()
 _installer = ScannerInstaller()
+
+
+def _resolve_discovery(request: Request) -> ScannerDiscoveryService:
+    """Return the settings-aware discovery service from the app container.
+
+    Falls back to the module-level default only when no application is
+    attached (bare-router unit tests) - never in production.
+    """
+    kingsec_app = getattr(request.app.state, "kingsec_app", None)
+    if kingsec_app is not None:
+        planner = cast(ExecutionPlanner, kingsec_app.resolve(ExecutionPlanner))
+        return planner.discovery
+    return _discovery
 
 
 def create_scanner_discovery_router(
@@ -36,20 +57,24 @@ def create_scanner_discovery_router(
 
     @router.get("")
     async def list_scanners(
+        request: Request,
         _user: Any = Depends(get_current_user),
     ) -> list[dict[str, Any]]:
         """Return discovery status for every known scanner."""
-        statuses = await asyncio.to_thread(_discovery.get_all_statuses)
+        discovery = _resolve_discovery(request)
+        statuses = await asyncio.to_thread(discovery.get_all_statuses)
         return [_status_to_dict(s) for s in statuses]
 
     # ── GET /scanners/health ──────────────────────────────────────────────
 
     @router.get("/health")
     async def scanner_health(
+        request: Request,
         _user: Any = Depends(get_current_user),
     ) -> dict[str, Any]:
         """Return an aggregate health report across all scanners."""
-        report = await asyncio.to_thread(_discovery.get_health_report)
+        discovery = _resolve_discovery(request)
+        report = await asyncio.to_thread(discovery.get_health_report)
         return {
             "total": report.total,
             "installed": report.installed,
@@ -71,10 +96,12 @@ def create_scanner_discovery_router(
                 pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
             ),
         ],
+        request: Request,
         _user: Any = Depends(get_current_user),
     ) -> dict[str, Any]:
         """Return discovery status for a single scanner."""
-        s = await asyncio.to_thread(_discovery.get_scanner_status, scanner_id)
+        discovery = _resolve_discovery(request)
+        s = await asyncio.to_thread(discovery.get_scanner_status, scanner_id)
         if not s.installed and s.availability_reason and "Unknown" in s.availability_reason:
             raise HTTPException(
                 status_code=404,
@@ -93,11 +120,13 @@ def create_scanner_discovery_router(
                 pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
             ),
         ],
+        request: Request,
         fmt: str = Query("json", description="Output format: json, markdown, text"),
         _user: Any = Depends(get_current_user),
     ) -> Any:
         """Return detailed diagnostics for a single scanner."""
-        s = await asyncio.to_thread(_discovery.get_scanner_status, scanner_id)
+        discovery = _resolve_discovery(request)
+        s = await asyncio.to_thread(discovery.get_scanner_status, scanner_id)
         if not s.installed and s.availability_reason and "Unknown" in s.availability_reason:
             raise HTTPException(
                 status_code=404,

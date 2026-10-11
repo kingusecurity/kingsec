@@ -29,7 +29,7 @@ export function AssessmentDetailPage() {
   const isRunning = assessment?.status?.toLowerCase() === 'running'
   const isPending = assessment?.status?.toLowerCase() === 'pending'
   const isDraft = assessment?.status?.toLowerCase() === 'draft'
-  const isCompleted = assessment?.status?.toLowerCase() === 'completed'
+  const isCompleted = ['completed', 'completed_with_gaps'].includes(assessment?.status?.toLowerCase() ?? '')
 
   function stepStatus(active: boolean, done: boolean): 'completed' | 'current' | 'upcoming' {
     if (done) return 'completed'

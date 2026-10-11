@@ -40,7 +40,7 @@ from datetime import datetime
 from enum import Enum
 
 from ._validation import ensure_non_empty, ensure_timezone_aware
-from .errors import InvariantViolation
+from .errors import InvariantViolation, TargetDecompositionError
 from .identifiers import AuthorizationGrantId
 from .scanner import ScannerSurfaceTier
 from .target import Target, TargetType, decompose_url
@@ -397,6 +397,26 @@ def satisfies_tier(
                 ScopeCheckOutcome.TYPE_MISMATCH,
                 "a URL-scoped grant does not license a host-wide, any-port scan - a separate host-level grant is required",
             )
+        if target.type == TargetType.URL:
+            # A host-wide scan against a URL target touches the underlying
+            # host, not the URL string: derive the host and test host-level
+            # specs against it. Without this, the wizard's own instruction
+            # ("create a separate IP Address or Hostname grant for the
+            # underlying host") is unfulfillable - the grant exists, yet
+            # coverage still refuses.
+            try:
+                host = decompose_url(target).host
+            except TargetDecompositionError:
+                return ScopeCheckResult(
+                    ScopeCheckOutcome.TYPE_MISMATCH,
+                    f"cannot derive a host from URL target {target.value!r} for a host-wide scan",
+                )
+            try:
+                ipaddress.ip_address(host)
+                host_type = TargetType.IP_ADDRESS
+            except ValueError:
+                host_type = TargetType.HOSTNAME
+            return covers_target(spec, Target(host, host_type))
         # IP_ADDRESS/NETWORK/HOSTNAME/WILDCARD_HOSTNAME specs never carry a
         # port or path, so covers_target()'s check for these types is
         # already host-only and needs no separate host-only variant.
