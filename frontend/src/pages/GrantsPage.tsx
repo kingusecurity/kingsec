@@ -62,8 +62,18 @@ interface GrantFormState {
 function defaultValidWindow() {
   const now = new Date()
   const in90Days = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000)
-  // datetime-local inputs need "YYYY-MM-DDTHH:mm", no timezone/seconds.
-  const toLocalInput = (d: Date) => d.toISOString().slice(0, 16)
+  // datetime-local inputs need "YYYY-MM-DDTHH:mm" in LOCAL time, no
+  // timezone/seconds. toISOString() returns UTC, which silently shifts the
+  // pre-filled value by the local UTC offset (proven live 2026-10-12: a
+  // grant created on a UTC-4 box was stored 4h in the future and showed
+  // "Not yet active").
+  const toLocalInput = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return (
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+      `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    )
+  }
   return { valid_from: toLocalInput(now), valid_until: toLocalInput(in90Days) }
 }
 

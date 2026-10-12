@@ -79,6 +79,16 @@ _DIRECTORY_OUTPUT = """\
 + /logs/: Sensitive log file found.
 """
 
+# Regression: live 2026-10-12 proof run — Nikto's own status lines were
+# emitted as findings, and "force" in the CGI notice matched the RCE
+# pattern, producing a bogus CRITICAL finding at the top of the report.
+_STATUS_LINES_OUTPUT = """\
++ No CGI Directories found (use '-C all' to force check all possible dirs). CGI tests skipped.
++ 8026 requests: 0 errors and 13 items reported on the remote host
++ 1 host(s) tested
++ Server: DemoWeb/2.4.1
+"""
+
 
 # ===========================================================================
 # Tests
@@ -163,6 +173,24 @@ class TestSeverityClassification:
         admin = [f for f in findings if "admin" in f.title.lower() and "OSVDB" not in f.title]
         assert len(admin) == 1
         assert admin[0].severity is Severity.MEDIUM
+
+    def test_scanner_status_lines_are_not_findings(self) -> None:
+        # Nikto's own run-status lines must never become findings, no
+        # matter what severity words they happen to contain.
+        findings = parse_nikto_output(_STATUS_LINES_OUTPUT)
+        titles = [f.title for f in findings]
+        assert not any("CGI" in t for t in titles)
+        assert not any("requests:" in t for t in titles)
+        assert not any("host(s) tested" in t for t in titles)
+        # Only the real banner line survives.
+        assert len(findings) == 1
+        assert findings[0].severity is Severity.INFORMATIONAL
+
+    def test_force_does_not_match_rce(self) -> None:
+        # "force" contains the letters r-c-e but is not an RCE indicator.
+        findings = parse_nikto_output("+ /some/path: try to force check all dirs.\n")
+        assert len(findings) == 1
+        assert findings[0].severity is not Severity.CRITICAL
 
 
 class TestEvidence:

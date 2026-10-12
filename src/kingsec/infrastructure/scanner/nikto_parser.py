@@ -36,11 +36,15 @@ _PATTERNS_HIGH: tuple[re.Pattern[str], ...] = (
 )
 
 _PATTERNS_CRITICAL: tuple[re.Pattern[str], ...] = (
-    re.compile(r"RCE|remote code execution", re.IGNORECASE),
+    # Short acronyms use word boundaries: without them, "RCE" matches the
+    # "rce" inside ordinary words like "force" (proven live: Nikto's
+    # "No CGI Directories found (use '-C all' to force check...)" line
+    # was scored CRITICAL because of the "rce" in "force").
+    re.compile(r"\bRCE\b|remote code execution", re.IGNORECASE),
     re.compile(r"command injection", re.IGNORECASE),
     re.compile(r"backdoor", re.IGNORECASE),
-    re.compile(r"remote file inclusion|RFI", re.IGNORECASE),
-    re.compile(r"SQL injection|SQLi", re.IGNORECASE),
+    re.compile(r"remote file inclusion|\bRFI\b", re.IGNORECASE),
+    re.compile(r"SQL injection|\bSQLi\b", re.IGNORECASE),
 )
 
 _PATTERNS_MEDIUM: tuple[re.Pattern[str], ...] = (
@@ -71,8 +75,17 @@ _SKIP_PREFIXES = (
     "+ Target Port:",
     "+ Start Time:",
     "+ End Time:",
-    "+ Host(s) tested",
     "+ Proxy",
+)
+
+# Nikto self-status / summary lines that start with "+" but describe the
+# scanner's own run, not the target. Emitting them as findings pollutes
+# reports (e.g. "CGI tests skipped" is not a vulnerability).
+_SKIP_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"No CGI Directories found", re.IGNORECASE),
+    re.compile(r"CGI tests skipped", re.IGNORECASE),
+    re.compile(r"\d+ requests:.*errors and.*items reported", re.IGNORECASE),
+    re.compile(r"\d+ host\(s\) tested", re.IGNORECASE),
 )
 
 
@@ -111,6 +124,8 @@ def parse_nikto_output(output: str) -> list[Finding]:
 
         # Skip non-finding lines
         if any(line.startswith(prefix) for prefix in _SKIP_PREFIXES):
+            continue
+        if any(pat.search(line) for pat in _SKIP_PATTERNS):
             continue
 
         # Only process finding lines (start with +)
