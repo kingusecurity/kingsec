@@ -6,6 +6,10 @@ incomplete lines are logged and skipped rather than failing the whole parse.
 
 Gobuster output format (directory mode):
     Lines containing ``(Status: NNN) [Size: NNN]`` are findings.
+    gobuster <= 3.7 prints the path with a leading slash (``/admin``);
+    gobuster >= 3.8 prints it WITHOUT one (``admin``). Both formats are
+    accepted and normalized to a leading-slash path before severity
+    classification.
     Separator lines (``===``) and metadata lines are skipped.
 
 Base severity mapping (path/status only, before Signal 2 below):
@@ -121,8 +125,11 @@ def parse_gobuster_output(output: str) -> list[Finding]:
         if not line:
             continue
 
-        # Skip separator and metadata lines
-        if line.startswith("=") or not line.startswith("/"):
+        # Skip separator lines. Metadata lines ([+] ..., Progress: ...)
+        # are rejected by the result regex below. NOTE: do NOT require a
+        # leading slash here - gobuster >= 3.8 prints result paths WITHOUT
+        # one (``admin``), and requiring it silently dropped every finding.
+        if line.startswith("="):
             continue
 
         match = _FINDING_RE.match(line)
@@ -130,6 +137,10 @@ def parse_gobuster_output(output: str) -> list[Finding]:
             continue
 
         path = match.group(1)
+        if not path.startswith("/"):
+            # Normalize to the leading-slash form the severity logic below
+            # expects (sensitive/admin path matching is slash-anchored).
+            path = "/" + path
         status = int(match.group(2))
         size = int(match.group(3))
         records.append((path, status, size))

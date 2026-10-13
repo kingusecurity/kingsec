@@ -86,6 +86,32 @@ _ADMIN_PATH_OUTPUT = """\
 /login                (Status: 200) [Size: 1234]
 """
 
+# gobuster >= 3.8 prints dir results WITHOUT the leading slash
+# (``admin`` instead of ``/admin``); the parser must accept both.
+_V38_DIR_OUTPUT = """\
+Gobuster v3.8.2
+by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
+===============================================================
+[+] Url:                     http://127.0.0.1:18080
+[+] Method:                  GET
+[+] Threads:                 10
+[+] Delay:                   100ms
+[+] Wordlist:                /usr/share/seclists/Discovery/Web-Content/common.txt
+[+] Negative Status codes:   404
+[+] User Agent:              gobuster/3.8.2
+[+] Timeout:                 10s
+===============================================================
+Starting gobuster in directory enumeration mode
+===============================================================
+admin                (Status: 200) [Size: 421]
+index.html           (Status: 200) [Size: 377]
+robots.txt           (Status: 200) [Size: 32]
+Progress: 4750 / 4750 (100.00%)
+===============================================================
+Finished
+===============================================================
+"""
+
 
 # ===========================================================================
 # Tests
@@ -126,6 +152,37 @@ class TestParseGobusterOutput:
         assert len(findings) == 1
         assert "200" in findings[0].title
         assert "/test-page" in findings[0].title
+
+
+class TestGobuster38OutputFormat:
+    """gobuster >= 3.8 drops the leading slash on result paths.
+
+    Regression: the old ``startswith("/")`` filter silently discarded every
+    result line from a 3.8 scan, reporting findings=0 after a full run.
+    """
+
+    def test_v38_results_are_parsed(self) -> None:
+        findings = parse_gobuster_output(_V38_DIR_OUTPUT)
+        assert len(findings) == 3
+
+    def test_v38_paths_normalized_to_leading_slash(self) -> None:
+        findings = parse_gobuster_output(_V38_DIR_OUTPUT)
+        assert "/admin" in findings[0].title
+        assert "/index.html" in findings[1].title
+        assert "/robots.txt" in findings[2].title
+
+    def test_v38_severity_still_classified(self) -> None:
+        findings = parse_gobuster_output(_V38_DIR_OUTPUT)
+        assert findings[0].severity is Severity.MEDIUM  # /admin
+        assert findings[1].severity is Severity.LOW  # /index.html
+        assert findings[2].severity is Severity.LOW  # /robots.txt
+
+    def test_v38_metadata_lines_ignored(self) -> None:
+        findings = parse_gobuster_output(_V38_DIR_OUTPUT)
+        for f in findings:
+            assert "[+]" not in f.title
+            assert "Progress" not in f.title
+            assert "Finished" not in f.title
 
 
 class TestSeverityClassification:
