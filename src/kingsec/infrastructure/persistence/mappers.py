@@ -217,6 +217,7 @@ def report_to_orm(report: Report) -> ReportORM:
         assessment_id=report.assessment_id,
         target=report.target,
         generated_at=report.generated_at.isoformat(),
+        scanned_at=report.scanned_at.isoformat() if report.scanned_at is not None else None,
         verdict_headline=report.verdict.headline,
         verdict_action_required=report.verdict.action_required,
         verdict_highest_severity=(
@@ -483,6 +484,10 @@ def report_to_domain(orm: ReportORM) -> Report:
         assessment_id=orm.assessment_id,
         target=orm.target,
         generated_at=datetime.fromisoformat(orm.generated_at),
+        # Rows persisted before the reports.scanned_at column existed have
+        # NULL here - domain Report treats None as "not recorded", and the
+        # templates fall back to generated_at for those rows.
+        scanned_at=datetime.fromisoformat(orm.scanned_at) if orm.scanned_at else None,
         verdict=verdict,
         entries=entries,
         severity_counts=severity_counts,
