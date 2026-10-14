@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import threading
+import time
+
 import pytest
 
+from kingsec.application.assessment_execution import AssessmentExecutionEngine, ExecutionPhase
 from kingsec.application.errors import ScannerPluginError
 from kingsec.application.ports.scanner_plugin import ScannerPluginPort
 from kingsec.application.ports.services import ScannerPort
@@ -23,10 +27,12 @@ from kingsec.domain import (
     Target,
     TargetType,
 )
+from kingsec.domain.enums import ScannerRunState
 from kingsec.infrastructure.config.models import OrchestratorSettings
 from kingsec.infrastructure.scanner.errors import ScannerExecutionError
 from kingsec.infrastructure.scanner.orchestrator import ScannerOrchestrator
 from kingsec.infrastructure.scanner.registry import InMemoryPluginRegistry
+from kingsec.infrastructure.scanner.runner import SubprocessCommandRunner
 
 # ---------------------------------------------------------------------------
 # Helpers: fake plugins
@@ -600,3 +606,190 @@ class TestRetryTransientFailures:
         results = orch.execute_all(fake_ip)
         assert flaky.scan_calls == 2
         assert len(results) == 2
+
+
+# ===========================================================================
+# execute_all(): user cancellation
+# ===========================================================================
+#
+# Regression coverage for the defect where cancelling an assessment
+# returned 200 OK while scanners kept running: the engine's cancelled flag
+# existed, but nothing in the scan path observed it.
+
+
+class _CountingPlugin(_StubPlugin):
+    """Stub plugin that counts scan() invocations."""
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.scan_calls = 0
+
+    def scan(self, target: Target, config: PluginConfig) -> ScannerResult:
+        self.scan_calls += 1
+        return super().scan(target, config)
+
+
+class _SleepPlugin(_CountingPlugin):
+    """Runs a real `sleep` through the real runner: exercises the true
+    in-flight cancellation path (orchestrator scope -> runner poll loop ->
+    process-tree kill) instead of simulating it."""
+
+    def __init__(self, *, sleep_seconds: int = 60, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._sleep_seconds = sleep_seconds
+
+    def scan(self, target: Target, config: PluginConfig) -> ScannerResult:
+        SubprocessCommandRunner().run(
+            ["sleep", str(self._sleep_seconds)], timeout=self._sleep_seconds + 30
+        )
+        return super().scan(target, config)
+
+
+def _running_engine(tracking_id: str, plugin_ids: list[str]) -> AssessmentExecutionEngine:
+    engine = AssessmentExecutionEngine()
+    engine.start_execution(tracking_id, {pid: pid for pid in plugin_ids})
+    engine.transition_phase(tracking_id, ExecutionPhase.RUNNING_SCANNERS)
+    return engine
+
+
+def _scanner_state(engine: AssessmentExecutionEngine, tid: str, plugin_id: str):
+    state = engine.get_state(tid)
+    assert state is not None
+    by_id = {s.scanner_id: s for s in state.scanner_progress}
+    return by_id[plugin_id]
+
+
+class TestCancellation:
+    def test_cancel_before_dispatch_runs_nothing(self, fake_ip: Target) -> None:
+        p1 = _CountingPlugin(plugin_id="p1")
+        p2 = _CountingPlugin(plugin_id="p2")
+        orch = ScannerOrchestrator(InMemoryPluginRegistry())
+        orch._registry.register(p1)
+        orch._registry.register(p2)
+        engine = _running_engine("assess-1", ["p1", "p2"])
+        assert engine.cancel_execution("assess-1") is True
+
+        results = orch.execute_all(
+            fake_ip,
+            scanner_ids=["p1", "p2"],
+            execution_engine=engine,
+            tracking_id="assess-1",
+        )
+
+        assert results == ()
+        assert p1.scan_calls == 0
+        assert p2.scan_calls == 0
+        # No scanner is left PENDING forever; the phase still says cancelled.
+        for pid in ("p1", "p2"):
+            progress = _scanner_state(engine, "assess-1", pid)
+            assert progress.status.is_terminal
+            assert "cancelled by user" in (progress.error or "")
+        assert engine.get_state("assess-1").phase == ExecutionPhase.CANCELLED
+
+    def test_in_flight_cancel_kills_scanner_and_stops_dispatch(self, fake_ip: Target) -> None:
+        sleeper = _SleepPlugin(plugin_id="sleeper", sleep_seconds=60)
+        p2 = _CountingPlugin(plugin_id="p2")
+        orch = ScannerOrchestrator(InMemoryPluginRegistry())
+        orch._registry.register(sleeper)
+        orch._registry.register(p2)
+        engine = _running_engine("assess-1", ["sleeper", "p2"])
+
+        outcome: dict[str, object] = {}
+
+        def _run() -> None:
+            started = time.monotonic()
+            outcome["results"] = orch.execute_all(
+                fake_ip,
+                scanner_ids=["sleeper", "p2"],
+                execution_engine=engine,
+                tracking_id="assess-1",
+            )
+            outcome["elapsed"] = time.monotonic() - started
+
+        thread = threading.Thread(target=_run, daemon=True)
+        thread.start()
+
+        # Wait until the sleeper's subprocess is actually running, then cancel.
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            if _scanner_state(engine, "assess-1", "sleeper").status == ScannerRunState.RUNNING:
+                break
+            time.sleep(0.1)
+        assert _scanner_state(engine, "assess-1", "sleeper").status == ScannerRunState.RUNNING
+        assert engine.cancel_execution("assess-1") is True
+
+        thread.join(timeout=20)
+        assert not thread.is_alive(), "execute_all did not stop after cancel"
+
+        # The 60s sleep died on the ~0.5s poll cadence, not at its timeout.
+        assert outcome["elapsed"] < 20, f"cancel took too long: {outcome['elapsed']:.1f}s"
+        assert outcome["results"] == ()
+        assert p2.scan_calls == 0
+        sleeper_progress = _scanner_state(engine, "assess-1", "sleeper")
+        assert sleeper_progress.status == ScannerRunState.FAILED
+        assert "cancelled" in (sleeper_progress.error or "").lower()
+
+    def test_cancel_during_retry_cooldown_wakes_immediately(self, fake_ip: Target) -> None:
+        flaky = _FlakyPlugin(plugin_id="gobuster", fail_times=99, error=_transient_error())
+        orch = ScannerOrchestrator(
+            InMemoryPluginRegistry(),
+            retry_settings=OrchestratorSettings(max_retries=2, retry_cooldown_seconds=30),
+        )
+        orch._registry.register(flaky)
+        engine = _running_engine("assess-1", ["gobuster"])
+
+        outcome: dict[str, object] = {}
+
+        def _run() -> None:
+            started = time.monotonic()
+            outcome["results"] = orch.execute_all(
+                fake_ip,
+                scanner_ids=["gobuster"],
+                execution_engine=engine,
+                tracking_id="assess-1",
+            )
+            outcome["elapsed"] = time.monotonic() - started
+
+        thread = threading.Thread(target=_run, daemon=True)
+        thread.start()
+
+        # Wait for the first attempt to fail, then cancel during the cooldown.
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline and flaky.scan_calls < 1:
+            time.sleep(0.05)
+        assert flaky.scan_calls == 1
+        assert engine.cancel_execution("assess-1") is True
+
+        thread.join(timeout=15)
+        assert not thread.is_alive(), "execute_all slept through the cancel"
+
+        # No retry was attempted, and we never waited out the 30s cooldown.
+        assert flaky.scan_calls == 1
+        assert outcome["elapsed"] < 15, f"cooldown not interrupted: {outcome['elapsed']:.1f}s"
+        assert outcome["results"] == ()
+
+    def test_completed_scanners_keep_results_on_cancel(self, fake_ip: Target) -> None:
+        p1 = _CountingPlugin(plugin_id="p1", findings=(_finding(),))
+        p2 = _CountingPlugin(plugin_id="p2")
+        orch = ScannerOrchestrator(InMemoryPluginRegistry())
+        orch._registry.register(p1)
+        orch._registry.register(p2)
+        engine = _running_engine("assess-1", ["p1", "p2"])
+        # Cancel lands after p1 finished: p1's real result survives, p2 never runs.
+        original_scan = p1.scan
+
+        def _scan_and_cancel(target: Target, config: PluginConfig) -> ScannerResult:
+            result = original_scan(target, config)
+            engine.cancel_execution("assess-1")
+            return result
+
+        p1.scan = _scan_and_cancel  # type: ignore[method-assign]
+        results = orch.execute_all(
+            fake_ip,
+            scanner_ids=["p1", "p2"],
+            execution_engine=engine,
+            tracking_id="assess-1",
+        )
+        assert len(results) == 1
+        assert p2.scan_calls == 0
+        assert _scanner_state(engine, "assess-1", "p1").status == ScannerRunState.SUCCEEDED

@@ -9,11 +9,11 @@ from typing import Any
 
 import pytest
 
-from kingsec.application.assessment_execution import AssessmentExecutionEngine
+from kingsec.application.assessment_execution import AssessmentExecutionEngine, ExecutionPhase
 from kingsec.application.assessment_profiles import ExecutionPlan, PlanScannerEntry
 from kingsec.application.dto import SubmitAssessmentRequest, SubmitAssessmentResponse
 from kingsec.application.errors import AssessmentNotFoundError
-from kingsec.application.submit_assessment import SubmitAssessment
+from kingsec.application.submit_assessment import SubmitAssessment, _execute_scan
 from kingsec.domain import Assessment, AssessmentId, Finding, Severity, Target, TargetType
 from kingsec.domain.authorization import Authorization
 from kingsec.domain.enums import AssessmentStatus, ScannerRunState
@@ -608,3 +608,126 @@ class TestSubmitAssessmentProfileGating:
         failed = repo.saved[-1]
         assert failed.status == AssessmentStatus.FAILED
         assert "not installed" in (failed.failure_reason or "")
+
+
+class _CancellingScannerExecutor:
+    """Fake ScannerExecutor that simulates a cancel landing mid-flight.
+
+    On the first execute_all() call it performs the same two steps the
+    real cancel path performs — optionally the domain transition (main
+    /assessments cancel route), always the engine signal — then returns a
+    result carrying findings, so the test can prove the background job
+    neither records them nor completes the assessment afterwards.
+    """
+
+    def __init__(
+        self,
+        assessments: FakeAssessmentRepository,
+        engine: AssessmentExecutionEngine,
+        *,
+        cancel_domain: bool,
+    ) -> None:
+        self._assessments = assessments
+        self._engine = engine
+        self._cancel_domain = cancel_domain
+        self.calls = 0
+
+    def execute_all(
+        self,
+        target: Any,
+        scanner_ids: Sequence[str] | None = None,
+        execution_engine: Any = None,
+        tracking_id: str | None = None,
+    ) -> tuple[Any, ...]:
+        from kingsec.domain import ScannerId, ScannerResult
+
+        self.calls += 1
+        assert tracking_id is not None
+        if self._cancel_domain:
+            doomed = self._assessments.get(AssessmentId(tracking_id))
+            doomed.cancel()
+            self._assessments.save(doomed)
+        assert self._engine.cancel_execution(tracking_id) is True
+        return (
+            ScannerResult(
+                scanner_id=ScannerId("fake"),
+                findings=(Finding.create("Exposed service", "desc", Severity.MEDIUM),),
+                raw_output="",
+                duration_seconds=0.1,
+            ),
+        )
+
+
+class TestExecuteScanCancellation:
+    """The background job must honor a mid-flight cancel.
+
+    Regression coverage for the defect where a cancelled assessment's
+    background thread kept scanning and then overwrote CANCELLED with its
+    own terminal state (COMPLETED_WITH_GAPS) plus freshly recorded
+    findings — the second half of the cancel no-op.
+    """
+
+    def _background_args(
+        self,
+        repo: FakeAssessmentRepository,
+        engine: AssessmentExecutionEngine,
+        executor: _CancellingScannerExecutor,
+    ) -> dict[str, Any]:
+        return {
+            "assessment_id": AssessmentId("asmt-test-001"),
+            "assessments": repo,
+            "scanner": FakeScanner(),
+            "ai": None,
+            "events": None,
+            "execution_engine": engine,
+            "planner": None,
+            "scanner_executor": executor,
+            "execution_ledger": None,
+        }
+
+    def test_midflight_cancel_never_completes_or_records_findings(self) -> None:
+        # Main route: the use case cancelled the domain first, then
+        # signalled the engine — both land while the scan is running.
+        assessment = _make_assessment(status=AssessmentStatus.RUNNING)
+        repo = FakeAssessmentRepository({str(assessment.id): assessment})
+        engine = AssessmentExecutionEngine()
+        engine.start_execution("asmt-test-001", {"fake": "Fake Scanner"})
+        executor = _CancellingScannerExecutor(repo, engine, cancel_domain=True)
+
+        _execute_scan(**self._background_args(repo, engine, executor))
+
+        assert executor.calls == 1
+        stored = repo.get(AssessmentId("asmt-test-001"))
+        assert stored.status == AssessmentStatus.CANCELLED
+        assert stored.findings == ()
+        assert engine.get_state("asmt-test-001").phase == ExecutionPhase.CANCELLED
+
+    def test_midflight_engine_only_cancel_converges_domain(self) -> None:
+        # Secondary execution-cancel route: only the engine was signalled,
+        # the domain still says RUNNING. The background job must converge
+        # it to CANCELLED rather than leave it RUNNING forever.
+        assessment = _make_assessment(status=AssessmentStatus.RUNNING)
+        repo = FakeAssessmentRepository({str(assessment.id): assessment})
+        engine = AssessmentExecutionEngine()
+        engine.start_execution("asmt-test-001", {"fake": "Fake Scanner"})
+        executor = _CancellingScannerExecutor(repo, engine, cancel_domain=False)
+
+        _execute_scan(**self._background_args(repo, engine, executor))
+
+        stored = repo.get(AssessmentId("asmt-test-001"))
+        assert stored.status == AssessmentStatus.CANCELLED
+        assert stored.findings == ()
+
+    def test_cancel_before_background_start_never_invokes_scanner(self) -> None:
+        assessment = _make_assessment(status=AssessmentStatus.RUNNING)
+        assessment.cancel()
+        repo = FakeAssessmentRepository({str(assessment.id): assessment})
+        engine = AssessmentExecutionEngine()
+        engine.start_execution("asmt-test-001", {"fake": "Fake Scanner"})
+        executor = _CancellingScannerExecutor(repo, engine, cancel_domain=False)
+
+        _execute_scan(**self._background_args(repo, engine, executor))
+
+        assert executor.calls == 0
+        stored = repo.get(AssessmentId("asmt-test-001"))
+        assert stored.status == AssessmentStatus.CANCELLED

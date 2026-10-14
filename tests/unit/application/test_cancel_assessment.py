@@ -157,3 +157,45 @@ class TestCancelAccessControl:
         )
 
         assert response.status == AssessmentStatus.CANCELLED.value
+
+
+class TestCancelSignalsExecutionEngine:
+    """The use case must stop the actual scan work, not just flip the
+    domain state. Regression coverage for the defect where cancel returned
+    200 OK while scanners kept running: CancelAssessment never signalled
+    the execution engine, and is_cancelled() had no readers."""
+
+    def test_cancel_running_signals_engine(
+        self, assessments: InMemoryAssessmentRepository
+    ) -> None:
+        from kingsec.application.assessment_execution import (
+            AssessmentExecutionEngine,
+            ExecutionPhase,
+        )
+
+        assessment = _running(assessments)
+        engine = AssessmentExecutionEngine()
+        tracking_id = str(assessment.id)
+        engine.start_execution(tracking_id, {})
+        engine.transition_phase(tracking_id, ExecutionPhase.RUNNING_SCANNERS)
+        use_case = CancelAssessment(assessments, execution_engine=engine)
+
+        response = use_case.execute(CancelAssessmentRequest(tracking_id, is_admin=True))
+
+        assert response.status == AssessmentStatus.CANCELLED.value
+        assert engine.is_cancelled(tracking_id) is True
+        assert engine.cancellation_event(tracking_id).is_set() is True
+
+    def test_cancel_without_engine_still_cancels_domain(
+        self, assessments: InMemoryAssessmentRepository
+    ) -> None:
+        # The engine is optional: existing constructions keep working, and
+        # the domain transition never depends on the signal.
+        assessment = _running(assessments)
+        use_case = CancelAssessment(assessments)
+
+        response = use_case.execute(CancelAssessmentRequest(str(assessment.id), is_admin=True))
+
+        assert response.status == AssessmentStatus.CANCELLED.value
+        stored = assessments.get(assessment.id)
+        assert stored.status == AssessmentStatus.CANCELLED
