@@ -23,6 +23,8 @@ from kingsec.domain import (
     Target,
     TargetType,
 )
+from kingsec.infrastructure.config.models import OrchestratorSettings
+from kingsec.infrastructure.scanner.errors import ScannerExecutionError
 from kingsec.infrastructure.scanner.orchestrator import ScannerOrchestrator
 from kingsec.infrastructure.scanner.registry import InMemoryPluginRegistry
 
@@ -507,3 +509,94 @@ class TestInheritance:
         registry = InMemoryPluginRegistry()
         orch: ScannerExecutor = ScannerOrchestrator(registry)
         assert isinstance(orch, ScannerExecutor)
+
+
+# ===========================================================================
+# execute_all(): transient-failure retry
+# ===========================================================================
+
+
+class _FlakyPlugin(_StubPlugin):
+    """Fails the first `fail_times` scans with `error`, then succeeds."""
+
+    def __init__(self, *, fail_times: int, error: Exception, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._fail_times = fail_times
+        self._error = error
+        self.scan_calls = 0
+
+    def scan(self, target: Target, config: PluginConfig) -> ScannerResult:
+        self.scan_calls += 1
+        if self.scan_calls <= self._fail_times:
+            raise self._error
+        return super().scan(target, config)
+
+
+def _transient_error() -> ScannerExecutionError:
+    return ScannerExecutionError("gobuster exited with code 1")
+
+
+def _permanent_error() -> ScannerExecutionError:
+    return ScannerExecutionError(
+        "ffuf aborted: target returns a non-404 response for a nonexistent path",
+        transient=False,
+    )
+
+
+def _retry_orchestrator(max_retries: int = 2) -> ScannerOrchestrator:
+    return ScannerOrchestrator(
+        InMemoryPluginRegistry(),
+        retry_settings=OrchestratorSettings(max_retries=max_retries, retry_cooldown_seconds=0),
+    )
+
+
+class TestRetryTransientFailures:
+    def test_transient_failure_retried_then_succeeds(self, fake_ip: Target) -> None:
+        plugin = _FlakyPlugin(plugin_id="gobuster", fail_times=2, error=_transient_error())
+        orch = _retry_orchestrator(max_retries=2)
+        orch._registry.register(plugin)
+        results = orch.execute_all(fake_ip)
+        assert plugin.scan_calls == 3
+        assert len(results) == 1
+
+    def test_transient_failure_exhausts_retries(self, fake_ip: Target) -> None:
+        plugin = _FlakyPlugin(plugin_id="gobuster", fail_times=99, error=_transient_error())
+        orch = _retry_orchestrator(max_retries=2)
+        orch._registry.register(plugin)
+        results = orch.execute_all(fake_ip)
+        assert plugin.scan_calls == 3  # 1 initial + 2 retries
+        assert results == ()  # honest failure, nothing fabricated
+
+    def test_permanent_failure_not_retried(self, fake_ip: Target) -> None:
+        plugin = _FlakyPlugin(plugin_id="ffuf", fail_times=99, error=_permanent_error())
+        orch = _retry_orchestrator(max_retries=2)
+        orch._registry.register(plugin)
+        results = orch.execute_all(fake_ip)
+        assert plugin.scan_calls == 1
+        assert results == ()
+
+    def test_retry_disabled_when_max_retries_zero(self, fake_ip: Target) -> None:
+        plugin = _FlakyPlugin(plugin_id="gobuster", fail_times=99, error=_transient_error())
+        orch = _retry_orchestrator(max_retries=0)
+        orch._registry.register(plugin)
+        results = orch.execute_all(fake_ip)
+        assert plugin.scan_calls == 1
+        assert results == ()
+
+    def test_non_execution_error_not_retried(self, fake_ip: Target) -> None:
+        plugin = _FlakyPlugin(plugin_id="nmap", fail_times=99, error=RuntimeError("boom"))
+        orch = _retry_orchestrator(max_retries=2)
+        orch._registry.register(plugin)
+        results = orch.execute_all(fake_ip)
+        assert plugin.scan_calls == 1
+        assert results == ()
+
+    def test_other_plugins_unaffected_by_retry(self, fake_ip: Target) -> None:
+        flaky = _FlakyPlugin(plugin_id="gobuster", fail_times=1, error=_transient_error())
+        good = _StubPlugin(plugin_id="nuclei", findings=(_finding(),))
+        orch = _retry_orchestrator(max_retries=2)
+        orch._registry.register(flaky)
+        orch._registry.register(good)
+        results = orch.execute_all(fake_ip)
+        assert flaky.scan_calls == 2
+        assert len(results) == 2

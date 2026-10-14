@@ -41,6 +41,7 @@ from .models import (
     MiddlewareSettings,
     NiktoSettings,
     NmapSettings,
+    OrchestratorSettings,
     PerformanceSettings,
     RateLimitSettings,
     ReportingSettings,
@@ -90,6 +91,7 @@ class Settings(BaseSettings):
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     storage: StorageSettings = Field(default_factory=StorageSettings)
     scanner: ScannerSettings = Field(default_factory=ScannerSettings)
+    orchestrator: OrchestratorSettings = Field(default_factory=OrchestratorSettings)
     nmap: NmapSettings = Field(default_factory=NmapSettings)
     nikto: NiktoSettings = Field(default_factory=NiktoSettings)
     ffuf: FfufSettings = Field(default_factory=FfufSettings)

@@ -9,11 +9,23 @@ this keeps subprocess/parsing details out of the application layer entirely.
 
 from __future__ import annotations
 
+from typing import Any
+
 from kingsec.shared.errors import ScannerError
 
 
 class ScannerExecutionError(ScannerError):
-    """The scanner process failed to run, timed out, or exited with an error."""
+    """The scanner process failed to run, timed out, or exited with an error.
+
+    ``transient`` marks failures worth retrying: a target that throttled the
+    scan, a network blip, a subprocess timeout. Permanent failures — a
+    catch-all target, a missing wordlist — set ``transient=False`` so the
+    orchestrator fails fast and honestly instead of pointlessly retrying.
+    """
+
+    def __init__(self, message: str, *, transient: bool = True, **kwargs: Any) -> None:
+        super().__init__(message, **kwargs)
+        self.transient = transient
 
 
 class ScannerOutputError(ScannerError):
@@ -34,8 +46,7 @@ class ScannerOutputError(ScannerError):
 # Phase 07's safe_failure_message() treated it as already-safe and never
 # touched it) - see the Phase 08 report §2/§4 for the full account.
 BINARY_ABSENT_USER_MESSAGE = (
-    "The scanner binary could not be found. Check that this scanner is "
-    "installed in the deployment environment."
+    "The scanner binary could not be found. Check that this scanner is installed in the deployment environment."
 )
 
 # Shared across all 9 adapters' identical non-zero-exit guard clause

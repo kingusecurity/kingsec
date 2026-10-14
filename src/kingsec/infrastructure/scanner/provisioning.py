@@ -90,7 +90,7 @@ def register_scanner(
     semgrep_plugin = SemgrepPlugin(settings.semgrep, runner=runner)
     registry.register(semgrep_plugin)
 
-    orchestrator = ScannerOrchestrator(registry)
+    orchestrator = ScannerOrchestrator(registry, retry_settings=settings.orchestrator)
     register = container.register_instance
     register(ScannerPort, orchestrator)
     # Phase 2A Correction 2a: ExecutionPlanner needs the same registry the

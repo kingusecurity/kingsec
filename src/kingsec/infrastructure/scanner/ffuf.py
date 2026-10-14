@@ -152,6 +152,7 @@ class FfufScannerAdapter(ScannerPort):
                 "nonexistent path (wildcard/catch-all response)",
                 context={"target": target.value, "probe_path": probe_path},
                 user_message=WILDCARD_RESPONSE_USER_MESSAGE,
+                transient=False,
             )
 
     def _validate_config(self) -> None:
@@ -161,6 +162,7 @@ class FfufScannerAdapter(ScannerPort):
                 "ffuf wordlist is not configured",
                 context={"binary": self._settings.binary_path},
                 user_message=WORDLIST_MISSING_USER_MESSAGE,
+                transient=False,
             )
 
     def _build_args(self, target: Target) -> list[str]:

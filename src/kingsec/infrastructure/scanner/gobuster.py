@@ -94,6 +94,7 @@ class GobusterScannerAdapter(ScannerPort):
                 "gobuster wordlist is not configured",
                 context={"binary": self._settings.binary_path},
                 user_message=WORDLIST_MISSING_USER_MESSAGE,
+                transient=False,
             )
 
     def _build_args(self, target: Target) -> list[str]:

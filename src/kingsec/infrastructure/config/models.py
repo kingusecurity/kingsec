@@ -263,6 +263,25 @@ class StorageSettings(BaseModel):
     data_dir: Path = Field(default_factory=lambda: Path.home() / ".kingsec")
 
 
+class OrchestratorSettings(BaseModel):
+    """Retry policy for transient scanner-plugin failures.
+
+    A scanner that dies to a transient cause — a throttling target, a
+    network blip, a subprocess timeout — is retried with a cooldown instead
+    of its findings being silently lost. Permanent failures (a catch-all
+    target, a missing wordlist or binary) never retry: they fail fast and
+    are disclosed honestly in the report, exactly as before.
+    """
+
+    model_config = _FROZEN
+
+    # Extra attempts after the first failure. 0 disables retry entirely.
+    max_retries: int = Field(default=2, ge=0, le=5)
+    # Cooldown between attempts, in seconds — gives a throttling target
+    # time to recover before the next attempt starts.
+    retry_cooldown_seconds: float = Field(default=60.0, ge=0, le=600)
+
+
 class ScannerSettings(BaseModel):
     """Settings for the external scanner engine (Module 5.1, Nuclei).
 
