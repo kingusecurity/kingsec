@@ -112,6 +112,54 @@ _SINGLE_ALERT_OUTPUT = json.dumps({"site": [_make_site("http://example.com", "ex
 _MALFORMED_JSON = "this is not json"
 
 
+def _make_real_format_alert(
+    alert: str = "PII Disclosure",
+    riskcode: str = "3",
+    confidence: str = "3",
+    desc: str = "<p>Potential PII was found in the response.</p>",
+    solution: str = "<p>Check the response for PII.</p>",
+    instances: list[dict] | None = None,
+) -> dict:
+    """Build an alert in ZAP's REAL Traditional JSON report shape.
+
+    The real format uses ``desc`` (not ``description``) and nests
+    per-occurrence detail under ``instances`` - there is no top-level
+    ``url``/``param``. See
+    https://www.zaproxy.org/docs/desktop/addons/report-generation/report-traditional-json/
+    """
+    return {
+        "pluginid": "10001",
+        "alert": alert,
+        "name": alert,
+        "riskcode": riskcode,
+        "confidence": confidence,
+        "riskdesc": "High (High)",
+        "desc": desc,
+        "instances": (
+            instances
+            if instances is not None
+            else [
+                {
+                    "uri": "https://example.com/contact",
+                    "method": "GET",
+                    "param": "",
+                    "attack": "",
+                    "evidence": "john@example.com",
+                    "otherinfo": "",
+                }
+            ]
+        ),
+        "count": "1",
+        "solution": solution,
+        "reference": "",
+    }
+
+
+_REAL_FORMAT_OUTPUT = json.dumps(
+    {"site": [{"@name": "https://example.com", "@host": "example.com", "alerts": [_make_real_format_alert()]}]}
+)
+
+
 # ===========================================================================
 # Tests
 # ===========================================================================
@@ -208,6 +256,63 @@ class TestEvidence:
         output = json.dumps({"site": [_make_site(alerts=[_ALERT_LOW])]})
         findings = parse_zap_json(output)
         assert "param:" not in findings[0].description
+
+
+class TestRealZapFormat:
+    """ZAP's real Traditional JSON report shape (desc + instances).
+
+    Regression: the parser used to read only the normalized ``description``
+    / top-level ``url`` / ``param`` keys, which the real format never
+    emits - so EVERY ZAP finding shipped with an empty description and no
+    per-instance detail (proven live, 2026-10-14: all 13 ZAP findings in a
+    production report carried empty descriptions, including the High
+    "PII Disclosure" finding).
+    """
+
+    def test_desc_is_parsed(self) -> None:
+        findings = parse_zap_json(_REAL_FORMAT_OUTPUT)
+        assert len(findings) == 1
+        assert "Potential PII was found in the response." in findings[0].description
+
+    def test_instance_uri_becomes_location(self) -> None:
+        findings = parse_zap_json(_REAL_FORMAT_OUTPUT)
+        assert findings[0].title == "PII Disclosure — https://example.com/contact"
+        assert "https://example.com/contact" in findings[0].description
+
+    def test_instance_evidence_is_kept(self) -> None:
+        findings = parse_zap_json(_REAL_FORMAT_OUTPUT)
+        assert "john@example.com" in findings[0].evidence[0].detail
+
+    def test_instance_param_is_kept(self) -> None:
+        alert = _make_real_format_alert(
+            instances=[{"uri": "https://example.com/search", "param": "q", "evidence": "<script>"}]
+        )
+        findings = parse_zap_json(json.dumps({"site": [{"@name": "https://example.com", "alerts": [alert]}]}))
+        assert "q" in findings[0].description
+        assert "param: q" in findings[0].description
+
+    def test_multiple_instances_are_counted(self) -> None:
+        alert = _make_real_format_alert(
+            instances=[
+                {"uri": "https://example.com/a", "param": "", "evidence": ""},
+                {"uri": "https://example.com/b", "param": "", "evidence": ""},
+            ]
+        )
+        findings = parse_zap_json(json.dumps({"site": [{"@name": "https://example.com", "alerts": [alert]}]}))
+        assert len(findings) == 1
+        assert "instances: 2" in findings[0].evidence[0].detail
+
+    def test_no_instances_falls_back_to_site(self) -> None:
+        alert = _make_real_format_alert(instances=[])
+        findings = parse_zap_json(json.dumps({"site": [{"@name": "https://example.com", "alerts": [alert]}]}))
+        assert findings[0].title == "PII Disclosure — https://example.com"
+
+    def test_legacy_top_level_keys_still_work(self) -> None:
+        # The normalized fixture shape (description/url/param at top level)
+        # keeps working as a fallback.
+        findings = parse_zap_json(_SINGLE_ALERT_OUTPUT)
+        assert "SQL injection found in login form" in findings[0].description
+        assert "username" in findings[0].description
 
 
 class TestRecommendations:
