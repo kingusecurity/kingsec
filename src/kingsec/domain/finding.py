@@ -111,10 +111,11 @@ class Finding:
         """Create a new OPEN finding with a freshly generated id.
 
         cve_ids/cwe_ids/cvss_score/cvss_vector are optional: only scanners
-        that genuinely correlate to CVE data (Nuclei, Trivy) pass them.
+        that genuinely correlate to identifier data pass them (Nuclei and
+        Trivy for CVE/CVSS, ZAP for CWE via its report's cweid field).
         Scanners with no correlation source (e.g. Nmap's raw port/service
-        banners) simply omit them, and the finding carries no CVE data -
-        never fabricated, never guessed.
+        banners) simply omit them, and the finding carries no identifier
+        data - never fabricated, never guessed.
 
         original_severity/demotion_reason (Phase 2B-c Priority 1b) are set
         together, only when a scanner's own classifier demoted this

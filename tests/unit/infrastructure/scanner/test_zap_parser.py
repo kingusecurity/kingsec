@@ -314,6 +314,21 @@ class TestRealZapFormat:
         assert "SQL injection found in login form" in findings[0].description
         assert "username" in findings[0].description
 
+    def test_cweid_is_extracted(self) -> None:
+        alert = _make_real_format_alert()
+        alert["cweid"] = "693"
+        findings = parse_zap_json(json.dumps({"site": [{"@name": "https://example.com", "alerts": [alert]}]}))
+        assert findings[0].cwe_ids == ("CWE-693",)
+        assert "CWE-693" in findings[0].evidence[0].detail
+
+    def test_cweid_absent_means_no_cwe(self) -> None:
+        for absent in ("", "0", "-1"):
+            alert = _make_real_format_alert()
+            alert["cweid"] = absent
+            findings = parse_zap_json(json.dumps({"site": [{"@name": "https://example.com", "alerts": [alert]}]}))
+            assert findings[0].cwe_ids == ()
+            assert "cwe:" not in findings[0].evidence[0].detail
+
 
 class TestRecommendations:
     """Solution → Recommendation mapping for ZAP alerts."""

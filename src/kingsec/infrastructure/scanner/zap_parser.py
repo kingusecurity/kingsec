@@ -8,11 +8,11 @@ ZAP JSON report format (the Traditional JSON report ZAP's ``-quickout``
 writes - see https://www.zaproxy.org/docs/desktop/addons/report-generation/report-traditional-json/):
     Top-level dict with ``site`` array. Each site contains ``alerts`` array.
     Each alert contains: ``alert``, ``riskcode``, ``confidence``, ``desc``
-    (HTML), ``solution``, ``reference``, and ``instances`` - an array of
-    per-occurrence dicts with ``uri``, ``method``, ``param``, ``attack``
-    and ``evidence``. There is NO top-level ``url``/``param``/``description``
-    in the real format; those spellings are accepted as fallbacks for
-    normalized fixtures.
+    (HTML), ``solution``, ``reference``, ``cweid``, and ``instances`` - an
+    array of per-occurrence dicts with ``uri``, ``method``, ``param``,
+    ``attack`` and ``evidence``. There is NO top-level
+    ``url``/``param``/``description`` in the real format; those spellings
+    are accepted as fallbacks for normalized fixtures.
 
 Risk mapping:
     High (riskcode 3)       → HIGH
@@ -87,6 +87,12 @@ def _parse_alerts(alerts: list[dict[str, Any]], site_url: str) -> list[Finding]:
         url = first_instance.get("uri") or alert.get("url") or site_url
         param = first_instance.get("param") or alert.get("param", "")
         instance_evidence = first_instance.get("evidence", "")
+        # ZAP's Traditional JSON report carries the CWE identifier per
+        # alert ("cweid": "693"); "0"/"-1"/"" mean "none assigned".
+        # Previously dropped entirely - real correlation data the report
+        # never showed.
+        cwe_raw = str(alert.get("cweid", "") or "").strip()
+        cwe_ids = (f"CWE-{cwe_raw}",) if cwe_raw and cwe_raw not in ("0", "-1") else ()
 
         severity = _map_risk(risk)
 
@@ -107,6 +113,7 @@ def _parse_alerts(alerts: list[dict[str, Any]], site_url: str) -> list[Finding]:
             title=title,
             description=description_text,
             severity=severity,
+            cwe_ids=cwe_ids,
         )
 
         evidence_detail = (
@@ -114,6 +121,8 @@ def _parse_alerts(alerts: list[dict[str, Any]], site_url: str) -> list[Finding]:
             f"url: {url} | param: {param} | description: {description[:200]} | "
             f"solution: {solution[:200]}"
         )
+        if cwe_ids:
+            evidence_detail += f" | cwe: {', '.join(cwe_ids)}"
         if instance_evidence:
             evidence_detail += f" | evidence: {instance_evidence[:500]}"
         if instance_count > 1:
