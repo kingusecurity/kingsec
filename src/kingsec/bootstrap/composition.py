@@ -843,6 +843,7 @@ def _register_use_cases(app: Application) -> None:
             c.resolve(AssessmentRepository),
             c.resolve(EventPublisher),
             c.resolve(AuditPublisher),
+            c.resolve(AssessmentExecutionEngine),
         ),
     )
     container.register_factory(
