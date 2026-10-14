@@ -81,11 +81,27 @@ _SKIP_PREFIXES = (
 # Nikto self-status / summary lines that start with "+" but describe the
 # scanner's own run, not the target. Emitting them as findings pollutes
 # reports (e.g. "CGI tests skipped" is not a vulnerability).
+#
+# The summary-line pattern deliberately matches the COUNTS, not the
+# prefix: Nikto 2.5+ prints "Scan terminated: 19 errors and 26 items
+# reported on the remote host" while older releases print "8026
+# requests: 0 errors and 13 items reported". A prefix-anchored pattern
+# ("\\d+ requests: ...") silently missed the modern format and the
+# summary line shipped as a report finding (proven live, 2026-10-14).
+#
+# _ARRAY_REF_RE is the same class of defect one level down: Nikto
+# occasionally emits an un-stringified Perl reference for the OPTIONS
+# methods list ("Allowed HTTP Methods: ARRAY(0x5638...)") - a
+# scanner-side rendering bug carrying zero information about the
+# target. It is skipped (with a debug log) rather than ingested.
+_ARRAY_REF_RE = re.compile(r"ARRAY\(0x[0-9a-fA-F]+\)", re.IGNORECASE)
+
 _SKIP_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"No CGI Directories found", re.IGNORECASE),
     re.compile(r"CGI tests skipped", re.IGNORECASE),
-    re.compile(r"\d+ requests:.*errors and.*items reported", re.IGNORECASE),
+    re.compile(r"\d+ errors? and \d+ items? reported", re.IGNORECASE),
     re.compile(r"\d+ host\(s\) tested", re.IGNORECASE),
+    _ARRAY_REF_RE,
 )
 
 
@@ -126,6 +142,11 @@ def parse_nikto_output(output: str) -> list[Finding]:
         if any(line.startswith(prefix) for prefix in _SKIP_PREFIXES):
             continue
         if any(pat.search(line) for pat in _SKIP_PATTERNS):
+            if _ARRAY_REF_RE.search(line):
+                # The line's only "content" is a memory address - make the
+                # drop visible in logs so a real methods-enumeration result
+                # going missing would be noticed, not silently assumed.
+                _logger.debug("skipping nikto line with un-stringified ARRAY reference: %s", line[:80])
             continue
 
         # Only process finding lines (start with +)

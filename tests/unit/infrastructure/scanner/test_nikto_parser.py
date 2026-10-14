@@ -89,6 +89,18 @@ _STATUS_LINES_OUTPUT = """\
 + Server: DemoWeb/2.4.1
 """
 
+# Regression: live 2026-10-14 production report (asmt-299b600794c749859c3a7be9c77be1ac) —
+# Nikto 2.5's modern summary format ("Scan terminated: ...") slipped past the
+# old "\\d+ requests:"-anchored skip pattern and shipped as finding #45, and
+# Nikto's un-stringified Perl reference ("Allowed HTTP Methods: ARRAY(0x...)")
+# shipped as finding #43.
+_MODERN_STATUS_LINES_OUTPUT = """\
++ Scan terminated: 19 errors and 26 items reported on the remote host
++ 1 host(s) tested
++ [999990] OPTIONS: Allowed HTTP Methods: ARRAY(0x5638176e5f80) .
++ Server: DemoWeb/2.4.1
+"""
+
 
 # ===========================================================================
 # Tests
@@ -191,6 +203,28 @@ class TestSeverityClassification:
         findings = parse_nikto_output("+ /some/path: try to force check all dirs.\n")
         assert len(findings) == 1
         assert findings[0].severity is not Severity.CRITICAL
+
+    def test_modern_scan_terminated_summary_is_not_a_finding(self) -> None:
+        # Nikto 2.5+ prints "Scan terminated: N errors and M items reported"
+        # (no "requests:" prefix) - it describes the scanner's own run.
+        findings = parse_nikto_output("+ Scan terminated: 19 errors and 26 items reported on the remote host\n")
+        assert findings == []
+
+    def test_array_reference_line_is_not_a_finding(self) -> None:
+        # An un-stringified Perl reference is a scanner-side rendering bug,
+        # not a result about the target.
+        findings = parse_nikto_output("+ [999990] OPTIONS: Allowed HTTP Methods: ARRAY(0x5638176e5f80) .\n")
+        assert findings == []
+
+    def test_modern_status_lines_leave_only_real_findings(self) -> None:
+        findings = parse_nikto_output(_MODERN_STATUS_LINES_OUTPUT)
+        titles = [f.title for f in findings]
+        assert not any("Scan terminated" in t for t in titles)
+        assert not any("ARRAY(0x" in t for t in titles)
+        assert not any("host(s) tested" in t for t in titles)
+        # Only the real banner line survives.
+        assert len(findings) == 1
+        assert findings[0].severity is Severity.INFORMATIONAL
 
 
 class TestEvidence:
