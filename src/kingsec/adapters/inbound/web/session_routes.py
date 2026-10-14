@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from kingsec.application.ports.outbound.session_repository import SessionRepository
-from kingsec.application.ports.outbound.token_service import TokenService
+from kingsec.application.ports.outbound.token_service import TokenError, TokenService
 from kingsec.application.use_cases.create_session import CreateSession
 from kingsec.application.use_cases.list_user_sessions import ListUserSessions
 from kingsec.application.use_cases.revoke_all_sessions import RevokeAllSessions
@@ -168,7 +168,17 @@ async def refresh_session(
     # KSEC-75-04: minting the new tokens and validating current
     # account-status/role now happens entirely inside RefreshSession,
     # which re-fetches the user rather than trusting these claims.
-    old_claims = token_svc.verify_refresh_token(body.refresh_token)
+    # A revoked, expired, or malformed token is an expected client
+    # condition (session ended elsewhere, token aged out), not a server
+    # fault - map it to a clean 401 instead of letting TokenError escape
+    # to the global handler as a 500.
+    try:
+        old_claims = token_svc.verify_refresh_token(body.refresh_token)
+    except TokenError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid or expired refresh token",
+        ) from exc
     if old_claims.token_type != "refresh":  # nosec B105 — "refresh" is a JWT token type, not a credential
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid token type")
 
