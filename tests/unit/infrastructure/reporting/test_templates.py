@@ -88,6 +88,37 @@ class TestDeterminism:
         assert "2026-07-07 12:00:00" in html
 
 
+class TestScanDate:
+    """The report's "Scan Date" must date the SCAN, not the render.
+
+    Regression (proven live, 2026-10-14): a scan that ran 09:10-09:49 was
+    stamped 13:50:56 because that was when the PDF was rendered - the
+    templates read report.generated_at for the scan date.
+    """
+
+    def test_scan_date_uses_scanned_at(self) -> None:
+        import dataclasses
+        from datetime import UTC, datetime
+
+        scanned = datetime(2026, 10, 14, 4, 10, 45, tzinfo=UTC)
+        generated = datetime(2026, 10, 14, 13, 50, 56, tzinfo=UTC)
+        report = dataclasses.replace(build_report(), scanned_at=scanned, generated_at=generated)
+        html = render_report_html(report)
+        section = html.split('id="assessment-information"')[1].split("</section>")[0]
+        assert "2026-10-14 04:10:45" in section
+        assert "2026-10-14 13:50:56" not in section
+
+    def test_scan_date_falls_back_to_generated_at(self) -> None:
+        # Reports persisted before scanned_at existed carry None - the only
+        # honest timestamp the row has is generated_at.
+        import dataclasses
+
+        report = dataclasses.replace(build_report(), scanned_at=None)
+        html = render_report_html(report)
+        section = html.split('id="assessment-information"')[1].split("</section>")[0]
+        assert "2026-07-07 12:00:00" in section
+
+
 class TestBusinessImpact:
     """Task 4 FIX 2: this is a customer deliverable - whether the assessor
     has an AI provider configured is internal plumbing, never something
@@ -1447,10 +1478,25 @@ class TestScannerCoverage:
                 skipped_reason="excluded by profile",
             ),
             ScannerRunSummary(
-                scanner_id="trivy", name="Trivy", status=ScannerRunState.FAILED, skipped_reason="binary not found"
+                scanner_id="trivy",
+                name="Trivy",
+                status=ScannerRunState.SKIPPED_BINARY_MISSING,
+                skipped_reason="binary not found",
             ),
             ScannerRunSummary(
-                scanner_id="semgrep", name="Semgrep", status=ScannerRunState.FAILED, skipped_reason="binary not found"
+                scanner_id="semgrep",
+                name="Semgrep",
+                status=ScannerRunState.SKIPPED_BINARY_MISSING,
+                skipped_reason="binary not found",
+            ),
+            # Attempted but never finished: "did not complete", not "not
+            # run" - the scanner RAN (proven live, 2026-10-14: Gobuster's
+            # three attempts rendered as "not run").
+            ScannerRunSummary(
+                scanner_id="gobuster",
+                name="Gobuster",
+                status=ScannerRunState.TIMED_OUT,
+                skipped_reason="The scan did not complete within the configured 600-second timeout.",
             ),
         )
         html = render_report_html(build_report(scanner_summary=summary))
@@ -1459,6 +1505,10 @@ class TestScannerCoverage:
         assert "Nmap: completed, 7 findings." in section
         assert "Nuclei, Nikto: not run (excluded by profile)." in section
         assert "Trivy, Semgrep: not run (binary not found)." in section
+        assert (
+            "Gobuster: did not complete (The scan did not complete within the configured 600-second timeout.)."
+            in section
+        )
 
     def test_internal_error_framing_is_stripped(self) -> None:
         """A raw exception message from the scanner orchestrator (error code
@@ -1482,7 +1532,7 @@ class TestScannerCoverage:
         html = render_report_html(build_report(scanner_summary=summary))
         section = html.split('id="scanner-coverage"')[1].split("</section>")[0]
 
-        assert "Trivy: not run (scan timed out after 600s)." in section
+        assert "Trivy: did not complete (scan timed out after 600s)." in section
         assert "KS-SCAN-001" not in section
         assert "unexpected error in plugin" not in section
 
