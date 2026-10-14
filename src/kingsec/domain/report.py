@@ -588,6 +588,15 @@ class Report:
     verdict: Verdict
     entries: tuple[FindingSummary, ...]  # ordered most-severe first
     severity_counts: tuple[tuple[Severity, int], ...]  # present severities, desc
+    # When the scan actually ran. The assessment record is created seconds
+    # before scanning starts, so assessment.created_at is the scan time.
+    # This is deliberately DISTINCT from generated_at (when this report was
+    # rendered): a report regenerated hours later must still date the scan,
+    # not the render - stamping the render time as "Scan Date" was a live
+    # defect (proven 2026-10-14). None for reports persisted before this
+    # field existed; templates fall back to generated_at for those.
+    # (Declared after the non-default fields: dataclass field ordering.)
+    scanned_at: datetime | None = None
     # Whether an AI provider was available when this report was generated
     # (set by GenerateReport, an application-layer concern — from_assessment
     # itself never touches AI). False means every entry's ai_explanation is
@@ -711,6 +720,7 @@ class Report:
             assessment_id=str(assessment.id),
             target=str(assessment.target),
             generated_at=generated_at or datetime.now(UTC),
+            scanned_at=assessment.created_at,
             verdict=Verdict.from_findings(findings, assessment.scanner_summary),
             entries=entries,
             severity_counts=severity_counts,

@@ -75,6 +75,39 @@ class TestReportMapping:
         assert restored.entries[0].severity is Severity.CRITICAL
 
 
+class TestReportScannedAtMapping:
+    """scanned_at survives the report ORM round-trip; NULL stays None.
+
+    A NULL scanned_at is the honest value for rows persisted before the
+    column existed - the templates fall back to generated_at for those.
+    """
+
+    def test_round_trip_preserves_scanned_at(self) -> None:
+        from kingsec.domain import Assessment, Authorization, Target, TargetType
+        from kingsec.infrastructure.persistence.mappers import report_to_domain, report_to_orm
+        from tests.unit.infrastructure.persistence.conftest import utc
+
+        assessment = Assessment.create(Target("10.0.0.5", TargetType.IP_ADDRESS))
+        assessment.authorize(Authorization("tester", utc(), scope="10.0.0.5"))
+        assessment.start()
+        assessment.complete()
+
+        report = Report.from_assessment(assessment)
+        assert report.scanned_at is not None
+        restored = report_to_domain(report_to_orm(report))
+        assert restored.scanned_at == report.scanned_at
+
+    def test_null_scanned_at_stays_none(self) -> None:
+        import dataclasses
+
+        from kingsec.infrastructure.persistence.mappers import report_to_domain, report_to_orm
+
+        report = Report.from_assessment(completed_assessment())
+        legacy = dataclasses.replace(report, scanned_at=None)
+        restored = report_to_domain(report_to_orm(legacy))
+        assert restored.scanned_at is None
+
+
 class TestFindingAffectedAssetMapping:
     """affected_asset survives the ORM round-trip; absence stays absent."""
 

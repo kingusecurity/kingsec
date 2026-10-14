@@ -44,6 +44,14 @@ class TestGenerationGuard:
         assert report.total_findings == 1
         assert report.assessment_id == str(running.id)
 
+    def test_scanned_at_comes_from_assessment_creation(self, running) -> None:
+        # The report dates the SCAN (assessment creation ~= scan start),
+        # not the render: generated_at may be hours later.
+        _complete(running, [make_finding(Severity.HIGH)])
+        report = Report.from_assessment(running)
+        assert report.scanned_at == running.created_at
+        assert report.generated_at >= report.scanned_at
+
 
 class TestVerdict:
     def test_clean_verdict_when_no_findings(self, running) -> None:
