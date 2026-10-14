@@ -366,8 +366,25 @@ def _execute_scan(
             _converge_assessment_to_cancelled(assessments, assessment_id, tracking_id)
             return
 
+        # Phase 2B-c Defect 5, scan-time half: AIPort.is_configured() is
+        # checked ONCE up front, not once per finding. Without this, an
+        # assessment with no AI provider configured logs the identical
+        # "no AI API key configured" failure once per finding (the
+        # report-generation path already does this correctly - see
+        # generate_report._with_ai_explanations). _enrich() keeps its own
+        # try/except for genuine per-finding failures (e.g. a provider
+        # outage mid-run); only the "not configured" case moves up front.
+        ai_enrichment_enabled = ai is not None and ai.is_configured()
+        if ai is not None and not ai_enrichment_enabled:
+            logging.getLogger(__name__).warning(
+                "AI enrichment skipped for assessment %s: no AI provider configured "
+                "(checked once for the whole assessment, not per-finding)",
+                tracking_id,
+            )
+
         for finding in findings:
-            _enrich(finding, ai)
+            if ai_enrichment_enabled:
+                _enrich(finding, ai)
             assessment.record_finding(finding)
 
         if execution_engine is not None:
