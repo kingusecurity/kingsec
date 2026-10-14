@@ -601,6 +601,31 @@ class TestSessionAPI:
         assert unchanged.refresh_jti == "rjti_refresh_u1"
         assert unchanged.status == SessionStatus.ACTIVE
 
+    def test_refresh_with_revoked_token_returns_401_not_500(self, app: FastAPI) -> None:
+        """A revoked refresh token is an expected client condition (session
+        ended elsewhere), not a server fault: POST /api/v1/sessions/refresh
+        must answer 401, never let TokenInvalidError escape to the global
+        handler as a 500."""
+        tokens: FakeTokenService = app.state.kingsec_app.resolve(TokenService)
+        tokens.revoke_token("rjti_refresh_u1")
+
+        client = TestClient(app)
+        resp = client.post("/api/v1/sessions/refresh", json={"refresh_token": "refresh_u1"})
+
+        assert resp.status_code == 401
+        assert "invalid or expired refresh token" in resp.json()["detail"]
+
+    def test_refresh_with_unknown_token_returns_401_not_500(self, app: FastAPI) -> None:
+        """A garbage refresh token string must also map to 401, not 500."""
+        tokens: FakeTokenService = app.state.kingsec_app.resolve(TokenService)
+        # FakeTokenService only knows tokens it minted; force the invalid path.
+        tokens.revoke_token("rjti_garbage")
+
+        client = TestClient(app)
+        resp = client.post("/api/v1/sessions/refresh", json={"refresh_token": "garbage"})
+
+        assert resp.status_code == 401
+
     def test_refresh_reflects_current_role_after_role_change(self, app: FastAPI) -> None:
         """KSEC-75-04: a role change must be reflected on the very next
         /sessions/refresh call, not just on /auth/refresh."""

@@ -130,6 +130,27 @@ class FakeAI:
             priority=finding.severity,
         )
 
+    def explain_business_risk(self, finding: Finding) -> str:
+        return f"AI risk explanation for {finding.title}"
+
+    def is_configured(self) -> bool:
+        return True
+
+
+class UnconfiguredAI(FakeAI):
+    """AI port with no provider configured (e.g. no API key).
+
+    recommend() behaves like the real adapter: it raises instead of
+    returning a recommendation. is_configured() is False, so callers
+    must skip the enrichment pass up front (Phase 2B-c Defect 5).
+    """
+
+    def recommend(self, finding: Finding) -> Recommendation:
+        raise RuntimeError("[KS-EXT-001] no AI API key configured")
+
+    def is_configured(self) -> bool:
+        return False
+
 
 # --- Helpers -----------------------------------------------------------------
 
@@ -253,6 +274,47 @@ class TestSubmitAssessmentWithAI:
         assert len(completed.findings) == 1
         assert len(completed.findings[0].recommendations) == 1
         assert completed.findings[0].recommendations[0].title == "Fix SQL Injection"
+
+    def test_unconfigured_ai_skips_enrichment_once_not_per_finding(self) -> None:
+        """Phase 2B-c Defect 5, scan-time half: with no AI provider
+        configured, the enrichment pass is skipped up front with a single
+        log line - recommend() is never called, so the identical "no AI
+        API key configured" failure is not logged once per finding."""
+        findings = [
+            Finding.create(
+                title=f"Finding {i}",
+                description="desc",
+                severity=Severity.LOW,
+            )
+            for i in range(5)
+        ]
+        assessment = _make_assessment()
+        repo = FakeAssessmentRepository({str(assessment.id): assessment})
+        scanner = FakeScanner(findings=findings)
+        job_runner = RecordingJobRunner(run_inline=True)
+        ai = UnconfiguredAI()
+        recommend_calls: list[str] = []
+        original_recommend = ai.recommend
+
+        def counting_recommend(finding: Finding) -> Recommendation:
+            recommend_calls.append(finding.title)
+            return original_recommend(finding)
+
+        ai.recommend = counting_recommend  # type: ignore[method-assign]
+
+        use_case = SubmitAssessment(
+            assessments=repo,
+            scanner=scanner,
+            job_runner=job_runner,
+            ai=ai,
+        )
+
+        use_case.execute(SubmitAssessmentRequest(assessment_id="asmt-test-001", is_admin=True))
+
+        assert recommend_calls == []
+        completed = repo.saved[-1]
+        assert len(completed.findings) == 5
+        assert all(len(f.recommendations) == 0 for f in completed.findings)
 
 
 class TestSubmitAssessmentScanFailure:
