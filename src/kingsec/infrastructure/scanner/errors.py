@@ -65,6 +65,12 @@ WORDLIST_MISSING_USER_MESSAGE = (
     "Check the scanner's configuration in the deployment environment."
 )
 
+# A user-cancelled scan is its own failure mode: the process did not
+# error and did not time out, it was deliberately stopped. Permanent
+# (transient=False) — retrying a cancelled scan would directly contradict
+# the user's request.
+SCAN_CANCELLED_USER_MESSAGE = "The scan was cancelled by the user."
+
 # Phase 2B-c Priority 1a: a target that returns a non-404 status for a
 # guaranteed-nonexistent path is a catch-all/wildcard responder (common
 # for single-page apps, whose router serves the same 200 page for any

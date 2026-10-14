@@ -11,6 +11,7 @@ by the registry and flattens their results into the ``ScannerPort`` contract.
 
 from __future__ import annotations
 
+import threading
 import time
 from collections.abc import Sequence
 from typing import cast
@@ -32,6 +33,7 @@ from kingsec.domain import (
 from kingsec.infrastructure.config.models import OrchestratorSettings
 from kingsec.infrastructure.logging import get_logger
 from kingsec.infrastructure.scanner.errors import ScannerExecutionError
+from kingsec.infrastructure.scanner.runner import cancel_event_scope
 
 _logger = get_logger("kingsec.infrastructure.scanner.orchestrator")
 
@@ -142,82 +144,136 @@ class ScannerOrchestrator(ScannerPort, ScannerExecutor):
         results: list[ScannerResult] = []
         engine, tid = execution_engine, tracking_id
 
-        for plugin in plugins:
-            plugin_id = plugin.metadata().id
-            config = (configs or {}).get(plugin_id, PluginConfig())
+        # The cancellation signal for this assessment's run (if the caller
+        # tracks execution at all). The runner polls it while a scanner
+        # subprocess is alive; the loop below checks it between scanners
+        # and the retry cooldown waits on it instead of sleeping blindly.
+        cancel_event: threading.Event | None = None
+        if engine is not None and tid is not None:
+            cancel_event = engine.cancellation_event(tid)
 
-            if engine is not None and tid is not None:
-                engine.start_scanner(tid, plugin_id.value)
+        def _cancel_remaining(from_index: int) -> None:
+            """Mark the current and all not-yet-run scanners as cancelled.
 
-            attempt = 0
-            while True:
-                attempt += 1
-                try:
-                    result = self.execute(plugin, target, config)
-                    results.append(result)
-                    if engine is not None and tid is not None:
-                        engine.complete_scanner(
-                            tid,
-                            plugin_id.value,
-                            findings_count=len(result.findings),
-                            warnings=result.warnings,
-                            port_specification=result.port_specification,
-                            rate_limit_description=result.rate_limit_description,
-                        )
-                    break
-                except Exception as exc:
-                    # `exc` here is the (now-sanitized, per execute()'s own
-                    # wrapping above) ScannerPluginError. Its __cause__ is the
-                    # real, original exception when execute() wrapped one - log
-                    # THAT in full for operators (logging is unaffected by this
-                    # phase's sanitization; the redaction processor is the
-                    # correct, separate layer for secrets in log output), while
-                    # the product-facing engine call only ever sees the
-                    # already-sanitized wrapper text.
-                    original = exc.__cause__ if exc.__cause__ is not None else exc
-                    is_timeout = isinstance(original, ScannerExecutionError) and "timeout_seconds" in original.context
-                    transient = isinstance(original, ScannerExecutionError) and original.transient
-                    if transient and attempt <= self._retry.max_retries:
-                        # A throttling target, a network blip, a subprocess
-                        # timeout: the findings are real and recoverable, so
-                        # wait out the cooldown and try again instead of
-                        # silently losing them. Permanent failures
-                        # (transient=False: catch-all target, missing
-                        # wordlist) skip this branch and fail fast below.
+            ``cancel_scanner`` only touches PENDING/RUNNING scanners, so
+            scanners that already reached a terminal state keep their real
+            outcome — none is left PENDING forever and none is rewritten.
+            """
+            if engine is None or tid is None:
+                return
+            for remaining_plugin in plugins[from_index:]:
+                engine.cancel_scanner(
+                    tid,
+                    remaining_plugin.metadata().id.value,
+                    "assessment cancelled by user",
+                )
+
+        def _cancelled() -> bool:
+            return engine is not None and tid is not None and engine.is_cancelled(tid)
+
+        with cancel_event_scope(cancel_event):
+            for index, plugin in enumerate(plugins):
+                if _cancelled():
+                    # Stop dispatching: the in-flight scanner (if any) was
+                    # already killed by the runner and recorded as failed
+                    # with the cancellation message; everything that never
+                    # started is marked cancelled here.
+                    _logger.info(
+                        "assessment cancelled by user; stopping scanner dispatch",
+                        tracking_id=tid,
+                    )
+                    _cancel_remaining(index)
+                    return tuple(results)
+
+                plugin_id = plugin.metadata().id
+                config = (configs or {}).get(plugin_id, PluginConfig())
+
+                if engine is not None and tid is not None:
+                    engine.start_scanner(tid, plugin_id.value)
+
+                attempt = 0
+                while True:
+                    attempt += 1
+                    try:
+                        result = self.execute(plugin, target, config)
+                        results.append(result)
+                        if engine is not None and tid is not None:
+                            engine.complete_scanner(
+                                tid,
+                                plugin_id.value,
+                                findings_count=len(result.findings),
+                                warnings=result.warnings,
+                                port_specification=result.port_specification,
+                                rate_limit_description=result.rate_limit_description,
+                            )
+                        break
+                    except Exception as exc:
+                        # `exc` here is the (now-sanitized, per execute()'s own
+                        # wrapping above) ScannerPluginError. Its __cause__ is the
+                        # real, original exception when execute() wrapped one - log
+                        # THAT in full for operators (logging is unaffected by this
+                        # phase's sanitization; the redaction processor is the
+                        # correct, separate layer for secrets in log output), while
+                        # the product-facing engine call only ever sees the
+                        # already-sanitized wrapper text.
+                        original = exc.__cause__ if exc.__cause__ is not None else exc
+                        is_timeout = isinstance(original, ScannerExecutionError) and "timeout_seconds" in original.context
+                        transient = isinstance(original, ScannerExecutionError) and original.transient
+                        if transient and attempt <= self._retry.max_retries:
+                            # A throttling target, a network blip, a subprocess
+                            # timeout: the findings are real and recoverable, so
+                            # wait out the cooldown and try again instead of
+                            # silently losing them. Permanent failures
+                            # (transient=False: catch-all target, missing
+                            # wordlist, user cancellation) skip this branch and
+                            # fail fast below.
+                            _logger.warning(
+                                "scanner plugin failed transiently, retrying after cooldown",
+                                plugin_id=str(plugin_id),
+                                attempt=attempt,
+                                max_retries=self._retry.max_retries,
+                                cooldown_seconds=self._retry.retry_cooldown_seconds,
+                                error=str(original),
+                            )
+                            cooldown = self._retry.retry_cooldown_seconds
+                            if cooldown > 0:
+                                if cancel_event is not None:
+                                    # Wake the instant the user cancels
+                                    # instead of sleeping out the cooldown.
+                                    if cancel_event.wait(timeout=cooldown):
+                                        _logger.info(
+                                            "assessment cancelled during retry cooldown; stopping scanner dispatch",
+                                            plugin_id=str(plugin_id),
+                                            tracking_id=tid,
+                                        )
+                                        _cancel_remaining(index)
+                                        return tuple(results)
+                                else:
+                                    time.sleep(cooldown)
+                            continue
                         _logger.warning(
-                            "scanner plugin failed transiently, retrying after cooldown",
+                            "scanner plugin timed out" if is_timeout else "scanner plugin failed, skipping",
                             plugin_id=str(plugin_id),
-                            attempt=attempt,
-                            max_retries=self._retry.max_retries,
-                            cooldown_seconds=self._retry.retry_cooldown_seconds,
                             error=str(original),
                         )
-                        if self._retry.retry_cooldown_seconds > 0:
-                            time.sleep(self._retry.retry_cooldown_seconds)
-                        continue
-                    _logger.warning(
-                        "scanner plugin timed out" if is_timeout else "scanner plugin failed, skipping",
-                        plugin_id=str(plugin_id),
-                        error=str(original),
-                    )
-                    if engine is not None and tid is not None:
-                        # Phase 2B-c Priority 4 (recurring-class instance nine):
-                        # the scanner's own stderr, already captured in the
-                        # real exception's context by every adapter's
-                        # ScannerExecutionError raise - read from `original`
-                        # (never the sanitized `exc`), so it survives past
-                        # safe_failure_message()'s deliberate stripping instead
-                        # of dead-ending here.
-                        stderr_excerpt = scanner_stderr_excerpt(original)
-                        if is_timeout:
-                            engine.timeout_scanner(
-                                tid, plugin_id.value, safe_failure_message(exc), stderr_excerpt=stderr_excerpt
-                            )
-                        else:
-                            engine.fail_scanner(
-                                tid, plugin_id.value, safe_failure_message(exc), stderr_excerpt=stderr_excerpt
-                            )
-                    break
+                        if engine is not None and tid is not None:
+                            # Phase 2B-c Priority 4 (recurring-class instance nine):
+                            # the scanner's own stderr, already captured in the
+                            # real exception's context by every adapter's
+                            # ScannerExecutionError raise - read from `original`
+                            # (never the sanitized `exc`), so it survives past
+                            # safe_failure_message()'s deliberate stripping instead
+                            # of dead-ending here.
+                            stderr_excerpt = scanner_stderr_excerpt(original)
+                            if is_timeout:
+                                engine.timeout_scanner(
+                                    tid, plugin_id.value, safe_failure_message(exc), stderr_excerpt=stderr_excerpt
+                                )
+                            else:
+                                engine.fail_scanner(
+                                    tid, plugin_id.value, safe_failure_message(exc), stderr_excerpt=stderr_excerpt
+                                )
+                        break
 
         return tuple(results)
 

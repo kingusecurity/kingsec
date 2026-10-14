@@ -138,6 +138,7 @@ class AssessmentExecutionEngine:
 
     def __init__(self) -> None:
         self._states: dict[str, _InternalState] = {}
+        self._cancel_events: dict[str, threading.Event] = {}
         self._lock = threading.Lock()
 
     # ── Lifecycle ────────────────────────────────────────────────────────
@@ -177,6 +178,13 @@ class AssessmentExecutionEngine:
         ))
         with self._lock:
             self._states[assessment_id] = state
+            # Every tracked execution gets its own cancellation signal,
+            # created up front so a cancel that lands before the first
+            # scanner starts is still observed. The event object itself is
+            # shared with whoever needs to wait on it (the scanner
+            # orchestrator, the subprocess runner); ``set()`` is atomic
+            # and thread-safe, so no lock is needed to signal or poll it.
+            self._cancel_events[assessment_id] = threading.Event()
 
     def set_scanner_plan(self, assessment_id: str, plan: tuple[ScannerPlanEntry, ...]) -> None:
         """Populate the scanner list for an execution already started via
@@ -430,7 +438,65 @@ class AssessmentExecutionEngine:
                 message="Execution cancelled by user",
                 progress_percent=100.0,
             ))
+            # Wake every waiter: the orchestrator's between-scanner check,
+            # its retry-cooldown sleep, and the subprocess runner's poll
+            # loop. Setting the event is what actually stops a running
+            # scan — the phase flip above is only the bookkeeping.
+            event = self._cancel_events.get(assessment_id)
+            if event is not None:
+                event.set()
             return True
+
+    def cancellation_event(self, assessment_id: str) -> threading.Event:
+        """Return the cancellation signal for an assessment.
+
+        The orchestrator and the subprocess runner wait on (or poll) this
+        event; ``cancel_execution()`` sets it. For an assessment the engine
+        never started tracking, a fresh, never-set event is returned so
+        callers never have to special-case ``None``.
+        """
+        with self._lock:
+            event = self._cancel_events.get(assessment_id)
+            if event is None:
+                event = threading.Event()
+                self._cancel_events[assessment_id] = event
+            return event
+
+    def cancel_scanner(self, assessment_id: str, scanner_id: str, reason: str) -> None:
+        """Mark a not-yet-finished scanner as cancelled.
+
+        Only touches scanners still in PENDING or RUNNING — a scanner that
+        already reached a terminal state keeps its real outcome. The
+        scanner lands in FAILED (the only honest terminal state available:
+        it did not produce results) with an error message that says
+        plainly the assessment was cancelled, never implying the scanner
+        itself errored.
+        """
+        with self._lock:
+            state = self._states.get(assessment_id)
+            if state is None:
+                return
+            existing = state.scanner_progress.get(scanner_id)
+            if existing is None:
+                return
+            if existing.status not in (ScannerRunState.PENDING, ScannerRunState.RUNNING):
+                return
+            now = _now()
+            state.scanner_progress[scanner_id] = ScannerProgress(
+                scanner_id=existing.scanner_id,
+                name=existing.name,
+                status=ScannerRunState.FAILED,
+                start_time=existing.start_time,
+                end_time=now,
+                error=f"Assessment cancelled by user — {reason}",
+            )
+            state.events.append(ExecutionEvent(
+                event_type="scanner.cancelled",
+                scanner_id=scanner_id,
+                timestamp=now,
+                message=f"Scanner {existing.name} cancelled: {reason}",
+                progress_percent=_calc_progress(state),
+            ))
 
     # ── Queries ──────────────────────────────────────────────────────────
 
@@ -479,6 +545,7 @@ class AssessmentExecutionEngine:
         """Remove execution state (e.g. after assessment deletion)."""
         with self._lock:
             self._states.pop(assessment_id, None)
+            self._cancel_events.pop(assessment_id, None)
 
 
 @dataclass

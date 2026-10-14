@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 
-from kingsec.domain import AssessmentId, Finding, ScannerRunSummary
+from kingsec.domain import AssessmentId, AssessmentStatus, Finding, ScannerRunSummary
 from kingsec.domain.audit import AuditAction, AuditEntry
 
 from ._support import (
@@ -32,7 +32,7 @@ from ._support import (
 from .assessment_execution import AssessmentExecutionEngine, ExecutionPhase, ScannerPlanEntry
 from .assessment_profiles import ExecutionPlanner, PlanScannerEntry
 from .dto import SubmitAssessmentRequest, SubmitAssessmentResponse
-from .errors import AssessmentConflictError, ExecutionPlanUnsatisfiedError
+from .errors import AssessmentConflictError, AssessmentNotFoundError, ExecutionPlanUnsatisfiedError
 from .events import (
     EVENT_ASSESSMENT_COMPLETED,
     EVENT_ASSESSMENT_FAILED,
@@ -232,6 +232,15 @@ def _execute_scan(
     assessment = assessments.get(assessment_id)
     tracking_id = str(assessment_id)
 
+    if assessment.status == AssessmentStatus.CANCELLED:
+        # The user cancelled between submit and this background thread
+        # starting: never invoke the scanner at all.
+        logging.getLogger(__name__).info(
+            "assessment %s was cancelled before the background scan started - not invoking the scanner",
+            tracking_id,
+        )
+        return
+
     # KSEC-102-01: atomically claim the durable execution record and commit
     # RUNNING BEFORE the scanner is ever invoked (Step 16) - not after,
     # which would recreate the exact "did it start?" ambiguity Phase 101
@@ -343,6 +352,19 @@ def _execute_scan(
             findings = list(scanner.scan(assessment.target, scanner_ids=scanner_ids))
         else:
             findings = list(scanner.scan(assessment.target))
+
+        if execution_engine is not None and execution_engine.is_cancelled(tracking_id):
+            # The run was cancelled mid-flight. The orchestrator has
+            # already stopped dispatching new scanners and the runner has
+            # killed the in-flight scanner's process tree; the engine phase
+            # is CANCELLED. Stop here, before enrichment/recording: a
+            # cancelled assessment must never gain findings, must never be
+            # marked completed/failed, must never have its execution ledger
+            # closed as succeeded — and the stale in-memory `assessment`
+            # copy (RUNNING since this thread started) must never be saved
+            # over the durable CANCELLED state.
+            _converge_assessment_to_cancelled(assessments, assessment_id, tracking_id)
+            return
 
         for finding in findings:
             _enrich(finding, ai)
@@ -551,6 +573,39 @@ def _log_scan_result_discarded(assessment_id: str, execution_id: str | None) -> 
             "reason": "a concurrent Cancel/Delete already changed this assessment's "
             "durable state before the scan's own outcome could be recorded",
         },
+    )
+
+
+def _converge_assessment_to_cancelled(
+    assessments: AssessmentRepository,
+    assessment_id: AssessmentId,
+    tracking_id: str,
+) -> None:
+    """Durably record CANCELLED after the engine observed a mid-flight cancel.
+
+    The main cancel route transitions the domain assessment itself before
+    signalling the engine, so this is usually a no-op. It covers the
+    secondary execution-cancel route (which only signals the engine):
+    without it, an assessment whose scan was actually stopped would sit at
+    RUNNING forever. Re-fetches rather than trusting the stale in-memory
+    copy this background thread has held since the scan started — that
+    copy still says RUNNING and must never be saved over the real state.
+    """
+    try:
+        fresh = assessments.get(assessment_id)
+    except AssessmentNotFoundError:
+        logging.getLogger(__name__).warning(
+            "assessment %s disappeared after cancellation; leaving domain state untouched",
+            tracking_id,
+        )
+        return
+    if fresh.status.is_terminal:
+        return
+    fresh.cancel()
+    assessments.save(fresh)
+    logging.getLogger(__name__).info(
+        "assessment %s converged to CANCELLED after mid-flight cancel",
+        tracking_id,
     )
 
 

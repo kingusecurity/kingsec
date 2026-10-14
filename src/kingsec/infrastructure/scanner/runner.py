@@ -71,16 +71,64 @@ import os
 import signal
 import subprocess  # nosec B404 — scanner binaries are configured by admin, validated, and run with shell=False + timeout
 import sys
+import threading
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Protocol
 
 from kingsec.infrastructure.logging import get_logger
 
-from .errors import BINARY_ABSENT_USER_MESSAGE, ScannerExecutionError
+from .errors import BINARY_ABSENT_USER_MESSAGE, SCAN_CANCELLED_USER_MESSAGE, ScannerExecutionError
 
 _logger = get_logger("kingsec.infrastructure.scanner")
+
+# Cancellation plumbing for a running scanner subprocess.
+#
+# The scanner plugin contract — ``ScannerPluginPort.scan(target, config)`` —
+# has no channel for a cancellation signal, and changing that signature
+# would ripple through every plugin, adapter, and test. Instead the
+# orchestrator publishes the current assessment's cancellation event in a
+# ContextVar for the duration of each plugin's ``scan()`` call, and the
+# runner (the only module that ever holds the live ``Popen`` handle) reads
+# it back here.
+#
+# Why a ContextVar and not a parameter or a shared slot: concurrent
+# assessments run their scans on different threads, and a plain global
+# (or a mutable slot on the shared runner) would let one assessment's
+# cancel kill another assessment's scanner. A ContextVar is bound to the
+# logical scan running in *this* context — each background scan thread gets
+# its own — while the ``threading.Event`` object it carries is deliberately
+# shared across threads, so the HTTP thread that handles the cancel request
+# can set it and the scan thread observes it. The default is ``None``:
+# every existing caller that never sets a scope gets the exact historical
+# behavior (one blocking ``communicate()``).
+_active_cancel_event: ContextVar[threading.Event | None] = ContextVar(
+    "kingsec_scan_cancel_event", default=None
+)
+
+
+@contextmanager
+def cancel_event_scope(event: threading.Event | None) -> Iterator[None]:
+    """Publish ``event`` as the cancellation signal for the current scan.
+
+    The orchestrator wraps each plugin's ``scan()`` invocation in this
+    scope; ``SubprocessCommandRunner.run()`` polls the event while the
+    subprocess is alive. A ``None`` event is a no-op scope.
+    """
+    token = _active_cancel_event.set(event)
+    try:
+        yield
+    finally:
+        _active_cancel_event.reset(token)
+
+
+#: How often the cancellable wait loop re-checks the cancellation event.
+#: Bounds the delay between the user pressing cancel and the scanner
+#: process actually dying.
+_CANCEL_POLL_INTERVAL_SECONDS = 0.5
 
 
 def _create_process_guard() -> int | None:
@@ -241,6 +289,58 @@ class CommandRunner(Protocol):
         ...
 
 
+def _communicate_cancellable(
+    process: subprocess.Popen[str],
+    *,
+    timeout: float,
+    cancel_event: threading.Event,
+    abort_tree: Callable[[], None],
+) -> tuple[str | None, str | None]:
+    """Wait for ``process`` like ``communicate()``, but abortable.
+
+    Polls the process in short slices: each slice re-checks
+    ``cancel_event`` first, so a user cancel kills the whole process tree
+    within ~``_CANCEL_POLL_INTERVAL_SECONDS`` instead of waiting out the
+    full scanner timeout. The absolute ``timeout`` deadline is still
+    honored — cancellation is an additional exit, not a replacement.
+
+    Raises:
+        ScannerExecutionError: with ``transient=False`` when the user
+            cancelled (retrying would contradict the user's explicit
+            request), or the usual timeout error when the deadline hits
+            first.
+    """
+    deadline = time.monotonic() + timeout
+    last_timeout: subprocess.TimeoutExpired | None = None
+    while True:
+        if cancel_event.is_set():
+            abort_tree()
+            raise ScannerExecutionError(
+                "scan cancelled by user",
+                context={"cancelled": True},
+                transient=False,
+                user_message=SCAN_CANCELLED_USER_MESSAGE,
+            )
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            abort_tree()
+            raise ScannerExecutionError(
+                f"scan timed out after {timeout:.0f}s",
+                context={"timeout_seconds": timeout},
+                cause=last_timeout,
+                user_message=(
+                    f"The scan did not complete within the configured {timeout:.0f}-second "
+                    "timeout. If this is expected for the target, increase the scanner's "
+                    "timeout in its configuration."
+                ),
+            ) from last_timeout
+        try:
+            return process.communicate(timeout=min(_CANCEL_POLL_INTERVAL_SECONDS, remaining))
+        except subprocess.TimeoutExpired as exc:
+            last_timeout = exc
+            continue
+
+
 class SubprocessCommandRunner:
     """The production ``CommandRunner`` backed by :mod:`subprocess`.
 
@@ -308,31 +408,54 @@ class SubprocessCommandRunner:
             # dance) is the accepted trade-off.
             _attach_process_guard(guard, process)
 
-            try:
-                stdout, stderr = process.communicate(timeout=timeout)
-            except subprocess.TimeoutExpired as exc:
+            # Popen either succeeded (process is set) or raised
+            # FileNotFoundError above - there is no third outcome.
+            assert process is not None  # nosec B101 — documents the invariant; Popen's only failure mode above is FileNotFoundError
+
+            def _abort_tree() -> None:
+                """Kill the whole process tree and reap the process.
+
+                Shared by the timeout path and the cancellation path: both
+                must leave the entire tree dead (never just the one handle
+                ``Popen.kill()`` holds) before raising.
+                """
+                nonlocal guard
                 if _kill_process_tree(process, guard):
                     # The guard's last handle was just closed to trigger
                     # KILL_ON_JOB_CLOSE - it is no longer valid, and the
                     # outer `finally` below must not try to close it again.
                     guard = None
                 process.wait()
-                raise ScannerExecutionError(
-                    f"scan timed out after {timeout:.0f}s",
-                    context={"timeout_seconds": timeout},
-                    cause=exc,
-                    # The configured timeout duration is product configuration,
-                    # not infrastructure detail (unlike a path or hostname) - an
-                    # admin-set number of seconds, safely interpolatable and
-                    # directly actionable ("raise it if this target is
-                    # legitimately slow"). See Phase 08 report §2/§6 for the
-                    # full reasoning behind this specific judgement call.
-                    user_message=(
-                        f"The scan did not complete within the configured {timeout:.0f}-second "
-                        "timeout. If this is expected for the target, increase the scanner's "
-                        "timeout in its configuration."
-                    ),
-                ) from exc
+
+            cancel_event = _active_cancel_event.get()
+            if cancel_event is None:
+                try:
+                    stdout, stderr = process.communicate(timeout=timeout)
+                except subprocess.TimeoutExpired as exc:
+                    _abort_tree()
+                    raise ScannerExecutionError(
+                        f"scan timed out after {timeout:.0f}s",
+                        context={"timeout_seconds": timeout},
+                        cause=exc,
+                        # The configured timeout duration is product configuration,
+                        # not infrastructure detail (unlike a path or hostname) - an
+                        # admin-set number of seconds, safely interpolatable and
+                        # directly actionable ("raise it if this target is
+                        # legitimately slow"). See Phase 08 report §2/§6 for the
+                        # full reasoning behind this specific judgement call.
+                        user_message=(
+                            f"The scan did not complete within the configured {timeout:.0f}-second "
+                            "timeout. If this is expected for the target, increase the scanner's "
+                            "timeout in its configuration."
+                        ),
+                    ) from exc
+            else:
+                stdout, stderr = _communicate_cancellable(
+                    process,
+                    timeout=timeout,
+                    cancel_event=cancel_event,
+                    abort_tree=_abort_tree,
+                )
         finally:
             # Belt-and-braces: also fires on the SUCCESS path. Closing the
             # guard's last handle kills anything still assigned to it - a

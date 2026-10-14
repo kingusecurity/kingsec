@@ -4,10 +4,12 @@ Cancels a not-yet-terminal assessment. The domain FSM enforces which states
 allow cancellation (DRAFT, AUTHORIZED, RUNNING). Terminal states (COMPLETED,
 CANCELLED, FAILED) raise IllegalStateTransition.
 
-If the assessment is RUNNING when cancelled, the background job should
-ideally be stopped. However, this use case does not own job lifecycle —
-it transitions the domain state. A future module can add job cancellation
-by querying the JobRunner port.
+When the assessment is RUNNING, cancelling must also stop the actual scan
+work: the use case signals the ``AssessmentExecutionEngine``, whose
+cancellation event the scanner orchestrator and the subprocess runner
+observe. Flipping the domain state alone is what made cancellation a
+no-op in production (HTTP 200 while scanners kept running) — the engine
+signal is what gives the 200 its meaning.
 """
 
 from __future__ import annotations
@@ -15,6 +17,7 @@ from __future__ import annotations
 import logging
 
 from kingsec.application._support import check_assessment_access, to_assessment_id
+from kingsec.application.assessment_execution import AssessmentExecutionEngine
 from kingsec.application.dto import CancelAssessmentRequest, CancelAssessmentResponse
 from kingsec.application.events import EVENT_ASSESSMENT_CANCELLED, AssessmentEvent
 from kingsec.application.ports import AssessmentRepository, AuditPublisher, EventPublisher
@@ -29,10 +32,12 @@ class CancelAssessment:
         assessments: AssessmentRepository,
         events: EventPublisher | None = None,
         audit: AuditPublisher | None = None,
+        execution_engine: AssessmentExecutionEngine | None = None,
     ) -> None:
         self._assessments = assessments
         self._events = events
         self._audit = audit
+        self._execution_engine = execution_engine
 
     def execute(self, request: CancelAssessmentRequest) -> CancelAssessmentResponse:
         assessment = self._assessments.get(to_assessment_id(request.assessment_id))
@@ -45,6 +50,16 @@ class CancelAssessment:
         # - COMPLETED/CANCELLED/FAILED -> IllegalStateTransition
         assessment.cancel()
         self._assessments.save(assessment)
+
+        # Stop the actual scan work, not just the domain state. The engine
+        # sets its per-assessment cancellation event, which the
+        # orchestrator (between scanners, during retry cooldowns) and the
+        # subprocess runner (mid-scan, killing the process tree) observe.
+        # Without this, cancel was a 200-OK no-op: the background thread
+        # kept scanning and later overwrote CANCELLED with its own
+        # terminal state.
+        if self._execution_engine is not None:
+            self._execution_engine.cancel_execution(str(assessment.id))
 
         self._publish_event(
             AssessmentEvent(
