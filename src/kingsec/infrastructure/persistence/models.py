@@ -219,6 +219,11 @@ class ReportORM(Base):
     )
     target: Mapped[str] = mapped_column(String, nullable=False)
     generated_at: Mapped[str] = mapped_column(String, nullable=False)  # ISO-8601
+    # When the scan actually ran (ISO-8601), distinct from generated_at
+    # (when the report was rendered). NULL = "not recorded" for rows
+    # persisted before this column existed; readers fall back to
+    # generated_at for those rows.
+    scanned_at: Mapped[str | None] = mapped_column(String, nullable=True)
 
     verdict_headline: Mapped[str] = mapped_column(String, nullable=False)
     verdict_action_required: Mapped[bool] = mapped_column(Boolean, nullable=False)
