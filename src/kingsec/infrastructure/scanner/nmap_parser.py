@@ -10,11 +10,16 @@ Severity mapping (conservative — Nmap itself doesn't rate vulns):
     Open port (no script)  → INFORMATIONAL
     Service with version   → LOW (configuration detail)
     Script vuln/exploit    → MEDIUM or HIGH (based on script id heuristics)
+    Vulners CVE match      → CVSS bands (9.0+ Critical, 7.0+ High,
+                             4.0+ Medium, >0 Low) — but every such finding
+                             is explicitly version-correlated, never
+                             actively confirmed (see _parse_vulners_script).
 """
 
 from __future__ import annotations
 
 import fnmatch
+import re
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -34,7 +39,7 @@ if TYPE_CHECKING:
 else:
     import defusedxml.ElementTree as ET
 
-from kingsec.domain import Evidence, Finding, Severity
+from kingsec.domain import Evidence, Finding, Recommendation, Severity
 from kingsec.infrastructure.logging import get_logger
 
 _logger = get_logger("kingsec.infrastructure.scanner")
@@ -67,6 +72,147 @@ def _classify_script_severity(script_id: str) -> Severity:
         return Severity.MEDIUM
     # Default: scripts that ran successfully but aren't known-vuln → LOW
     return Severity.LOW
+
+
+# --- Vulners CVE correlation -------------------------------------------------
+# nmap's bundled `vulners` NSE script (opt-in via
+# NmapSettings.vulners_script_enabled) queries the Vulners database for CVEs
+# matching each detected service version. Its per-port output looks like:
+#
+#     cpe:/a:apache:http_server:2.4.41:
+#         CVE-2021-44790    9.8    https://vulners.com/cve/CVE-2021-44790
+#
+# HONESTY CONTRACT: these matches are version-correlated, NOT actively
+# confirmed. No exploit check runs; the CVE is associated purely by the
+# version string nmap fingerprinted. OS vendors routinely backport security
+# fixes without changing the advertised version, so a listed CVE may not
+# apply to the installed build. Every finding produced here says so
+# explicitly - in the title ("(version-correlated)"), the description, and
+# the evidence - and the adapter adds a ScannerRunSummary warning whenever
+# correlation runs. A CVE shown as Critical here is "Critical IF the build
+# is genuinely affected", never "exploitable right now".
+_VULNERS_SCRIPT_ID = "vulners"
+
+# Matches the "CVE-2021-44790" prefix of _VULNERS_CVE_TITLE_PATTERN titles -
+# used by the adapter's two-invocation dedupe (nmap.py), same precedent as
+# OPEN_PORT_TITLE_PATTERN.
+VULNERS_CVE_TITLE_PATTERN = re.compile(r"^(CVE-\d{4}-\d+) — ")
+
+_CPE_LINE_RE = re.compile(r"^\s*(cpe:\S+?)\s*:?\s*$")
+_CVE_LINE_RE = re.compile(r"^\s*(CVE-\d{4}-\d+)\s+(\d+(?:\.\d+)?)\s*(\S*)?\s*$")
+
+
+def _cvss_to_severity(score: float) -> Severity:
+    """Standard CVSS v3 severity bands."""
+    if score >= 9.0:
+        return Severity.CRITICAL
+    if score >= 7.0:
+        return Severity.HIGH
+    if score >= 4.0:
+        return Severity.MEDIUM
+    if score > 0:
+        return Severity.LOW
+    return Severity.INFORMATIONAL
+
+
+def _parse_vulners_script(
+    output: str,
+    *,
+    portid: str,
+    protocol: str,
+    addr: str,
+    service_desc: str,
+    product: str,
+    version: str,
+) -> list[Finding]:
+    """Parse one `<script id="vulners">` output block into CVE findings.
+
+    One finding per CVE (deduplicated per port - the script lists the same
+    CVE under every matching CPE). A script error (e.g. vulners.com
+    unreachable) or zero matches yields no findings and a warning log;
+    never a fabricated CVE and never a crash that would fail the parse.
+    """
+    findings: list[Finding] = []
+    if "CVE-" not in output:
+        if re.search(r"error|fail", output, re.IGNORECASE):
+            _logger.warning(
+                "vulners script reported an error - CVE correlation unavailable for this port",
+                port=f"{portid}/{protocol}",
+                addr=addr,
+                output_excerpt=output.strip()[:200],
+            )
+        else:
+            _logger.debug(
+                "vulners script found no CVEs for this port",
+                port=f"{portid}/{protocol}",
+                addr=addr,
+            )
+        return findings
+
+    service_label = " ".join(p for p in (product, version) if p) or service_desc
+    seen: set[str] = set()
+    current_cpe = ""
+    for line in output.splitlines():
+        cpe_match = _CPE_LINE_RE.match(line)
+        if cpe_match:
+            current_cpe = cpe_match.group(1)
+            continue
+        cve_match = _CVE_LINE_RE.match(line)
+        if not cve_match:
+            continue
+        cve_id, score_str = cve_match.group(1), cve_match.group(2)
+        if cve_id in seen:
+            continue
+        seen.add(cve_id)
+        try:
+            score = float(score_str)
+        except ValueError:
+            _logger.debug("skipping vulners CVE with unparsable score", cve=cve_id, score=score_str)
+            continue
+
+        severity = _cvss_to_severity(score)
+        title = f"{cve_id} — {service_label} on port {portid}/{protocol} (version-correlated)"
+        description = (
+            f"{cve_id} (CVSS {score:.1f}) is listed for {service_label} by the Vulners vulnerability "
+            f"database, matched on the detected software version string only. This was NOT actively "
+            f"confirmed against the target - no exploit or patch check was run. Operating-system vendors "
+            f"routinely backport security fixes without changing the advertised version, so this CVE may "
+            f"not actually apply to the installed build. Verify the installed package's changelog or patch "
+            f"level before treating this host as vulnerable."
+        )
+        finding = Finding.create(
+            title=title,
+            description=description,
+            severity=severity,
+            cve_ids=(cve_id,),
+            cvss_score=score,
+            affected_asset=addr,
+        )
+        finding.add_evidence(
+            Evidence(
+                summary=f"Vulners version-match: {cve_id} (CVSS {score:.1f}) on port {portid}/{protocol}",
+                detail=(
+                    f"cve: {cve_id} | cvss: {score:.1f} | cpe: {current_cpe or 'unknown'} | "
+                    f"service: {service_desc} | port: {portid}/{protocol} | addr: {addr} | "
+                    f"correlation: version-match only, not actively confirmed"
+                ),
+                collected_at=datetime.now(UTC),
+            )
+        )
+        finding.add_recommendation(
+            Recommendation(
+                title="Verify and remediate",
+                description=(
+                    f"Check the vendor/OS changelog for {cve_id} against the installed {service_label} build. "
+                    f"If the build is genuinely affected, patch or upgrade to a fixed release and rescan. If the "
+                    f"fix was backported, no action is needed - record the verification so this finding is not "
+                    f"re-raised on the next assessment."
+                ),
+                priority=severity,
+            )
+        )
+        findings.append(finding)
+    return findings
 
 
 # --- Open-port severity model -------------------------------------------------
@@ -287,6 +433,23 @@ def _parse_host(host_el: ET.Element) -> list[Finding]:
             script_id = script_el.get("id", "unknown")
             script_output = script_el.get("output", "")
             if not script_output:
+                continue
+
+            # The vulners script gets dedicated parsing (per-CVE findings with
+            # version-correlated honesty labelling) instead of the generic
+            # one-finding-per-script treatment below.
+            if script_id == _VULNERS_SCRIPT_ID:
+                findings.extend(
+                    _parse_vulners_script(
+                        script_output,
+                        portid=portid,
+                        protocol=protocol,
+                        addr=addr,
+                        service_desc=service_desc,
+                        product=product,
+                        version=version,
+                    )
+                )
                 continue
 
             sev = _classify_script_severity(script_id)

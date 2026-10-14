@@ -18,13 +18,21 @@ from kingsec.domain import Finding, Target, TargetType, decompose_url, is_ipv6_l
 from kingsec.infrastructure.logging import get_logger
 
 from .errors import NONZERO_EXIT_USER_MESSAGE, ScannerExecutionError
-from .nmap_parser import parse_nmap_xml
+from .nmap_parser import VULNERS_CVE_TITLE_PATTERN, parse_nmap_xml
 from .runner import CommandRunner, SubprocessCommandRunner
 
 if TYPE_CHECKING:
     from kingsec.infrastructure.config.models import NmapSettings
 
 _logger = get_logger("kingsec.infrastructure.scanner")
+
+# Carried into ScannerRunSummary.warnings (and therefore the report's
+# Scanner Coverage section) whenever Vulners CVE correlation runs: the
+# CVE findings are version-matched, not actively confirmed.
+_VULNERS_CORRELATION_WARNING = (
+    "Vulners CVE correlation enabled: CVE findings below are version-matched "
+    "via the Vulners database, not actively confirmed - verify patch/backport status."
+)
 
 # Flags nmap treats as mutually-exclusive port selectors. Verified against a
 # real nmap 7.99 binary: whether -p or --top-ports "wins" when both appear
@@ -163,22 +171,30 @@ def _dedupe_findings(findings: Sequence[Finding]) -> tuple[Finding, ...]:
 
     Only needed for the URL two-invocation case, where the explicit port
     can coincidentally fall inside nmap's own default sweep too - both
-    invocations would then independently report the same open port.
+    invocations would then independently report the same open port (and,
+    with Vulners correlation enabled, the same CVE findings for it).
     Non-matching findings (nmap script output, anything without the
     standard "Open port N/proto" title) are never deduplicated - only
-    exact duplicates of the same port/protocol pair are dropped.
+    exact duplicates of the same port/protocol pair are dropped. Vulners
+    CVE findings have fully deterministic titles, so exact title matches
+    collapse safely too.
     """
-    seen: set[tuple[str, str]] = set()
+    seen_ports: set[tuple[str, str]] = set()
+    seen_cves: set[str] = set()
     result: list[Finding] = []
     for finding in findings:
         match = OPEN_PORT_TITLE_PATTERN.match(finding.title)
-        if match is None:
+        if match is not None:
+            key = (match.group(1), match.group(2))
+            if key in seen_ports:
+                continue
+            seen_ports.add(key)
             result.append(finding)
             continue
-        key = (match.group(1), match.group(2))
-        if key in seen:
-            continue
-        seen.add(key)
+        if VULNERS_CVE_TITLE_PATTERN.match(finding.title):
+            if finding.title in seen_cves:
+                continue
+            seen_cves.add(finding.title)
         result.append(finding)
     return tuple(result)
 
@@ -226,8 +242,14 @@ class NmapScannerAdapter(ScannerPort):
         if target.type is TargetType.URL:
             findings, warnings = self._scan_url_two_invocations(target)
             self._last_scan_warnings = warnings
-            return findings
-        return self._scan_single(target, port_spec=None)
+        else:
+            findings = self._scan_single(target, port_spec=None)
+        if self._settings.vulners_script_enabled:
+            # Survives into the persisted report via ScannerRunSummary.warnings:
+            # a reader must know the CVE findings below are version-matched,
+            # not actively confirmed.
+            self._last_scan_warnings = (*self._last_scan_warnings, _VULNERS_CORRELATION_WARNING)
+        return findings
 
     def _scan_single(self, target: Target, *, port_spec: str | None) -> tuple[Finding, ...]:
         """Run exactly one nmap invocation. Raises on failure - the
@@ -367,9 +389,24 @@ class NmapScannerAdapter(ScannerPort):
         if port_spec is not None:
             extra = ["-p", port_spec]
 
+        script_args: list[str] = []
+        if settings.vulners_script_enabled:
+            # The vulners NSE script needs version detection to match
+            # anything; without -sV it runs but finds nothing, which would
+            # read as "no CVEs" - the exact silent-gap defect class. Warn
+            # loudly instead of letting that mislead.
+            if "-sV" not in scan_args and "--version-all" not in scan_args:
+                _logger.warning(
+                    "vulners CVE correlation enabled but version detection (-sV) "
+                    "is not in nmap scan_args - the script will match nothing",
+                    target=target.value,
+                )
+            script_args = ["--script", "vulners"]
+
         return [
             settings.binary_path,
             *scan_args,
+            *script_args,
             *(["-6"] if is_ipv6 else []),
             *extra,
             "-oX",

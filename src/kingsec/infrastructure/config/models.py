@@ -335,6 +335,16 @@ class NmapSettings(BaseModel):
     # an unresponsive or slow resolver can add minutes to a hostname scan
     # that an equivalent IP-address scan never pays), XML output to stdout.
     scan_args: tuple[str, ...] = ("-sV", "-n")
+    # Opt-in CVE correlation via nmap's bundled `vulners` NSE script
+    # (operator-configurable via KINGSEC_NMAP__VULNERS_SCRIPT_ENABLED).
+    # When True, the adapter appends `--script vulners`, which queries the
+    # Vulners database for CVEs matching each detected service version.
+    # Matches are version-correlated, NOT actively confirmed - see
+    # nmap_parser._parse_vulners_script for the honesty contract.
+    # Default off: it needs network access to vulners.com from the scanning
+    # machine, adds scan time, and requires -sV (already the default above;
+    # the adapter warns if an operator removed it).
+    vulners_script_enabled: bool = False
 
     @field_validator("binary_path")
     @classmethod
