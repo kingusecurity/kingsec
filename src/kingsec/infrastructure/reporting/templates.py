@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import math
 import re
+from datetime import datetime
 from html import escape
 
 from kingsec.domain import HistoryPoint, Report, ScannerRunSummary, Severity
@@ -479,8 +480,20 @@ def _coverage_status_block(report: Report) -> str:
     )
 
 
+def _scan_moment(report: Report) -> datetime:
+    """When the scan ran - never the render time.
+
+    ``scanned_at`` is the assessment-creation moment (seconds before the
+    scan starts); ``generated_at`` is when the PDF/HTML was rendered, which
+    can be hours later (a regenerated report must still date the scan).
+    Reports persisted before ``scanned_at`` existed carry None, and the
+    honest rendering for those is the only timestamp the row actually has.
+    """
+    return report.scanned_at or report.generated_at
+
+
 def _cover_page(report: Report, *, brand_name: str) -> str:
-    scan_date = report.generated_at.strftime("%Y-%m-%d")
+    scan_date = _scan_moment(report).strftime("%Y-%m-%d")
     highest = report.verdict.highest_severity
     band_color = _CHART_COLORS[highest] if highest is not None else "#546e7a"
     fields = (
@@ -1338,7 +1351,7 @@ def _affected_assets(report: Report) -> str:
 
 
 def _assessment_information(report: Report) -> str:
-    scan_date = report.generated_at.strftime("%Y-%m-%d %H:%M:%S %Z")
+    scan_date = _scan_moment(report).strftime("%Y-%m-%d %H:%M:%S %Z")
     rows = {
         "Target": report.target,
         "Assessment ID": report.assessment_id,
@@ -1412,8 +1425,15 @@ def _scanner_summary(report: Report) -> str:
         names = ", ".join(escape(n) for n in groups[(status, detail)])
         if status.is_success:
             sentences.append(f"{names}: completed, {escape(detail)}.")
-        else:
+        elif status.is_skip:
+            # Never attempted (incompatible target, missing binary, missing
+            # asset): "not run" is the true fact.
             sentences.append(f"{names}: not run ({escape(detail)}).")
+        else:
+            # Attempted but never finished (failed, timed out, ...): it RAN,
+            # so "not run" would be the wrong fact - and it hides the
+            # retry/attempt history the detail already carries.
+            sentences.append(f"{names}: did not complete ({escape(detail)}).")
 
     return (
         '<section id="scanner-coverage">'
