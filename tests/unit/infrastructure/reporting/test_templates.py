@@ -921,6 +921,23 @@ class TestLimitations:
         assert "CVE-2026-53666" in html
         assert "6.1 (CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N)" in html
 
+    def test_cwe_renders_on_finding_card_when_present(self) -> None:
+        # ZAP's cweid (e.g. CWE-693 for a missing CSP header) must reach
+        # the customer - previously extracted nowhere and rendered nowhere.
+        report = build_report()
+        entries = report.entries
+        cwe_entry = dataclasses.replace(entries[0], cwe_ids=("CWE-693",))
+        report = dataclasses.replace(report, entries=(cwe_entry, *entries[1:]))
+
+        html = render_report_html(report)
+
+        assert "CWE-693" in html
+
+    def test_cwe_row_honest_when_absent(self) -> None:
+        html = render_report_html(build_report())
+        assert "CWE" in html
+        assert "Not available" in html  # honest CWE gap, like CVE/CVSS
+
 
 class TestPortCoverageDisclosure:
     """Task 4: the Limitations section must state real nmap port coverage,
