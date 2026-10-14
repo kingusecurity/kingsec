@@ -1560,6 +1560,10 @@ def _format_cve(entry: FindingSummary) -> str:
     return ", ".join(entry.cve_ids) if entry.cve_ids else _NOT_CORRELATED
 
 
+def _format_cwe(entry: FindingSummary) -> str:
+    return ", ".join(entry.cwe_ids) if entry.cwe_ids else _NOT_CORRELATED
+
+
 def _format_cvss(entry: FindingSummary) -> str:
     if entry.cvss_score is None:
         return _NOT_CORRELATED
@@ -1578,6 +1582,7 @@ def _finding_detail_card(entry: FindingSummary, *, target: str) -> str:
         for k, v in (
             ("Affected Asset", affected_asset),
             ("CVE", _format_cve(entry)),
+            ("CWE", _format_cwe(entry)),
             ("CVSS Score / Vector", _format_cvss(entry)),
         )
     )
